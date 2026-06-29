@@ -272,7 +272,7 @@ class MainWindow(NavigationMixin, DocumentMixin, SettingsMixin, QMainWindow):
         m_view.addSeparator()
         self._act(m_view, "&Calculator", self.toggle_calculator, "Ctrl+K").setIcon(make_icon("hp16c"))
         self._act(m_view, "Get cell value → calculator", self.cell_to_calc, "Ctrl+Shift+G")
-        self._act(m_view, "Send calculator value → cell(s)", self.calc_to_cells, "Ctrl+Shift+H")
+        self._act(m_view, "Send calculator value → cell", self.calc_to_cells, "Ctrl+Shift+H")
         self._act(m_view, "&Terminal", self.show_terminal, "Ctrl+`").setIcon(make_icon("terminal"))
         self._act(m_view, "&Python console", self.show_pyconsole, "Ctrl+Shift+Y").setIcon(make_icon("python"))
         self._act(m_view, "Clip&board history", self.show_clipboard, "Ctrl+Shift+V")

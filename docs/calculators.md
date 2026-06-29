@@ -97,7 +97,7 @@ an ordinary infix expression — `2 + 3 × sin(30)` — and press `=`. It has
 the usual scientific keys (`sin`/`cos`/`tan`, `ln`/`log`, `sqrt`, `^`, `π`,
 `e`, `%`), an `Ans` key that recalls the last result, and `M+`/`MR`/`MC` memory
 keys, plus a Deg/Rad toggle. Like the other models it exposes its current value
-to the cell bridge, so "Get from cell" / "Send to cell(s)" work the same way.
+to the cell bridge, so "Get from cell" / "Send to cell" work the same way.
 
 ## The calculator ↔ cell value bridge
 
@@ -107,11 +107,11 @@ the bottom of the calculator window:
 - **⭱ Get from cell** — load the active cell's numeric value into the
   calculator. Shortcut: `Ctrl+Shift+G`. (If the cell isn't a number, the status
   bar says so.)
-- **Send to cell(s) ⭳** — write the calculator's current value into the
-  selected cell(s). Shortcut: `Ctrl+Shift+H`.
+- **Send to cell ⭳** — write the calculator's current value into the active
+  cell (or every cell of a selected range). Shortcut: `Ctrl+Shift+H`.
 
 Both actions are also in the command palette ("Get cell value → calculator" and
-"Send calculator value → cell(s)").
+"Send calculator value → cell").
 
 Two details worth knowing:
 
@@ -161,7 +161,7 @@ See [Configuration](configuration.md) for where settings and the cache live.
 | --- | --- |
 | Show / hide calculator | `Ctrl+K` |
 | Get cell value → calculator | `Ctrl+Shift+G` |
-| Send calculator value → cell(s) | `Ctrl+Shift+H` |
+| Send calculator value → cell | `Ctrl+Shift+H` |
 
 ---
 

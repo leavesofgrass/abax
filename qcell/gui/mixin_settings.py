@@ -6,7 +6,6 @@ reachable from it.
 
 from __future__ import annotations
 
-from ._qtcompat import QInputDialog
 from .theming import apply_theme, theme_for
 from ..core.reference import to_a1
 
@@ -109,15 +108,20 @@ class SettingsMixin:
             "A scriptable spreadsheet with ~150 formula functions (including "
             "statistical distributions), built-in analysis, pivot/recode, "
             "graphing, and a pandas hand-off — over CSV, Excel, Parquet, SQLite, "
-            "JSON, R, and more.",
+            "JSON, R, and more.<br><br>"
+            "Includes built-in calculators — RPN (programmer, scientific, "
+            "financial), graphing, and algebraic — that exchange values with "
+            "the grid.",
         )
 
     def show_command_palette(self) -> None:
-        actions = self._palette_actions()
-        labels = list(actions)
-        choice, ok = QInputDialog.getItem(self, "Command palette", ">", labels, 0, True)
-        if ok and choice in actions:
-            actions[choice]()
+        from .command_palette import CommandPalette
+
+        dlg = CommandPalette(self, self._palette_actions())
+        # Run the chosen command only after the palette closes, so any dialog it
+        # opens doesn't fight the palette for focus.
+        if dlg.exec() and dlg.chosen() is not None:
+            dlg.chosen()()
 
     def _palette_actions(self) -> dict:
         recording = getattr(self, "_recorder", None) and self._recorder.recording
@@ -145,7 +149,7 @@ class SettingsMixin:
             "Function browser…": self.show_formula_browser,
             "Show/hide calculator": self.toggle_calculator,
             "Get cell value → calculator": self.cell_to_calc,
-            "Send calculator value → cell(s)": self.calc_to_cells,
+            "Send calculator value → cell": self.calc_to_cells,
             "Fetch HP faceplates from GitHub…": self.fetch_faceplates,
             "Terminal…": self.show_terminal,
             "Matrix tool…": self.show_matrix_tool,

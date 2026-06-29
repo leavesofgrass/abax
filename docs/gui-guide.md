@@ -258,9 +258,16 @@ Parquet/Feather, XML Spreadsheet, Markdown, Jupyter `.ipynb`, R, and native
 ## Command palette
 
 Press `Ctrl+Shift+P` — or just type `:` on the grid (gnumeric/vim feel) — to
-open the command palette. It's a searchable list of **every** action: file
-operations, formatting, sheet management, the calculators, analysis tools,
-macros, and more. Loaded macros appear as `Macro: <name>` entries.
+open the command palette: a floating, `rofi`/`dmenu`-style panel with a search
+box above a live-filtered list of **every** action — file operations,
+formatting, sheet management, the calculators, analysis tools, macros, and more.
+Loaded macros appear as `Macro: <name>` entries.
+
+Start typing to fuzzy-match (characters match in order, so `pgb` finds
+"Pivot / group-by"); the best matches rise to the top. It's fully keyboard-driven:
+**↑/↓** (and **PageUp/PageDown**) move the highlight while your cursor stays in
+the search box, **Enter** runs the highlighted command, and **Esc** closes the
+palette. A double-click also runs a command.
 
 ## Menu bar reference
 

@@ -53,7 +53,7 @@ class CalculatorPanel(QWidget):
         get_btn = QPushButton("⭱ Get from cell", self)
         get_btn.setToolTip("Load the active cell's value into the calculator (Ctrl+Shift+G)")
         get_btn.clicked.connect(self._window.cell_to_calc)
-        send_btn = QPushButton("Send to cell(s) ⭳", self)
+        send_btn = QPushButton("Send to cell ⭳", self)
         send_btn.setToolTip("Write the calculator's value into the selected cell(s) (Ctrl+Shift+H)")
         send_btn.clicked.connect(self._window.calc_to_cells)
         interop.addWidget(get_btn)
