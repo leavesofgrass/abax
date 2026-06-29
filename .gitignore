@@ -9,10 +9,12 @@ __pycache__/
 # Build artifacts
 build/
 dist/
-_stage/                 # pyz build-staging dir (see make_pyz.py / just pyz)
+# pyz build-staging dir (see make_pyz.py / just pyz)
+_stage/
 *.egg-info/
 *.egg
-qcell.pyz               # built with `just pyz`; not source
+# qcell.pyz is built with `just pyz`; not source
+qcell.pyz
 
 # Packaging / installer output
 *.whl
