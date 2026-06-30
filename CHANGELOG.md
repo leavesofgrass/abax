@@ -96,6 +96,13 @@ All notable changes to qcell are documented here. The format follows
   The equation editor keeps its live Unicode preview and MathML output (pandoc, or
   a built-in subset converter).
 
+### Known issues
+- On some font configurations the **Help → Keyboard shortcuts** menu item can still
+  render with overlapping/garbled glyphs. The shortcut labels are plain ASCII and the
+  chrome pins a sans-serif font, so this looks like a platform menu-rendering quirk
+  rather than a content problem; it is cosmetic — the action and the F1 shortcuts
+  palette work normally. Tracked for a future release.
+
 ## [0.1.0] — 2026-06-29
 
 Initial public release.
