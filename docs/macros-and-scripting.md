@@ -14,11 +14,13 @@ See also: [index](index.md) · [architecture](architecture.md) · [licensing](li
 > connections, and run shell commands. Only load and run code you trust; treat a
 > downloaded macro the way you would treat any executable.
 >
-> The **Python console runs out-of-process** (a separate worker; the live workbook
-> is shipped to it and back each command), so a crash, hang, or runaway allocation
-> there can't take down qcell. That is **crash/memory isolation, not a security
-> sandbox** — the worker still runs with your full privileges. (Macros and the
-> script runner currently run in-process; a real security sandbox is planned.)
+> The **Python console runs out-of-process and off the UI thread** (a separate
+> worker; the live workbook is shipped to it and back each command), so a crash,
+> hang, or runaway allocation there can't freeze or take down qcell — and a runaway
+> command can be **Interrupt**ed (which kills the worker; the next command respawns
+> it). That is **crash/memory isolation, not a security sandbox** — the worker
+> still runs with your full privileges. (Macros and the script runner currently run
+> in-process; a real security sandbox is planned.)
 >
 > The GUI gates all of these behind a one-time **consent prompt**: the first time
 > you open the console/terminal or run a script/macro, qcell warns you and asks you

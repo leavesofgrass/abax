@@ -534,6 +534,13 @@ class MainWindow(NavigationMixin, DocumentMixin, SettingsMixin, QMainWindow):
         from .. import _runtime as rt
         from ..settings import save_settings
 
+        # Stop the sandboxed console's worker thread + subprocess before teardown.
+        dock = getattr(self, "_pyconsole_dock", None)
+        if dock is not None and dock.widget() is not None:
+            try:
+                dock.widget()._shutdown()
+            except Exception:
+                pass
         self._save_window_state()
         try:
             save_settings(self._settings, rt.CONFIG_DIR / "settings.json")

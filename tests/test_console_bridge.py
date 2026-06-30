@@ -31,3 +31,16 @@ def test_crash_is_isolated_and_recovers(bridge):
     r2 = bridge.execute("put('A1', '1'); print('respawned')", env)
     assert not r2.get("crashed")
     assert "respawned" in r2["output"]
+
+
+def test_interrupt_stops_a_runaway(bridge):
+    import threading
+
+    env = Workbook().to_envelope()
+    timer = threading.Timer(1.5, bridge.interrupt)     # kill the worker mid-run
+    timer.start()
+    r = bridge.execute("while True: pass", env)        # blocks until interrupted
+    timer.cancel()
+    assert r.get("crashed") is True
+    r2 = bridge.execute("print('back')", env)          # respawns and works
+    assert "back" in r2["output"]

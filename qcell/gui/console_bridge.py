@@ -63,6 +63,17 @@ class ConsoleBridge:
                     "envelope": envelope, "crashed": True, "stderr": reason}
         return json.loads(data)
 
+    def interrupt(self) -> None:
+        """Kill the current worker to stop a runaway command. A blocked
+        ``execute()`` then returns a crashed response (its read hits EOF), and the
+        next call respawns a fresh worker. Safe to call from another thread."""
+        proc = self._proc
+        if proc is not None and proc.poll() is None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+
     def _dead_reason(self) -> str:
         proc = self._proc
         if proc is None:
