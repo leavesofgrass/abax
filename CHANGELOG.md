@@ -7,6 +7,18 @@ All notable changes to qcell are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- **Full-fat by default: optional dependencies auto-install on demand** — a new
+  `qcell/autodeps.py` fetches every optional package (the data-science stack,
+  Excel/Parquet I/O, the PTY terminal, Jupyter integration) **automatically in the
+  background** on first GUI/TUI launch, so a plain `pip install qcell` grows into a
+  complete install on its own. Best-effort and non-blocking (a daemon thread,
+  attempted once per machine, silent on failure — qcell keeps using its pure-Python
+  fallbacks meanwhile). Generalises the previous science-stack-only installer to all
+  features. Controls: a new **Tools → Install optional features now** action (force
+  a fetch), a **`qcell deps`** CLI command, the `auto_install` setting, and the
+  `QCELL_NO_AUTOINSTALL` environment variable to opt out. The Qt GUI binding is the
+  one thing not auto-installed (you need it to launch the GUI). `qcell --deps` now
+  reports the auto-install state and how many optional packages are present.
 - **Optional numpy aggregate accelerator** — when numpy is installed, `SUM`,
   `AVERAGE`, `MIN`, `MAX`, `PRODUCT`, `SUMSQ` and `COUNT` over a large
   (≥4096-cell) range that is wholly finite-numeric are reduced with numpy's

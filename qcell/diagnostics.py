@@ -122,6 +122,16 @@ def format_deps() -> str:
     ptystat = "available" if has_pty else "missing  (fallback: line-oriented terminal)"
     lines.append(f"  [{ptymark}] {'PTY (pyte)'.ljust(width)}  {ptystat}  (true terminal)")
     lines.append("")
+    try:
+        from . import autodeps
+
+        present = sum(1 for _pip, mod in autodeps.ALL if autodeps.installed(mod))
+        on = "on" if autodeps.enabled() else "off"
+        lines.append(f"  auto-install: {on}  ({present}/{len(autodeps.ALL)} optional "
+                     "packages present; run 'qcell deps' to fetch the rest)")
+    except Exception:
+        pass
+    lines.append("")
     lines.append(f"  config: {rt.CONFIG_DIR}")
     lines.append(f"  data:   {rt.DATA_DIR}")
     lines.append(f"  cache:  {rt.CACHE_DIR}")

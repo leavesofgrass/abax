@@ -48,6 +48,8 @@ def _build_parser() -> argparse.ArgumentParser:
     pe.add_argument("file")
     pe.add_argument("ref", help="A1 reference, e.g. B7")
 
+    sub.add_parser("deps", help="install the optional dependencies (full-fat)")
+
     pm = sub.add_parser("macro", help="list or run macros")
     msub = pm.add_subparsers(dest="macro_cmd")
     msub.add_parser("list", help="list discovered macros and user functions")
@@ -60,7 +62,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
-_SUBCOMMANDS = frozenset({"gui", "tui", "view", "convert", "get", "macro"})
+_SUBCOMMANDS = frozenset({"gui", "tui", "view", "convert", "get", "macro", "deps"})
 
 
 def _normalize_argv(argv: list[str]) -> list[str]:
@@ -108,6 +110,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_convert(args.src, args.dst, args.values)
     if cmd == "get":
         return _cmd_get(args.file, args.ref)
+    if cmd == "deps":
+        return _cmd_deps()
     if cmd == "macro":
         return _cmd_macro(args, registry, udfs)
 
@@ -123,6 +127,19 @@ def main(argv: list[str] | None = None) -> int:
 
         return run_tui(None, registry)
     parser.print_help()
+    return 0
+
+
+def _cmd_deps() -> int:
+    """Install every optional dependency (full-fat), blocking with progress."""
+    from . import autodeps
+
+    autodeps.set_enabled(True)
+    todo = autodeps.prefetch_all(background=False, force=True)
+    if todo:
+        print(f"Attempted {len(todo)} package(s): {', '.join(todo)}")
+    have = sum(1 for _pip, mod in autodeps.ALL if autodeps.installed(mod))
+    print(f"Optional dependencies present: {have}/{len(autodeps.ALL)}")
     return 0
 
 

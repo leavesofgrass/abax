@@ -20,6 +20,12 @@ def run_tui(file: str | None = None, registry=None) -> int:
     from ..settings import load_settings
 
     settings = load_settings(rt.CONFIG_DIR / "settings.json")
+
+    # Same full-fat auto-install as the GUI: fetch optional deps in the background.
+    from .. import autodeps
+    autodeps.set_enabled(getattr(settings, "auto_install", True))
+    autodeps.prefetch_all()
+
     doc = Document.open(file) if file else Document()
     editor = TuiEditor(doc, registry)
     theme_name = getattr(settings, "tui_theme", "obsidian")

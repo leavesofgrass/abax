@@ -402,6 +402,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._act(m_sci, "Smith &chart...", self.show_smith_chart)
         self._act(m_sci, "&Antenna pattern...", self.show_antenna_pattern)
         m_tools.addSeparator()
+        self._act(m_tools, "Install optional features now", self.install_optional_features)
         self._act(m_tools, "&Budget wizard...", self.show_budget_wizard)
         self._act(m_tools, "&File manager...", self.show_file_manager, "Ctrl+Shift+F")
         m_tools.addSeparator()

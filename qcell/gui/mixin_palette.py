@@ -101,6 +101,7 @@ class PaletteMixin:
             "Matrix tool...": self.show_matrix_tool,
             "File manager...": self.show_file_manager,
             "Budget wizard...": self.show_budget_wizard,
+            "Install optional features now": self.install_optional_features,
             "RF toolkit...": self.show_rf_tool,
             "Smith chart...": self.show_smith_chart,
             "Antenna pattern...": self.show_antenna_pattern,
