@@ -23,6 +23,8 @@ UI, or a headless CLI.
   the statistical distributions (normal, t, F, chi-square) and regression helpers.
 - [Calculators](calculators.md) — RPN, graphing, and algebraic calculators with
   a two-way cell value bridge.
+- [RF toolkit](rf-toolkit.md) — radio-frequency engineering functions: link budget,
+  transmission line & matching, antenna math, and the Maidenhead grid locator.
 
 ## Working in qcell
 

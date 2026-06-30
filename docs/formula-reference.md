@@ -340,6 +340,41 @@ These return scalars; complex numbers are encoded as text such as `"3+4i"`
 | `CONVERT` | Convert between units | `CONVERT(num, from_unit, to_unit)` | `=CONVERT(1,"mi","km")` | `1.609` |
 | `INTERP` | Linear interpolation at x | `INTERP(x, known_xs, known_ys)` | `=INTERP(2.5,A1:A9,B1:B9)` | interpolated y |
 
+## RF / ham radio
+
+SI base units (frequency in Hz, length in m, power in W; levels in dB). Full guide,
+units note, and worked examples in [RF toolkit](rf-toolkit.md).
+
+| Function | Description | Syntax | Example |
+| --- | --- | --- | --- |
+| `DBM2W` / `W2DBM` | dBm ↔ watts | `W2DBM(watts)` | `=DBM2W(30)` → `1` |
+| `DBW2W` / `W2DBW` | dBW ↔ watts | `DBW2W(dbw)` | |
+| `DB2RATIO` / `RATIO2DB` | dB ↔ power ratio | `RATIO2DB(r)` | `=RATIO2DB(2)` → `3.01` |
+| `DBADD` | combine two dB(m) powers | `DBADD(d1, d2)` | `=DBADD(0,0)` → `3.01` |
+| `DBUV2DBM` | dBµV → dBm | `DBUV2DBM(dbuv, [z=50])` | |
+| `SUNIT2DBM` | S-meter → dBm | `SUNIT2DBM(s)` | `=SUNIT2DBM(9)` → `-73` |
+| `NOISEFLOOR` | thermal noise kTB (dBm) | `NOISEFLOOR(bw_hz, [t=290])` | `=NOISEFLOOR(1)` → `-174` |
+| `NF2NT` / `NT2NF` | noise figure ↔ temp | `NF2NT(nf_db, [t0])` | |
+| `WAVELENGTH` / `WL2FREQ` | λ ↔ f | `WAVELENGTH(freq_hz, [vf=1])` | `=WAVELENGTH(3e8)` → `1` |
+| `DIPOLELEN` / `MONOPOLELEN` | physical antenna length (m) | `DIPOLELEN(freq_hz, [k=0.95])` | |
+| `XL` / `XC` | reactance (Ω) | `XL(freq_hz, L)` · `XC(freq_hz, C)` | |
+| `RESFREQ` | LC resonant freq (Hz) | `RESFREQ(L, C)` | |
+| `VSWR` / `VSWRG` | VSWR from Z or \|Γ\| | `VSWR(z_load, [z0=50])` | `=VSWR(75,50)` → `1.5` |
+| `REFLCOEF` | reflection coefficient Γ | `REFLCOEF(z_load, [z0=50])` | |
+| `RETURNLOSS` / `MISMATCHLOSS` | dB from \|Γ\| | `RETURNLOSS(gamma)` | |
+| `VSWR2GAMMA` | \|Γ\| from VSWR | `VSWR2GAMMA(vswr)` | |
+| `Z0COAX` / `VELFACTOR` | coax Z0 / velocity factor | `Z0COAX(D, d, [eps_r=1])` | |
+| `FSPL` | free-space path loss (dB) | `FSPL(dist_m, freq_hz)` | `=FSPL(1000,2.4e9)` → `100.05` |
+| `FRIIS` | received power (dBm) | `FRIIS(ptx, gtx, grx, dist_m, freq_hz)` | |
+| `EIRP` | EIRP (dBm) | `EIRP(ptx_dbm, gain_dbi, [loss=0])` | |
+| `FRESNEL` | Fresnel-zone radius (m) | `FRESNEL(d1, d2, freq_hz, [zone=1])` | |
+| `RADIOHORIZON` | LOS distance (km) | `RADIOHORIZON(h1_m, [h2_m=0])` | |
+| `SKINDEPTH` | skin depth (m) | `SKINDEPTH(freq_hz, [sigma], [mu_r])` | |
+| `DBI2DBD` / `DBD2DBI` | antenna gain reference | `DBI2DBD(dbi)` | `=DBI2DBD(2.15)` → `0` |
+| `GRIDSQUARE` | Maidenhead locator | `GRIDSQUARE(lat, lon, [precision=6])` | `=GRIDSQUARE(48.15,11.6)` → `JN58td` |
+| `GRIDLAT` / `GRIDLON` | locator → centre lat/lon | `GRIDLAT(grid)` | |
+| `GRIDDIST` / `GRIDBEARING` | distance (km) / bearing (°) | `GRIDDIST(a, b)` | `=GRIDDIST("JN58","IO91")` |
+
 ## User-defined functions (UDFs)
 
 User macros can register new functions that are callable in formulas exactly

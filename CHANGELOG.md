@@ -4,6 +4,20 @@ All notable changes to qcell are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **RF / ham-radio formula functions** — ~39 functions backed by a new
+  `core/science/rf.py` (pure stdlib): power/level (`DBM2W`, `W2DBM`, `DBADD`,
+  `DBUV2DBM`, `SUNIT2DBM`, `NOISEFLOOR`, `NF2NT`…), transmission line & matching
+  (`VSWR`, `RETURNLOSS`, `REFLCOEF`, `MISMATCHLOSS`, `Z0COAX`, `VELFACTOR`), link
+  budget & propagation (`FSPL`, `FRIIS`, `EIRP`, `FRESNEL`, `RADIOHORIZON`,
+  `SKINDEPTH`), reactance/resonance (`XL`, `XC`, `RESFREQ`), wavelength/antenna
+  (`WAVELENGTH`, `WL2FREQ`, `DIPOLELEN`, `MONOPOLELEN`, `DBI2DBD`/`DBD2DBI`), and the
+  **Maidenhead grid locator** (`GRIDSQUARE`, `GRIDLAT`/`GRIDLON`, `GRIDDIST`,
+  `GRIDBEARING`). SI units, with arg-hint signatures; documented in
+  [`docs/rf-toolkit.md`](docs/rf-toolkit.md).
+
 ## [0.1.1] — 2026-06-30
 
 ### Added

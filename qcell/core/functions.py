@@ -1570,3 +1570,113 @@ LAZY_FUNCTIONS: dict[str, Callable] = {
     "SWITCH": _lazy_switch,
     "CHOOSE": _lazy_choose,
 }
+
+
+# --- RF / ham-radio functions (backed by core.science.rf) ------------------
+# SI base units (Hz, m, W, H, F); see docs/rf-toolkit.md. The GUI presents
+# metric + imperial, but the formula layer stays unit-neutral.
+
+_RF_REQUIRED = object()
+
+
+def _rf_numeric(name: str, spec: tuple):
+    """Wrap a numeric ``core.science.rf`` function for the formula layer.
+
+    ``spec`` is one entry per positional argument: ``_RF_REQUIRED`` for a required
+    arg, or a default value for an optional one. Missing/blank required args →
+    ``#VALUE!``; domain errors (rf raises ``ValueError``) → ``#NUM!``.
+    """
+    def wrapper(args):
+        from .science import rf as R
+
+        vals = []
+        for i, dflt in enumerate(spec):
+            raw = _arg(args, i, None)
+            if raw is None or raw == "":
+                if dflt is _RF_REQUIRED:
+                    return CellError(CellError.VALUE)
+                vals.append(dflt)
+            else:
+                try:
+                    vals.append(_as_number(raw))
+                except (ValueError, TypeError):
+                    return CellError(CellError.VALUE)
+        try:
+            return getattr(R, name)(*vals)
+        except (ValueError, TypeError, ZeroDivisionError, OverflowError):
+            return CellError(CellError.NUM)
+    return wrapper
+
+
+def _rf_gridsquare(args):
+    from .science import rf as R
+    try:
+        prec = int(_as_number(_arg(args, 2, 6)))
+        return R.grid_square(_as_number(_arg(args, 0)), _as_number(_arg(args, 1)), prec)
+    except (ValueError, TypeError):
+        return CellError(CellError.NUM)
+
+
+def _rf_grid_component(idx: int):
+    def wrapper(args):
+        from .science import rf as R
+        try:
+            return R.grid_to_latlon(_text(_arg(args, 0)))[idx]
+        except (ValueError, TypeError):
+            return CellError(CellError.NUM)
+    return wrapper
+
+
+def _rf_grid_pair(fn: str):
+    def wrapper(args):
+        from .science import rf as R
+        try:
+            return getattr(R, fn)(_text(_arg(args, 0)), _text(_arg(args, 1)))
+        except (ValueError, TypeError):
+            return CellError(CellError.NUM)
+    return wrapper
+
+
+_R = _RF_REQUIRED
+FUNCTIONS.update({
+    "DBM2W": _rf_numeric("dbm_to_w", (_R,)),
+    "W2DBM": _rf_numeric("w_to_dbm", (_R,)),
+    "DBW2W": _rf_numeric("dbw_to_w", (_R,)),
+    "W2DBW": _rf_numeric("w_to_dbw", (_R,)),
+    "DB2RATIO": _rf_numeric("db_to_ratio", (_R,)),
+    "RATIO2DB": _rf_numeric("ratio_to_db", (_R,)),
+    "DBADD": _rf_numeric("db_add", (_R, _R)),
+    "DBUV2DBM": _rf_numeric("dbuv_to_dbm", (_R, 50.0)),
+    "SUNIT2DBM": _rf_numeric("s_unit_to_dbm", (_R,)),
+    "NOISEFLOOR": _rf_numeric("noise_floor_dbm", (_R, 290.0)),
+    "NF2NT": _rf_numeric("nf_to_noise_temp", (_R, 290.0)),
+    "NT2NF": _rf_numeric("noise_temp_to_nf", (_R, 290.0)),
+    "WAVELENGTH": _rf_numeric("wavelength", (_R, 1.0)),
+    "WL2FREQ": _rf_numeric("freq_from_wavelength", (_R, 1.0)),
+    "DIPOLELEN": _rf_numeric("dipole_length", (_R, 0.95)),
+    "MONOPOLELEN": _rf_numeric("monopole_length", (_R, 0.95)),
+    "XL": _rf_numeric("reactance_inductive", (_R, _R)),
+    "XC": _rf_numeric("reactance_capacitive", (_R, _R)),
+    "RESFREQ": _rf_numeric("resonant_freq", (_R, _R)),
+    "VSWR": _rf_numeric("vswr_from_z", (_R, 50.0)),
+    "VSWRG": _rf_numeric("vswr_from_gamma", (_R,)),
+    "REFLCOEF": _rf_numeric("reflection_coefficient", (_R, 50.0)),
+    "RETURNLOSS": _rf_numeric("return_loss_db", (_R,)),
+    "MISMATCHLOSS": _rf_numeric("mismatch_loss_db", (_R,)),
+    "VSWR2GAMMA": _rf_numeric("vswr_to_gamma", (_R,)),
+    "Z0COAX": _rf_numeric("z0_coax", (_R, _R, 1.0)),
+    "VELFACTOR": _rf_numeric("velocity_factor", (_R,)),
+    "FSPL": _rf_numeric("fspl_db", (_R, _R)),
+    "FRIIS": _rf_numeric("friis_rx_dbm", (_R, _R, _R, _R, _R)),
+    "EIRP": _rf_numeric("eirp_dbm", (_R, _R, 0.0)),
+    "FRESNEL": _rf_numeric("fresnel_radius", (_R, _R, _R, 1)),
+    "RADIOHORIZON": _rf_numeric("radio_horizon_km", (_R, 0.0)),
+    "SKINDEPTH": _rf_numeric("skin_depth", (_R, 5.8e7, 1.0)),
+    "DBI2DBD": _rf_numeric("dbi_to_dbd", (_R,)),
+    "DBD2DBI": _rf_numeric("dbd_to_dbi", (_R,)),
+    "GRIDSQUARE": _rf_gridsquare,
+    "GRIDLAT": _rf_grid_component(0),
+    "GRIDLON": _rf_grid_component(1),
+    "GRIDDIST": _rf_grid_pair("grid_distance_km"),
+    "GRIDBEARING": _rf_grid_pair("grid_bearing_deg"),
+})
