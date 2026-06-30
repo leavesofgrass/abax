@@ -57,6 +57,12 @@ All notable changes to qcell are documented here. The format follows
 - **Smith chart** (*Tools → Scientific → Smith chart*) — a QPainter Smith chart that
   plots a load impedance and its reflection coefficient, reports VSWR / return loss,
   and computes the two L-network matching solutions.
+- **NEC `.nec` antenna-deck I/O** — `core/science/nec.py` reads and writes NEC2
+  decks (GW/GE/EX/FR cards, comments; unknown cards noted and skipped), scaling
+  the metre geometry to wavelengths via the frequency card, and solves them with
+  the built-in MoM. Round-trips losslessly and reproduces the direct solver, so
+  qcell can exchange wire-antenna models with NEC tools (4nec2, EZNEC, xnec2c).
+  Available in the console as `nec`.
 - **General 3-D multi-wire MoM (antenna Phase C)** — `core/science/wire_mom.py`
   generalizes the dipole solver to arbitrary polyline wires in 3-D: bent wires,
   V / inverted-V antennas, and multi-element parasitic arrays (Yagi-Uda). Adds the
