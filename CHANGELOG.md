@@ -7,6 +7,12 @@ All notable changes to qcell are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- **`mixin_document` split** (maintainability; no behaviour change) — the
+  ~900-line document mixin is now two: file lifecycle (new/open/save/import, the
+  background `IOWorker` plumbing, recent-files and window title) moves to a new
+  `DocumentIOMixin` in `gui/mixin_io.py`, leaving `DocumentMixin` focused on the
+  table↔sheet sync and cell-editing surface. The window composes both; no public
+  behaviour changes.
 - **Aggregate fast-path** — `SUM`, `AVERAGE`, `MIN`, `MAX`, `PRODUCT`, `MEDIAN`,
   `SUMSQ`, `COUNT` and the descriptive-stats family now walk a range **once**,
   building only the numeric list instead of materializing the full value list and

@@ -21,6 +21,7 @@ from ._qtcompat import (
     QWidget,
 )
 from .mixin_document import DocumentMixin
+from .mixin_io import DocumentIOMixin
 from .mixin_navigation import NavigationMixin
 from .mixin_settings import SettingsMixin
 from ..core.reference import to_a1
@@ -47,7 +48,7 @@ def _fmt_num(x: float) -> str:
     return f"{x:,.6g}"
 
 
-class MainWindow(NavigationMixin, DocumentMixin, SettingsMixin, QMainWindow):
+class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin, QMainWindow):
     def __init__(self, settings, state=None, registry=None) -> None:
         super().__init__()
         self._settings = settings
