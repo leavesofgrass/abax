@@ -20,9 +20,15 @@ from .._runtime import CACHE_DIR
 
 _log = logging.getLogger(__name__)
 
+# Pinned to an immutable commit SHA rather than a branch: upstream renamed its
+# default branch master -> main (which 404'd the old URLs), and there are no
+# tagged releases to pin to, so a commit SHA is the stable choice. Files live
+# under compiled/ on antijingoist/opendyslexic.
+_FONT_REF = "1824da5c0e41dc3e13ffc7f3a636dcaf695d61b7"
+_FONT_BASE = f"https://raw.githubusercontent.com/antijingoist/opendyslexic/{_FONT_REF}/compiled"
 FONT_URLS: list[str] = [
-    "https://github.com/antijingoist/opendyslexic/raw/master/compiled/OpenDyslexic-Regular.otf",
-    "https://github.com/antijingoist/opendyslexic/raw/master/compiled/OpenDyslexic-Bold.otf",
+    f"{_FONT_BASE}/OpenDyslexic-Regular.otf",
+    f"{_FONT_BASE}/OpenDyslexic-Bold.otf",
 ]
 
 

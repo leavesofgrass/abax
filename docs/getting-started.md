@@ -11,22 +11,25 @@ saved spreadsheet with a working formula. For the end-to-end data workflow, see 
 
 ## Installing
 
-qcell is pure Python and works with no optional packages at all — the core spreadsheet engine is stdlib-only. The graphical interfaces and a few performance/format features are pulled in through *extras*. Install only what you need.
+qcell is pure Python and works with no optional packages at all — the core spreadsheet engine is stdlib-only. The graphical interfaces and the data/format features are pulled in through *extras*, each with a graceful stdlib fallback. Install only what you need.
 
 Clone or download the project, then install from the project root:
 
 ```bash
-# Core CLI only (no GUI, no Excel) — runs everywhere
+# Core CLI/TUI only (no third-party packages) — runs everywhere, tiny
 pip install .
 
-# Desktop GUI (Qt) — pulls in PySide6 (LGPL-3.0)
+# Desktop GUI (Qt) — pulls in PySide6-Essentials (LGPL-3.0)
 pip install ".[gui]"
 
-# Everything for day-to-day use
-pip install ".[gui,tui,excel,fast-io]"
+# Lean desktop: GUI + every lightweight convenience, no heavy data libraries
+pip install ".[thin]"
+
+# Everything qcell can use, including the data-science stack
+pip install ".[all]"
 
 # Full developer setup
-pip install ".[dev,tui,gui,excel,fast-io]"
+pip install ".[dev,thin]"
 ```
 
 If you have `just` installed, `just install` runs the full developer setup for you.
@@ -35,12 +38,29 @@ If you have `just` installed, `just install` runs the full developer setup for y
 
 | Extra | Pulls in | Gives you |
 |-------|----------|-----------|
-| `gui` | `PySide6` (LGPL-3.0) | The Qt desktop GUI — the recommended default binding |
+| `gui` | `PySide6-Essentials` (LGPL-3.0) | The Qt desktop GUI — recommended default binding (no QtWebEngine) |
 | `gui-pyqt` | `PyQt6` (GPL/commercial) | An alternative Qt binding; the GUI runs unchanged on either |
 | `tui` | `textual`, `rich` | Richer terminal UI support |
 | `excel` | `openpyxl` | Reading and writing `.xlsx` workbooks |
 | `fast-io` | `msgspec`, `platformdirs` | Faster JSON and OS-correct config/data paths |
-| `all` | all of the above | One-shot install of every optional package |
+| `terminal` | `pyte` | A true PTY terminal panel (with `pywinpty` on Windows) |
+| `parquet` | `pyarrow` | Parquet / Feather I/O |
+| `science` | numpy, pandas, scipy, scikit-learn, statsmodels, lifelines, pingouin, scikit-survival, pymc | The data-science / (bio)statistics stack behind the analysis, ML, and graphing tools |
+| **`thin`** | `gui` + `tui` + `excel` + `fast-io` + `terminal` | A lean desktop install — every lightweight convenience, none of the heavy data libraries |
+| **`all`** | `thin` + `parquet` + `science` | One-shot install of everything qcell can use |
+
+### Install profiles & footprint
+
+Approximate **installed** sizes — similar on Windows and Linux, since the heavy pieces are comparable binary wheels on both:
+
+| Profile | Command | Size |
+|---------|---------|-----:|
+| Core / headless | `pip install .` | **< 1 MB** (+ the Python interpreter) |
+| Desktop GUI | `pip install ".[gui]"` | **~0.22 GB** |
+| Lean desktop | `pip install ".[thin]"` | **~0.22 GB** |
+| Everything | `pip install ".[all]"` | **~0.9 GB** |
+
+The GUI tiers are dominated by Qt (~0.2 GB). `all` adds the scientific stack — roughly +0.7 GB of numpy/scipy/pandas/scikit-learn/pyarrow/… The core and curses TUI need nothing beyond the standard library.
 
 > qcell is licensed **GPL-3.0-or-later**. The default GUI binding is **PySide6**, which is LGPL-3.0. If you prefer PyQt6, install the `gui-pyqt` extra instead — the GUI code never branches on the binding, so it behaves identically on either.
 

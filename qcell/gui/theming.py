@@ -123,8 +123,8 @@ def _read_qss(name: str) -> str:
     return target.read_text(encoding="utf-8")
 
 
-def apply_theme(app, name: str, tokens: dict) -> None:
-    app.setStyleSheet(_read_qss(name).format(**tokens))
+def apply_theme(app, name: str, tokens: dict, extra_qss: str = "") -> None:
+    app.setStyleSheet(_read_qss(name).format(**tokens) + extra_qss)
 
 
 def from_obsidian_css(css: str) -> Theme:

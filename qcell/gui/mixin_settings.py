@@ -21,11 +21,18 @@ _VIM_HINT = (
 
 
 def _ascii(s: str) -> str:
-    """Replace decorative unicode with plain ASCII so the help text never mangles."""
+    """Render a label as plain ASCII so the monospace help text never mangles.
+
+    Known decorative glyphs map to readable equivalents (e.g. ``→`` → ``->``);
+    any other non-ASCII character is then stripped as a backstop, so a stray
+    symbol in a future menu label can never break the layout again.
+    """
     for u, a in (("…", ""), ("›", ">"), ("—", "-"), ("·", "-"),
-                 ("●", "*"), ("≥", ">="), ("≤", "<=")):
+                 ("●", "*"), ("≥", ">="), ("≤", "<="),
+                 ("→", "->"), ("←", "<-"), ("↑", "^"), ("↓", "v"),
+                 ("⭱", "^"), ("⭳", "v"), ("×", "x"), ("÷", "/"), ("•", "*")):
         s = s.replace(u, a)
-    return s
+    return s.encode("ascii", "ignore").decode("ascii")
 
 
 class SettingsMixin:
@@ -36,8 +43,24 @@ class SettingsMixin:
         theme = theme_for(name)
         app = QApplication.instance()
         if app is not None:
-            apply_theme(app, name, theme.tokens())
+            apply_theme(app, name, theme.tokens(), self._ui_font_qss())
         self._theme = theme  # custom-painted surfaces read this
+
+    def _ui_font_qss(self) -> str:
+        """Stylesheet layer forcing the dyslexia font on text-heavy widgets (cells,
+        console, terminal, lists) when enabled — applied over the theme.
+
+        A stylesheet beats ``setFont()``, so this reaches widgets that set their own
+        font (the terminal/console). ``QLabel`` and the QPainter-drawn calculator
+        faceplates are deliberately excluded, so the LCD/keypad keep their display
+        fonts.
+        """
+        fam = getattr(self, "_ui_font_family", "")
+        if not fam:
+            return ""
+        return ("\nQAbstractItemView, QHeaderView, QTableView, QTableWidget, "
+                "QListView, QTreeView, QPlainTextEdit, QTextEdit "
+                f'{{ font-family: "{fam}"; }}\n')
 
     def choose_theme(self) -> None:
         from .theme_dialog import ThemeDialog
@@ -85,14 +108,20 @@ class SettingsMixin:
         lines.append(_VIM_HINT)
         dlg = QDialog(self)
         dlg.setWindowTitle("Keyboard shortcuts")
-        dlg.resize(460, 580)
+        dlg.resize(660, 600)
         layout = QVBoxLayout(dlg)
         view = QPlainTextEdit(dlg)
         view.setReadOnly(True)
+        # Don't wrap: each line is "<action padded to 32>  <shortcut>", so wrapping
+        # would push the shortcut onto the next line / out of view. A horizontal
+        # scrollbar appears only if a line is wider than the (now wider) dialog.
+        view.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         # A per-widget stylesheet beats the global theme QSS (which sets font-size
         # on '*' and would otherwise override setFont and break monospace).
         view.setStyleSheet("QPlainTextEdit { font-family: Consolas, 'Courier New', monospace; font-size: 13px; }")
-        view.setPlainText("\n".join(lines))
+        # Asciify the whole assembled text (not just labels): the shortcut column
+        # and any future content are forced ASCII too, so no stray glyph mangles it.
+        view.setPlainText(_ascii("\n".join(lines)))
         layout.addWidget(view)
         dlg.exec()
 
@@ -296,15 +325,14 @@ class SettingsMixin:
         if panel is None:
             self._set_status("calculator isn't open — press Ctrl+K")
             return
-        v = panel.current_value()
-        if v is None:
+        text = panel.current_text()
+        if text is None:
             self._set_status("the calculator has no numeric value")
             return
         from ..core.reference import to_a1
 
         r1, c1, r2, c2 = self._selected_bounds()
-        text = str(int(v)) if float(v).is_integer() else repr(v)
-        self._doc.checkpoint("calculator → cell(s)")
+        self._doc.checkpoint("calculator → cell")
         sheet = self._doc.workbook.sheet
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
@@ -312,8 +340,16 @@ class SettingsMixin:
                 self._record(to_a1(r, c), text)
         self._doc.mark_dirty()
         self.refresh_table()
+        # Re-anchor the target as the current cell and scroll it into view: the
+        # written value stays visible even if the floating calculator overlaps the
+        # grid, and the next send has a valid anchor (guards a "second send did
+        # nothing" report where the current cell/selection had gone stale).
+        if r1 == r2 and c1 == c2:
+            self._table.setCurrentCell(r1, c1)
+        self._table.scrollTo(self._model.index(r1, c1))
         count = (r2 - r1 + 1) * (c2 - c1 + 1)
-        self._set_status(f"wrote {text} to {count} cell(s)")
+        self._set_status(f"wrote {text} to {to_a1(r1, c1)}"
+                         + (f" +{count - 1} more cell(s)" if count > 1 else ""))
 
     def cell_to_calc(self) -> None:
         """Load the active cell's numeric value into the calculator."""
@@ -550,9 +586,11 @@ class SettingsMixin:
 
         app = QApplication.instance()
         if not on:
+            self._ui_font_family = ""
             if app is not None:
                 app.setFont(QFont())
             self._settings.dyslexic_font = False
+            self.apply_current_theme()           # drop the font layer from the QSS
             self._set_status("default font")
             return
         paths = fontmod.fetched_paths()
@@ -569,9 +607,11 @@ class SettingsMixin:
             if fams:
                 family = fams[0]
         if family and app is not None:
-            app.setFont(QFont(family, 11))
+            app.setFont(QFont(family, 11))          # menus, dialogs, buttons, labels
+            self._ui_font_family = family
             self._settings.dyslexic_font = True
-            self._set_status(f"font: {family}")
+            self.apply_current_theme()              # + cells, console, terminal, lists
+            self._set_status(f"font: {family} (applied across the UI)")
 
     def toggle_dyslexic_font(self) -> None:
         self.apply_dyslexic_font(not getattr(self._settings, "dyslexic_font", False))

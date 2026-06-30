@@ -5,7 +5,7 @@ default:
     @just --list
 
 install:
-    {{python}} -m pip install -e ".[dev,tui,gui,excel,fast-io]"
+    {{python}} -m pip install -e ".[dev,thin]"
 
 test *args:
     {{python}} -m pytest {{args}}

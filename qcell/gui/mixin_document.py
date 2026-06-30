@@ -702,6 +702,13 @@ class DocumentMixin:
         self._grid_min_cols = max(self._grid_min_cols, n_cols + 4)
         self.insert_column(at=max(0, n_cols))
 
+    # Growing the grid inserts rows/columns into the model (begin/endInsert*).
+    # Doing that *synchronously* inside a scrollbar valueChanged handler mutates
+    # the model while the view is mid-scroll/layout, which can re-enter Qt and
+    # crash on fast scrolling. So we only detect the edge here and defer the
+    # actual structural growth to the next event-loop turn; ``_growing`` coalesces
+    # the burst of scroll ticks until the deferred grow has run.
+
     def _maybe_grow_rows(self, value: int) -> None:
         """Grow the grid downward when the user scrolls to the bottom edge.
 
@@ -712,13 +719,18 @@ class DocumentMixin:
             return
         sb = self._table.verticalScrollBar()
         if sb.maximum() > 0 and value >= sb.maximum() - 1:
+            from ._qtcompat import QTimer
+
             self._growing = True
-            try:
-                self._grid_min_rows = max(self._table.rowCount() * 2,
-                                          self._table.rowCount() + 200)
-                self._model.ensure_extent(self._grid_min_rows, self._table.columnCount())
-            finally:
-                self._growing = False
+            QTimer.singleShot(0, self._grow_rows_now)
+
+    def _grow_rows_now(self) -> None:
+        try:
+            self._grid_min_rows = max(self._table.rowCount() * 2,
+                                      self._table.rowCount() + 200)
+            self._model.ensure_extent(self._grid_min_rows, self._table.columnCount())
+        finally:
+            self._growing = False
 
     def _maybe_grow_cols(self, value: int) -> None:
         """Grow the grid rightward when the user scrolls to the right edge."""
@@ -726,12 +738,17 @@ class DocumentMixin:
             return
         sb = self._table.horizontalScrollBar()
         if sb.maximum() > 0 and value >= sb.maximum() - 1:
+            from ._qtcompat import QTimer
+
             self._growing = True
-            try:
-                self._grid_min_cols = self._table.columnCount() + 16
-                self._model.ensure_extent(self._table.rowCount(), self._grid_min_cols)
-            finally:
-                self._growing = False
+            QTimer.singleShot(0, self._grow_cols_now)
+
+    def _grow_cols_now(self) -> None:
+        try:
+            self._grid_min_cols = self._table.columnCount() + 16
+            self._model.ensure_extent(self._table.rowCount(), self._grid_min_cols)
+        finally:
+            self._growing = False
 
     def delete_row(self, at: int | None = None) -> None:
         r1, _c1, r2, _c2 = self._selected_bounds()

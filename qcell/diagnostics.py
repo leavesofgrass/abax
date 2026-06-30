@@ -111,15 +111,6 @@ def format_deps() -> str:
     pmark = "OK " if has_pandoc else "-- "
     pstat = "available" if has_pandoc else "missing  (fallback: built-in subset MathML)"
     lines.append(f"  [{pmark}] {'pandoc'.ljust(width)}  {pstat}")
-    try:
-        import importlib.util as _u
-
-        has_web = _u.find_spec("PyQt6.QtWebEngineWidgets") is not None
-    except Exception:
-        has_web = False
-    wmark = "OK " if has_web else "-- "
-    wstat = "available" if has_web else "missing  (fallback: Unicode equation preview)"
-    lines.append(f"  [{wmark}] {'WebEngine'.ljust(width)}  {wstat}  (MathJax equations)")
     # True PTY terminal: pywinpty (Windows) / os.openpty (POSIX) + pyte.
     try:
         from .core.ptyterm import pty_available

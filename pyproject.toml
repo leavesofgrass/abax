@@ -16,11 +16,24 @@ dependencies = []   # core is stdlib-only; everything else is optional
 [project.optional-dependencies]
 dev      = ["pytest", "ruff==0.15.20", "build"]
 tui      = ["textual", "rich"]
-gui      = ["PySide6"]              # LGPL; the GUI also runs on PyQt6 (gui-pyqt)
+gui      = ["PySide6-Essentials"]  # LGPL Qt Widgets/Gui/Core only — no QtWebEngine/Addons
 gui-pyqt = ["PyQt6"]               # GPL/commercial alternative binding
 excel    = ["openpyxl"]
 fast-io  = ["msgspec", "platformdirs"]
-all      = ["PySide6", "openpyxl", "msgspec", "platformdirs", "textual", "rich"]
+terminal = ["pyte"]                # true PTY terminal (with pywinpty on Windows)
+parquet  = ["pyarrow"]             # Parquet/Feather I/O (via pandas)
+# The data-science stack qcell uses opportunistically (each with a pure-stdlib
+# fallback): numerics, DataFrames, ML, and (bio)statistics.
+science  = [
+    "numpy", "pandas", "scipy", "pyarrow",
+    "scikit-learn", "statsmodels",
+    "lifelines", "pingouin", "scikit-survival", "pymc",
+]
+# Lean install — the GUI plus every lightweight convenience (TUI, Excel, fast-io,
+# terminal), but NONE of the heavy optional data-science libraries. ~0.22 GB.
+thin     = ["qcell[gui,tui,excel,fast-io,terminal]"]
+# Everything qcell can use, in one shot: thin + Parquet + the science stack. ~0.9 GB.
+all      = ["qcell[thin,parquet,science]"]
 
 [project.scripts]
 qcell = "qcell.app:main"

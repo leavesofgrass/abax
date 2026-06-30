@@ -120,11 +120,19 @@ Two details worth knowing:
   block.
 - **Send is undoable.** It's recorded as a single checkpoint, so `Ctrl+Z` puts
   the cells back the way they were.
+- **Send respects the current base.** On the programmer RPN model, if you're
+  working in hexadecimal, octal, or binary, the value lands in the cell as **bare
+  digits** in that base — `FF`, `377`, `11111111` — rather than being converted
+  to decimal (no `0x`/`0o`/`0b` prefix, so it stays compatible with other
+  software). In decimal mode it sends a plain number. The digits match what's on
+  the LCD, including the two's-complement bit
+  pattern for negatives.
 
 For the RPN keypad, "Get from cell" commits any digits you're partway through
 typing before reading, so the number on the LCD is what gets used (not a stale X
-register). Sending writes the value as an integer when it's whole, otherwise as
-a precise decimal.
+register). Sending writes a whole decimal value as an integer, otherwise as a
+precise decimal — or as a based literal when the programmer model isn't in
+decimal (above).
 
 ## Photographic faceplate art
 

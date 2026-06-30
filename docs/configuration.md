@@ -17,7 +17,9 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `tui_theme` | string | `"obsidian"` | TUI color theme. |
 | `zoom` | float | `1.0` | GUI zoom factor. |
 | `column_width` | int | `10` | Default column width. |
-| `dyslexic_font` | bool | `false` | Use the OpenDyslexic font in the GUI (see [OpenDyslexic font](#opendyslexic-font)). |
+| `dyslexic_font` | bool | `false` | Use the OpenDyslexic font across the GUI (see [OpenDyslexic font](#opendyslexic-font)). |
+| `calc_model` | string | `""` | Last-used calculator model key (e.g. `16c`, `15c`, `ti83`, `alg`); restored on launch. Empty = default (HP-16C). |
+| `calc_style` | string | `"image"` | Last-used HP faceplate style (`image` or `vector`). |
 | `faceplate_assets_dir` | string | `""` | Folder of calculator faceplate artwork (see [Faceplate assets](#faceplate-assets)). |
 | `faceplate_repo` | string | `""` | GitHub `owner/name` repo to fetch faceplate assets from. |
 | `open_default_panels` | bool | `true` | Open the default side panels on GUI startup. |
@@ -102,7 +104,7 @@ The GUI renders any preset through a token-based stylesheet, and the GUI theming
 
 ## OpenDyslexic font
 
-qcell can use the **OpenDyslexic** typeface (SIL OFL 1.1), a free, openly licensed font designed to ease reading for people with dyslexia. The binaries are **not bundled**: when you enable the dyslexic font (the `dyslexic_font` setting, toggled in the GUI), qcell downloads the Regular and Bold `.otf` files from the upstream GitHub repository into its cache directory (`CACHE/fonts/`) on first use.
+qcell can use the **OpenDyslexic** typeface (SIL OFL 1.1), a free, openly licensed font designed to ease reading for people with dyslexia. When enabled it applies **across the UI** — menus and dialogs, the grid cells, and the Python console / terminal — while the calculator's LCD and the painted faceplates keep their own display fonts. The binaries are **not bundled**: when you enable the dyslexic font (the `dyslexic_font` setting, toggled in the GUI), qcell downloads the Regular and Bold `.otf` files from the upstream GitHub repository (pinned to a fixed commit) into its cache directory (`CACHE/fonts/`) on first use.
 
 The fetch is best-effort and offline-safe — any network or file error is logged and swallowed, so toggling the font on without a connection simply leaves it unavailable rather than raising an error. Once cached, the font is reused with no further network access.
 

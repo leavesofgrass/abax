@@ -33,6 +33,8 @@ if _HAS_MSGSPEC:
         zoom: float = 1.0
         column_width: int = 10
         dyslexic_font: bool = False
+        calc_model: str = ""
+        calc_style: str = "image"
         faceplate_assets_dir: str = ""
         faceplate_repo: str = ""
         open_default_panels: bool = True
@@ -65,6 +67,8 @@ else:
         zoom: float = 1.0
         column_width: int = 10
         dyslexic_font: bool = False
+        calc_model: str = ""
+        calc_style: str = "image"
         faceplate_assets_dir: str = ""
         faceplate_repo: str = ""
         open_default_panels: bool = True

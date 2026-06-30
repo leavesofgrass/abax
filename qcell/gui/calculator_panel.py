@@ -12,14 +12,14 @@ from ._qtcompat import QComboBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
 
 # (display, kind, key) — kind in {"hp","alg","ti"}
 _MODELS = [
-    ("HP-16C", "hp", "16c"),
-    ("HP-15C", "hp", "15c"),
+    ("Algebraic", "alg", "alg"),
     ("HP-12C", "hp", "12c"),
-    ("TI-83 Plus", "ti", "ti83"),
+    ("HP-15C", "hp", "15c"),
+    ("HP-16C", "hp", "16c"),
     ("TI-82", "ti", "ti82"),
+    ("TI-83 Plus", "ti", "ti83"),
     ("TI-84 Plus", "ti", "ti84"),
     ("TI-84 Plus CE", "ti", "ti84ce"),
-    ("Algebraic", "alg", "alg"),
 ]
 
 
@@ -28,9 +28,16 @@ class CalculatorPanel(QWidget):
         super().__init__()
         self._window = window
         self._widget = None
-        self._kind = "hp"
-        self._key = "16c"
-        self._style = "image"
+        self._kind, self._key, self._style = "hp", "16c", "image"
+        # Restore the last-used model + style (persisted across sessions).
+        s = getattr(window, "_settings", None)
+        saved_key = getattr(s, "calc_model", "") if s is not None else ""
+        for _name, kind, key in _MODELS:
+            if key == saved_key:
+                self._kind, self._key = kind, key
+                break
+        if getattr(s, "calc_style", "") in ("image", "vector"):
+            self._style = s.calc_style
         self._build()
 
     def _build(self) -> None:
@@ -39,10 +46,17 @@ class CalculatorPanel(QWidget):
         self._model_box = QComboBox(self)
         for name, kind, key in _MODELS:
             self._model_box.addItem(name, (kind, key))
+        # Select the default model (HP-16C) before wiring the change signal, so the
+        # dropdown matches the faceplate built below — the list is ordered
+        # Algebraic, HP, TI, which is not where the default sits.
+        default_ix = next((i for i, (_n, k, key) in enumerate(_MODELS)
+                           if (k, key) == (self._kind, self._key)), 0)
+        self._model_box.setCurrentIndex(default_ix)
         self._model_box.currentIndexChanged.connect(self._on_model)
         self._style_box = QComboBox(self)
         self._style_box.addItem("Image", "image")
         self._style_box.addItem("Vector", "vector")
+        self._style_box.setCurrentIndex(1 if self._style == "vector" else 0)
         self._style_box.currentIndexChanged.connect(self._on_style)
         row.addWidget(QLabel("Model:", self))
         row.addWidget(self._model_box, 1)
@@ -72,12 +86,21 @@ class CalculatorPanel(QWidget):
 
     def _on_model(self, _i: int) -> None:
         self._kind, self._key = self._model_box.currentData()
+        self._save_prefs()
         self._rebuild()
 
     def _on_style(self, _i: int) -> None:
         self._style = self._style_box.currentData()
+        self._save_prefs()
         if self._kind == "hp":
             self._rebuild()
+
+    def _save_prefs(self) -> None:
+        """Remember the chosen model + style so they persist across sessions."""
+        s = getattr(self._window, "_settings", None)
+        if s is not None:
+            s.calc_model = self._key
+            s.calc_style = self._style
 
     def _rebuild(self) -> None:
         if self._widget is not None:
@@ -148,6 +171,38 @@ class CalculatorPanel(QWidget):
             except (TypeError, ValueError, AttributeError):
                 return None
         return None
+
+    def current_text(self):
+        """The string ``Send to cell`` writes.
+
+        Same as ``current_value()`` for most models, but for the programmer
+        (HP-16C / RPN16) keypad in a **non-decimal base** it returns the value in
+        that base as **bare digits** — ``FF`` / ``377`` / ``1010`` (no
+        ``0x``/``0o``/``0b`` prefix, for compatibility with other software) —
+        rather than the decimal conversion, matching the LCD's two's-complement
+        bit pattern.
+        """
+        w = self._widget
+        if w is not None and hasattr(w, "keypad"):
+            kp = w.keypad
+            commit = getattr(kp, "_commit_entry", None)
+            if commit is not None:                # flush any in-progress entry
+                commit()
+                if hasattr(w, "_refresh_lcd"):
+                    w._refresh_lcd()
+            rpn = getattr(kp, "rpn", None)
+            base = getattr(rpn, "base", 10) if rpn is not None else 10
+            if rpn is not None and hasattr(rpn, "word_size") and base != 10:
+                try:
+                    # Bare digits in the current base (no 0x/0o/0b prefix),
+                    # matching the LCD — most portable to other software.
+                    return rpn.display().split()[0]
+                except Exception:
+                    pass
+        v = self.current_value()
+        if v is None:
+            return None
+        return str(int(v)) if float(v).is_integer() else repr(v)
 
     def load_value(self, v: float) -> None:
         """Load ``v`` into the calculator's current model."""

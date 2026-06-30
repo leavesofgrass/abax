@@ -19,30 +19,6 @@ from ._qtcompat import (
 )
 from ..core.latexmath import to_mathml, to_unicode
 
-try:  # QtWebEngine is an optional, binding-specific extra; load it for whichever
-    # Qt binding is active. Absent → graceful fall back to the Unicode preview.
-    from ._qtcompat import BINDING
-
-    if BINDING == "PySide6":
-        from PySide6.QtWebEngineWidgets import QWebEngineView
-    else:
-        from PyQt6.QtWebEngineWidgets import QWebEngineView
-    _HAS_WEBENGINE = True
-except ImportError:
-    QWebEngineView = None
-    _HAS_WEBENGINE = False
-
-_MATHJAX_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8">
-<script>MathJax = {{tex: {{inlineMath: [['\\\\(','\\\\)']]}}}};</script>
-<script id="MathJax-script" async
-  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-<style>body{{background:#1e1e2e;color:#cdd6f4;font-size:30px;margin:16px;}}</style>
-</head><body>\\({latex}\\)</body></html>"""
-
-
-def _html_escape(s: str) -> str:
-    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
 
 class EquationDialog(QDialog):
     def __init__(self, window) -> None:
@@ -67,13 +43,6 @@ class EquationDialog(QDialog):
         self._preview.setAccessibleName("Equation preview (Unicode)")
         self._preview.setStyleSheet("padding:12px;")
         layout.addWidget(self._preview)
-
-        self._web = None
-        if _HAS_WEBENGINE:
-            self._web = QWebEngineView(self)
-            self._web.setMinimumHeight(120)
-            self._web.setAccessibleName("Equation preview (MathJax)")
-            layout.addWidget(self._web)
 
         self._mathml = QPlainTextEdit(self)
         self._mathml.setReadOnly(True)
@@ -101,8 +70,6 @@ class EquationDialog(QDialog):
             self._preview.setText(to_unicode(latex))
         except Exception as exc:  # pragma: no cover - defensive
             self._preview.setText(f"(preview error: {exc})")
-        if self._web is not None:
-            self._web.setHtml(_MATHJAX_HTML.format(latex=_html_escape(latex)))
 
     def _gen_mathml(self) -> None:
         from ..core import pandoc

@@ -5,8 +5,6 @@ from __future__ import annotations
 import urllib.error
 import urllib.request
 
-import pytest
-
 from qcell.core import fonts
 
 _FAKE_OTF = b"OTTO\x00fake"
@@ -36,11 +34,21 @@ def test_family_name():
     assert fonts.family_name() == "OpenDyslexic"
 
 
-def test_font_urls_are_exact():
-    assert fonts.FONT_URLS == [
-        "https://github.com/antijingoist/opendyslexic/raw/master/compiled/OpenDyslexic-Regular.otf",
-        "https://github.com/antijingoist/opendyslexic/raw/master/compiled/OpenDyslexic-Bold.otf",
+def test_font_urls_are_pinned_to_a_commit():
+    # Must be pinned to an immutable commit SHA, not a moving branch — upstream
+    # renamed master -> main, which 404'd the old branch URLs.
+    import re
+
+    urls = fonts.FONT_URLS
+    assert [u.rsplit("/", 1)[1] for u in urls] == [
+        "OpenDyslexic-Regular.otf",
+        "OpenDyslexic-Bold.otf",
     ]
+    for u in urls:
+        assert u.startswith(
+            "https://raw.githubusercontent.com/antijingoist/opendyslexic/")
+        assert re.search(r"/[0-9a-f]{40}/compiled/", u), u
+        assert "/master/" not in u and "/main/" not in u
 
 
 def test_fetch_writes_both_files(monkeypatch, tmp_path):

@@ -52,6 +52,21 @@ def test_grid_is_model_view(win):
     assert win._table.model() is win._model
 
 
+def test_deferred_grow_extends_extent(win):
+    # The scroll handlers defer structural model growth out of the valueChanged
+    # signal (fixes a fast-scroll re-entrancy crash). Driving the deferred step
+    # must extend the model and clear the _growing re-entrancy guard.
+    rows0, cols0 = win._table.rowCount(), win._table.columnCount()
+    win._growing = True                      # as _maybe_grow_rows sets it
+    win._grow_rows_now()
+    assert win._table.rowCount() > rows0
+    assert win._growing is False
+    win._growing = True
+    win._grow_cols_now()
+    assert win._table.columnCount() > cols0
+    assert win._growing is False
+
+
 def test_display_vs_edit_role(win):
     win._commit_cell(0, 0, "=1+2")
     model, idx = win._table.model(), win._table.model().index(0, 0)
