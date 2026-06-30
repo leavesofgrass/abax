@@ -28,6 +28,11 @@ from typing import Any, Callable, Iterable
 
 from .errors import CellError, is_error
 from .values import RangeValue
+from .._runtime import aggregate_accelerator
+
+# A single large numeric range is the case the optional numpy accelerator helps;
+# below this many cells the stdlib single-pass reducer is already fast enough.
+_ACCEL_MIN_CELLS = 4096
 
 # --- coercion helpers ------------------------------------------------------
 
@@ -170,17 +175,45 @@ def _arg(args: list, i: int, default: Any = None) -> Any:
 # --- math / aggregate ------------------------------------------------------
 
 
+def _try_accel(args, op: str):
+    """Optional numpy fast path for a single large all-numeric range.
+
+    Returns a one-tuple ``(value,)`` when the engine's accelerator handled it, or
+    ``None`` to mean "use the stdlib reducer". The accelerator only succeeds for a
+    wholly finite-numeric block, where the result is identical to the stdlib one,
+    so semantics never change -- this is pure speed."""
+    if len(args) != 1 or not isinstance(args[0], RangeValue):
+        return None
+    rv = args[0]
+    if rv.nrows * rv.ncols < _ACCEL_MIN_CELLS:
+        return None
+    accel = aggregate_accelerator()
+    if accel is None:
+        return None
+    handled, value = accel(rv, op)
+    return (value,) if handled else None
+
+
 def _sum(args):
+    hit = _try_accel(args, "sum")
+    if hit is not None:
+        return hit[0]
     err, nums = _numbers_checked(args)
     return err if err is not None else sum(nums)
 
 
 def _sumsq(args):
+    hit = _try_accel(args, "sumsq")
+    if hit is not None:
+        return hit[0]
     err, nums = _numbers_checked(args)
     return err if err is not None else sum(n * n for n in nums)
 
 
 def _average(args):
+    hit = _try_accel(args, "mean")
+    if hit is not None:
+        return hit[0]
     err, nums = _numbers_checked(args)
     if err is not None:
         return err
@@ -188,6 +221,9 @@ def _average(args):
 
 
 def _count(args):
+    hit = _try_accel(args, "count")
+    if hit is not None:
+        return hit[0]
     return float(len(_numbers(args)))
 
 
@@ -200,6 +236,9 @@ def _countblank(args):
 
 
 def _min(args):
+    hit = _try_accel(args, "min")
+    if hit is not None:
+        return hit[0]
     err, nums = _numbers_checked(args)
     if err is not None:
         return err
@@ -207,6 +246,9 @@ def _min(args):
 
 
 def _max(args):
+    hit = _try_accel(args, "max")
+    if hit is not None:
+        return hit[0]
     err, nums = _numbers_checked(args)
     if err is not None:
         return err

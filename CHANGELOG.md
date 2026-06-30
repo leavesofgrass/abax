@@ -7,6 +7,14 @@ All notable changes to qcell are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- **Optional numpy aggregate accelerator** — when numpy is installed, `SUM`,
+  `AVERAGE`, `MIN`, `MAX`, `PRODUCT`, `SUMSQ` and `COUNT` over a large
+  (≥4096-cell) range that is wholly finite-numeric are reduced with numpy's
+  vectorized kernels (~3–4× faster than the Python loop). The accelerator lives in
+  the engine layer (`engine/npkernel.py`) and is injected through the
+  `qcell._runtime` seam, so the stdlib core never imports numpy. Any range with
+  text, blanks, errors or NaN transparently falls back to the exact stdlib
+  reducer, so results are unchanged — this is pure speed.
 - **`mixin_document` split** (maintainability; no behaviour change) — the
   ~900-line document mixin is now two: file lifecycle (new/open/save/import, the
   background `IOWorker` plumbing, recent-files and window title) moves to a new

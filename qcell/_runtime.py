@@ -99,3 +99,21 @@ EXCHANGE_DIR = DATA_DIR / "exchange"
 
 for _d in (CONFIG_DIR, DATA_DIR, CACHE_DIR, LOG_DIR, EXCHANGE_DIR):
     _d.mkdir(parents=True, exist_ok=True)
+
+# --- optional aggregate accelerator ---------------------------------------
+# The stdlib core reduces ranges itself; the engine layer may inject a faster
+# numpy-backed reducer here for large all-numeric ranges. core reads the slot
+# through this seam (qcell._runtime is the one sanctioned cross-layer import),
+# so it never imports numpy directly.
+_aggregate_accelerator = None
+
+
+def set_aggregate_accelerator(fn) -> None:
+    """Register (or clear, with ``None``) the optional range-aggregate accelerator."""
+    global _aggregate_accelerator
+    _aggregate_accelerator = fn
+
+
+def aggregate_accelerator():
+    """The currently registered aggregate accelerator, or ``None``."""
+    return _aggregate_accelerator
