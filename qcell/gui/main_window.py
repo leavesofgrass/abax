@@ -78,8 +78,8 @@ class MainWindow(NavigationMixin, DocumentMixin, SettingsMixin, QMainWindow):
         self._start_autosave()
         self._update_status_cluster()
         self._restore_window_state()
-        if getattr(self._settings, "calc_open", False):
-            self.show_calculator()
+        # The calculator is NOT auto-opened on launch — open it on demand (Ctrl+K).
+        # Its model/style are still remembered for when it is opened.
 
     # --- construction -----------------------------------------------------
 

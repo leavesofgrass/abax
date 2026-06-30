@@ -25,16 +25,12 @@ def _win(settings):
     return MainWindow(settings)
 
 
-def test_calc_open_persists_and_restores(app):
+def test_calculator_is_not_auto_opened(app):
+    # A fresh window opens to a clean grid — the calculator is on-demand only.
     win = _win(Settings())
-    assert win._settings.calc_open is False
-    win.show_calculator()
-    assert win._settings.calc_open is True
-    win.toggle_calculator()                        # hide
-    assert win._settings.calc_open is False
-
-    reopened = _win(Settings(calc_open=True))
-    assert reopened._calc_panel() is not None       # restored open on launch
+    assert getattr(win, "_calc_window", None) is None
+    win.show_calculator()                          # opens when asked
+    assert win._calc_panel() is not None
 
 
 def test_calc_degrees_persists(app):

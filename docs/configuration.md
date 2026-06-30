@@ -20,7 +20,6 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `dyslexic_font` | bool | `false` | Use the OpenDyslexic font across the GUI (see [OpenDyslexic font](#opendyslexic-font)). |
 | `calc_model` | string | `""` | Last-used calculator model key (e.g. `16c`, `15c`, `ti83`, `alg`); restored on launch. Empty = default (HP-16C). |
 | `calc_style` | string | `"image"` | Last-used HP faceplate style (`image` or `vector`). |
-| `calc_open` | bool | `false` | Whether the calculator was open; reopened on launch. |
 | `calc_degrees` | bool | `false` | Calculator Deg/Rad mode, restored on launch. |
 | `last_sheet` | int | `0` | Active sheet index, restored on launch. |
 | `last_cell` | string | `""` | Cursor cell (A1), restored on launch. |

@@ -283,7 +283,6 @@ class SettingsMixin:
         win.show()
         win.raise_()
         win.activateWindow()
-        self._settings.calc_open = True            # restore it open next session
         if getattr(win._panel, "_widget", None) is not None:
             win._panel._widget.setFocus()   # so the keyboard drives the calculator
 
@@ -292,7 +291,6 @@ class SettingsMixin:
         win = self._calculator_window()
         if win.isVisible():
             win.hide()
-            self._settings.calc_open = False
         else:
             self.show_calculator()
 
