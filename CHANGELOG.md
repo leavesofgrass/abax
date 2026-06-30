@@ -7,6 +7,12 @@ All notable changes to qcell are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Autocomplete & tab-completion, everywhere** — formula completion now offers the
+  workbook's **defined names and sheet names** plus `TRUE`/`FALSE` (not just
+  function names); the **in-cell editor** gained the same popup completion as the
+  formula bar; the **TUI** completes names/sheets too; and the **Python console**
+  gained **Tab completion** over its namespace, Python keywords, and builtins.
+  Functions still complete with a trailing `(`; names/sheets/constants insert bare.
 - **RF / ham-radio formula functions** — ~39 functions backed by a new
   `core/science/rf.py` (pure stdlib): power/level (`DBM2W`, `W2DBM`, `DBADD`,
   `DBUV2DBM`, `SUNIT2DBM`, `NOISEFLOOR`, `NF2NT`…), transmission line & matching

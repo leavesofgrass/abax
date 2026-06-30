@@ -48,3 +48,18 @@ def test_console_runs_async_and_applies(win, app):
     assert win._doc.workbook.sheet.get("A1") == 5
     assert console._in.isEnabled()             # UI restored after completion
     console._shutdown()
+
+
+def test_console_tab_completion(win):
+    win.show_pyconsole()
+    console = win._pyconsole_dock.widget()
+    inp = console._in
+    inp.setText("compile_e")                   # unique -> inserted whole
+    inp.setCursorPosition(9)
+    inp._tab_complete()
+    assert inp.text() == "compile_expr"
+    inp.setText("she")                          # sheet / sheet_to_df -> common prefix
+    inp.setCursorPosition(3)
+    inp._tab_complete()
+    assert inp.text().startswith("sheet")
+    console._shutdown()

@@ -12,8 +12,16 @@ from ._qtcompat import QCompleter, QStringListModel, Qt
 
 
 class FormulaCompleter:
-    def __init__(self, line_edit) -> None:
+    """Token-aware formula autocomplete for a ``QLineEdit``.
+
+    ``context`` is an optional zero-arg callable returning ``(names, sheets)`` —
+    the workbook's defined names and sheet names — so completion offers those
+    alongside function names.
+    """
+
+    def __init__(self, line_edit, context=None) -> None:
         self._le = line_edit
+        self._context = context
         self._completer = QCompleter([], line_edit)
         self._completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self._completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
@@ -25,7 +33,8 @@ class FormulaCompleter:
         from ..core.completion import complete, current_token
 
         cursor = self._le.cursorPosition()
-        candidates = complete(text, cursor)
+        names, sheets = self._context() if self._context else ((), ())
+        candidates = complete(text, cursor, names=names, sheets=sheets)
         if not candidates:
             self._completer.popup().hide()
             return

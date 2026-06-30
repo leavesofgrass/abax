@@ -68,12 +68,22 @@ class TuiEditor:
         self.completions = []
         self.arg_hint = ""
 
+    def _completion_context(self):
+        """``(names, sheets)`` for autocomplete — the workbook's defined names and
+        sheet names, offered alongside function names."""
+        wb = self.doc.workbook
+        reg = getattr(wb, "names", None)
+        names = tuple(n for n, _ in reg.names()) if reg is not None else ()
+        sheets = tuple(s.name for s in wb.sheets)
+        return names, sheets
+
     def refresh_completions(self) -> None:
         """Recompute candidate names and the active-call arg hint for the buffer."""
         from ..core.completion import complete, format_hint, signature_hint
 
         cursor = len(self.edit_buf)
-        self.completions = complete(self.edit_buf, cursor)
+        names, sheets = self._completion_context()
+        self.completions = complete(self.edit_buf, cursor, names=names, sheets=sheets)
         hint = signature_hint(self.edit_buf, cursor)
         self.arg_hint = format_hint(hint) if hint else ""
 
@@ -81,7 +91,8 @@ class TuiEditor:
         """Tab-completion: single match inserts ``NAME(``; many → common prefix."""
         from ..core.completion import apply_completion, common_prefix, complete, current_token
 
-        cands = complete(self.edit_buf, len(self.edit_buf))
+        names, sheets = self._completion_context()
+        cands = complete(self.edit_buf, len(self.edit_buf), names=names, sheets=sheets)
         if not cands:
             self.completions = []
             return

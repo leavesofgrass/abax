@@ -23,6 +23,7 @@ from .._qtcompat import (
     QEvent,
     QItemSelection,
     QItemSelectionModel,
+    QLineEdit,
     QStyledItemDelegate,
     Qt,
     QTableView,
@@ -62,7 +63,15 @@ class GridDelegate(QStyledItemDelegate):
             combo.setEditable(True)
             combo.addItems(list(rule.values))
             return combo
-        return super().createEditor(parent, option, index)
+        editor = super().createEditor(parent, option, index)
+        # Give the in-cell editor the same formula autocomplete as the formula bar
+        # (function names + the workbook's defined names / sheet names). Held on the
+        # editor so it lives for the edit and is torn down with it.
+        if isinstance(editor, QLineEdit):
+            from ..completion import FormulaCompleter
+            editor._qcell_completer = FormulaCompleter(
+                editor, context=getattr(self._win, "_completion_context", None))
+        return editor
 
     def setEditorData(self, editor, index):  # noqa: N802 (Qt override)
         if isinstance(editor, QComboBox):

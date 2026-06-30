@@ -16,14 +16,95 @@ when installed.
 from __future__ import annotations
 
 from .._qtcompat import (
+    QCompleter,
     QDialog,
+    QEvent,
     QFont,
     QHBoxLayout,
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QStringListModel,
+    Qt,
     QVBoxLayout,
 )
+
+# Identifiers bound in the console namespace (see qcell.core.console_ns); offered
+# for Tab-completion alongside Python keywords and builtins.
+_NS_NAMES = (
+    "doc", "wb", "sheet", "cell", "put", "refresh", "rpn", "compile_expr",
+    "read_matrix", "write_matrix", "sheet_to_df", "df_to_sheet",
+    "matrix", "eigen", "units", "numeric", "complexnum", "fft", "interp", "signal",
+    "spectral", "filters", "ode", "ode_implicit", "resynth", "stats", "cluster",
+    "ml", "trees", "bayes", "metrics", "gmm", "financial", "algebraic", "ti_engine",
+    "np", "numpy", "pd", "pandas", "scipy", "sm", "statsmodels", "sklearn",
+    "pingouin", "pg", "pymc", "pm", "sksurv",
+)
+
+
+def _console_words() -> list[str]:
+    import builtins
+    import keyword
+
+    return sorted(set(_NS_NAMES) | set(keyword.kwlist)
+                  | {n for n in dir(builtins) if not n.startswith("_")})
+
+
+class _ConsoleInput(QLineEdit):
+    """Console input line with explicit **Tab** identifier completion.
+
+    Tab completes the identifier under the cursor against the namespace names,
+    Python keywords, and builtins: a unique match is inserted, multiple matches
+    extend to the common prefix and drop down a popup. (No pop-as-you-type — that
+    is noisy while entering code.)
+    """
+
+    def __init__(self, parent, words: list[str]) -> None:
+        super().__init__(parent)
+        self._words = words
+        self._comp = QCompleter([], self)
+        self._comp.setCaseSensitivity(Qt.CaseSensitivity.CaseSensitive)
+        self._comp.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+        self._comp.setWidget(self)
+        self._comp.activated.connect(self._insert)
+
+    def _token(self) -> tuple[str, int, int]:
+        text, cur = self.text(), self.cursorPosition()
+        start = cur
+        while start > 0 and (text[start - 1].isalnum() or text[start - 1] == "_"):
+            start -= 1
+        return text[start:cur], start, cur
+
+    def _insert(self, word: str) -> None:
+        text, (_, start, cur) = self.text(), self._token()
+        self.setText(text[:start] + word + text[cur:])
+        self.setCursorPosition(start + len(word))
+
+    def _tab_complete(self) -> None:
+        from ...core.completion import common_prefix
+
+        token, start, cur = self._token()
+        if not token:
+            return
+        cands = [w for w in self._words if w.startswith(token)]
+        if not cands:
+            return
+        if len(cands) == 1:
+            self._insert(cands[0])
+            return
+        pre = common_prefix(cands)
+        if len(pre) > len(token):
+            self.setText(self.text()[:start] + pre + self.text()[cur:])
+            self.setCursorPosition(start + len(pre))
+        self._comp.setModel(QStringListModel(cands, self._comp))
+        self._comp.setCompletionPrefix(self._token()[0])
+        self._comp.complete()
+
+    def event(self, e):  # noqa: N802 (Qt override) — catch Tab before focus change
+        if e.type() == QEvent.Type.KeyPress and e.key() == Qt.Key.Key_Tab:
+            self._tab_complete()
+            return True
+        return super().event(e)
 
 _BANNER = (
     "qcell Python console (sandboxed — runs in a separate process, off the UI thread).\n"
@@ -63,7 +144,7 @@ class PyConsole(QDialog):
         self._out.setPlainText(_BANNER)
         layout.addWidget(self._out)
         row = QHBoxLayout()
-        self._in = QLineEdit(self)
+        self._in = _ConsoleInput(self, _console_words())
         self._in.setFont(mono)
         self._in.returnPressed.connect(self._run)
         row.addWidget(self._in, 1)

@@ -125,3 +125,24 @@ def test_udf_appears_after_install():
         assert "MYUDF" in complete("=MYU")
     finally:
         del FUNCTIONS["MYUDF"]
+
+
+def test_complete_includes_names_sheets_constants():
+    out = complete("=SU", names=("Subtotal",), sheets=("Summary",))
+    assert "SUM" in out and "Subtotal" in out and "Summary" in out
+    assert out.index("SUM") < out.index("Subtotal")          # functions first
+    assert "TRUE" in complete("=TR") and "FALSE" in complete("=FA")
+    # names/sheets only offered when passed; bare function completion unchanged
+    assert "Subtotal" not in complete("=SU")
+
+
+def test_apply_completion_paren_only_for_functions():
+    assert apply_completion("=SU", 3, "SUM") == ("=SUM(", 5)        # function -> "("
+    assert apply_completion("=Va", 3, "Vals") == ("=Vals", 5)       # name -> bare
+
+
+def test_is_function():
+    from qcell.core.completion import is_function
+
+    assert is_function("sum") and is_function("FSPL")
+    assert not is_function("Vals")

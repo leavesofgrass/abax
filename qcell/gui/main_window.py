@@ -96,7 +96,7 @@ class MainWindow(NavigationMixin, DocumentMixin, SettingsMixin, QMainWindow):
         self._formula_bar.cursorPositionChanged.connect(lambda *_: self._update_arg_hint())
         from .completion import FormulaCompleter
 
-        self._completer = FormulaCompleter(self._formula_bar)
+        self._completer = FormulaCompleter(self._formula_bar, context=self._completion_context)
         layout.addWidget(self._formula_bar)
 
         from .grid.grid_model import QcellTableModel
@@ -698,6 +698,15 @@ class MainWindow(NavigationMixin, DocumentMixin, SettingsMixin, QMainWindow):
                     stack.append(a.menu())
         m._keep = keep
         return m
+
+    def _completion_context(self):
+        """``(names, sheets)`` for formula autocomplete — the workbook's defined
+        names and sheet names, offered alongside function names."""
+        wb = self._doc.workbook
+        reg = getattr(wb, "names", None)
+        names = tuple(n for n, _ in reg.names()) if reg is not None else ()
+        sheets = tuple(s.name for s in wb.sheets)
+        return names, sheets
 
     def _cell_context_menu(self, pos) -> None:
         # Right-clicking a cell outside the current selection moves to it (Excel /

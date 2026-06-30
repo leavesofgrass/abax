@@ -45,15 +45,37 @@ def current_token(text: str, cursor: int | None = None) -> tuple[str, int]:
     return token, start
 
 
-def complete(text: str, cursor: int | None = None, *, require_formula: bool = True) -> list[str]:
-    """Function names that start with the current token (case-insensitive)."""
+_CONSTANTS = ("TRUE", "FALSE")
+
+
+def complete(text: str, cursor: int | None = None, *, require_formula: bool = True,
+             names: "tuple[str, ...]" = (), sheets: "tuple[str, ...]" = ()) -> list[str]:
+    """Completion candidates for the token ending at the cursor (case-insensitive).
+
+    Always offers matching **function** names; when ``names``/``sheets`` are passed
+    (defined names, sheet names from the workbook) those are offered too, along with
+    the ``TRUE``/``FALSE`` constants. Functions come first, then names, sheets, and
+    constants, de-duplicated case-insensitively.
+    """
     if require_formula and not text.startswith("="):
         return []
     token, _ = current_token(text, cursor)
     if not token:
         return []
     up = token.upper()
-    return [n for n in function_names() if n.startswith(up)]
+    out = [n for n in function_names() if n.startswith(up)]
+    seen = {n.upper() for n in out}
+    for extra in (sorted(names), sorted(sheets), _CONSTANTS):
+        for n in extra:
+            if n.upper().startswith(up) and n.upper() not in seen:
+                seen.add(n.upper())
+                out.append(n)
+    return out
+
+
+def is_function(name: str) -> bool:
+    """True if ``name`` is a registered function (built-in or UDF)."""
+    return name.upper() in {n.upper() for n in function_names()}
 
 
 def common_prefix(names: list[str]) -> str:
@@ -68,11 +90,15 @@ def common_prefix(names: list[str]) -> str:
 
 
 def apply_completion(text: str, cursor: int | None, name: str) -> tuple[str, int]:
-    """Replace the current token with ``name(`` and return ``(text, cursor)``."""
+    """Replace the current token with ``name`` and return ``(text, cursor)``.
+
+    A function gets a trailing ``(`` (cursor lands inside the call); a defined name,
+    sheet name, or constant is inserted bare.
+    """
     if cursor is None:
         cursor = len(text)
     _, start = current_token(text, cursor)
-    insert = name + "("
+    insert = name + "(" if is_function(name) else name
     new_text = text[:start] + insert + text[cursor:]
     return new_text, start + len(insert)
 
