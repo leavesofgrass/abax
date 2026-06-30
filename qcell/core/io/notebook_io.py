@@ -40,7 +40,12 @@ def to_notebook(workbook: Workbook) -> dict:
         "metadata": {
             "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
             "language_info": {"name": "python"},
-            "qcell": {"app": "qcell", "schema_version": 1},
+            # The full workbook envelope rides along in metadata so a qcell-written
+            # notebook round-trips losslessly (formulas, multiple sheets, styles,
+            # names, validations); other tools ignore this key, and qcell falls back
+            # to scanning the markdown tables for foreign notebooks.
+            "qcell": {"app": "qcell", "schema_version": 1,
+                      "workbook": workbook.to_envelope()},
         },
         "nbformat": 4,
         "nbformat_minor": 5,
@@ -102,6 +107,14 @@ def _py_literal(value) -> str:
 
 
 def from_notebook(nb: dict, default_name: str = "Sheet") -> Workbook:
+    # Lossless path: a qcell-written notebook carries the workbook envelope.
+    env = ((nb.get("metadata") or {}).get("qcell") or {}).get("workbook")
+    if env:
+        try:
+            return Workbook.from_envelope(env)
+        except Exception:
+            pass  # malformed envelope -> fall through to the markdown table scan
+
     wb = Workbook.__new__(Workbook)
     wb.sheets = []
     wb.active = 0

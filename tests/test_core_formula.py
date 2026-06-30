@@ -225,3 +225,14 @@ def test_functions_ending_in_digits():
     s.set("A2", "=ATAN2(1, 0)")
     assert s.get("A1") == pytest.approx(3)
     assert s.get("A2") == pytest.approx(0)
+
+
+def test_sheet_repr_html():
+    s = Sheet()
+    s.set("A1", "Price")
+    s.set("A2", "10")
+    s.set("A3", "=A2*2")
+    h = s._repr_html_()
+    assert "<table" in h and "<th>A</th>" in h
+    assert "20" in h                                   # computed value rendered
+    assert Sheet()._repr_html_() == "<i>empty sheet</i>"

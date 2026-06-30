@@ -276,6 +276,33 @@ class Sheet:
         for (r, c), cell in self._cells.items():
             yield r, c, cell
 
+    def _repr_html_(self) -> str:
+        """Rich HTML table — lets a Sheet display as a grid in Jupyter / IPython /
+        the qcell console's rich display. Bounded so a huge sheet stays printable."""
+        import html
+
+        from .reference import index_to_col
+
+        nr, nc = self.used_bounds()
+        if nr == 0 or nc == 0:
+            return "<i>empty sheet</i>"
+        max_r, max_c = min(nr, 200), min(nc, 50)
+        head = "".join(f"<th>{index_to_col(c)}</th>" for c in range(max_c))
+        body = []
+        for r in range(max_r):
+            cells = "".join(f"<td>{html.escape(self.display(r, c))}</td>" for c in range(max_c))
+            body.append(f"<tr><th style='text-align:right'>{r + 1}</th>{cells}</tr>")
+        notes = []
+        if nr > max_r:
+            notes.append(f"{nr - max_r} more rows")
+        if nc > max_c:
+            notes.append(f"{nc - max_c} more columns")
+        tail = f"<div><i>… {', '.join(notes)}</i></div>" if notes else ""
+        return (f"<b>{html.escape(self.name)}</b>"
+                "<table border='1' style='border-collapse:collapse'>"
+                f"<thead><tr><th></th>{head}</tr></thead><tbody>"
+                + "".join(body) + "</tbody></table>" + tail)
+
     def recalculate(self) -> None:
         """Force a full recompute (clears caches, evaluates every cell)."""
         self._value_cache.clear()

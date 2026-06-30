@@ -88,6 +88,30 @@ def test_notebook_roundtrip_via_tables():
     assert wb2.sheets[0].name == wb.sheets[0].name  # named from heading
 
 
+def test_notebook_lossless_roundtrip_preserves_formulas_and_sheets():
+    wb = Workbook()
+    wb.sheet.name = "Data"
+    wb.sheet.set("A2", "10")
+    wb.sheet.set("A3", "=A2*1.1")
+    wb.add_sheet("Notes").set("A1", "hi")
+    nb = to_notebook(wb)
+    assert "workbook" in nb["metadata"]["qcell"]          # envelope embedded
+    wb2 = from_notebook(nb)
+    assert [s.name for s in wb2.sheets] == ["Data", "Notes"]
+    assert wb2.sheet.get_raw(2, 0) == "=A2*1.1"           # formula preserved, not its value
+    assert wb2.sheet.get("A3") == 11.0
+
+
+def test_notebook_foreign_falls_back_to_table_scan():
+    foreign = {
+        "cells": [{"cell_type": "markdown", "metadata": {},
+                   "source": ["## T\n", "\n", "| a | b |\n", "|---|---|\n", "| 1 | 2 |\n"]}],
+        "metadata": {}, "nbformat": 4, "nbformat_minor": 5,
+    }
+    wb = from_notebook(foreign)
+    assert [s.name for s in wb.sheets] == ["T"]
+
+
 # --- R ---------------------------------------------------------------------
 
 
