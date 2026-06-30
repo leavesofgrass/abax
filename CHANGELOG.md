@@ -60,6 +60,17 @@ All notable changes to qcell are documented here. The format follows
   shortcuts: `Ctrl+K`, `Ctrl+Shift+Y`, `` Ctrl+` ``).
 
 ### Fixed
+- **Grid copy/cut/paste reliability** — the grid view now handles `Ctrl+C`/`Ctrl+X`/
+  `Ctrl+V` directly, so they work even when a focused cell editor or an ambiguous
+  menu shortcut would otherwise swallow them.
+- **Right-click targets the clicked cell** — right-clicking a cell outside the
+  current selection now moves to it (Excel/gnumeric behaviour), so context-menu
+  Paste / Clear / Format act where you clicked rather than on the copy source.
+- **Menu/label text mangled under OpenDyslexic** — the accessibility font has no
+  glyphs for `… → › · ↑ ↓ ● ○`, so Qt fell back to a CJK font with overlapping
+  metrics. All rendered GUI labels (menus, the keyboard-shortcuts palette, status
+  indicators, dialogs) are now ASCII; the painted calculator faceplates keep their
+  own glyphs.
 - **Named ranges and data-validation ranges now follow row/column insert & delete.**
   Previously only cell formulas and conditional-format rules were adjusted, so a
   named range like `Vals = A1:A3` (or a validation region) kept pointing at stale

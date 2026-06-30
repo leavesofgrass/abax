@@ -155,7 +155,7 @@ Move to cell **B5** and type a formula. Formulas start with `=`:
 =SUM(B2:B4)
 ```
 
-Press `Enter`. The cell shows the computed total, `12`. qcell ships with around 110 functions — `SUM`, `AVERAGE`, `IF`, `VLOOKUP`, `CONCAT`, date functions, and more. As you type a function name the GUI offers autocomplete and an argument hint showing the current parameter. See [formula-reference.md](formula-reference.md) for the full function list.
+Press `Enter`. The cell shows the computed total, `12`. qcell ships with around 150 functions — `SUM`, `AVERAGE`, `IF`, `VLOOKUP`, `CONCAT`, date functions, and more. As you type a function name the GUI offers autocomplete and an argument hint showing the current parameter. See [formula-reference.md](formula-reference.md) for the full function list.
 
 A few things worth knowing right away:
 

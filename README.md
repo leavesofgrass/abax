@@ -73,7 +73,7 @@ python -m qcell view qrpn-save.json --sheet stack   # read a qrpn calculator sav
 
 ## Formulas
 
-~115 functions across aggregate, conditional, math, lookup, logical, text, date,
+~150 functions across aggregate, conditional, math, lookup, logical, text, date,
 statistics, and info families:
 
 ```

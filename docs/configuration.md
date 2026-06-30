@@ -40,7 +40,7 @@ qcell never hardcodes paths. It resolves four OS-appropriate directories at star
 |-----------|-------|
 | **CONFIG** | `settings.json`, the `macros/` folder for auto-discovered macros. |
 | **DATA** | Persistent application data, including an `exchange/` subfolder for the generic JSON interchange format. |
-| **CACHE** | Downloaded assets — the OpenDyslexic font (`fonts/`) and fetched faceplate artwork (`faceplates/`). |
+| **CACHE** | Downloaded assets — the OpenDyslexic font (`fonts/`). |
 | **LOG** | Log files. |
 
 Typical locations per platform:
