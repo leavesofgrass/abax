@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from qcell.core.voyager_layout import (
+from qcell.core.calc.voyager_layout import (
     Button,
     Layout,
     LayoutError,

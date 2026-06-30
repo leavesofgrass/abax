@@ -8,10 +8,10 @@ functional legends (primary white, gold ``f``, blue ``g``), an LCD window, and a
 
 The qv original wired the keys to a Nut-engine + keycode + model stack and used a
 417-line segmented LCD renderer. Here that is all replaced by qcell's pure-Python
-HP-15C keypad (:class:`qcell.core.voyager.VoyagerKeypad`) and a plain right-aligned
+HP-15C keypad (:class:`qcell.core.calc.voyager.VoyagerKeypad`) and a plain right-aligned
 monospace :class:`QLabel` for the LCD phosphor window. Key positions are computed
 from the Voyager button numbers (a functional 4×10 matrix) via
-:func:`qcell.core.voyager.grid_pos`, so this needs no KML files.
+:func:`qcell.core.calc.voyager.grid_pos`, so this needs no KML files.
 
 Qt comes through the binding shim (``qcell.gui._qtcompat``), like the rest of the
 GUI, so this paint-heavy widget runs on PySide6 or PyQt6 unchanged.
@@ -39,9 +39,9 @@ from ._qtcompat import (
     Qt,
     QWidget,
 )
-from ..core.rpn12 import LEGENDS_12C, Voyager12Keypad
-from ..core.rpn16 import LEGENDS_16C, Voyager16Keypad
-from ..core.voyager import BUTTONS, LEGENDS_15C, VoyagerKeypad, grid_pos
+from ..core.calc.rpn12 import LEGENDS_12C, Voyager12Keypad
+from ..core.calc.rpn16 import LEGENDS_16C, Voyager16Keypad
+from ..core.calc.voyager import BUTTONS, LEGENDS_15C, VoyagerKeypad, grid_pos
 
 # Virtual canvas + layout metrics (match qv's image-faceplate proportions).
 _CANVAS_W, _CANVAS_H = 558, 350

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core.ti_engine import (
+from qcell.core.calc.ti_engine import (
     SCREEN_H,
     SCREEN_W,
     TIEngine,

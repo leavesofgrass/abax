@@ -1,6 +1,6 @@
 """HP-12C financial, statistics, and calendar math — pure-Python primitives.
 
-The float side of the HP-12C keypad (:mod:`qcell.core.rpn12`) implements the
+The float side of the HP-12C keypad (:mod:`qcell.core.calc.rpn12`) implements the
 five TVM registers itself; this module supplies the *rest* of the 12C's stubbed
 functionality so those keys can do real work: discounted cash flows
 (:func:`npv`, :func:`irr`), bond pricing (:func:`bond_price`, :func:`bond_ytm`),

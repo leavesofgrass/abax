@@ -236,7 +236,7 @@ class Voyager12Keypad:
     def _handle_financial(self, label: str) -> bool:
         if label not in self._FIN_LABELS:
             return False
-        from . import financial as F
+        from .. import financial as F
 
         if not hasattr(self, "stats"):
             self.stats = F.Stats()
@@ -275,7 +275,7 @@ class Voyager12Keypad:
     def _handle_advanced(self, label: str) -> bool:
         if label not in self._ADV_LABELS:
             return False
-        from . import financial as F
+        from .. import financial as F
 
         if not hasattr(self, "date_mode"):
             self.date_mode = "MDY"          # HP-12C default date format

@@ -1,4 +1,4 @@
-"""Tests for the HP-12C financial keypad (:mod:`qcell.core.rpn12`).
+"""Tests for the HP-12C financial keypad (:mod:`qcell.core.calc.rpn12`).
 
 Sign convention under test (HP cash-flow): money received is positive, money
 paid out is negative. For a loan you receive the principal (``PV`` positive) and
@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core import voyager
-from qcell.core.rpn12 import BUTTONS, LEGENDS_12C, Voyager12Keypad, grid_pos
+from qcell.core.calc import voyager
+from qcell.core.calc.rpn12 import BUTTONS, LEGENDS_12C, Voyager12Keypad, grid_pos
 
 # Button numbers by primary legend, for readable presses.
 _BY_PRIMARY = {legend[0]: num for num, legend in LEGENDS_12C.items()}

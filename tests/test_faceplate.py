@@ -10,7 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("qcell.gui._qtcompat")
 
-from qcell.core.voyager import LEGENDS_15C, VoyagerKeypad  # noqa: E402
+from qcell.core.calc.voyager import LEGENDS_15C, VoyagerKeypad  # noqa: E402
 from qcell.gui._qtcompat import QApplication  # noqa: E402
 from qcell.gui.faceplate import VoyagerFaceplate  # noqa: E402
 

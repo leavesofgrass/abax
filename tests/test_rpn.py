@@ -1,4 +1,4 @@
-"""The pure-Python HP-style RPN calculator engine (qcell.core.rpn)."""
+"""The pure-Python HP-style RPN calculator engine (qcell.core.calc.rpn)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qcell.core.rpn import RPN, RPNError
+from qcell.core.calc.rpn import RPN, RPNError
 
 
 def test_always_lift_interleaved():

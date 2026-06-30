@@ -55,7 +55,7 @@ def test_find_assets_dir_none_when_absent(tmp_path):
 
 
 def test_image_faceplate_composites_external_art(app, tmp_path):
-    from qcell.core.rpn16 import Voyager16Keypad
+    from qcell.core.calc.rpn16 import Voyager16Keypad
     from qcell.gui.image_faceplate import ImageFaceplate
 
     d = _make_assets(tmp_path / "16c")

@@ -3,9 +3,9 @@
 qcell ships **no** calculator artwork. This widget loads a faceplate image set
 (background + optional legend overlay + per-key cap PNGs, described by a Nonpareil
 KML) from a directory the user points at — e.g. their own faceplate assets
-— via :func:`qcell.core.voyager_layout.parse_layout`, and renders it over a
-qcell keypad (:class:`qcell.core.voyager.VoyagerKeypad` /
-:class:`qcell.core.rpn16.Voyager16Keypad`). Clicks are hit-tested against the KML
+— via :func:`qcell.core.calc.voyager_layout.parse_layout`, and renders it over a
+qcell keypad (:class:`qcell.core.calc.voyager.VoyagerKeypad` /
+:class:`qcell.core.calc.rpn16.Voyager16Keypad`). Clicks are hit-tested against the KML
 button rectangles and routed to ``keypad.press(number)``.
 
 Derived from the author's earlier ``image_faceplate`` work, but the HP badge /
@@ -33,7 +33,7 @@ from ._qtcompat import (
     Qt,
     QWidget,
 )
-from ..core.voyager_layout import Layout, parse_layout
+from ..core.calc.voyager_layout import Layout, parse_layout
 
 _SURROUND = QColor(18, 18, 20)
 _LCD_BG = "#0c1410"

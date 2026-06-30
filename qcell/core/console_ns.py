@@ -121,7 +121,6 @@ def build_namespace(workbook, refresh=None) -> dict:
         refresh()
 
     from . import (
-        algebraic,
         bayes,
         cluster,
         complexnum,
@@ -141,12 +140,12 @@ def build_namespace(workbook, refresh=None) -> dict:
         signal,
         spectral,
         stats,
-        ti_engine,
         trees,
         units,
     )
+    from .calc import algebraic, ti_engine
+    from .calc.rpn import RPN
     from .graphing import compile_expr
-    from .rpn import RPN
 
     _np = _opt("numpy")
     _pd = _opt("pandas")

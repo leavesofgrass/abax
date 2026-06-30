@@ -4,7 +4,7 @@ Mirrors the HP :class:`qcell.gui.faceplate.VoyagerFaceplate` approach: the whole
 calculator (body, screen bezel, key caps, the blue **2nd** legends printed above
 each key) is rendered with ``QPainter`` onto a base pixmap, and mouse clicks are
 hit-tested against key rectangles. One brain
-(:class:`qcell.core.ti_engine.TIEngine`) drives a home screen, a Y= editor, a
+(:class:`qcell.core.calc.ti_engine.TIEngine`) drives a home screen, a Y= editor, a
 graph (with a live TRACE cursor), or a table.
 
 The 82/83/84 (and the colour 84 Plus CE) differ only by a cosmetic SKIN — case
@@ -30,7 +30,7 @@ from ._qtcompat import (
     QWidget,
 )
 from ..core.graphing import compile_expr
-from ..core.ti_engine import SCREEN_H, SCREEN_W, TIEngine
+from ..core.calc.ti_engine import SCREEN_H, SCREEN_W, TIEngine
 
 # Per-model skin: (display name, body colour, accent, window-key label, colour screen?).
 SKINS = {

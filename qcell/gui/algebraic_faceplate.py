@@ -1,6 +1,6 @@
 """A plain algebraic (infix) calculator faceplate — a button grid + display.
 
-Drives :class:`qcell.core.algebraic.AlgebraicCalc`. Unlike the HP RPN faceplates
+Drives :class:`qcell.core.calc.algebraic.AlgebraicCalc`. Unlike the HP RPN faceplates
 you build an expression and press ``=``. Exposes ``value()``/``set_value()`` so the
 calculator panel can move numbers to/from the active spreadsheet cell.
 """
@@ -8,7 +8,7 @@ calculator panel can move numbers to/from the active spreadsheet cell.
 from __future__ import annotations
 
 from ._qtcompat import QGridLayout, QLabel, QPushButton, Qt, QVBoxLayout, QWidget
-from ..core.algebraic import AlgebraicCalc
+from ..core.calc.algebraic import AlgebraicCalc
 
 # (label, action) — action is a token to input, or a "@name" command.
 _KEYS = [

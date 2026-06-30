@@ -179,7 +179,7 @@ class TuiEditor:
         from .core.clipboard import ClipboardManager
 
         self.clips = ClipboardManager()  # text copy history
-        self.rpn = None  # core.rpn.RPN, lazily created
+        self.rpn = None  # core.calc.rpn.RPN, lazily created
         self.rpn_input = ""  # input buffer when mode == rpn
         self.plot_pts: list = []  # sampled points when mode == plot
         self.plot_expr = ""
@@ -420,13 +420,13 @@ class TuiEditor:
 
     def _ensure_rpn(self):
         if self.rpn is None:
-            from .core.rpn import RPN
+            from .core.calc.rpn import RPN
 
             self.rpn = RPN()
         return self.rpn
 
     def _handle_rpn_cmd(self, args: list[str]) -> None:
-        from .core.rpn import RPNError
+        from .core.calc.rpn import RPNError
 
         rpn = self._ensure_rpn()
         if args:  # one-shot evaluation
@@ -442,7 +442,7 @@ class TuiEditor:
 
     def rpn_eval(self) -> None:
         """Evaluate the rpn input line, or run a cell-interop command."""
-        from .core.rpn import RPNError
+        from .core.calc.rpn import RPNError
 
         rpn = self._ensure_rpn()
         line = self.rpn_input.strip()

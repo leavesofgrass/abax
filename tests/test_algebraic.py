@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qcell.core.algebraic import (
+from qcell.core.calc.algebraic import (
     SAFE_CONSTS,
     SAFE_FUNCTIONS,
     AlgebraicCalc,
