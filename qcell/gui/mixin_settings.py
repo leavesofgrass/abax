@@ -306,7 +306,7 @@ class SettingsMixin:
         win = getattr(self, "_calc_window", None)
         if win is None:
             from ._qtcompat import QDialog, QVBoxLayout
-            from .calculator_panel import CalculatorPanel
+            from .calc.calculator_panel import CalculatorPanel
 
             win = QDialog(self)
             win.setWindowTitle("Calculator")
@@ -485,7 +485,7 @@ class SettingsMixin:
 
         def build():
             try:
-                from .ptyterminal import PtyView, available
+                from .console.ptyterminal import PtyView, available
 
                 if available():
                     view = PtyView(self)
@@ -493,7 +493,7 @@ class SettingsMixin:
                     return view
             except Exception:
                 pass
-            from .terminal import Terminal
+            from .console.terminal import Terminal
 
             return Terminal(self)
 
@@ -604,7 +604,7 @@ class SettingsMixin:
         if not self._require_code_consent("The Python console"):
             return
         from ._qtcompat import Qt
-        from .pyconsole import PyConsole
+        from .console.pyconsole import PyConsole
 
         self._show_dock("_pyconsole_dock", "Python console",
                         lambda: PyConsole(self), Qt.DockWidgetArea.BottomDockWidgetArea)

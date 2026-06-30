@@ -14,8 +14,8 @@ not the computed value.
 
 from __future__ import annotations
 
-from ._qtcompat import QAbstractTableModel, QBrush, QColor, QFont, QModelIndex, Qt
-from ..core.reference import index_to_col
+from .._qtcompat import QAbstractTableModel, QBrush, QColor, QFont, QModelIndex, Qt
+from ...core.reference import index_to_col
 
 # Headroom past the used range so there is always blank space to type into; the
 # view virtualizes, so a generous extent is cheap. It grows on demand and never
@@ -162,7 +162,7 @@ class QcellTableModel(QAbstractTableModel):
         key = (r, c)
         hit = cache.get(key, _MISS)
         if hit is _MISS:
-            from ..core.format.condformat import color_at
+            from ...core.format.condformat import color_at
 
             hit = color_at(self._sheet(), rules, r, c, self._scale_ctx)
             cache[key] = hit
@@ -176,7 +176,7 @@ class QcellTableModel(QAbstractTableModel):
         only repaints the visible viewport, never the full range — and the
         per-cell fill cache is dropped so edited values re-color correctly.
         """
-        from ..core.format.condformat import scale_context
+        from ...core.format.condformat import scale_context
 
         sheet = self._sheet()
         self._cond_rules = sheet.cond_rules or []

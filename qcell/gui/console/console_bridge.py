@@ -13,7 +13,7 @@ import os
 import subprocess
 import sys
 
-from ..console_worker import _read_frame, _write_frame
+from ...console_worker import _read_frame, _write_frame
 
 _BOOT = "from qcell.console_worker import main; main()"
 

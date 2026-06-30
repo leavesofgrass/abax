@@ -16,7 +16,7 @@ A ``QTableView`` over :class:`~qcell.gui.grid_model.QcellTableModel` that:
 
 from __future__ import annotations
 
-from ._qtcompat import (
+from .._qtcompat import (
     QAbstractItemDelegate,
     QAbstractItemView,
     QComboBox,
@@ -217,7 +217,7 @@ class CellTableView(QTableView):
             self.move_cursor_by(*move)
 
     def _jump_edge(self, key) -> None:
-        from ..core.navigation import jump_edge
+        from ...core.navigation import jump_edge
 
         dr, dc = {Qt.Key.Key_Up: (-1, 0), Qt.Key.Key_Down: (1, 0),
                   Qt.Key.Key_Left: (0, -1), Qt.Key.Key_Right: (0, 1)}[key]

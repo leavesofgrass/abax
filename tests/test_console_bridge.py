@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from qcell.core.workbook import Workbook
-from qcell.gui.console_bridge import ConsoleBridge
+from qcell.gui.console.console_bridge import ConsoleBridge
 
 
 @pytest.fixture()

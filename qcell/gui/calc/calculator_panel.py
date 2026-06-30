@@ -8,7 +8,7 @@ Hosted in a QDockWidget so it can sit beside the grid (default: right side).
 
 from __future__ import annotations
 
-from ._qtcompat import QComboBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from .._qtcompat import QComboBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 # (display, kind, key) — kind in {"hp","alg","ti"}
 _MODELS = [

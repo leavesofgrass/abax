@@ -15,7 +15,7 @@ when installed.
 
 from __future__ import annotations
 
-from ._qtcompat import (
+from .._qtcompat import (
     QDialog,
     QFont,
     QHBoxLayout,
@@ -84,8 +84,8 @@ class PyConsole(QDialog):
         envelope = self._win._doc.workbook.to_envelope()
         self._set_running(True)
 
-        from ._qtcompat import QThread
-        from ..workers import FuncWorker
+        from .._qtcompat import QThread
+        from ...workers import FuncWorker
 
         self._thread = QThread(self)
         self._worker = FuncWorker(lambda s=src, e=envelope: self._bridge.execute(s, e))

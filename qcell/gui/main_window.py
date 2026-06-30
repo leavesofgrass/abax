@@ -63,8 +63,8 @@ class MainWindow(NavigationMixin, DocumentMixin, SettingsMixin, QMainWindow):
         self._clip = None  # last copied region (core.fill.Clip)
         self._clipboard = ClipboardManager()  # text/copy history
         self._setup_ui()
-        from .frozen_panes import FrozenPanes
-        from .grid_view import GridDelegate
+        from .grid.frozen_panes import FrozenPanes
+        from .grid.grid_view import GridDelegate
 
         self._frozen = FrozenPanes(self)
         self._table.setItemDelegate(GridDelegate(self))
@@ -99,8 +99,8 @@ class MainWindow(NavigationMixin, DocumentMixin, SettingsMixin, QMainWindow):
         self._completer = FormulaCompleter(self._formula_bar)
         layout.addWidget(self._formula_bar)
 
-        from .grid_model import QcellTableModel
-        from .grid_view import CellTableView
+        from .grid.grid_model import QcellTableModel
+        from .grid.grid_view import CellTableView
 
         self._model = QcellTableModel(self)
         self._table = CellTableView(self, self._model)

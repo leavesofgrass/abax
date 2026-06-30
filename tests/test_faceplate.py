@@ -12,7 +12,7 @@ pytest.importorskip("qcell.gui._qtcompat")
 
 from qcell.core.calc.voyager import LEGENDS_15C, VoyagerKeypad  # noqa: E402
 from qcell.gui._qtcompat import QApplication  # noqa: E402
-from qcell.gui.faceplate import VoyagerFaceplate  # noqa: E402
+from qcell.gui.calc.faceplate import VoyagerFaceplate  # noqa: E402
 
 # Reverse-lookup: primary legend -> button number (for readable presses).
 _BY_PRIMARY = {legends[0]: n for n, legends in LEGENDS_15C.items()}

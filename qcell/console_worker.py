@@ -1,6 +1,6 @@
 """Out-of-process worker for the sandboxed Python console.
 
-Spawned by :mod:`qcell.gui.console_bridge` as a child process
+Spawned by :mod:`qcell.gui.console.console_bridge` as a child process
 (``python -c "from qcell.console_worker import main; main()"``). It runs user code
 in a separate process — crash isolation now, and a seam for OS-level confinement
 later. The live workbook is shipped in and out as an envelope each command, so the

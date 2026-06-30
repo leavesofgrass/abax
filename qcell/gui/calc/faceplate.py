@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import math
 
-from ._qtcompat import (
+from .._qtcompat import (
     QBrush,
     QColor,
     QFont,
@@ -39,9 +39,9 @@ from ._qtcompat import (
     Qt,
     QWidget,
 )
-from ..core.calc.rpn12 import LEGENDS_12C, Voyager12Keypad
-from ..core.calc.rpn16 import LEGENDS_16C, Voyager16Keypad
-from ..core.calc.voyager import BUTTONS, LEGENDS_15C, VoyagerKeypad, grid_pos
+from ...core.calc.rpn12 import LEGENDS_12C, Voyager12Keypad
+from ...core.calc.rpn16 import LEGENDS_16C, Voyager16Keypad
+from ...core.calc.voyager import BUTTONS, LEGENDS_15C, VoyagerKeypad, grid_pos
 
 # Virtual canvas + layout metrics (match qv's image-faceplate proportions).
 _CANVAS_W, _CANVAS_H = 558, 350

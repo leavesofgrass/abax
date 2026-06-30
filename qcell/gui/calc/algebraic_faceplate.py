@@ -7,8 +7,8 @@ calculator panel can move numbers to/from the active spreadsheet cell.
 
 from __future__ import annotations
 
-from ._qtcompat import QGridLayout, QLabel, QPushButton, Qt, QVBoxLayout, QWidget
-from ..core.calc.algebraic import AlgebraicCalc
+from .._qtcompat import QGridLayout, QLabel, QPushButton, Qt, QVBoxLayout, QWidget
+from ...core.calc.algebraic import AlgebraicCalc
 
 # (label, action) — action is a token to input, or a "@name" command.
 _KEYS = [

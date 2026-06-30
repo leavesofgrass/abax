@@ -15,7 +15,7 @@ from __future__ import annotations
 
 # Paint-heavy widget: geometry/metrics + higher-level classes all come through
 # the binding shim, so it runs on PySide6 or PyQt6.
-from ._qtcompat import (
+from .._qtcompat import (
     QColor,
     QDialog,
     QFont,
@@ -28,8 +28,8 @@ from ._qtcompat import (
     QVBoxLayout,
     QWidget,
 )
-from ..core.format.ansipalette import resolve
-from ..core.ptyterm import PtyTerminal, pty_available
+from ...core.format.ansipalette import resolve
+from ...core.ptyterm import PtyTerminal, pty_available
 
 _COLS, _ROWS = 100, 30
 _FG = (212, 221, 228)

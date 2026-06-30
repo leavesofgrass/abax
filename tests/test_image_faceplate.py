@@ -40,14 +40,14 @@ def app():
 
 
 def test_find_assets_dir_prefers_settings(tmp_path):
-    from qcell.gui.image_faceplate import find_assets_dir
+    from qcell.gui.calc.image_faceplate import find_assets_dir
 
     d = _make_assets(tmp_path / "voyager" / "16c")
     assert find_assets_dir(str(tmp_path / "voyager"), "16c") == d
 
 
 def test_find_assets_dir_none_when_absent(tmp_path):
-    from qcell.gui.image_faceplate import find_assets_dir
+    from qcell.gui.calc.image_faceplate import find_assets_dir
 
     # an empty dir (no background.png / kml) under a model that won't match the
     # well-known fallbacks for a bogus model name
@@ -56,7 +56,7 @@ def test_find_assets_dir_none_when_absent(tmp_path):
 
 def test_image_faceplate_composites_external_art(app, tmp_path):
     from qcell.core.calc.rpn16 import Voyager16Keypad
-    from qcell.gui.image_faceplate import ImageFaceplate
+    from qcell.gui.calc.image_faceplate import ImageFaceplate
 
     d = _make_assets(tmp_path / "16c")
     fp = ImageFaceplate(Voyager16Keypad(), d)

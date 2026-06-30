@@ -244,7 +244,7 @@ def test_selected_ranges_round_trip(win):
 # --- delegate commit-and-move -------------------------------------------
 
 def test_delegate_enter_sets_pending_move(win):
-    from qcell.gui.grid_view import GridDelegate
+    from qcell.gui.grid.grid_view import GridDelegate
 
     delegate = GridDelegate(win)
     editor = QLineEdit()

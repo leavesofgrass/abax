@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import threading
 
-from ._qtcompat import (
+from .._qtcompat import (
     QDialog,
     QFont,
     QLineEdit,
@@ -18,7 +18,7 @@ from ._qtcompat import (
     QTimer,
     QVBoxLayout,
 )
-from ..core.shell import ShellSession
+from ...core.shell import ShellSession
 
 
 class Terminal(QDialog):

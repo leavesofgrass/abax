@@ -18,7 +18,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from ._qtcompat import (
+from .._qtcompat import (
     QColor,
     QFont,
     QImage,
@@ -33,7 +33,7 @@ from ._qtcompat import (
     Qt,
     QWidget,
 )
-from ..core.calc.voyager_layout import Layout, parse_layout
+from ...core.calc.voyager_layout import Layout, parse_layout
 
 _SURROUND = QColor(18, 18, 20)
 _LCD_BG = "#0c1410"
@@ -67,7 +67,7 @@ def find_assets_dir(settings_dir: str = "", model: str = "16c") -> "Path | None"
         candidates += [root / "qrpn-voyager" / rel, root / "qv" / rel]
     # assets the user fetched from a GitHub repo into the cache (Tools → Fetch…)
     try:
-        from ..core import faceplate_assets
+        from ...core import faceplate_assets
 
         cached = faceplate_assets.model_dir(model)
         if cached is not None:

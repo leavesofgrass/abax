@@ -15,7 +15,7 @@ the virtualized grid).
 
 from __future__ import annotations
 
-from ._qtcompat import QAbstractItemView, QEvent, QObject, Qt, QTableView
+from .._qtcompat import QAbstractItemView, QEvent, QObject, Qt, QTableView
 
 
 class FrozenPanes(QObject):

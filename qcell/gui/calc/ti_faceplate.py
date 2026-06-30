@@ -14,7 +14,7 @@ screen is the classic mono LCD or the CE colour panel.
 
 from __future__ import annotations
 
-from ._qtcompat import (
+from .._qtcompat import (
     QBrush,
     QColor,
     QFont,
@@ -29,8 +29,8 @@ from ._qtcompat import (
     Qt,
     QWidget,
 )
-from ..core.calc.ti_engine import SCREEN_H, SCREEN_W, TIEngine
-from ..core.graphing import compile_expr
+from ...core.calc.ti_engine import SCREEN_H, SCREEN_W, TIEngine
+from ...core.graphing import compile_expr
 
 # Per-model skin: (display name, body colour, accent, window-key label, colour screen?).
 SKINS = {
@@ -337,7 +337,7 @@ class TIScreen(QWidget):
             p.drawLine(0, int(axes["x_axis_row"] * sy), w, int(axes["x_axis_row"] * sy))
         if axes.get("y_axis_col") is not None:
             p.drawLine(int(axes["y_axis_col"] * sx), 0, int(axes["y_axis_col"] * sx), h)
-        from ._qtcompat import QPointF
+        from .._qtcompat import QPointF
         for idx, pts in eng.graph_pixels().items():
             p.setPen(QPen(self._trace_colour(idx), max(1.0, sx)))
             last = None
