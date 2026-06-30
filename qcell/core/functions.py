@@ -1678,6 +1678,31 @@ def _rf_grid_pair(fn: str):
     return wrapper
 
 
+def _rf_hamband(args):
+    from .science import rf_bands as B
+    try:
+        name = B.band_for_frequency(_as_number(_arg(args, 0)))
+    except (ValueError, TypeError):
+        return CellError(CellError.VALUE)
+    return name if name is not None else CellError(CellError.NA)
+
+
+def _rf_ctcss_tone(args):
+    from .science import rf_bands as B
+    try:
+        return B.ctcss_tone(int(_as_number(_arg(args, 0))))
+    except (ValueError, TypeError):
+        return CellError(CellError.NUM)
+
+
+def _rf_nearest_ctcss(args):
+    from .science import rf_bands as B
+    try:
+        return B.nearest_ctcss(_as_number(_arg(args, 0)))
+    except (ValueError, TypeError):
+        return CellError(CellError.VALUE)
+
+
 _R = _RF_REQUIRED
 FUNCTIONS.update({
     "DBM2W": _rf_numeric("dbm_to_w", (_R,)),
@@ -1720,4 +1745,7 @@ FUNCTIONS.update({
     "GRIDLON": _rf_grid_component(1),
     "GRIDDIST": _rf_grid_pair("grid_distance_km"),
     "GRIDBEARING": _rf_grid_pair("grid_bearing_deg"),
+    "HAMBAND": _rf_hamband,
+    "CTCSSTONE": _rf_ctcss_tone,
+    "NEARESTCTCSS": _rf_nearest_ctcss,
 })

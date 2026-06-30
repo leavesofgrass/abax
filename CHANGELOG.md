@@ -35,6 +35,11 @@ All notable changes to qcell are documented here. The format follows
   formula bar; the **TUI** completes names/sheets too; and the **Python console**
   gained **Tab completion** over its namespace, Python keywords, and builtins.
   Functions still complete with a trailing `(`; names/sheets/constants insert bare.
+- **Ham-radio reference data** — a new `core/science/rf_bands.py` (US Part 97 band
+  plan + the 50 standard EIA CTCSS tones) with three formula functions:
+  `HAMBAND(freq_hz)` (frequency → band name, e.g. 14.1 MHz → `20m`),
+  `CTCSSTONE(n)` (tone number 1–50 → Hz), and `NEARESTCTCSS(freq_hz)` (snap a
+  measured tone to the nearest standard).
 - **RF / ham-radio formula functions** — ~39 functions backed by a new
   `core/science/rf.py` (pure stdlib): power/level (`DBM2W`, `W2DBM`, `DBADD`,
   `DBUV2DBM`, `SUNIT2DBM`, `NOISEFLOOR`, `NF2NT`…), transmission line & matching

@@ -158,6 +158,8 @@ SIGNATURES = {
     "GRIDSQUARE": "GRIDSQUARE(lat, lon, [precision=6])",
     "GRIDLAT": "GRIDLAT(grid)", "GRIDLON": "GRIDLON(grid)",
     "GRIDDIST": "GRIDDIST(grid_a, grid_b)", "GRIDBEARING": "GRIDBEARING(grid_a, grid_b)",
+    "HAMBAND": "HAMBAND(freq_hz)", "CTCSSTONE": "CTCSSTONE(number_1_to_50)",
+    "NEARESTCTCSS": "NEARESTCTCSS(freq_hz)",
 }
 
 
