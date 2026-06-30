@@ -125,6 +125,10 @@ class MainWindow(NavigationMixin, DocumentMixin, SettingsMixin, QMainWindow):
         ):
             header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             header.customContextMenuRequested.connect(handler)
+        # Right-click on the cells → the sheet context menu (clipboard / structure /
+        # formatting / data tools), wired to the same actions as the menu bar.
+        self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._table.customContextMenuRequested.connect(self._cell_context_menu)
         layout.addWidget(self._table)
 
         # Sheet tabs with a "+" add button and a right-click management menu.
@@ -633,6 +637,69 @@ class MainWindow(NavigationMixin, DocumentMixin, SettingsMixin, QMainWindow):
         menu.addAction(make_icon("delete_row"), f"Delete row {idx + 1}",
                        lambda: self.delete_row(at=idx))
         menu.exec(header.mapToGlobal(pos))
+
+    def _build_cell_context_menu(self):
+        """The grid right-click menu — clipboard, structure, formatting, and data
+        tools, all wired to the existing actions (no duplicated logic)."""
+        from ._qtcompat import QMenu
+        from .icons import make_icon
+        from ..core.cellformat import FORMATS
+
+        m = QMenu(self)
+        m.addAction(make_icon("cut"), "Cu&t", self.cut_selection)
+        m.addAction(make_icon("copy"), "&Copy", self.copy_selection)
+        m.addAction(make_icon("paste"), "&Paste", self.paste_at_cursor)
+        m.addAction("Copy as &Markdown", self._copy_as_markdown)
+        m.addSeparator()
+
+        ins = m.addMenu("Insert")
+        ins.addAction(make_icon("insert_row"), "Row above", lambda: self.insert_row(above=True))
+        ins.addAction(make_icon("insert_row"), "Row below", lambda: self.insert_row(above=False))
+        ins.addAction(make_icon("insert_col"), "Column left", lambda: self.insert_column(left=True))
+        ins.addAction(make_icon("insert_col"), "Column right", lambda: self.insert_column(left=False))
+        dele = m.addMenu("Delete")
+        dele.addAction(make_icon("delete_row"), "Row(s)", self.delete_row)
+        dele.addAction(make_icon("delete_col"), "Column(s)", self.delete_column)
+        m.addAction("Clear contents", self._clear_selection)
+        m.addSeparator()
+
+        fmt = m.addMenu("Format")
+        fmt.addAction(make_icon("bold"), "Bold", lambda: self.toggle_style("bold"))
+        fmt.addAction(make_icon("italic"), "Italic", lambda: self.toggle_style("italic"))
+        fmt.addAction(make_icon("underline"), "Underline", lambda: self.toggle_style("underline"))
+        fmt.addSeparator()
+        fmt.addAction(make_icon("text_color"), "Text colour…", self.pick_text_color)
+        fmt.addAction(make_icon("fill_color"), "Fill colour…", self.pick_fill_color)
+        fmt.addAction("Clear cell styles", self.clear_styles)
+        num = m.addMenu("Number format")
+        for spec, label in FORMATS:
+            num.addAction(label, lambda s=spec: self.set_number_format(s))
+        m.addAction(make_icon("condformat"), "Conditional format…", self.add_conditional_format)
+        m.addSeparator()
+
+        data = m.addMenu("Data")
+        data.addAction(make_icon("sort"), "Sort ascending", lambda: self._sort_selection(False))
+        data.addAction(make_icon("sort"), "Sort descending", lambda: self._sort_selection(True))
+        data.addAction("Fill series", self._fill_series_selection)
+        data.addAction("Recode / clean…", self.show_recode)
+        data.addAction("Open selection in pandas…", self.show_dataframe)
+        # Retain a Python ref to every submenu + action wrapper: PySide6 otherwise
+        # GCs the wrappers once the build locals drop and deletes the C++ objects,
+        # emptying the menu. Holding them on `m` keeps them alive as long as it is.
+        keep: list = []
+        stack = [m]
+        while stack:
+            menu = stack.pop()
+            for a in menu.actions():
+                keep.append(a)
+                if a.menu() is not None:
+                    keep.append(a.menu())
+                    stack.append(a.menu())
+        m._keep = keep
+        return m
+
+    def _cell_context_menu(self, pos) -> None:
+        self._build_cell_context_menu().exec(self._table.viewport().mapToGlobal(pos))
 
     def _column_header_menu(self, pos) -> None:
         from ._qtcompat import QMenu
