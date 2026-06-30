@@ -4,7 +4,7 @@ All notable changes to qcell are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.1]
 
 ### Added
 - **Command palette** redesigned as a `rofi`/`dmenu`-style panel: a search box over
@@ -75,5 +75,5 @@ Initial public release.
 - Tag-driven CI builds and publishes the wheel, sdist, and `qcell.pyz` to GitHub
   Releases.
 
-[Unreleased]: https://github.com/leavesofgrass/qcell/compare/v0.1.0...HEAD
+[0.1.1]: https://github.com/leavesofgrass/qcell/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/leavesofgrass/qcell/releases/tag/v0.1.0
