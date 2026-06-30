@@ -23,6 +23,10 @@ All notable changes to qcell are documented here. The format follows
   **Maidenhead grid locator** (`GRIDSQUARE`, `GRIDLAT`/`GRIDLON`, `GRIDDIST`,
   `GRIDBEARING`). SI units, with arg-hint signatures; documented in
   [`docs/rf-toolkit.md`](docs/rf-toolkit.md).
+- **RF toolkit dialog** (*Tools → Scientific → RF toolkit*) — a mode-switching form
+  for **link budget**, **coax line**, **antenna dimensions**, and **L-network
+  matching**, with results shown in both metric and imperial where it helps
+  (antenna lengths in m and ft).
 
 ## [0.1.1] — 2026-06-30
 

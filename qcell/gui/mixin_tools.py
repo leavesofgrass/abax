@@ -102,6 +102,11 @@ class ToolsMixin:
 
         SolverDialog(self).exec()
 
+    def show_rf_tool(self) -> None:
+        from .dialogs.rf_dialog import RFDialog
+
+        RFDialog(self).exec()
+
     def show_signal_tool(self) -> None:
         from .dialogs.signal_dialog import SignalDialog
 
