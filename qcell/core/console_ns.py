@@ -150,6 +150,7 @@ def build_namespace(workbook, refresh=None) -> dict:
         stats,
         trees,
         units,
+        wire_mom,
     )
 
     _np = _opt("numpy")
@@ -175,7 +176,7 @@ def build_namespace(workbook, refresh=None) -> dict:
         "cluster": cluster, "ml": ml, "trees": trees, "bayes": bayes,
         "metrics": metrics, "gmm": gmm, "financial": financial,
         "rf": rf, "rf_bands": rf_bands, "antenna": antenna,
-        "antenna_impedance": antenna_impedance, "mom": mom,
+        "antenna_impedance": antenna_impedance, "mom": mom, "wire_mom": wire_mom,
         "algebraic": algebraic, "ti_engine": ti_engine,
         "np": _np, "numpy": _np, "pd": _pd, "pandas": _pd, "scipy": _scipy,
         "sm": _sm, "statsmodels": _sm, "sklearn": _sklearn,

@@ -57,6 +57,15 @@ All notable changes to qcell are documented here. The format follows
 - **Smith chart** (*Tools → Scientific → Smith chart*) — a QPainter Smith chart that
   plots a load impedance and its reflection coefficient, reports VSWR / return loss,
   and computes the two L-network matching solutions.
+- **General 3-D multi-wire MoM (antenna Phase C)** — `core/science/wire_mom.py`
+  generalizes the dipole solver to arbitrary polyline wires in 3-D: bent wires,
+  V / inverted-V antennas, and multi-element parasitic arrays (Yagi-Uda). Adds the
+  segment-tangent dot product to the vector-potential term and a midpoint-rule
+  far-field (`radiation_vector`, `far_field_intensity`, `front_to_back_db`).
+  Validated: it reproduces the dedicated dipole solver to 1e-4, gives the correct
+  figure-8 dipole pattern, and a reflector+driven+director **Yagi beams forward at
+  ~11 dB front-to-back** with a coupled driven impedance — all from first
+  principles. Available in the console as `wire_mom`.
 - **Thin-wire Method of Moments (antenna Phase B)** — `core/science/mom.py`: a real
   multi-segment MoM for a center-fed dipole. The current is expanded in
   piecewise-sinusoidal basis functions, the EFIE is tested Galerkin-style (kernel

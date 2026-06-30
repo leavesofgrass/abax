@@ -37,7 +37,7 @@ _NS_NAMES = (
     "matrix", "eigen", "units", "numeric", "complexnum", "fft", "interp", "signal",
     "spectral", "filters", "ode", "ode_implicit", "resynth", "stats", "cluster",
     "ml", "trees", "bayes", "metrics", "gmm", "financial", "algebraic", "ti_engine",
-    "rf", "rf_bands", "antenna", "antenna_impedance", "mom",
+    "rf", "rf_bands", "antenna", "antenna_impedance", "mom", "wire_mom",
     "np", "numpy", "pd", "pandas", "scipy", "sm", "statsmodels", "sklearn",
     "pingouin", "pg", "pymc", "pm", "sksurv",
 )
