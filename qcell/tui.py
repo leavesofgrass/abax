@@ -333,7 +333,7 @@ class TuiEditor:
             self.message = f"convert: {exc}"
 
     def _handle_fmt(self, args: list[str]) -> None:
-        from .core.cellformat import FORMATS
+        from .core.format.cellformat import FORMATS
         from .core.reference import parse_range
 
         if not args:
@@ -847,7 +847,7 @@ def _draw_loop(stdscr, curses, editor: TuiEditor, cap: str) -> None:
         sheet = editor.sheet
         colors = {}
         if sheet.cond_rules:
-            from .core.condformat import evaluate
+            from .core.format.condformat import evaluate
 
             try:
                 colors = evaluate(sheet, sheet.cond_rules)

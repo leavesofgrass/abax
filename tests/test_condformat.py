@@ -1,8 +1,8 @@
-"""Tests for conditional formatting (``qcell.core.condformat``)."""
+"""Tests for conditional formatting (``qcell.core.format.condformat``)."""
 
 from __future__ import annotations
 
-from qcell.core.condformat import (
+from qcell.core.format.condformat import (
     CondRule,
     _lerp_color,
     _parse_hex,

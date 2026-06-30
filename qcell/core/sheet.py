@@ -218,7 +218,7 @@ class Sheet:
         val = self.get_value(row, col)
         spec = self.cell_formats.get((row, col))
         if spec:
-            from .cellformat import format_cell
+            from .format.cellformat import format_cell
 
             return format_cell(val, spec)
         return self.format_value(val)

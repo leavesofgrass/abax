@@ -211,7 +211,7 @@ class _Canvas(QWidget):
         p.drawText(4, h - 6, f"{lbl}  x:[{xmin:g},{xmax:g}]  y:[{ymin:g},{ymax:g}]")
 
     def _paint_heatmap(self, p, w, h) -> None:
-        from ..core.colormap import colorize
+        from ..core.format.colormap import colorize
 
         frames = self.heatmap
         if not frames or not frames[0]:
@@ -397,7 +397,7 @@ class GraphDialog(QDialog):
         return rows
 
     def _plot_scatter_cols(self) -> None:
-        from ..core.colormap import colorize
+        from ..core.format.colormap import colorize
 
         m = self._read_matrix()
         if len(m) < 2 or len(m[0]) < 2:
@@ -461,7 +461,7 @@ class GraphDialog(QDialog):
         self._status.setText("PCA scatter")
 
     def _plot_cluster_scatter(self) -> None:
-        from ..core.colormap import colorize
+        from ..core.format.colormap import colorize
         from ..core.science import cluster, ml
 
         m = self._read_matrix()

@@ -441,7 +441,7 @@ class DocumentMixin:
         return [(r, c) for r in range(r1, r2 + 1) for c in range(c1, c2 + 1)]
 
     def _set_style(self, cells, label, **changes) -> None:
-        from ..core.cellstyle import CellStyle
+        from ..core.format.cellstyle import CellStyle
 
         self._doc.checkpoint(label)
         sheet = self._doc.workbook.sheet
@@ -461,7 +461,7 @@ class DocumentMixin:
 
         Turns the field ON for all if any cell lacks it, else OFF for all.
         """
-        from ..core.cellstyle import CellStyle
+        from ..core.format.cellstyle import CellStyle
 
         cells = self._selection_cells()
         sheet = self._doc.workbook.sheet

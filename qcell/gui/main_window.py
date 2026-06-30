@@ -247,7 +247,7 @@ class MainWindow(NavigationMixin, DocumentMixin, SettingsMixin, QMainWindow):
         Insert · Format · Data · Sheet · Tools · Help), grouped into short logical
         sections. Every action is also reachable by shortcut and the command palette."""
         from .icons import make_icon
-        from ..core.cellformat import FORMATS
+        from ..core.format.cellformat import FORMATS
 
         mb = self.menuBar()
 
@@ -644,7 +644,7 @@ class MainWindow(NavigationMixin, DocumentMixin, SettingsMixin, QMainWindow):
         tools, all wired to the existing actions (no duplicated logic)."""
         from ._qtcompat import QMenu
         from .icons import make_icon
-        from ..core.cellformat import FORMATS
+        from ..core.format.cellformat import FORMATS
 
         m = QMenu(self)
         m.addAction(make_icon("cut"), "Cu&t", self.cut_selection)

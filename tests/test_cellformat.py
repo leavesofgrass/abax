@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from qcell.core.cellformat import format_cell
 from qcell.core.errors import CellError
+from qcell.core.format.cellformat import format_cell
 from qcell.core.workbook import Workbook
 
 

@@ -95,7 +95,7 @@ def test_commit_cell_validation_rejects(win, monkeypatch):
 
 
 def test_conditional_fill_background(win):
-    from qcell.core.condformat import CondRule
+    from qcell.core.format.condformat import CondRule
 
     sheet = win._doc.workbook.sheet
     win._commit_cell(0, 0, "5")
@@ -110,7 +110,7 @@ def test_conditional_fill_background(win):
 def test_conditional_fill_lazy_only_colors_matching(win):
     # A rule over a large range: the model colors matching visible cells without
     # eagerly scanning the whole range.
-    from qcell.core.condformat import CondRule
+    from qcell.core.format.condformat import CondRule
 
     sheet = win._doc.workbook.sheet
     win._commit_cell(0, 0, "5")    # > 0 -> colored
@@ -126,7 +126,7 @@ def test_conditional_fill_lazy_only_colors_matching(win):
 
 def test_recolor_after_edit(win):
     # Editing a value must re-color it (the per-refresh fill cache is dropped).
-    from qcell.core.condformat import CondRule
+    from qcell.core.format.condformat import CondRule
 
     sheet = win._doc.workbook.sheet
     win._commit_cell(0, 0, "-1")

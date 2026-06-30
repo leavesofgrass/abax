@@ -16,7 +16,7 @@ from ._qtcompat import (
     QLineEdit,
     QPushButton,
 )
-from ..core.condformat import CondRule
+from ..core.format.condformat import CondRule
 from ..core.reference import to_a1
 
 _KINDS = [">", "<", ">=", "<=", "==", "!=", "between", "contains", "blank", "notblank", "colorscale"]

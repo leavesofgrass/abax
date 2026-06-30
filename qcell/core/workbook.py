@@ -128,8 +128,8 @@ class Workbook:
         version = env.get("schema_version", 0)
         data = env.get("data", env)  # tolerate bare payloads
         data = _migrate(data, version)
-        from .cellstyle import CellStyle
-        from .condformat import CondRule
+        from .format.cellstyle import CellStyle
+        from .format.condformat import CondRule
         from .names import NameRegistry
 
         wb = cls.__new__(cls)

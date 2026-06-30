@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core.colormap import PALETTES, colorize
+from qcell.core.format.colormap import PALETTES, colorize
 
 
 def test_endpoints_are_exact_stops():

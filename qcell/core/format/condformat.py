@@ -14,9 +14,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .errors import CellError, is_error
-from .reference import iter_range, parse_range
-from .sheet import Sheet
+from ..errors import CellError, is_error
+from ..reference import iter_range, parse_range
+from ..sheet import Sheet
 
 _DEFAULT_COLOR = "#a6e3a1"
 

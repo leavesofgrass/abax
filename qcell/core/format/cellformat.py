@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 
-from .errors import is_error
+from ..errors import is_error
 
 # (spec, menu label) — the offered formats.
 FORMATS: list[tuple[str, str]] = [

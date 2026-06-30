@@ -28,7 +28,7 @@ from ._qtcompat import (
     QVBoxLayout,
     QWidget,
 )
-from ..core.ansipalette import resolve
+from ..core.format.ansipalette import resolve
 from ..core.ptyterm import PtyTerminal, pty_available
 
 _COLS, _ROWS = 100, 30
