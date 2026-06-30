@@ -60,6 +60,12 @@ All notable changes to qcell are documented here. The format follows
   shortcuts: `Ctrl+K`, `Ctrl+Shift+Y`, `` Ctrl+` ``).
 
 ### Fixed
+- **Named ranges and data-validation ranges now follow row/column insert & delete.**
+  Previously only cell formulas and conditional-format rules were adjusted, so a
+  named range like `Vals = A1:A3` (or a validation region) kept pointing at stale
+  coordinates after rows/columns shifted above it. They now shift, clamp on partial
+  deletion, and drop when wholly deleted — consistent with formula references. A new
+  `test_layering.py` also pins the core/engine/gui import seam after the reorg.
 - **Intermittent crash when scrolling quickly** — model growth is now deferred out
   of the scrollbar signal (`QTimer.singleShot`) instead of mutating the model
   mid-scroll.

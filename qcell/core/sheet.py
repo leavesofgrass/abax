@@ -137,6 +137,31 @@ class Sheet:
                 new_rules.append(rule)
         self.cond_rules = new_rules
 
+        # Shift sheet-local data-validation ranges; drop any wholly deleted.
+        from .reference import parse_range, to_a1
+
+        new_validations = []
+        for r1, c1, r2, c2, rule in self.validations:
+            newr = adjust_range(f"{to_a1(r1, c1)}:{to_a1(r2, c2)}",
+                                self.name, self.name, axis, index, delta)
+            if newr != REF_ERROR:
+                nr1, nc1, nr2, nc2 = parse_range(newr)
+                new_validations.append((nr1, nc1, nr2, nc2, rule))
+        self.validations = new_validations
+
+        # Shift workbook-level named ranges whose target resolves to this sheet
+        # (qualified targets shift only when the qualifier matches; unqualified
+        # ones are treated as this sheet, like an on-sheet formula reference).
+        names = getattr(self.workbook, "names", None) if self.workbook is not None else None
+        if names is not None:
+            for display, target in names.names():
+                body = target.rsplit("!", 1)[-1]
+                fn = adjust_range if ":" in body else adjust_reference
+                newt = fn(target, self.name, self.name, axis, index, delta)
+                if newt == target:
+                    continue
+                names.remove(display) if newt == REF_ERROR else names.define(display, newt)
+
         # Rewrite formula references everywhere that targets THIS sheet (within
         # the workbook, other sheets may hold ``ThisSheet!A1`` references).
         targets = self.workbook.sheets if self.workbook is not None else [self]
