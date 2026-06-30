@@ -144,3 +144,74 @@ def fft_convolve(a: list[float], b: list[float]) -> list[float]:
     product = [fa[k] * fb[k] for k in range(size)]
     inverse = _fft.ifft(product)
     return [inverse[k].real for k in range(out_len)]
+
+
+def welch_psd(
+    samples,
+    sample_rate: float = 1.0,
+    nperseg: int = 256,
+    overlap: float = 0.5,
+) -> tuple[list[float], list[float]]:
+    """Power spectral density by Welch's method (averaged windowed periodograms).
+
+    The signal is split into Hann-windowed segments of ``nperseg`` samples that
+    overlap by ``overlap`` (0..1, default 50%); each segment's periodogram is
+    averaged. Returns ``(freqs, psd)`` with the density scaled as ``|X|^2 /
+    (fs * sum(win^2))`` (the SciPy ``scaling="density"`` convention).
+
+    Real input yields a **one-sided** PSD over ``0 .. fs/2`` (interior bins
+    doubled to conserve power). Complex (I/Q) input yields a **two-sided** PSD
+    sorted monotonically over ``-fs/2 .. +fs/2`` -- the natural view for a
+    quadrature-sampled radio signal where positive and negative offsets differ.
+
+    ``nperseg`` is clamped to ``len(samples)``. Raises :class:`SpectralError`
+    for fewer than two samples, a non-positive ``sample_rate``, or ``overlap``
+    outside ``[0, 1)``.
+    """
+    n = len(samples)
+    if n < 2:
+        raise SpectralError("welch_psd needs at least two samples")
+    if sample_rate <= 0:
+        raise SpectralError("welch_psd requires sample_rate > 0")
+    if not 0.0 <= overlap < 1.0:
+        raise SpectralError("welch_psd overlap must be in [0, 1)")
+
+    nperseg = max(2, min(int(nperseg), n))
+    step = max(1, int(round(nperseg * (1.0 - overlap))))
+    win = _signal.hann(nperseg)
+    winpow = sum(w * w for w in win) or 1.0
+    is_complex = any(isinstance(s, complex) for s in samples)
+
+    acc = [0.0] * nperseg
+    count = 0
+    start = 0
+    while start + nperseg <= n:
+        seg = samples[start:start + nperseg]
+        windowed = [complex(seg[i]) * win[i] for i in range(nperseg)]
+        spec = _fft.fft(windowed)
+        for k in range(nperseg):
+            mag = abs(spec[k])
+            acc[k] += mag * mag
+        count += 1
+        start += step
+
+    denom = count * winpow * sample_rate
+    psd = [a / denom for a in acc]
+    df = sample_rate / nperseg
+
+    if is_complex:
+        # Two-sided, wrapped to negative frequencies and sorted ascending.
+        freqs = [k * df if k <= nperseg // 2 else (k - nperseg) * df
+                 for k in range(nperseg)]
+        pairs = sorted(zip(freqs, psd))
+        return ([f for f, _ in pairs], [p for _, p in pairs])
+
+    # One-sided: bins 0..Nyquist, interior bins doubled to conserve power.
+    half = nperseg // 2 + 1
+    out = []
+    for k in range(half):
+        p = psd[k]
+        if 0 < k < nperseg - k:
+            p *= 2.0
+        out.append(p)
+    return ([k * df for k in range(half)], out)

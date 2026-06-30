@@ -8,6 +8,8 @@ like RMS in the status line).
 
 from __future__ import annotations
 
+import math
+
 from .._qtcompat import (
     QComboBox,
     QDialog,
@@ -39,6 +41,7 @@ _OPS = [
     "Butterworth high-pass (cutoff 0–0.5)",
     "FIR low-pass (cutoff 0–0.5)",
     "Spectrogram dB (frame=param)",
+    "Welch PSD dB (param=sample rate; 2 cols = I/Q)",
     "RMS (status only)",
 ]
 
@@ -77,6 +80,53 @@ class SignalDialog(QDialog):
                 if isinstance(v, (int, float)) and not isinstance(v, bool):
                     series.append(float(v))
         return series
+
+    def _read_iq(self, rng: str):
+        """Read a range as samples for PSD. A range spanning two or more columns
+        is read as quadrature (I = first column, Q = second, row-aligned) and
+        returns complex samples; a single column returns a real series. Returns
+        ``(samples, is_iq)``."""
+        r1, c1, r2, c2 = parse_range(rng)
+        if c2 - c1 < 1:
+            return self._read_series(rng), False
+        sheet = self._win._doc.workbook.sheet
+
+        def num(r: int, c: int) -> float | None:
+            v = sheet.get_value(r, c)
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                return float(v)
+            return None
+
+        out: list[complex] = []
+        for r in range(r1, r2 + 1):
+            iv = num(r, c1)
+            if iv is None:
+                continue
+            qv = num(r, c1 + 1)
+            out.append(complex(iv, qv if qv is not None else 0.0))
+        return out, True
+
+    def _apply_welch(self) -> None:
+        samples, is_iq = self._read_iq(self._in.text())
+        if len(samples) < 2:
+            QMessageBox.warning(self, "Signal", "Select at least 2 numeric cells.")
+            return
+        seg = 1
+        while seg * 2 <= min(256, len(samples)):
+            seg *= 2
+        try:
+            fs = float(self._param.text().strip() or 1.0)
+            freqs, psd = SP.welch_psd(samples, sample_rate=fs, nperseg=max(2, seg))
+        except (SP.SpectralError, ValueError, ZeroDivisionError) as exc:
+            QMessageBox.warning(self, "Signal", str(exc))
+            return
+        psd_db = [10.0 * math.log10(p) if p > 0 else -300.0 for p in psd]
+        self._write_cols([freqs, psd_db], self._out.text())
+        self._win._doc.mark_dirty()
+        self._win.refresh_table()
+        kind = "I/Q two-sided" if is_iq else "real one-sided"
+        self._win._set_status(f"Welch PSD ({kind}, {len(freqs)} bins, seg={seg})")
+        self.accept()
 
     def _write_cols(self, cols: list[list[float]], top_left: str) -> None:
         r0, c0 = parse_a1(top_left)
@@ -128,6 +178,9 @@ class SignalDialog(QDialog):
         return None
 
     def _apply(self) -> None:
+        if self._op.currentText().startswith("Welch PSD"):
+            self._apply_welch()
+            return
         data = self._read_series(self._in.text())
         if len(data) < 2:
             QMessageBox.warning(self, "Signal", "Select at least 2 numeric cells.")

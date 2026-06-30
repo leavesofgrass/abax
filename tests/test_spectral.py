@@ -132,3 +132,47 @@ def test_spectrogram_shape_and_db():
 def test_spectrogram_errors():
     with pytest.raises(spectral.SpectralError):
         spectral.spectrogram([1.0, 2.0], frame_size=64)
+
+
+# --- welch_psd -------------------------------------------------------------
+
+
+def test_welch_psd_real_peak_and_shape():
+    sr = 256.0
+    f = 40.0
+    samples = _sine(2048, f, sr)
+    freqs, psd = spectral.welch_psd(samples, sample_rate=sr, nperseg=256)
+    # one-sided: 0 .. Nyquist inclusive
+    assert len(freqs) == 256 // 2 + 1
+    assert len(psd) == len(freqs)
+    assert freqs[0] == 0.0
+    assert abs(freqs[-1] - sr / 2) < 1e-9
+    assert all(p >= 0.0 for p in psd)
+    # the estimate peaks at the tone's bin
+    peak = max(range(len(psd)), key=lambda k: psd[k])
+    assert abs(freqs[peak] - f) <= sr / 256  # within one bin
+
+
+def test_welch_psd_complex_is_two_sided_and_sorted():
+    sr = 1000.0
+    f = 125.0  # a positive-frequency-only complex exponential
+    samples = [complex(math.cos(2 * math.pi * f * n / sr),
+                       math.sin(2 * math.pi * f * n / sr)) for n in range(2048)]
+    freqs, psd = spectral.welch_psd(samples, sample_rate=sr, nperseg=256)
+    assert len(freqs) == 256                      # full two-sided spectrum
+    assert freqs == sorted(freqs)                 # monotonic -fs/2 .. +fs/2
+    assert freqs[0] < 0 < freqs[-1]
+    peak = max(range(len(psd)), key=lambda k: psd[k])
+    assert abs(freqs[peak] - f) <= sr / 256       # energy on the +f side only
+    # the mirror (-f) bin is far weaker for an analytic signal
+    neg = min(range(len(freqs)), key=lambda k: abs(freqs[k] + f))
+    assert psd[neg] < psd[peak] / 10
+
+
+def test_welch_psd_validates():
+    with pytest.raises(spectral.SpectralError):
+        spectral.welch_psd([1.0], sample_rate=1.0)
+    with pytest.raises(spectral.SpectralError):
+        spectral.welch_psd([1.0, 2.0, 3.0], sample_rate=0.0)
+    with pytest.raises(spectral.SpectralError):
+        spectral.welch_psd([1.0, 2.0, 3.0], overlap=1.0)
