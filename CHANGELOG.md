@@ -6,6 +6,16 @@ All notable changes to qcell are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **Aggregate fast-path** — `SUM`, `AVERAGE`, `MIN`, `MAX`, `PRODUCT`, `MEDIAN`,
+  `SUMSQ`, `COUNT` and the descriptive-stats family now walk a range **once**,
+  building only the numeric list instead of materializing the full value list and
+  then scanning it twice. For a large range (e.g. `SUM(A1:A100000)`) that removes
+  two whole-range allocations. Behaviour is byte-for-byte identical — a property
+  test pins it against the previous implementation over thousands of random inputs
+  (errors, booleans, text, blanks, nested ranges), and a benchmark gate guards the
+  speed.
+
 ### Added
 - **Jupyter notebook fidelity (roadmap Phase 0)** — `.ipynb` export is now valid
   **nbformat 4.5** (per-cell `id`s) and **round-trips losslessly**: the full workbook

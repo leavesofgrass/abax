@@ -64,7 +64,52 @@ def _numbers_from(flat: Iterable[Any]) -> list[float]:
 
 def _numbers(args: Iterable[Any]) -> list[float]:
     """Flatten and keep only numeric values (Excel SUM/AVERAGE rules)."""
-    return _numbers_from(_flatten(args))
+    return _numbers_checked(args)[1]
+
+
+def _numbers_checked(args: Iterable[Any]) -> "tuple[CellError | None, list[float]]":
+    """Single traversal of the flattened arguments, returning ``(first_error,
+    numbers)``.
+
+    Fuses :func:`_flatten`, :func:`_first_error` and :func:`_numbers_from` into
+    one pass: a range is walked once and only the numeric list is built -- the
+    full value list is never materialized. For ``SUM(A1:A100000)`` that drops two
+    whole-range allocations (the flat list and a separate error scan). The
+    returned ``numbers`` and ``first_error`` are byte-for-byte what
+    ``_numbers_from(_flatten(args))`` and ``_first_error(_flatten(args))`` would
+    produce over the same arguments (same values, same flatten order), so every
+    aggregate keeps Excel's exact SUM/AVERAGE numeric and error-propagation
+    semantics."""
+    nums: list[float] = []
+    push = nums.append
+    state: list[CellError | None] = [None]
+
+    def leaf(v: Any) -> None:
+        if isinstance(v, bool):
+            push(1.0 if v else 0.0)
+        elif isinstance(v, (int, float)):
+            push(float(v))
+        elif state[0] is None and is_error(v):
+            state[0] = v
+
+    def walk(items: Iterable[Any]) -> None:
+        for a in items:
+            if isinstance(a, RangeValue):
+                for row in a.grid:
+                    for v in row:
+                        if isinstance(v, bool):
+                            push(1.0 if v else 0.0)
+                        elif isinstance(v, (int, float)):
+                            push(float(v))
+                        elif state[0] is None and is_error(v):
+                            state[0] = v
+            elif isinstance(a, list):
+                walk(a)
+            else:
+                leaf(a)
+
+    walk(args)
+    return state[0], nums
 
 
 def _flat_checked(args: Iterable[Any]) -> "tuple[CellError | None, list[Any]]":
@@ -126,20 +171,19 @@ def _arg(args: list, i: int, default: Any = None) -> Any:
 
 
 def _sum(args):
-    err, flat = _flat_checked(args)
-    return err or sum(_numbers_from(flat))
+    err, nums = _numbers_checked(args)
+    return err if err is not None else sum(nums)
 
 
 def _sumsq(args):
-    err, flat = _flat_checked(args)
-    return err or sum(n * n for n in _numbers_from(flat))
+    err, nums = _numbers_checked(args)
+    return err if err is not None else sum(n * n for n in nums)
 
 
 def _average(args):
-    err, flat = _flat_checked(args)
-    if err:
+    err, nums = _numbers_checked(args)
+    if err is not None:
         return err
-    nums = _numbers_from(flat)
     return sum(nums) / len(nums) if nums else CellError(CellError.DIV0)
 
 
@@ -156,26 +200,23 @@ def _countblank(args):
 
 
 def _min(args):
-    err, flat = _flat_checked(args)
-    if err:
+    err, nums = _numbers_checked(args)
+    if err is not None:
         return err
-    nums = _numbers_from(flat)
     return min(nums) if nums else 0.0
 
 
 def _max(args):
-    err, flat = _flat_checked(args)
-    if err:
+    err, nums = _numbers_checked(args)
+    if err is not None:
         return err
-    nums = _numbers_from(flat)
     return max(nums) if nums else 0.0
 
 
 def _median(args):
-    err, flat = _flat_checked(args)
-    if err:
+    err, nums = _numbers_checked(args)
+    if err is not None:
         return err
-    nums = _numbers_from(flat)
     return statistics.median(nums) if nums else CellError(CellError.NUM)
 
 
@@ -188,11 +229,11 @@ def _mode(args):
 
 
 def _product(args):
-    err, flat = _flat_checked(args)
-    if err:
+    err, nums = _numbers_checked(args)
+    if err is not None:
         return err
     result = 1.0
-    for n in _numbers_from(flat):
+    for n in nums:
         result *= n
     return result
 
