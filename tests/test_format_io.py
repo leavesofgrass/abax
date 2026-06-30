@@ -70,6 +70,9 @@ def test_notebook_export_structure():
     assert "markdown" in kinds and "code" in kinds
     code = "".join(c2 for c in nb["cells"] if c["cell_type"] == "code" for c2 in c["source"])
     assert "pd.DataFrame" in code
+    # nbformat 4.5 requires a unique id per cell (else nbformat.validate rejects it)
+    ids = [c["id"] for c in nb["cells"]]
+    assert all(ids) and len(set(ids)) == len(ids)
 
 
 def test_notebook_roundtrip_via_tables():

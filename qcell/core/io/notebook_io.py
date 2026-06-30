@@ -31,6 +31,10 @@ def to_notebook(workbook: Workbook) -> dict:
     for sheet in workbook.sheets:
         cells.append(_md_cell(f"## {sheet.name}\n\n" + to_markdown(sheet)))
         cells.append(_code_cell(_dataframe_source(sheet)))
+    # nbformat 4.5 (nbformat_minor: 5) requires each cell to carry a unique id.
+    # Deterministic, index-based ids keep the export reproducible.
+    for i, cell in enumerate(cells):
+        cell["id"] = f"qcell-{i}"
     return {
         "cells": cells,
         "metadata": {
