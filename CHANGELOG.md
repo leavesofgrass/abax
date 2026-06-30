@@ -7,6 +7,14 @@ All notable changes to qcell are documented here. The format follows
 ## [0.1.1]
 
 ### Added
+- **Right-click context menu on the grid** — clipboard (cut/copy/paste, copy as
+  Markdown), Insert/Delete row·column, clear, a Format submenu (bold/italic/
+  underline, text/fill colour, clear styles), a Number-format submenu, conditional
+  format, and a Data submenu (sort, fill series, recode/clean, open selection in
+  pandas). All wired to the existing actions.
+- **Searchable clipboard history** (`Ctrl+Shift+V`) — a `rofi`/`dmenu`-style palette
+  over the copy history: type to fuzzy-filter, Enter pastes the entry at the cursor
+  (pinned entries first). Pin/remove/clear live in **Manage clipboard…**.
 - **Command palette** redesigned as a `rofi`/`dmenu`-style panel: a search box over
   a live fuzzy-filtered list, fully keyboard-driven (↑/↓, PageUp/Down, Enter, Esc).
 - **Base-aware calculator send** — on the programmer (HP-16C) model, *Send to cell*
@@ -25,6 +33,14 @@ All notable changes to qcell are documented here. The format follows
   its A1 address (keeps the write visible behind a floating calculator).
 
 ### Changed
+- **Codebase reorganized into logical subpackages** (maintainability; no behaviour
+  change): the flat `core/` is grouped into `core/io` (tabular adapters),
+  `core/calc` (calculator engines), `core/science` (numeric/stats/ML), and
+  `core/format` (cell formatting); `gui/` gains `gui/dialogs`, `gui/grid`,
+  `gui/calc`, and `gui/console`. The spreadsheet engine and formula machinery stay
+  at `core/` root. Heads-up for code that imports qcell internals: module paths
+  moved accordingly (e.g. `qcell.core.csv_io` → `qcell.core.io.csv_io`); the public
+  CLI/GUI/formula behaviour is unchanged.
 - **GUI dependency is now `PySide6-Essentials`** (no QtWebEngine/Addons) — a
   GUI-only install drops from ~0.65 GB to ~0.22 GB.
 - Calculator model list reordered linearly: **Algebraic → HP-12C/15C/16C →
