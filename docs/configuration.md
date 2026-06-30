@@ -26,7 +26,6 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `last_cell` | string | `""` | Cursor cell (A1), restored on launch. |
 | `code_consent` | bool | `false` | Whether you've consented to run untrusted code (console/terminal/scripts/macros). Set back to `false` to be prompted again. |
 | `faceplate_assets_dir` | string | `""` | Folder of calculator faceplate artwork (see [Faceplate assets](#faceplate-assets)). |
-| `open_default_panels` | bool | `true` | Open the default side panels on GUI startup. |
 | `show_toolbar` | bool | `true` | Show the GUI toolbar. |
 | `recent_files` | list | `[]` | Recently opened file paths. |
 | `window_geometry` | dict | `{}` | Saved GUI window position/size. |

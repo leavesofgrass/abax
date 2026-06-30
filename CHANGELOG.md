@@ -36,6 +36,11 @@ All notable changes to qcell are documented here. The format follows
   static text dump.
 - The code-execution **consent prompt** is clearer: it explains the console runs in
   its own sub-process and suggests a virtual environment for stronger isolation.
+- **First launch opens to a clean grid** — the calculator, Python console, and
+  terminal no longer auto-open, so a first run isn't a stack of panels and the
+  consent prompt only appears when you actually open the console/terminal. Open the
+  full layout any time via **View → Open default workspace** (or the panels'
+  shortcuts: `Ctrl+K`, `Ctrl+Shift+Y`, `` Ctrl+` ``).
 
 ### Fixed
 - **Intermittent crash when scrolling quickly** — model growth is now deferred out

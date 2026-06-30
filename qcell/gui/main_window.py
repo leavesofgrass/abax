@@ -291,6 +291,7 @@ class MainWindow(NavigationMixin, DocumentMixin, SettingsMixin, QMainWindow):
         self._act(m_view, "&Terminal", self.show_terminal, "Ctrl+`").setIcon(make_icon("terminal"))
         self._act(m_view, "&Python console", self.show_pyconsole, "Ctrl+Shift+Y").setIcon(make_icon("python"))
         self._act(m_view, "Clip&board history", self.show_clipboard, "Ctrl+Shift+V")
+        self._act(m_view, "Open default &workspace", self.open_default_workspace)
         m_view.addSeparator()
         act_tb = self._act(m_view, "Show &toolbar", self.toggle_toolbar)
         act_tb.setCheckable(True)

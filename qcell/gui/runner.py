@@ -102,11 +102,10 @@ def run_gui(file: str | None = None, registry=None) -> int:
     if file:
         window.open_document(file)
     window.show()
-    if getattr(settings, "open_default_panels", True):
-        try:
-            window.open_default_workspace()   # Calculator + Terminal + console, right
-        except Exception:
-            log.exception("default workspace failed")
+    # Launch to a clean grid: the calculator, console, and terminal are opened on
+    # demand (shortcuts or View → Open default workspace), so a first run isn't a
+    # pile of panels — and the code-execution consent prompt only appears when the
+    # user actually opens the console/terminal.
     try:
         rc = app.exec()
     finally:

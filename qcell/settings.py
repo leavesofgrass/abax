@@ -42,7 +42,6 @@ if _HAS_MSGSPEC:
         code_consent: bool = False
         faceplate_assets_dir: str = ""
         faceplate_repo: str = ""
-        open_default_panels: bool = True
         show_toolbar: bool = True
         recent_files: list = []
         window_geometry: dict = {}
@@ -81,7 +80,6 @@ else:
         code_consent: bool = False
         faceplate_assets_dir: str = ""
         faceplate_repo: str = ""
-        open_default_panels: bool = True
         show_toolbar: bool = True
         recent_files: list = field(default_factory=list)
         window_geometry: dict = field(default_factory=dict)
