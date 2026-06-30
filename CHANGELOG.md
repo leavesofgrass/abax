@@ -37,8 +37,9 @@ All notable changes to qcell are documented here. The format follows
   change): the flat `core/` is grouped into `core/io` (tabular adapters),
   `core/calc` (calculator engines), `core/science` (numeric/stats/ML), and
   `core/format` (cell formatting); `gui/` gains `gui/dialogs`, `gui/grid`,
-  `gui/calc`, and `gui/console`. The spreadsheet engine and formula machinery stay
-  at `core/` root. Heads-up for code that imports qcell internals: module paths
+  `gui/calc`, and `gui/console`; the `tui.py` monolith becomes a `tui/` package
+  (capabilities / themes / commands / editor / keys / render / app). The
+  spreadsheet engine and formula machinery stay at `core/` root. Heads-up for code that imports qcell internals: module paths
   moved accordingly (e.g. `qcell.core.csv_io` → `qcell.core.io.csv_io`); the public
   CLI/GUI/formula behaviour is unchanged.
 - **GUI dependency is now `PySide6-Essentials`** (no QtWebEngine/Addons) — a

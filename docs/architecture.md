@@ -35,9 +35,13 @@ core  ──►  engine  ──►  gui / tui
   optional packages are allowed. `engine/excel_io.py` uses openpyxl;
   `engine/document.py` dispatches open/save by file extension. Everything here
   has a fallback so the app still works when the optional dep is missing.
-- **`qcell/gui/` and `qcell/tui.py` — front-ends.** The Qt desktop GUI and the
+- **`qcell/gui/` and `qcell/tui/` — front-ends.** The Qt desktop GUI and the
   curses/Textual TUI. These depend on core and engine, never the other way
-  around. The GUI groups its widgets into subpackages: **`gui/grid/`** (the
+  around. The TUI is a package split by concern — `capabilities` (terminal
+  detection), `themes`, `commands` (parsing), `editor` (the `TuiEditor` state
+  machine), `keys` (keystroke dispatch), `render` (the curses draw loop), and
+  `app` (`run_tui`) — re-exporting its public surface from `tui/__init__.py`. The
+  GUI groups its widgets into subpackages: **`gui/grid/`** (the
   virtualized table model/view + frozen panes), **`gui/dialogs/`** (the ~20 modal
   dialogs and browsers), **`gui/calc/`** (the floating calculator panel + painted/
   image faceplates), and **`gui/console/`** (the embedded Python console, its

@@ -83,3 +83,6 @@ relative-imports-order = "closest-to-furthest"
 # _qtcompat re-exports the Qt binding surface for the rest of the GUI; those
 # imports are intentional re-exports, not unused.
 "qcell/gui/_qtcompat.py" = ["F401"]
+# tui/__init__ re-exports the package's public surface (incl. a few private
+# helpers the tests import); intentional re-exports, not unused.
+"qcell/tui/__init__.py" = ["F401"]
