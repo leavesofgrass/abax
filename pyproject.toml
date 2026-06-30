@@ -22,6 +22,9 @@ excel    = ["openpyxl"]
 fast-io  = ["msgspec", "platformdirs"]
 terminal = ["pyte"]                # true PTY terminal (with pywinpty on Windows)
 parquet  = ["pyarrow"]             # Parquet/Feather I/O (via pandas)
+# Jupyter integration (all optional, each with a graceful fallback): notebook
+# schema validation, the qcell Jupyter kernel, and the editable-sheet widget.
+jupyter  = ["nbformat", "ipykernel", "anywidget"]
 # The data-science stack qcell uses opportunistically (each with a pure-stdlib
 # fallback): numerics, DataFrames, ML, and (bio)statistics.
 science  = [
@@ -33,10 +36,11 @@ science  = [
 # terminal), but NONE of the heavy optional data-science libraries. ~0.22 GB.
 thin     = ["qcell[gui,tui,excel,fast-io,terminal]"]
 # Everything qcell can use, in one shot: thin + Parquet + the science stack. ~0.9 GB.
-all      = ["qcell[thin,parquet,science]"]
+all      = ["qcell[thin,parquet,science,jupyter]"]
 
 [project.scripts]
 qcell = "qcell.app:main"
+qcell-kernel = "qcell.kernel:main"
 
 [tool.setuptools.packages.find]
 include = ["qcell*"]   # auto-discover qcell and all subpackages (core/io, core/calc, …)
