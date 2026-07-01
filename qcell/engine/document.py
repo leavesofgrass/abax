@@ -92,6 +92,10 @@ class Document:
             wb = _single(flatfile_io.load_jsonl(path))
         elif ext in (".fixed",):
             wb = _single(flatfile_io.load_fixed(path))
+        elif ext in (".adi", ".adif"):
+            from ..core.io import adif_io
+
+            wb = _single(adif_io.load_adif(path))
         elif ext in (".db", ".sqlite", ".sqlite3"):
             from ..core.io import sqlite_io
 
@@ -131,6 +135,10 @@ class Document:
             xml_io.save_spreadsheetml(self.workbook, target)
         elif ext in (".jsonl", ".ndjson"):
             flatfile_io.save_jsonl(self.workbook.sheet, target)
+        elif ext in (".adi", ".adif"):
+            from ..core.io import adif_io
+
+            adif_io.save_adif(self.workbook.sheet, target)
         elif ext in (".fixed",):
             flatfile_io.save_fixed(self.workbook.sheet, target)
         elif ext in (".db", ".sqlite", ".sqlite3"):

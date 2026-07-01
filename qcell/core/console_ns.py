@@ -136,6 +136,7 @@ def build_namespace(workbook, refresh=None) -> dict:
     from .calc import algebraic, ti_engine
     from .calc.rpn import RPN
     from .graphing import compile_expr
+    from .io import adif_io
     from .science import (
         antenna,
         antenna_impedance,
@@ -143,6 +144,7 @@ def build_namespace(workbook, refresh=None) -> dict:
         chartsvg,
         cluster,
         complexnum,
+        dxcc,
         eigen,
         fft,
         filters,
@@ -194,7 +196,7 @@ def build_namespace(workbook, refresh=None) -> dict:
         "antenna_impedance": antenna_impedance, "mom": mom, "wire_mom": wire_mom,
         "nec": nec,
         "sql": sql, "sqlsheets": sqlsheets, "profile": profile,
-        "describe": describe, "chartsvg": chartsvg,
+        "describe": describe, "chartsvg": chartsvg, "dxcc": dxcc, "adif": adif_io,
         "algebraic": algebraic, "ti_engine": ti_engine,
         "np": _np, "numpy": _np, "pd": _pd, "pandas": _pd, "scipy": _scipy,
         "sm": _sm, "statsmodels": _sm, "sklearn": _sklearn,

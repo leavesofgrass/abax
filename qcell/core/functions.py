@@ -1729,6 +1729,12 @@ def _rf_hamband(args):
     return name if name is not None else CellError(CellError.NA)
 
 
+def _rf_dxcc(args):
+    from .science import dxcc
+    entity = dxcc.entity_for_call(_text(_arg(args, 0)))
+    return entity if entity is not None else CellError(CellError.NA)
+
+
 def _rf_ctcss_tone(args):
     from .science import rf_bands as B
     try:
@@ -1820,6 +1826,7 @@ FUNCTIONS.update({
     "GRIDDIST": _rf_grid_pair("grid_distance_km"),
     "GRIDBEARING": _rf_grid_pair("grid_bearing_deg"),
     "HAMBAND": _rf_hamband,
+    "DXCC": _rf_dxcc,
     "CTCSSTONE": _rf_ctcss_tone,
     "NEARESTCTCSS": _rf_nearest_ctcss,
     "DIPOLER": _ant_z_component("r"),
