@@ -108,10 +108,65 @@ C1: =GRIDDIST("JN58td", "IO91wm")    → ~920    (km)
 C2: =GRIDBEARING("JN58td", "IO91wm") → ~300    (degrees, WNW)
 ```
 
-## Roadmap
+## Ham reference data
 
-This is **Tier 1** of the RF toolkit (formula functions). Planned next: an **RF
-toolkit dialog** (link budget · coax · antenna dimensions · matching network, with
-metric + imperial display), a **Smith chart** with an L-network matching solver,
-I/Q waveform analysis, and — as a committed end goal — **Method-of-Moments / NEC
-antenna modeling**. See the project roadmap for the staged plan.
+| Function | Returns |
+| --- | --- |
+| `HAMBAND(freq_hz)` | US amateur band name for a frequency (e.g. `14.1e6` → `20m`), `#N/A` outside any band |
+| `CTCSSTONE(n)` | the *n*-th standard EIA CTCSS tone (1–50), in Hz |
+| `NEARESTCTCSS(freq_hz)` | the standard CTCSS tone nearest a measured frequency |
+
+## GUI tools (*Tools → Scientific*)
+
+- **RF toolkit** — a mode-switching dialog for **link budget**, **coax line**,
+  **antenna dimensions**, and **L-network matching**, showing results in both
+  metric and imperial where it helps.
+- **Smith chart** — plots a load impedance and its reflection coefficient, reports
+  VSWR / return loss, and computes the two L-network matching solutions.
+- **Antenna pattern** — a polar plot of the analytic dipole / array patterns with
+  directivity (dBi) and half-power beamwidth. It re-plots live as you change N /
+  spacing / phase, and **exports the pattern as SVG** or a **NEC `.nec`** deck.
+
+## Antenna impedance
+
+Closed-form dipole input impedance by the induced-EMF method (validated against the
+textbook 73.1 + j42.5 Ω half-wave result):
+
+| Function | Returns |
+| --- | --- |
+| `DIPOLER(length_wl, [radius_wl])` | input resistance (Ω) |
+| `DIPOLEX(length_wl, [radius_wl])` | input reactance (Ω) |
+| `RADRESIST(length_wl)` | radiation resistance (Ω) |
+| `RESONANTLEN([radius_wl])` | resonant length (wavelengths), just under 0.5 λ |
+
+## Antenna modeling — Method of Moments & NEC
+
+For real wire-antenna analysis, qcell has a thin-wire **Method of Moments** solver
+(pure stdlib), available in the Python console:
+
+```python
+from qcell.core.science import mom, wire_mom, nec
+
+mom.dipole_input_impedance(0.5, 1e-3)          # a straight dipole
+wire_mom.yagi(0.47, [(0.5, -0.25), (0.45, 0.15)], spacing_wl=0.2)  # a Yagi
+```
+
+- `mom` — a straight center-fed dipole. A single basis reproduces the induced-EMF
+  impedance to 5 significant figures; the converged multi-segment result matches NEC.
+- `wire_mom` — arbitrary 3-D wire structures (bent wires, V antennas, parasitic
+  **Yagi** arrays), with a far-field pattern and front-to-back ratio.
+- `nec` — read and write NEC2 `.nec` decks (`parse_nec` / `to_nec` / `solve`), so
+  qcell exchanges models with 4nec2 / EZNEC / xnec2c. The Antenna pattern viewer's
+  *Export NEC* button writes a deck for the current geometry.
+
+A live PyNEC adapter (for reference-grade accuracy) remains a future option; the
+built-in solver is the working path.
+
+## Signal / DSP
+
+RF signal work is served by the no-numpy DSP stack (*Tools → Signal / data tool*):
+FFT / STFT / spectrogram, **Welch PSD** (real one-sided and complex **I/Q**
+two-sided — a two-column selection is read as quadrature), interpolation,
+Butterworth/FIR filters, and ODE solvers. See
+[data-science.md](data-science.md) and the console modules `fft`, `spectral`,
+`filters`, `signal`.

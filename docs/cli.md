@@ -17,7 +17,7 @@ These are parsed before any command and the first two are *fast paths* — they 
 | Flag | Effect |
 |------|--------|
 | `--version` | Print `qcell <version>` and exit. |
-| `--deps` | Print the optional-dependency status report and the config/data/cache/log directories, then exit. |
+| `--deps` | Print the optional-dependency status report (with the **auto-install** state and how many optional packages are present) and the config/data/cache/log directories, then exit. |
 | `--macros PATH` | Load a macro file or directory. Repeatable. Adds its `@macro` commands and `@register_function` UDFs to every command (`view`, `get`, `gui`, `tui`, `macro`). |
 
 ### `--version`
@@ -149,6 +149,25 @@ $ qcell get budget.qcell C10
 |----------|-------------|
 | `file` | Spreadsheet to open. |
 | `ref` | An A1-style reference, e.g. `B7`. |
+
+### `deps` — install optional dependencies
+
+Install every optional dependency (the "full-fat" set: the data-science stack,
+Excel/Parquet I/O, the PTY terminal, and Jupyter integration), blocking with
+progress. Useful for headless setups where you want everything up front instead of
+waiting for the background auto-installer.
+
+```bash
+$ qcell deps
+Attempted 5 package(s): msgspec, textual, nbformat, anywidget, pyte
+Optional dependencies present: 20/20
+```
+
+qcell already auto-installs these in the background on first GUI/TUI launch (see
+[configuration.md](configuration.md#auto-install)); `qcell deps` just does it now
+and synchronously. The Qt GUI binding is *not* installed this way — you choose it
+with `pip install qcell[gui]`. Set `QCELL_NO_AUTOINSTALL=1` (or `auto_install:
+false` in settings) to disable automatic installation entirely.
 
 ### `macro list` — list macros and UDFs
 

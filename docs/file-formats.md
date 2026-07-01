@@ -214,10 +214,16 @@ The GUI command palette also offers **Copy selection as Markdown**.
 ## Jupyter notebook (`.ipynb`)
 
 [`qcell/core/io/notebook_io.py`](../qcell/core/io/notebook_io.py) reads and writes
-nbformat 4 with **no `nbformat` dependency**. Export emits, per sheet, a Markdown
-cell (a `## heading` plus a GFM table) and a code cell that rebuilds the sheet as
-a pandas `DataFrame`. Import scans Markdown cells for GFM tables; each table
-becomes a sheet named after the nearest heading.
+valid **nbformat 4.5** (per-cell `id`s) with **no `nbformat` dependency**, and
+**round-trips the whole workbook losslessly**: the full workbook envelope
+(formulas, multiple sheets, defined names, styles) is embedded in the notebook
+metadata and restored on import, so a `.ipynb` written by qcell converts back to a
+`.qcell` with nothing lost. Each sheet also renders as a Markdown-table cell, so the
+notebook is readable in any viewer. A **foreign** notebook (not written by qcell) is
+imported by scanning its Markdown tables — each table becomes a sheet named after
+the nearest heading. See [jupyter.md](jupyter.md) for rich display, the kernel, and
+the editable-sheet widget; `qcell.engine.nbvalidate` validates a notebook against
+the nbformat schema when it's installed.
 
 ## R data.frame (`.r`, `.rdata`)
 

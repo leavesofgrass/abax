@@ -374,6 +374,15 @@ units note, and worked examples in [RF toolkit](rf-toolkit.md).
 | `GRIDSQUARE` | Maidenhead locator | `GRIDSQUARE(lat, lon, [precision=6])` | `=GRIDSQUARE(48.15,11.6)` → `JN58td` |
 | `GRIDLAT` / `GRIDLON` | locator → centre lat/lon | `GRIDLAT(grid)` | |
 | `GRIDDIST` / `GRIDBEARING` | distance (km) / bearing (°) | `GRIDDIST(a, b)` | `=GRIDDIST("JN58","IO91")` |
+| `HAMBAND` | US amateur band name | `HAMBAND(freq_hz)` | `=HAMBAND(14.1e6)` → `20m` |
+| `CTCSSTONE` | standard CTCSS tone (1–50) | `CTCSSTONE(n)` | `=CTCSSTONE(13)` → `100` |
+| `NEARESTCTCSS` | nearest standard CTCSS tone | `NEARESTCTCSS(freq_hz)` | `=NEARESTCTCSS(100.1)` → `100` |
+| `DIPOLER` / `DIPOLEX` | dipole input R / X (Ω) | `DIPOLER(length_wl, [radius_wl])` | `=DIPOLER(0.5)` → `~73` |
+| `RADRESIST` | radiation resistance (Ω) | `RADRESIST(length_wl)` | `=RADRESIST(0.5)` → `73.1` |
+| `RESONANTLEN` | resonant dipole length (λ) | `RESONANTLEN([radius_wl])` | `≈0.48` |
+
+For antenna modeling beyond these closed-form functions — the thin-wire Method of
+Moments solver and NEC `.nec` I/O — see [RF toolkit](rf-toolkit.md).
 
 ## User-defined functions (UDFs)
 

@@ -312,9 +312,12 @@ The full menu bar, organised the standard desktop way:
   pivot, graph).
 - **Sheet** — New (`Shift+F11`), Duplicate, Rename, Delete, Next
   (`Ctrl+PgDown`), Previous (`Ctrl+PgUp`).
-- **Tools** — Scientific (matrix, solver, signal, ODE, ML), Macros, Recording,
-  Load macro/UDF file, Run Python script, Calculator faceplates, Copy selection
-  as Markdown.
+- **Tools** — Scientific (matrix, solver, signal, ODE, ML, and the **RF toolkit /
+  Smith chart / Antenna pattern** — see [rf-toolkit.md](rf-toolkit.md)), **File
+  manager** (`Ctrl+Shift+F`, see [file-manager.md](file-manager.md)), **Budget
+  wizard** (see [budgeting.md](budgeting.md)), **Install optional features now**,
+  Macros, Recording, Load macro/UDF file, Run Python script, Calculator faceplates,
+  Copy selection as Markdown.
 - **Help** — Keyboard shortcuts (`F1`), About qcell.
 
 Press `F1` any time for the full, live shortcut list (it's generated from the

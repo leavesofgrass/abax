@@ -2,11 +2,17 @@
 
 A keyboard-first **statistics and data-science workstation** — an integrated
 environment for data work, built on a fast, scriptable spreadsheet. Load a
-dataset, explore it with ~150 formula functions (including statistical
-distributions), run built-in analyses (regression, t-tests, ANOVA, correlation),
+dataset, explore it with ~200 formula functions (statistics, engineering, and
+**RF/ham-radio**), run built-in analyses (regression, t-tests, ANOVA, correlation),
 reshape it with pivot/group-by and recode, visualize with the grapher, hand a
 selection off to pandas, and script the whole thing with Python macros — across
 CSV, Excel, Parquet, SQLite, JSON, R, and more.
+
+It also carries purpose-built tools: **RF & antenna engineering** (link budgets,
+Smith charts, a thin-wire Method-of-Moments solver with NEC `.nec` import/export),
+**Jupyter integration** (a lossless `.ipynb` round-trip, rich display, and
+qcell-as-a-Jupyter-kernel), a **dual-pane file manager** with configurable command
+buttons and one-click archiving, and a **budget wizard**.
 
 It runs as a Qt desktop GUI (the default), a vim-style terminal UI, or a headless
 CLI. The core is pure-stdlib Python; every heavier capability is an optional
@@ -16,17 +22,29 @@ dependency with a graceful fallback. When a behaviour is ambiguous, qcell follow
 ## Install
 
 ```sh
-# core only (pure stdlib) — works immediately, no dependencies
-python -m qcell --deps
-
-# full dev install
-pip install -e ".[dev,tui,gui,excel,fast-io]"
-# pieces: .[gui] PyQt6 · .[excel] openpyxl · .[fast-io] msgspec+platformdirs · .[tui] textual
+pip install qcell[gui]         # the Qt GUI (PySide6) — the usual choice
+python -m qcell                # launch it
 ```
 
-Every optional dependency degrades gracefully — `--deps` shows what's present
-and what the fallback is. The whole test suite passes with zero optional
-packages installed.
+qcell installs *full-fat by default*: on first launch it **auto-installs the
+remaining optional dependencies in the background** (the data-science stack,
+Excel/Parquet I/O, the PTY terminal, Jupyter integration) so everything just
+works. It's best-effort and non-blocking — qcell keeps using its pure-Python
+fallbacks meanwhile — and attempted only once per machine.
+
+```sh
+python -m qcell deps           # install every optional dependency now (blocking)
+python -m qcell --deps         # show what's present + the auto-install status
+QCELL_NO_AUTOINSTALL=1 …        # opt out (or set auto_install=false in settings)
+
+pip install -e ".[dev]"        # a development checkout
+# extras: .[gui] PySide6 · .[gui-pyqt] PyQt6 · .[tui] textual · .[excel] openpyxl
+#         .[parquet] pyarrow · .[science] numpy/pandas/scipy/… · .[jupyter] nbformat/ipykernel/anywidget
+#         .[all] everything · .[thin] GUI + light conveniences, no heavy science
+```
+
+The core is pure stdlib — the whole test suite passes with **zero** optional
+packages installed, and every optional dependency degrades gracefully.
 
 ## Use
 
@@ -35,8 +53,9 @@ python -m qcell view sales.csv            # print as a table
 python -m qcell get sales.csv D2          # compute one cell
 python -m qcell convert sales.csv out.xlsx
 python -m qcell tui budget.qcell          # curses TUI (vim keys)
-python -m qcell gui budget.qcell          # Qt GUI (if PyQt6 installed)
+python -m qcell gui budget.qcell          # Qt GUI (PySide6/PyQt6)
 python -m qcell macro run totals book.csv --macros macros/
+python -m qcell deps                      # fetch all optional dependencies
 ```
 
 ## Formats
@@ -49,7 +68,7 @@ Open and save by file extension — convert between any of them:
 | Excel | `.xlsx` `.xlsm` | via openpyxl; formulas preserved |
 | XML Spreadsheet | `.xml` | Excel 2003 SpreadsheetML; formulas stored as R1C1 |
 | Markdown | `.md` `.markdown` | first-class GFM tables (alignment, escaping) |
-| Jupyter | `.ipynb` | markdown table + pandas DataFrame cell per sheet |
+| Jupyter | `.ipynb` | valid nbformat 4.5; **round-trips the whole workbook losslessly** (markdown-table fallback for foreign notebooks) |
 | R | `.R` `.RData` | `data.frame` export; best-effort import |
 | SQLite | `.db` `.sqlite` | tables / `SELECT` queries ↔ sheets (one sheet per table) |
 | JSON Lines | `.jsonl` `.ndjson` | flat-file record DB; one object per line |
@@ -73,8 +92,8 @@ python -m qcell view qrpn-save.json --sheet stack   # read a qrpn calculator sav
 
 ## Formulas
 
-~150 functions across aggregate, conditional, math, lookup, logical, text, date,
-statistics, and info families:
+~200 functions across aggregate, conditional, math, lookup, logical, text, date,
+statistics, engineering, **RF/ham-radio & antenna**, and info families:
 
 ```
 =SUM(A1:A10)                         =VLOOKUP("banana", A1:B9, 2, FALSE)
@@ -117,7 +136,7 @@ palette lists every action — including any loaded macros.
 | **Format** | Theme `Ctrl+T`, OpenDyslexic font, conditional formatting, vim mode |
 | **Data** | Sort, Fill series, Recalculate `F9` |
 | **Sheet** | Next `Ctrl+PgDn`, Previous `Ctrl+PgUp`, Rename (or use the **tabs**) |
-| **Tools** | RPN calculator `Ctrl+K`, Python console `Ctrl+Shift+Y`, Clipboard `Ctrl+Shift+V`, Macros, recording |
+| **Tools** | Calculator `Ctrl+K`, Python console `Ctrl+Shift+Y`, Clipboard `Ctrl+Shift+V`, **File manager `Ctrl+Shift+F`**, **Budget wizard**, **Scientific** (Matrix / Signal / ODE / ML / **RF toolkit / Smith chart / Antenna pattern**), Install optional features, Macros, recording |
 | **Help** | Keyboard shortcuts `F1`, About |
 
 Vim navigation works in the grid too (`j/k/h/l`, `g`/`G`, `/`). **Sheet tabs** sit
@@ -151,6 +170,45 @@ be fetched on demand. Widgets are screen-reader labelled.
 - **Number formats** (*Format → Number*) — General/Integer/Currency/Percent/
   Scientific/Thousands per cell, persisted with the workbook; TUI `:fmt percent A1:A9`.
 - A **toolbar** with the common actions, for mouse-first usability.
+
+## RF, antenna & signal engineering
+
+For hams and RF engineers (*Tools → Scientific*), plus ~42 formula functions:
+
+- **RF math** — `DBM2W`, `W2DBM`, `VSWR`, `FSPL`, `FRIIS`, `EIRP`, `WAVELENGTH`,
+  `XL`/`XC`, `RESFREQ`, `Z0COAX`, `SKINDEPTH`, the **Maidenhead grid locator**
+  (`GRIDSQUARE`, `GRIDDIST`, `GRIDBEARING`), the **US band plan** (`HAMBAND`) and
+  **CTCSS** tones — with an **RF toolkit** dialog (link budget / coax / antenna
+  dimensions / L-network matching) and a **Smith chart**.
+- **Antenna modeling** — analytic dipole/array patterns with a polar viewer;
+  dipole input impedance (`DIPOLER`/`DIPOLEX`/`RESONANTLEN`); and a real thin-wire
+  **Method of Moments** solver generalised to arbitrary 3-D wire structures (Yagis,
+  bent wires) with **NEC `.nec`** deck import/export. The Antenna pattern viewer
+  exports **SVG** and **NEC** decks.
+- **Signal/DSP** — no-numpy FFT/STFT/spectrogram, Welch PSD (real + complex I/Q),
+  interpolation, Butterworth/FIR filters, and ODE solvers via the *Signal / data*
+  and *ODE solver* tools. See [docs/rf-toolkit.md](docs/rf-toolkit.md).
+
+## File manager & budgeting
+
+- **Dual-pane file manager** (*Tools → File manager*, `Ctrl+Shift+F`) — a
+  Worker / Directory Opus-style browser: two panes where operations act on the
+  active pane's selection with the other pane as target. Copy / move / delete /
+  rename, one-click **`.zip` and `.tar.gz`** creation and safe extraction,
+  recursive **find** by name and file contents, and **configurable command
+  buttons** whose shell commands expand `{dir}`/`{path}`/`{sel}`/`{dest}`
+  placeholders (Python, not Lua — persisted per user).
+- **Budget wizard** (*Tools → Budget wizard*) — set up income and 50/30/20
+  categories and drop in a **live budget sheet** where *Spent* is a `SUMIF` over an
+  expenses log; logging an expense updates the budget through the formula engine.
+
+## Jupyter integration
+
+`.ipynb` export is valid **nbformat 4.5** and round-trips the whole workbook
+losslessly. A `Sheet` renders as an HTML/Markdown table via the IPython
+rich-display protocol. qcell can run **as a Jupyter kernel** (`python -m
+qcell.kernel`, after `pip install qcell[jupyter]`) and expose an **editable sheet
+widget** (anywidget). See [docs/jupyter.md](docs/jupyter.md).
 
 ## The TUI
 

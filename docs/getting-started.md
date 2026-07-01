@@ -46,8 +46,15 @@ If you have `just` installed, `just install` runs the full developer setup for y
 | `terminal` | `pyte` | A true PTY terminal panel (with `pywinpty` on Windows) |
 | `parquet` | `pyarrow` | Parquet / Feather I/O |
 | `science` | numpy, pandas, scipy, scikit-learn, statsmodels, lifelines, pingouin, scikit-survival, pymc | The data-science / (bio)statistics stack behind the analysis, ML, and graphing tools |
+| `jupyter` | `nbformat`, `ipykernel`, `anywidget` | Notebook validation, the qcell Jupyter kernel, and the editable-sheet widget ([jupyter.md](jupyter.md)) |
 | **`thin`** | `gui` + `tui` + `excel` + `fast-io` + `terminal` | A lean desktop install — every lightweight convenience, none of the heavy data libraries |
-| **`all`** | `thin` + `parquet` + `science` | One-shot install of everything qcell can use |
+| **`all`** | `thin` + `parquet` + `science` + `jupyter` | One-shot install of everything qcell can use |
+
+> **Full-fat by default.** You don't have to pick extras: install just `gui` and,
+> on first launch, qcell **auto-installs the rest in the background** (the science
+> stack, Excel/Parquet, terminal, Jupyter). It's best-effort and non-blocking; opt
+> out with `auto_install: false` or `QCELL_NO_AUTOINSTALL=1`, or force it now with
+> `qcell deps`. See [Configuration → Auto-install](configuration.md#auto-install).
 
 ### Install profiles & footprint
 
@@ -155,7 +162,7 @@ Move to cell **B5** and type a formula. Formulas start with `=`:
 =SUM(B2:B4)
 ```
 
-Press `Enter`. The cell shows the computed total, `12`. qcell ships with around 150 functions — `SUM`, `AVERAGE`, `IF`, `VLOOKUP`, `CONCAT`, date functions, and more. As you type a function name the GUI offers autocomplete and an argument hint showing the current parameter. See [formula-reference.md](formula-reference.md) for the full function list.
+Press `Enter`. The cell shows the computed total, `12`. qcell ships with around 200 functions — `SUM`, `AVERAGE`, `IF`, `VLOOKUP`, `CONCAT`, date functions, and more. As you type a function name the GUI offers autocomplete and an argument hint showing the current parameter. See [formula-reference.md](formula-reference.md) for the full function list.
 
 A few things worth knowing right away:
 

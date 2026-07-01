@@ -2,11 +2,12 @@
 
 qcell is a keyboard-first **statistics and data-science workstation** — an
 integrated environment for data work, built on a fast, scriptable spreadsheet.
-Import a dataset, explore it with ~150 formula functions (including statistical
-distributions), run built-in analyses, reshape and visualize it, hand a selection
-to pandas, and script everything with Python — over CSV, Excel, Parquet, SQLite,
-JSON, R, and more. It runs as a Qt desktop GUI (the default), a vim-style terminal
-UI, or a headless CLI.
+Import a dataset, explore it with ~200 formula functions (statistics, engineering,
+and RF/ham-radio), run built-in analyses, reshape and visualize it, hand a
+selection to pandas, and script everything with Python — over CSV, Excel, Parquet,
+SQLite, JSON, R, and more. It runs as a Qt desktop GUI (the default), a vim-style
+terminal UI, or a headless CLI, and installs *full-fat by default* (optional
+dependencies auto-install in the background).
 
 - License: **GPL-3.0-or-later** — see [LICENSE](../LICENSE) and
   [licensing.md](licensing.md).
@@ -23,20 +24,28 @@ UI, or a headless CLI.
   the statistical distributions (normal, t, F, chi-square) and regression helpers.
 - [Calculators](calculators.md) — RPN, graphing, and algebraic calculators with
   a two-way cell value bridge.
-- [RF toolkit](rf-toolkit.md) — radio-frequency engineering functions: link budget,
-  transmission line & matching, antenna math, and the Maidenhead grid locator.
+- [RF toolkit & antenna modeling](rf-toolkit.md) — RF engineering functions (link
+  budget, transmission line & matching, Maidenhead grid, band plan / CTCSS), the
+  Smith chart, dipole impedance, and a thin-wire **Method-of-Moments** solver with
+  NEC `.nec` import/export.
+- [Jupyter integration](jupyter.md) — lossless `.ipynb` round-trip, rich display,
+  qcell as a Jupyter kernel, and the editable-sheet widget.
 
 ## Working in qcell
 
 - [Getting started](getting-started.md) — install, launch, and a 5-minute walkthrough.
 - [GUI guide](gui-guide.md) — the grid, Excel-style keyboard navigation, selection
   statistics, formatting, freeze panes, find/replace, themes.
+- [File manager](file-manager.md) — the dual-pane browser, archiving, search, and
+  configurable command buttons.
+- [Budgeting](budgeting.md) — the budget wizard and the live `SUMIF`-driven budget
+  sheet.
 - [File formats](file-formats.md) — CSV, Excel, ODS, Parquet, XML, Markdown,
   Jupyter, R, SQLite, JSON Lines, and the native `.qcell` envelope.
-- [Command-line interface](cli.md) — headless `view`/`convert`/`get`/`macro` plus
-  the GUI/TUI launchers.
-- [Configuration](configuration.md) — settings, environment variables, themes,
-  fonts, and runtime paths.
+- [Command-line interface](cli.md) — headless `view`/`convert`/`get`/`macro`/`deps`
+  plus the GUI/TUI launchers.
+- [Configuration](configuration.md) — settings, auto-install, environment
+  variables, themes, fonts, and runtime paths.
 
 ## Extend & contribute
 

@@ -25,7 +25,7 @@ straight in the GUI.
 
 - **Selection statistics** — select a range and the status bar shows Sum,
   Average, Min, Max, and Count instantly (see the [GUI guide](gui-guide.md)).
-- **Formula functions** — ~150 of them, including the full aggregate and
+- **Formula functions** — ~200 of them, including the full aggregate and
   statistics families (`AVERAGE`, `MEDIAN`, `STDEV`, `VAR`, `PERCENTILE`,
   `QUARTILE`, `CORREL`, `COVAR`, `SKEW`, `KURT`, `RANK`, …) and statistical
   distributions (`NORMDIST`, `TDIST`, `FDIST`, `CHIDIST` and their inverses,
@@ -93,3 +93,10 @@ qcell works headless and offline with nothing but the standard library. Installi
 DataFrame hand-off and Parquet, and `openpyxl` enables Excel — but each is
 optional, and qcell tells you (and falls back) when one is missing. Run
 `qcell --deps` to see what's available. See [configuration](configuration.md).
+
+By default qcell installs **full-fat**: it **auto-installs these packages in the
+background** on first launch, so the analysis stack is there when you need it (opt
+out with `auto_install: false` or `QCELL_NO_AUTOINSTALL=1`; force it now with
+`qcell deps`). When `numpy` is present it also **accelerates large aggregate
+reductions** (`SUM`/`AVERAGE`/`MIN`/`MAX`/`COUNT`/… over big all-numeric ranges)
+~3–4× — automatically and with the exact same results as the pure-Python path.

@@ -18,7 +18,7 @@ core  ──►  engine  ──►  gui / tui
 ```
 
 - **`qcell/core/` — pure, stdlib-only.** The spreadsheet engine and formula
-  machinery (tokenizer, parser, evaluator, ~150 functions, sheet/workbook model,
+  machinery (tokenizer, parser, evaluator, ~200 functions, sheet/workbook model,
   search, fill/sort, completion, reference-shifting) live at the `core/` root, with
   the pluggable libraries grouped into subpackages:
   - **`core/io/`** — tabular import/export adapters (CSV/TSV, XML, Markdown, SQLite,

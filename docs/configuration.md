@@ -28,6 +28,8 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `show_toolbar` | bool | `true` | Show the GUI toolbar. |
 | `recent_files` | list | `[]` | Recently opened file paths. |
 | `window_geometry` | dict | `{}` | Saved GUI window position/size. |
+| `fm_buttons` | list | `[]` | Your custom file-manager command buttons (`{label, command}`); see [File manager](file-manager.md). |
+| `auto_install` | bool | `true` | Auto-install optional dependencies in the background on launch (see [Auto-install](#auto-install)). Set `false` to opt out. |
 | `schema_version` | int | `1` | Settings schema version (managed by qcell). |
 
 You can edit `settings.json` by hand while qcell is closed, but most fields are also exposed through the GUI (theme, fonts, toolbar, faceplate folder) and the TUI, which is the recommended way to change them.
@@ -86,6 +88,21 @@ See [Faceplate assets](#faceplate-assets) for the full resolution order. qcell *
 ### `PANDOC`
 
 Points at a pandoc executable for rich equation rendering. See [Pandoc](#pandoc-for-equations) below.
+
+### `QCELL_NO_AUTOINSTALL`
+
+Set to any non-empty value to disable the background auto-installation of optional dependencies (equivalent to `auto_install: false` in settings). See [Auto-install](#auto-install).
+
+## Auto-install
+
+qcell's core is pure stdlib and every heavier capability is an *optional* package with a graceful fallback. By default qcell fetches those packages **automatically** — on first GUI or TUI launch it installs whatever is missing (the data-science stack, Excel/Parquet I/O, the PTY terminal, and Jupyter integration) in a background daemon thread, so a plain install becomes "full-fat" on its own.
+
+- **Best-effort and non-blocking.** Startup and the UI never wait on `pip`. If pip is unavailable, you're offline, or a build fails, qcell silently keeps using its pure-Python fallbacks.
+- **Once per machine.** A marker file per package (under the cache directory's `autodeps/` folder) means a slow or failing install is not retried on every launch.
+- **Opt out** with `auto_install: false` in settings or `QCELL_NO_AUTOINSTALL=1`.
+- The **Qt GUI binding** (PySide6/PyQt6) is *not* auto-installed — you need it to launch the GUI in the first place, so install it explicitly with `pip install qcell[gui]`.
+
+Controls: **Tools → Install optional features now** forces a fetch immediately (ignoring the markers); `qcell deps` does the same from the command line, synchronously; and `qcell --deps` reports the auto-install state and how many optional packages are present.
 
 ## Themes
 
