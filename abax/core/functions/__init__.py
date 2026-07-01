@@ -186,7 +186,8 @@ _arrayfuncs.register(FUNCTIONS)
 # date/time, financial, engineering + database). Optional at import: a missing
 # pack is skipped so a partial checkout still loads.
 for _pack in ("math_fns", "stats_dist", "text_datetime_fns", "finance_fns",
-              "engineering_fns", "gnumeric_fns", "gnumeric_math", "gnumeric_stats"):
+              "engineering_fns", "gnumeric_fns", "gnumeric_math", "gnumeric_stats",
+              "excel_modern", "dist_dotted"):
     try:
         _mod = __import__(f"abax.core.{_pack}", fromlist=["register"])
         _mod.register(FUNCTIONS)
@@ -202,6 +203,8 @@ for _dotted, _canon in {
     "NORM.S.INV": "NORMSINV", "CONFIDENCE.NORM": "CONFIDENCE",
     "CHISQ.DIST.RT": "CHIDIST", "CHISQ.INV.RT": "CHIINV",
     "F.DIST.RT": "FDIST", "F.INV.RT": "FINV",
+    "FORECAST.LINEAR": "FORECAST", "SKEW.P": "SKEWP",
+    "GAMMALN.PRECISE": "GAMMALN",
 }.items():
     if _canon in FUNCTIONS:
         FUNCTIONS[_dotted] = FUNCTIONS[_canon]

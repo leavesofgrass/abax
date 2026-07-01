@@ -128,12 +128,16 @@ def test_udf_appears_after_install():
 
 
 def test_complete_includes_names_sheets_constants():
-    out = complete("=SU", names=("Subtotal",), sheets=("Summary",))
-    assert "SUM" in out and "Subtotal" in out and "Summary" in out
-    assert out.index("SUM") < out.index("Subtotal")          # functions first
+    out = complete("=SU", names=("SubtotalQ1",), sheets=("Summary",))
+    assert "SUM" in out and "SubtotalQ1" in out and "Summary" in out
+    assert out.index("SUM") < out.index("SubtotalQ1")        # functions first
     assert "TRUE" in complete("=TR") and "FALSE" in complete("=FA")
     # names/sheets only offered when passed; bare function completion unchanged
-    assert "Subtotal" not in complete("=SU")
+    assert "SubtotalQ1" not in complete("=SU")
+    # A defined name that matches a function case-insensitively is deduped
+    # (the function wins — SUBTOTAL is a real function as of Wave I).
+    assert "Subtotal" not in complete("=SU", names=("Subtotal",))
+    assert "SUBTOTAL" in complete("=SU", names=("Subtotal",))
 
 
 def test_apply_completion_paren_only_for_functions():

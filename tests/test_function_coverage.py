@@ -30,6 +30,13 @@ COMMON = {
     "DSUM", "DCOUNT", "DAVERAGE", "DGET",
     # modern dotted aliases
     "STDEV.S", "VAR.P", "NORM.DIST", "PERCENTILE.INC",
+    # Wave I — modern-Excel completeness
+    "TEXTSPLIT", "XMATCH", "LOOKUP", "SUBTOTAL", "AGGREGATE",
+    "CEILING.MATH", "FLOOR.MATH", "WORKDAY.INTL", "NETWORKDAYS.INTL",
+    "IMTAN", "IMLOG10", "ARRAYTOTEXT",
+    "NORM.S.DIST", "T.DIST", "T.INV", "CHISQ.DIST", "CHISQ.INV",
+    "F.DIST", "F.INV", "CONFIDENCE.T", "T.TEST", "Z.TEST", "F.TEST",
+    "CHISQ.TEST", "FORECAST.LINEAR",
 }
 
 
@@ -39,9 +46,8 @@ def test_common_functions_registered():
 
 
 def test_registry_reaches_target():
-    # We passed Excel's ~500 / Gnumeric's ~640? Not yet — but we should be well
-    # past the original 223 after Waves A-E.
-    assert len(FUNCTIONS) >= 400
+    # Past Excel's ~500 after Waves A-I; Gnumeric's ~640 is the remaining target.
+    assert len(FUNCTIONS) >= 560
 
 
 def _val(formula):
