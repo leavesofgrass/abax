@@ -2,8 +2,9 @@
 
 A keyboard-first **statistics and data-science workstation** — an integrated
 environment for data work, built on a fast, scriptable spreadsheet. Load a
-dataset, explore it with ~200 formula functions (statistics, engineering, and
-**RF/ham-radio**), run built-in analyses (regression, t-tests, ANOVA, correlation),
+dataset, explore it with **400+ formula functions** (statistics and distributions,
+financial, engineering, database, and **RF/ham-radio**), run built-in analyses
+(regression, t-tests, ANOVA, correlation),
 reshape it with pivot/group-by and recode, visualize with the grapher, hand a
 selection off to pandas, and script the whole thing with Python macros — across
 CSV, Excel, Parquet, SQLite, JSON, R, and more.
@@ -93,7 +94,7 @@ python -m qcell view qrpn-save.json --sheet stack   # read a qrpn calculator sav
 
 ## Formulas
 
-~200 functions across aggregate, conditional, math, lookup, logical, text, date,
+400+ functions across aggregate, conditional, math, lookup, logical, text, date,
 statistics, engineering, **RF/ham-radio & antenna**, and info families:
 
 ```
@@ -174,7 +175,7 @@ be fetched on demand. Widgets are screen-reader labelled.
 
 ## RF, antenna & signal engineering
 
-For hams and RF engineers (*Tools → Scientific*), plus ~42 formula functions:
+For hams and RF engineers (the *Radio* menu), plus **60+ RF formula functions**:
 
 - **RF math** — `DBM2W`, `W2DBM`, `VSWR`, `FSPL`, `FRIIS`, `EIRP`, `WAVELENGTH`,
   `XL`/`XC`, `RESFREQ`, `Z0COAX`, `SKINDEPTH`, the **Maidenhead grid locator**

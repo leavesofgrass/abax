@@ -2,8 +2,8 @@
 
 This is the complete reference for qcell's formula engine: the syntax of
 formulas, the value and error model, and every built-in function grouped by
-family. It is generated from the authoritative registries `FUNCTIONS` and
-`LAZY_FUNCTIONS` in `qcell/core/functions.py`.
+family. It tracks the authoritative registries `FUNCTIONS`, `LAZY_FUNCTIONS` and
+`CONTEXT_FUNCTIONS` in the `qcell/core/functions/` package.
 
 See also: [Documentation index](index.md) and
 [Macros and scripting](macros-and-scripting.md).
@@ -85,10 +85,19 @@ trapped by `IFERROR` / `IFNA` / `ISERROR`.
 
 Function names are case-insensitive. Below, every built-in is grouped by
 family with its signature, a one-line description, and an example. Optional
-arguments are shown in `[brackets]`. There are **139 eager built-in function
-names** (counting aliases `AVG`/`CONCATENATE`) plus **6 lazy control-flow
-functions** — **145 names** in all; user macros can add more (see the
+arguments are shown in `[brackets]`. There are **over 400 built-in functions** —
+**405 eager** (counting aliases and modern dotted names), **6 lazy** control-flow
+functions, and **7 reference/context** functions (`ROW`, `OFFSET`, `INDIRECT`, …)
+— **418 names** in all; user macros can add more (see the
 [UDFs](#user-defined-functions-udfs) note).
+
+Coverage spans the everyday Excel / Gnumeric set: math and trigonometry
+(including hyperbolic and reciprocal), combinatorics, a full statistical
+distribution family, financial (time-value-of-money, cashflow, depreciation),
+text, date/time, engineering (base conversions, bitwise, Bessel), database
+(`D*`) functions, reference functions, and a large RF / ham-radio set. Modern
+dotted names (`STDEV.S`, `NORM.DIST`, `PERCENTILE.INC`, …) are accepted as
+aliases of their legacy names.
 
 ### Aggregate
 
@@ -134,6 +143,17 @@ of values to operate on. Criteria syntax:
 | `COUNTIF` | Count where criteria matches | `COUNTIF(range, criteria)` | `=COUNTIF(A1:A9,"ap*")` | count of `ap…` cells |
 | `AVERAGEIF` | Average where criteria matches | `AVERAGEIF(range, criteria, [avg_range])` | `=AVERAGEIF(A1:A9,">=0")` | mean of non-negatives |
 
+The **`*IFS`** functions take one or more `(criteria_range, criteria)` pairs and
+match a row only when **every** pair matches (logical AND across pairs).
+
+| Function | Description | Signature | Example | Result |
+|---|---|---|---|---|
+| `SUMIFS` | Sum where all criteria match | `SUMIFS(sum_range, crit_range1, crit1, ...)` | `=SUMIFS(C1:C9,A1:A9,"ap*",B1:B9,">5")` | conditional sum |
+| `COUNTIFS` | Count where all criteria match | `COUNTIFS(crit_range1, crit1, ...)` | `=COUNTIFS(A1:A9,">0",B1:B9,"<10")` | conditional count |
+| `AVERAGEIFS` | Average where all criteria match | `AVERAGEIFS(avg_range, crit_range1, crit1, ...)` | `=AVERAGEIFS(C1:C9,A1:A9,"x")` | conditional mean |
+| `MAXIFS` | Max where all criteria match | `MAXIFS(max_range, crit_range1, crit1, ...)` | `=MAXIFS(C1:C9,A1:A9,">0")` | conditional max |
+| `MINIFS` | Min where all criteria match | `MINIFS(min_range, crit_range1, crit1, ...)` | `=MINIFS(C1:C9,A1:A9,">0")` | conditional min |
+
 ### Math
 
 | Function | Description | Signature | Example | Result |
@@ -160,6 +180,38 @@ of values to operate on. Criteria syntax:
 | `PI` | Constant π | `PI()` | `=PI()` | `3.14159…` |
 | `RAND` | Random in [0,1) | `RAND()` | `=RAND()` | e.g. `0.473` |
 | `RANDBETWEEN` | Random integer in range | `RANDBETWEEN(lo, hi)` | `=RANDBETWEEN(1,6)` | e.g. `4` |
+| `EVEN` | Round away from zero to even integer | `EVEN(num)` | `=EVEN(3)` | `4` |
+| `ODD` | Round away from zero to odd integer | `ODD(num)` | `=ODD(2)` | `3` |
+| `MROUND` | Round to nearest multiple | `MROUND(num, multiple)` | `=MROUND(10,3)` | `9` |
+| `QUOTIENT` | Integer part of a division | `QUOTIENT(num, div)` | `=QUOTIENT(7,2)` | `3` |
+| `SQRTPI` | Square root of `num * π` | `SQRTPI(num)` | `=SQRTPI(1)` | `1.7725` |
+| `ISO.CEILING` | Ceiling to a multiple (ISO) | `ISO.CEILING(num, [sig])` | `=ISO.CEILING(4.3)` | `5` |
+| `GAMMA` | Gamma function Γ(x) | `GAMMA(num)` | `=GAMMA(5)` | `24` |
+| `GAMMALN` | Natural log of Γ(x) | `GAMMALN(num)` | `=GAMMALN(5)` | `3.178` |
+
+**Combinatorics.**
+
+| Function | Description | Signature | Example | Result |
+|---|---|---|---|---|
+| `COMBIN` | Combinations C(n,k) | `COMBIN(n, k)` | `=COMBIN(8,2)` | `28` |
+| `COMBINA` | Combinations with repetition | `COMBINA(n, k)` | `=COMBINA(4,3)` | `20` |
+| `PERMUT` | Permutations P(n,k) | `PERMUT(n, k)` | `=PERMUT(5,2)` | `20` |
+| `PERMUTATIONA` | Permutations with repetition (`n^k`) | `PERMUTATIONA(n, k)` | `=PERMUTATIONA(3,2)` | `9` |
+| `MULTINOMIAL` | Multinomial coefficient | `MULTINOMIAL(num, ...)` | `=MULTINOMIAL(2,3,4)` | `1260` |
+| `FACTDOUBLE` | Double factorial `n!!` | `FACTDOUBLE(num)` | `=FACTDOUBLE(7)` | `105` |
+
+**Sum families and numerals.**
+
+| Function | Description | Signature | Example | Result |
+|---|---|---|---|---|
+| `SUMX2MY2` | Σ(x²−y²) over two ranges | `SUMX2MY2(array_x, array_y)` | `=SUMX2MY2(A1:A9,B1:B9)` | Σ(x²−y²) |
+| `SUMX2PY2` | Σ(x²+y²) over two ranges | `SUMX2PY2(array_x, array_y)` | `=SUMX2PY2(A1:A9,B1:B9)` | Σ(x²+y²) |
+| `SUMXMY2` | Σ(x−y)² over two ranges | `SUMXMY2(array_x, array_y)` | `=SUMXMY2(A1:A9,B1:B9)` | Σ(x−y)² |
+| `SERIESSUM` | Power series Σ cᵢ·x^(n+i·m) | `SERIESSUM(x, n, m, coeffs)` | `=SERIESSUM(2,0,1,A1:A4)` | series value |
+| `ROMAN` | Integer → Roman numeral | `ROMAN(num)` | `=ROMAN(1994)` | `MCMXCIV` |
+| `ARABIC` | Roman numeral → integer | `ARABIC(text)` | `=ARABIC("MCMXCIV")` | `1994` |
+| `BASE` | Integer → text in a radix | `BASE(num, radix, [min_len])` | `=BASE(15,2)` | `1111` |
+| `DECIMAL` | Text in a radix → integer | `DECIMAL(text, radix)` | `=DECIMAL("FF",16)` | `255` |
 
 ### Trigonometry
 
@@ -176,6 +228,18 @@ Angles are in radians; use `DEGREES` / `RADIANS` to convert.
 | `ATAN2` | Arctangent of x,y (Excel order) | `ATAN2(x, y)` | `=ATAN2(1,1)` | `0.7854` |
 | `DEGREES` | Radians → degrees | `DEGREES(radians)` | `=DEGREES(PI())` | `180` |
 | `RADIANS` | Degrees → radians | `RADIANS(degrees)` | `=RADIANS(180)` | `3.14159…` |
+
+**Hyperbolic and reciprocal.** `SINH`/`COSH`/`TANH` and their inverses
+`ASINH`/`ACOSH`/`ATANH`; the reciprocal functions `SEC`, `CSC`, `COT` (and
+hyperbolic `SECH`, `CSCH`, `COTH`) plus `ACOT`.
+
+| Function | Description | Signature | Example | Result |
+|---|---|---|---|---|
+| `SINH` `COSH` `TANH` | Hyperbolic sine / cosine / tangent | `SINH(num)` | `=COSH(0)` | `1` |
+| `ASINH` `ACOSH` `ATANH` | Inverse hyperbolic | `ACOSH(num)` | `=ASINH(0)` | `0` |
+| `SEC` `CSC` `COT` | Reciprocal trig (1/cos, 1/sin, 1/tan) | `SEC(angle)` | `=SEC(0)` | `1` |
+| `SECH` `CSCH` `COTH` | Reciprocal hyperbolic | `SECH(num)` | `=SECH(0)` | `1` |
+| `ACOT` | Inverse cotangent | `ACOT(num)` | `=ACOT(1)` | `0.7854` |
 
 ### Statistics
 
@@ -200,6 +264,18 @@ and lightweight regression / distribution helpers.
 | `NORMSDIST` | Standard normal CDF | `NORMSDIST(z)` | `=NORMSDIST(0)` | `0.5` |
 | `NORMSINV` | Inverse standard normal CDF | `NORMSINV(p)` | `=NORMSINV(0.975)` | `1.96` |
 | `RMS` | Root mean square | `RMS(value, ...)` | `=RMS(3,4)` | `3.536` |
+| `AVERAGEA` | Mean, counting text as 0 and TRUE as 1 | `AVERAGEA(value, ...)` | `=AVERAGEA(2,"x",4)` | `2` |
+| `DEVSQ` | Sum of squared deviations from the mean | `DEVSQ(value, ...)` | `=DEVSQ(2,4,6)` | `8` |
+| `AVEDEV` | Mean absolute deviation | `AVEDEV(value, ...)` | `=AVEDEV(2,4,6)` | `1.333` |
+| `TRIMMEAN` | Mean after trimming a fraction of extremes | `TRIMMEAN(range, fraction)` | `=TRIMMEAN(A1:A9,0.2)` | trimmed mean |
+| `STANDARDIZE` | Z-score `(x−mean)/sd` | `STANDARDIZE(x, mean, sd)` | `=STANDARDIZE(42,40,1.5)` | `1.333` |
+| `PERCENTRANK` | Rank of a value as a percent | `PERCENTRANK(range, x, [sig])` | `=PERCENTRANK(A1:A9,7)` | `0`…`1` |
+| `STEYX` | Standard error of the regression | `STEYX(known_ys, known_xs)` | `=STEYX(B1:B9,A1:A9)` | std error |
+| `PEARSON` | Pearson correlation (= `CORREL`) | `PEARSON(array1, array2)` | `=PEARSON(A1:A9,B1:B9)` | `-1`…`1` |
+| `FISHER` | Fisher transform `atanh(x)` | `FISHER(x)` | `=FISHER(0.75)` | `0.9730` |
+| `FISHERINV` | Inverse Fisher `tanh(y)` | `FISHERINV(y)` | `=FISHERINV(0.973)` | `0.75` |
+| `RANK.EQ` | Rank (ties share the top rank) | `RANK.EQ(value, range, [order])` | `=RANK.EQ(2,A1:A9)` | rank |
+| `RANK.AVG` | Rank (ties share the average rank) | `RANK.AVG(value, range, [order])` | `=RANK.AVG(2,A1:A9)` | rank |
 
 ### Statistical distributions
 
@@ -219,6 +295,25 @@ R/RStudio users). `TDIST`/`FDIST`/`CHIDIST` return right-tail probabilities;
 | `CHIINV` | Inverse chi-square right-tail | `CHIINV(p, df)` | `=CHIINV(0.05,1)` | `3.841` |
 | `CONFIDENCE` | Normal confidence-interval half-width | `CONFIDENCE(alpha, sd, n)` | `=CONFIDENCE(0.05,1,100)` | `0.196` |
 
+The full distribution family — discrete and continuous, each with a `cumulative`
+flag (TRUE → CDF, FALSE → PMF/PDF) and, where applicable, an inverse. Both the
+legacy names and the modern dotted names (e.g. `BINOM.DIST`) are registered.
+
+| Function | Description | Signature | Example | Result |
+|---|---|---|---|---|
+| `BINOMDIST` · `BINOM.DIST` | Binomial | `BINOMDIST(x, n, p, cumulative)` | `=BINOMDIST(6,10,0.5,FALSE)` | `0.2051` |
+| `CRITBINOM` · `BINOM.INV` | Smallest x with CDF ≥ α | `BINOM.INV(n, p, alpha)` | `=BINOM.INV(10,0.5,0.9)` | `7` |
+| `NEGBINOMDIST` · `NEGBINOM.DIST` | Negative binomial | `NEGBINOMDIST(f, s, p)` | `=NEGBINOMDIST(2,3,0.5)` | prob. |
+| `POISSON` · `POISSON.DIST` | Poisson | `POISSON(x, mean, cumulative)` | `=POISSON(2,5,FALSE)` | `0.0842` |
+| `HYPGEOMDIST` · `HYPGEOM.DIST` | Hypergeometric | `HYPGEOMDIST(x, n, pop_s, pop_n)` | `=HYPGEOMDIST(1,4,8,20)` | `0.3633` |
+| `EXPONDIST` · `EXPON.DIST` | Exponential | `EXPONDIST(x, lambda, cumulative)` | `=EXPONDIST(0.2,10,TRUE)` | `0.8647` |
+| `GAMMADIST` · `GAMMA.DIST` | Gamma (and `GAMMAINV`/`GAMMA.INV`) | `GAMMADIST(x, a, b, cumulative)` | `=GAMMADIST(10,9,2,TRUE)` | `0.0681` |
+| `BETADIST` · `BETA.DIST` | Beta (and `BETAINV`/`BETA.INV`) | `BETADIST(x, a, b, [cum], [A], [B])` | `=BETADIST(0.5,8,10,TRUE)` | `0.6855` |
+| `WEIBULL` · `WEIBULL.DIST` | Weibull | `WEIBULL(x, a, b, cumulative)` | `=WEIBULL(105,20,100,TRUE)` | `0.9296` |
+| `LOGNORMDIST` · `LOGNORM.DIST` | Log-normal (and `LOGINV`/`LOGNORM.INV`) | `LOGNORMDIST(x, mean, sd)` | `=LOGNORMDIST(4,3.5,1.2)` | prob. |
+| `PHI` | Standard normal PDF | `PHI(x)` | `=PHI(0)` | `0.3989` |
+| `GAUSS` | `Φ(z) − 0.5` | `GAUSS(z)` | `=GAUSS(2)` | `0.4772` |
+
 ### Lookup and reference
 
 | Function | Description | Signature | Example | Result |
@@ -227,6 +322,21 @@ R/RStudio users). `TDIST`/`FDIST`/`CHIDIST` return right-tail probabilities;
 | `HLOOKUP` | Horizontal lookup in a table | `HLOOKUP(value, table, row_index, [approx])` | `=HLOOKUP("Q2",A1:E3,2,FALSE)` | row-2 cell |
 | `MATCH` | Position of value (type 1/0/-1) | `MATCH(value, range, [match_type])` | `=MATCH(7,A1:A9,0)` | index of 7 |
 | `INDEX` | Value at row/col of a range | `INDEX(range, row, [col])` | `=INDEX(A1:C9,2,3)` | cell at (2,3) |
+| `XLOOKUP` | Modern lookup (exact by default) | `XLOOKUP(value, lookup_range, return_range, [if_missing], [match])` | `=XLOOKUP("kiwi",A1:A9,C1:C9)` | matched value |
+
+**Reference / context functions.** These see the *calling cell* and the raw
+**reference** rather than its value. `OFFSET` and `INDIRECT` return a live range
+that composes inside aggregates (`=SUM(OFFSET(A1,0,0,3,1))`).
+
+| Function | Description | Signature | Example | Result |
+|---|---|---|---|---|
+| `ROW` | Row number of a reference (or this cell) | `ROW([reference])` | `=ROW(C4)` | `4` |
+| `COLUMN` | Column number of a reference (or this cell) | `COLUMN([reference])` | `=COLUMN(C4)` | `3` |
+| `ROWS` | Number of rows in a range | `ROWS(range)` | `=ROWS(A1:A10)` | `10` |
+| `COLUMNS` | Number of columns in a range | `COLUMNS(range)` | `=COLUMNS(A1:C1)` | `3` |
+| `OFFSET` | Reference shifted from a base cell | `OFFSET(reference, rows, cols, [height], [width])` | `=OFFSET(A1,1,1)` | cell `B2` |
+| `INDIRECT` | Reference from a text string | `INDIRECT(ref_text, [a1])` | `=INDIRECT("A"&2)` | value of `A2` |
+| `ADDRESS` | Build an address string | `ADDRESS(row, col, [abs], [a1], [sheet])` | `=ADDRESS(2,3)` | `$C$2` |
 
 For `VLOOKUP`/`HLOOKUP` the 4th argument defaults to **TRUE** (approximate,
 assumes ascending order); pass `FALSE` for an exact match. `MATCH` defaults to
@@ -281,6 +391,15 @@ untaken branches never run (no spurious errors or side effects).
 | `TEXT` | Format a number as text | `TEXT(value, format)` | `=TEXT(0.5,"0.0%")` | `50.0%` |
 | `VALUE` | Parse text to number | `VALUE(text)` | `=VALUE("42")` | `42` |
 | `T` | Text passthrough (else empty) | `T(value)` | `=T("hi")` | `hi` |
+| `TEXTJOIN` | Join with a delimiter (optionally skip blanks) | `TEXTJOIN(delim, ignore_empty, text, ...)` | `=TEXTJOIN("-",TRUE,"a","","b")` | `a-b` |
+| `TEXTBEFORE` | Text before the nth delimiter | `TEXTBEFORE(text, delim, [instance])` | `=TEXTBEFORE("a.b.c",".",2)` | `a.b` |
+| `TEXTAFTER` | Text after the nth delimiter | `TEXTAFTER(text, delim, [instance])` | `=TEXTAFTER("a.b.c",".")` | `b.c` |
+| `CLEAN` | Strip non-printable characters | `CLEAN(text)` | `=CLEAN("a"&CHAR(7)&"b")` | `ab` |
+| `UNICHAR` | Character from a Unicode code point | `UNICHAR(number)` | `=UNICHAR(65)` | `A` |
+| `UNICODE` | Code point of the first character | `UNICODE(text)` | `=UNICODE("A")` | `65` |
+| `DOLLAR` | Format as currency text | `DOLLAR(num, [decimals])` | `=DOLLAR(1234.567)` | `$1,234.57` |
+| `FIXED` | Fixed-decimal text | `FIXED(num, [decimals], [no_commas])` | `=FIXED(1234.567,1)` | `1,234.6` |
+| `NUMBERVALUE` | Parse localized number text | `NUMBERVALUE(text, [dec_sep], [grp_sep])` | `=NUMBERVALUE("1,234.5")` | `1234.5` |
 
 ### Date and time
 
@@ -301,6 +420,50 @@ Dates are ISO strings. `NOW` returns a date-time; `TODAY` returns a date.
 | `DATEDIF` | Difference in D / M / Y | `DATEDIF(start, end, unit)` | `=DATEDIF("2026-01-01","2026-06-29","M")` | `5` |
 | `EDATE` | Shift date by months | `EDATE(start, months)` | `=EDATE("2026-01-31",1)` | `2026-02-28` |
 | `DAYS` | Days between two dates | `DAYS(end, start)` | `=DAYS("2026-06-29","2026-06-01")` | `28` |
+| `TIME` | Time of day as a day fraction | `TIME(hour, minute, second)` | `=TIME(12,0,0)` | `0.5` |
+| `TIMEVALUE` | Parse a time string to a fraction | `TIMEVALUE(text)` | `=TIMEVALUE("18:00")` | `0.75` |
+| `DATEVALUE` | Parse a date string to an ISO date | `DATEVALUE(text)` | `=DATEVALUE("2026-06-30")` | `2026-06-30` |
+| `EOMONTH` | Last day of the month, n months out | `EOMONTH(start, months)` | `=EOMONTH("2026-01-15",1)` | `2026-02-28` |
+| `WORKDAY` | Date n working days out (skip weekends/holidays) | `WORKDAY(start, days, [holidays])` | `=WORKDAY("2026-06-30",3)` | `2026-07-03` |
+| `NETWORKDAYS` | Count working days between two dates | `NETWORKDAYS(start, end, [holidays])` | `=NETWORKDAYS("2026-06-01","2026-06-05")` | `5` |
+| `WEEKNUM` | Week of the year | `WEEKNUM(date, [type])` | `=WEEKNUM("2026-01-01")` | `1` |
+| `ISOWEEKNUM` | ISO-8601 week of the year | `ISOWEEKNUM(date)` | `=ISOWEEKNUM("2026-01-01")` | `1` |
+| `YEARFRAC` | Year fraction between two dates (basis 0–4) | `YEARFRAC(start, end, [basis])` | `=YEARFRAC("2026-01-01","2026-07-01")` | `0.5` |
+| `DAYS360` | Days on a 360-day basis | `DAYS360(start, end, [method])` | `=DAYS360("2026-01-01","2026-02-01")` | `30` |
+
+### Financial
+
+Time-value-of-money, cashflow analysis, and depreciation. Cash **out** is
+negative and cash **in** positive (Excel sign convention); the `type` argument is
+`0` for end-of-period (default) or `1` for beginning-of-period payments.
+
+| Function | Description | Signature | Example | Result |
+|---|---|---|---|---|
+| `FV` | Future value of an annuity | `FV(rate, nper, pmt, [pv], [type])` | `=FV(0.06/12,120,-100)` | `16387.93` |
+| `PV` | Present value | `PV(rate, nper, pmt, [fv], [type])` | `=PV(0.08,20,500)` | `-4909.07` |
+| `PMT` | Payment per period | `PMT(rate, nper, pv, [fv], [type])` | `=PMT(0.08/12,120,10000)` | `-121.33` |
+| `IPMT` | Interest part of a payment | `IPMT(rate, per, nper, pv, [fv], [type])` | `=IPMT(0.08/12,1,120,10000)` | interest |
+| `PPMT` | Principal part of a payment | `PPMT(rate, per, nper, pv, [fv], [type])` | `=PPMT(0.08/12,1,120,10000)` | principal |
+| `NPER` | Number of periods | `NPER(rate, pmt, pv, [fv], [type])` | `=NPER(0.01,-100,-1000,10000)` | periods |
+| `RATE` | Rate per period (iterative) | `RATE(nper, pmt, pv, [fv], [type], [guess])` | `=RATE(60,-200,10000)` | rate |
+| `NPV` | Net present value of a cashflow | `NPV(rate, value, ...)` | `=NPV(0.1,-10000,3000,4200,6800)` | `1188.44` |
+| `IRR` | Internal rate of return | `IRR(values, [guess])` | `=IRR(A1:A6)` | rate |
+| `XNPV` | NPV with explicit dates | `XNPV(rate, values, dates)` | `=XNPV(0.09,A1:A5,B1:B5)` | NPV |
+| `XIRR` | IRR with explicit dates | `XIRR(values, dates, [guess])` | `=XIRR(A1:A5,B1:B5)` | rate |
+| `MIRR` | Modified IRR | `MIRR(values, finance_rate, reinvest_rate)` | `=MIRR(A1:A6,0.1,0.12)` | rate |
+| `CUMIPMT` | Cumulative interest over a span | `CUMIPMT(rate, nper, pv, start, end, type)` | `=CUMIPMT(0.09/12,360,125000,13,24,0)` | interest |
+| `CUMPRINC` | Cumulative principal over a span | `CUMPRINC(rate, nper, pv, start, end, type)` | `=CUMPRINC(0.09/12,360,125000,13,24,0)` | principal |
+| `SLN` | Straight-line depreciation | `SLN(cost, salvage, life)` | `=SLN(30000,7500,10)` | `2250` |
+| `SYD` | Sum-of-years'-digits depreciation | `SYD(cost, salvage, life, per)` | `=SYD(30000,7500,10,1)` | `4090.91` |
+| `DB` | Fixed-declining-balance depreciation | `DB(cost, salvage, life, period, [month])` | `=DB(1e6,1e5,6,1)` | depreciation |
+| `DDB` | Double-declining-balance depreciation | `DDB(cost, salvage, life, period, [factor])` | `=DDB(2400,300,10,1)` | `480` |
+| `VDB` | Variable-declining-balance depreciation | `VDB(cost, salvage, life, start, end, [factor], [no_switch])` | `=VDB(2400,300,10,0,1)` | depreciation |
+| `EFFECT` | Effective annual rate | `EFFECT(nominal, npery)` | `=EFFECT(0.0525,4)` | `0.05354` |
+| `NOMINAL` | Nominal annual rate | `NOMINAL(effect, npery)` | `=NOMINAL(0.05354,4)` | `0.0525` |
+| `DOLLARDE` | Fractional dollar → decimal | `DOLLARDE(fractional, fraction)` | `=DOLLARDE(1.02,16)` | `1.125` |
+| `DOLLARFR` | Decimal dollar → fractional | `DOLLARFR(decimal, fraction)` | `=DOLLARFR(1.125,16)` | `1.02` |
+| `PDURATION` | Periods to reach a future value | `PDURATION(rate, pv, fv)` | `=PDURATION(0.025,1000,2000)` | periods |
+| `RRI` | Equivalent interest rate for growth | `RRI(nper, pv, fv)` | `=RRI(96,10000,11000)` | rate |
 
 ### Information
 
@@ -312,6 +475,14 @@ Dates are ISO strings. `NOW` returns a date-time; `TODAY` returns a date.
 | `ISTEXT` | True if text | `ISTEXT(value)` | `=ISTEXT("x")` | `TRUE` |
 | `ISLOGICAL` | True if boolean | `ISLOGICAL(value)` | `=ISLOGICAL(TRUE)` | `TRUE` |
 | `ISERROR` | True if an error value | `ISERROR(value)` | `=ISERROR(1/0)` | `TRUE` |
+| `ISERR` | True if an error other than `#N/A` | `ISERR(value)` | `=ISERR(1/0)` | `TRUE` |
+| `ISNA` | True if the `#N/A` error | `ISNA(value)` | `=ISNA(NA())` | `TRUE` |
+| `ISNONTEXT` | True if not text | `ISNONTEXT(value)` | `=ISNONTEXT(42)` | `TRUE` |
+| `ISEVEN` | True if the (truncated) number is even | `ISEVEN(number)` | `=ISEVEN(4)` | `TRUE` |
+| `ISODD` | True if the (truncated) number is odd | `ISODD(number)` | `=ISODD(3)` | `TRUE` |
+| `N` | Coerce to a number (TRUE→1, text→0) | `N(value)` | `=N(TRUE)` | `1` |
+| `TYPE` | Type code (1 num, 2 text, 4 logical, 16 error) | `TYPE(value)` | `=TYPE("x")` | `2` |
+| `ERROR.TYPE` | Numeric code for an error value | `ERROR.TYPE(value)` | `=ERROR.TYPE(1/0)` | `2` |
 
 ### Engineering and units
 
@@ -339,6 +510,54 @@ These return scalars; complex numbers are encoded as text such as `"3+4i"`
 | `MDETERM` | Determinant of a square range | `MDETERM(range)` | `=MDETERM(A1:B2)` | determinant |
 | `CONVERT` | Convert between units | `CONVERT(num, from_unit, to_unit)` | `=CONVERT(1,"mi","km")` | `1.609` |
 | `INTERP` | Linear interpolation at x | `INTERP(x, known_xs, known_ys)` | `=INTERP(2.5,A1:A9,B1:B9)` | interpolated y |
+
+**Number-base conversions.** Negative inputs use two's-complement (Excel rules);
+an optional `places` argument zero-pads the result. The 12 functions convert
+between binary, octal, decimal and hexadecimal.
+
+| Function | Description | Signature | Example | Result |
+|---|---|---|---|---|
+| `DEC2BIN` `DEC2OCT` `DEC2HEX` | Decimal → binary / octal / hex | `DEC2HEX(num, [places])` | `=DEC2BIN(9)` | `1001` |
+| `BIN2DEC` `BIN2OCT` `BIN2HEX` | Binary → decimal / octal / hex | `BIN2DEC(text)` | `=BIN2DEC("1111111111")` | `-1` |
+| `OCT2DEC` `OCT2BIN` `OCT2HEX` | Octal → decimal / binary / hex | `OCT2DEC(text)` | `=OCT2DEC("10")` | `8` |
+| `HEX2DEC` `HEX2BIN` `HEX2OCT` | Hex → decimal / binary / octal | `HEX2DEC(text)` | `=HEX2DEC("FF")` | `255` |
+
+**Bitwise and special functions.**
+
+| Function | Description | Signature | Example | Result |
+|---|---|---|---|---|
+| `BITAND` `BITOR` `BITXOR` | Bitwise AND / OR / XOR | `BITAND(a, b)` | `=BITXOR(6,10)` | `12` |
+| `BITLSHIFT` `BITRSHIFT` | Bit shift left / right | `BITLSHIFT(num, shift)` | `=BITLSHIFT(4,2)` | `16` |
+| `DELTA` | Kronecker delta (1 if equal) | `DELTA(num1, [num2])` | `=DELTA(5,5)` | `1` |
+| `GESTEP` | Step (1 if num ≥ step) | `GESTEP(num, [step])` | `=GESTEP(5,4)` | `1` |
+| `ERF` | Error function (1- or 2-limit) | `ERF(lower, [upper])` | `=ERF(1)` | `0.8427` |
+| `ERFC` | Complementary error function | `ERFC(x)` | `=ERFC(1)` | `0.1573` |
+| `BESSELJ` `BESSELY` | Bessel functions of the 1st / 2nd kind | `BESSELJ(x, n)` | `=BESSELJ(1,0)` | `0.7652` |
+| `BESSELI` `BESSELK` | Modified Bessel functions | `BESSELI(x, n)` | `=BESSELI(1,0)` | `1.2661` |
+
+`ERF.PRECISE` and `ERFC.PRECISE` are single-argument aliases.
+
+### Database
+
+The classic database functions operate on a table whose first row is column
+headers. `field` is a column header (text) or a 1-based index; `criteria` is a
+small range whose first row names columns and whose following rows hold criteria
+(AND across a row, OR across rows).
+
+| Function | Description | Signature |
+|---|---|---|
+| `DSUM` | Sum of a field over matching records | `DSUM(database, field, criteria)` |
+| `DCOUNT` | Count of numeric field values | `DCOUNT(database, field, criteria)` |
+| `DCOUNTA` | Count of non-blank field values | `DCOUNTA(database, field, criteria)` |
+| `DAVERAGE` | Average of a field | `DAVERAGE(database, field, criteria)` |
+| `DMAX` / `DMIN` | Max / min of a field | `DMAX(database, field, criteria)` |
+| `DGET` | The single matching field value | `DGET(database, field, criteria)` |
+| `DPRODUCT` | Product of a field | `DPRODUCT(database, field, criteria)` |
+| `DSTDEV` / `DSTDEVP` | Sample / population standard deviation | `DSTDEV(database, field, criteria)` |
+| `DVAR` / `DVARP` | Sample / population variance | `DVAR(database, field, criteria)` |
+
+Example: with a `Tree`/`Height` table in `A1:B4` and a criteria range `D1:D2`
+of `Tree` / `Apple`, `=DSUM(A1:B4,"Height",D1:D2)` sums the heights of apples.
 
 ## RF / ham radio
 
@@ -380,6 +599,21 @@ units note, and worked examples in [RF toolkit](rf-toolkit.md).
 | `DIPOLER` / `DIPOLEX` | dipole input R / X (Ω) | `DIPOLER(length_wl, [radius_wl])` | `=DIPOLER(0.5)` → `~73` |
 | `RADRESIST` | radiation resistance (Ω) | `RADRESIST(length_wl)` | `=RADRESIST(0.5)` → `73.1` |
 | `RESONANTLEN` | resonant dipole length (λ) | `RESONANTLEN([radius_wl])` | `≈0.48` |
+
+**Radio math** — resonance, Q, inductor design, matching and propagation.
+
+| Function | Description | Syntax | Example |
+| --- | --- | --- | --- |
+| `CFROMXC` / `LFROMXL` | C from Xc / L from Xl | `CFROMXC(xc, freq_hz)` | |
+| `RESONANTC` / `RESONANTL` | C or L to resonate at a frequency | `RESONANTL(freq_hz, C)` | |
+| `QBW` / `BWQ` | loaded Q ↔ bandwidth | `QBW(center_hz, bw_hz)` | `=QBW(14e6,14e3)` → `1000` |
+| `AIRCOILL` / `AIRCOILN` | air-core inductor (Wheeler) | `AIRCOILL(diam_m, len_m, turns)` | |
+| `TOROIDL` / `TOROIDN` | toroid from an AL value | `TOROIDL(al_nh, turns)` | |
+| `QWMATCH` | quarter-wave transformer Z₀ | `QWMATCH(z1, z2)` | `=QWMATCH(50,200)` → `100` |
+| `SWRPWR` | SWR from forward/reflected power | `SWRPWR(fwd_w, refl_w)` | |
+| `LOOPLEN` | full-wave loop length (m) | `LOOPLEN(freq_hz)` | |
+| `DISHGAIN` / `DISHBW` | parabolic-dish gain / beamwidth | `DISHGAIN(diam_m, freq_hz, [eff])` | |
+| `DOPPLER` | Doppler shift (Hz) | `DOPPLER(freq_hz, velocity_mps)` | |
 
 For antenna modeling beyond these closed-form functions — the thin-wire Method of
 Moments solver and NEC `.nec` I/O — see [RF toolkit](rf-toolkit.md).

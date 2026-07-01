@@ -2,8 +2,9 @@
 
 qcell is a keyboard-first **statistics and data-science workstation** — an
 integrated environment for data work, built on a fast, scriptable spreadsheet.
-Import a dataset, explore it with ~200 formula functions (statistics, engineering,
-and RF/ham-radio), run built-in analyses, reshape and visualize it, hand a
+Import a dataset, explore it with **400+ formula functions** (statistics and
+distributions, financial, engineering, database, and RF/ham-radio), run built-in
+analyses, reshape and visualize it, hand a
 selection to pandas, and script everything with Python — over CSV, Excel, Parquet,
 SQLite, JSON, R, and more. It runs as a Qt desktop GUI (the default), a vim-style
 terminal UI, or a headless CLI, and installs *full-fat by default* (optional

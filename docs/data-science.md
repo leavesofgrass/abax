@@ -25,7 +25,7 @@ straight in the GUI.
 
 - **Selection statistics** — select a range and the status bar shows Sum,
   Average, Min, Max, and Count instantly (see the [GUI guide](gui-guide.md)).
-- **Formula functions** — ~200 of them, including the full aggregate and
+- **Formula functions** — 400+ of them, including the full aggregate and
   statistics families (`AVERAGE`, `MEDIAN`, `STDEV`, `VAR`, `PERCENTILE`,
   `QUARTILE`, `CORREL`, `COVAR`, `SKEW`, `KURT`, `RANK`, …) and statistical
   distributions (`NORMDIST`, `TDIST`, `FDIST`, `CHIDIST` and their inverses,
