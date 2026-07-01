@@ -152,6 +152,27 @@ FUNCTIONS.update({
     "RESONANTLEN": _ant_resonant,
 })
 
+# Additional radio math (resonance, Q/BW, inductor design, matching, antennas,
+# Doppler) — backed by core.science.rf_math.
+FUNCTIONS.update({
+    "CFROMXC": _rfm_numeric("capacitance_from_reactance", (_R, _R)),
+    "LFROMXL": _rfm_numeric("inductance_from_reactance", (_R, _R)),
+    "RESONANTC": _rfm_numeric("resonant_capacitance", (_R, _R)),
+    "RESONANTL": _rfm_numeric("resonant_inductance", (_R, _R)),
+    "QBW": _rfm_numeric("q_from_bandwidth", (_R, _R)),
+    "BWQ": _rfm_numeric("bandwidth_from_q", (_R, _R)),
+    "AIRCOILL": _rfm_numeric("air_core_inductance", (_R, _R, _R)),
+    "AIRCOILN": _rfm_numeric("air_core_turns", (_R, _R, _R)),
+    "TOROIDL": _rfm_numeric("toroid_inductance", (_R, _R)),
+    "TOROIDN": _rfm_numeric("toroid_turns", (_R, _R)),
+    "QWMATCH": _rfm_numeric("quarter_wave_z0", (_R, _R)),
+    "SWRPWR": _rfm_numeric("swr_from_power", (_R, _R)),
+    "LOOPLEN": _rfm_numeric("loop_length", (_R,)),
+    "DISHGAIN": _rfm_numeric("parabolic_gain_dbi", (_R, _R, 0.55)),
+    "DISHBW": _rfm_numeric("parabolic_beamwidth_deg", (_R, _R)),
+    "DOPPLER": _rfm_numeric("doppler_shift_hz", (_R, _R)),
+})
+
 # Modern array functions (XLOOKUP/UNIQUE/SORT/FILTER/SEQUENCE) live in their own
 # module and register themselves here. They return plain lists (no grid "spill"),
 # which compose inside aggregates via _flatten.

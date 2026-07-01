@@ -138,12 +138,38 @@ def _ant_resonant(args):
         return CellError(CellError.NUM)
 
 
+def _rfm_numeric(name: str, spec: tuple):
+    """Like :func:`_rf_numeric` but backed by ``core.science.rf_math`` (the
+    additional radio-math: resonance, Q/BW, inductor design, matching, Doppler)."""
+    def wrapper(args):
+        from ..science import rf_math as M
+
+        vals = []
+        for i, dflt in enumerate(spec):
+            raw = _arg(args, i, None)
+            if raw is None or raw == "":
+                if dflt is _RF_REQUIRED:
+                    return CellError(CellError.VALUE)
+                vals.append(dflt)
+            else:
+                try:
+                    vals.append(_as_number(raw))
+                except (ValueError, TypeError):
+                    return CellError(CellError.VALUE)
+        try:
+            return getattr(M, name)(*vals)
+        except (ValueError, TypeError, ZeroDivisionError, OverflowError):
+            return CellError(CellError.NUM)
+    return wrapper
+
+
 _R = _RF_REQUIRED
 
 
 __all__ = [
     "_RF_REQUIRED",
     "_rf_numeric",
+    "_rfm_numeric",
     "_rf_gridsquare",
     "_rf_grid_component",
     "_rf_grid_pair",

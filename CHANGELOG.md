@@ -101,6 +101,14 @@ All notable changes to qcell are documented here. The format follows
   or content type and the file is loaded through the same dispatch as File → Open.
   The download and parse run off the UI thread. Pure-stdlib `core/io/urlfetch.py`,
   console `urlfetch`.
+- **Radio math — 16 new RF formula functions** (`core/science/rf_math.py`):
+  resonant-circuit component values (`CFROMXC`, `LFROMXL`, `RESONANTC`,
+  `RESONANTL`), loaded-Q / bandwidth (`QBW`, `BWQ`), single-layer air-core inductor
+  design via Wheeler (`AIRCOILL`, `AIRCOILN`), toroid design from an AL value
+  (`TOROIDL`, `TOROIDN`), quarter-wave matching-transformer impedance (`QWMATCH`),
+  SWR from forward/reflected power (`SWRPWR`), full-wave loop length (`LOOPLEN`),
+  parabolic-dish gain and beamwidth (`DISHGAIN`, `DISHBW`), and Doppler shift
+  (`DOPPLER`). SI base units, with function-browser signatures.
 - **RF reference panel** (*Scientific → RF reference (bands / CTCSS)*) — a
   filterable view of the US amateur band plan (with width and mid-band wavelength)
   and the 50 EIA CTCSS tones; "Bands → new sheet" drops the band plan into the

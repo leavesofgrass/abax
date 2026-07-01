@@ -168,6 +168,17 @@ SIGNATURES = {
     "DIPOLER": "DIPOLER(length_wl, [radius_wl=1e-4])",
     "DIPOLEX": "DIPOLEX(length_wl, [radius_wl=1e-4])",
     "RADRESIST": "RADRESIST(length_wl)", "RESONANTLEN": "RESONANTLEN([radius_wl=1e-4])",
+    "CFROMXC": "CFROMXC(xc_ohms, freq_hz)", "LFROMXL": "LFROMXL(xl_ohms, freq_hz)",
+    "RESONANTC": "RESONANTC(freq_hz, inductance_h)",
+    "RESONANTL": "RESONANTL(freq_hz, capacitance_f)",
+    "QBW": "QBW(center_hz, bandwidth_hz)", "BWQ": "BWQ(center_hz, q)",
+    "AIRCOILL": "AIRCOILL(diameter_m, length_m, turns)",
+    "AIRCOILN": "AIRCOILN(inductance_h, diameter_m, length_m)",
+    "TOROIDL": "TOROIDL(al_nh, turns)", "TOROIDN": "TOROIDN(inductance_h, al_nh)",
+    "QWMATCH": "QWMATCH(z1_ohms, z2_ohms)", "SWRPWR": "SWRPWR(forward_w, reflected_w)",
+    "LOOPLEN": "LOOPLEN(freq_hz)",
+    "DISHGAIN": "DISHGAIN(diameter_m, freq_hz, [efficiency=0.55])",
+    "DISHBW": "DISHBW(diameter_m, freq_hz)", "DOPPLER": "DOPPLER(freq_hz, velocity_mps)",
 }
 
 
