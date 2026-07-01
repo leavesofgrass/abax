@@ -108,6 +108,19 @@ class _Pane(QWidget):
                     if cell is not None:
                         cell.setSelected(True)
 
+    def select_all(self) -> None:
+        self._table.selectAll()
+
+    def invert_selection(self) -> None:
+        selected = {i.row() for i in self._table.selectedItems()}
+        self._table.clearSelection()
+        for r in range(self._table.rowCount()):
+            if r not in selected:
+                for c in range(self._table.columnCount()):
+                    cell = self._table.item(r, c)
+                    if cell is not None:
+                        cell.setSelected(True)
+
     def refresh(self) -> None:
         try:
             entries = F.list_dir(self._dir)
@@ -147,7 +160,7 @@ class FileManagerDialog(QDialog):
         start = start_dir or os.getcwd()
 
         root = QVBoxLayout(self)
-        root.addLayout(self._build_toolbar())
+        root.addLayout(self._build_toolbars())
 
         self.left = _Pane(start, self._set_active)
         self.right = _Pane(start, self._set_active)
@@ -168,23 +181,51 @@ class FileManagerDialog(QDialog):
         root.addWidget(self._status)
 
     # --- layout ---------------------------------------------------------
-    def _build_toolbar(self):
+    def _build_toolbars(self):
+        """Worker-style two-row button bank (plus a utilities row).
+
+        Row 1 mirrors Worker's primary keys (Home, F3-View … F8-Delete); row 2
+        its secondary bank (root, select-all/invert, start-program, duplicate,
+        reload, find, dir-size). The F-keys are live shortcuts on the buttons."""
+        self._buttons_by_label = {}
+        col = QVBoxLayout()
+        col.addLayout(self._button_row((
+            ("Home", self._go_home, None),
+            ("F3 View", self._view, "F3"),
+            ("F4 Edit", self._edit, "F4"),
+            ("F5 Copy ->", self._copy, "F5"),
+            ("F6 Move ->", self._move, "F6"),
+            ("F7 New dir", self._new_folder, "F7"),
+            ("F8 Delete", self._delete, "F8"),
+        )))
+        col.addLayout(self._button_row((
+            ("/", self._go_root, None),
+            ("All", self._select_all, None),
+            ("Invert", self._invert_selection, None),
+            ("Start prog", self._start_program, None),
+            ("Duplicate", self._duplicate, None),
+            ("Reload", self.refresh_both, "F2"),
+            ("Find file", self._find, None),
+            ("Dirsize", self._dirsize, None),
+        )))
+        col.addLayout(self._button_row((
+            ("Rename", self._rename, None),
+            ("Zip", lambda: self._archive(".zip"), None),
+            ("Tar.gz", lambda: self._archive(".tar.gz"), None),
+            ("Extract", self._extract, None),
+        )))
+        return col
+
+    def _button_row(self, specs):
         bar = QHBoxLayout()
-        for label, slot in (
-            ("Refresh", self.refresh_both),
-            ("New folder", self._new_folder),
-            ("Rename", self._rename),
-            ("Copy ->", self._copy),
-            ("Move ->", self._move),
-            ("Delete", self._delete),
-            ("Zip", lambda: self._archive(".zip")),
-            ("Tar.gz", lambda: self._archive(".tar.gz")),
-            ("Extract", self._extract),
-            ("Find", self._find),
-        ):
+        for label, slot, shortcut in specs:
             btn = QPushButton(label, self)
             btn.clicked.connect(slot)
+            if shortcut:
+                btn.setShortcut(shortcut)
+                btn.setToolTip(f"{label.split(' ', 1)[-1]}  ({shortcut})")
             bar.addWidget(btn)
+            self._buttons_by_label[label] = btn
         bar.addStretch(1)
         return bar
 
@@ -271,6 +312,105 @@ class FileManagerDialog(QDialog):
             directory=self._active.current_dir(),
             selection=self._active.selected_paths(),
             dest_dir=self._other(self._active).current_dir())
+
+    # --- navigation / selection (Worker rows) ---------------------------
+    def _go_home(self) -> None:
+        self._active.set_dir(os.path.expanduser("~"))
+
+    def _go_root(self) -> None:
+        drive = os.path.splitdrive(self._active.current_dir())[0]
+        self._active.set_dir(drive + os.sep if drive else os.sep)
+
+    def _select_all(self) -> None:
+        self._active.select_all()
+
+    def _invert_selection(self) -> None:
+        self._active.invert_selection()
+
+    def _duplicate(self) -> None:
+        """Copy the active selection back into the SAME pane (Worker 'Duplicate');
+        name conflicts auto-rename via fileops.unique_path."""
+        sel = self._active.selected_paths()
+        if not sel:
+            self._set_status("nothing selected to duplicate")
+            return
+        res = F.copy_paths(sel, self._active.current_dir())
+        self._active.refresh()
+        self._set_status("duplicated: " + res.summary())
+
+    def _dirsize(self) -> None:
+        """Recursive size of the selection (or the active directory if nothing is
+        selected)."""
+        targets = self._active.selected_paths() or [self._active.current_dir()]
+        total = sum(F.tree_size(p) for p in targets)
+        self._set_status(
+            f"{len(targets)} item(s): {F.human_size(total)} ({total:,} bytes)")
+
+    def _start_program(self) -> None:
+        """Run a program/command in the active directory (Worker 'Start prog').
+
+        Placeholders {dir}/{path}/{name}/{sel}/{dest} are expanded via the same
+        fmbuttons machinery as the command buttons, so quoting/joins are shared."""
+        command, ok = QInputDialog.getText(
+            self, "Start program",
+            "Command (placeholders: {dir} {path} {name} {sel} {dest}):")
+        if not ok or not command.strip():
+            return
+        self._run_button(fmbuttons.Button(label="start", command=command.strip()))
+
+    def _view(self) -> None:
+        self._open_file_editor(read_only=True)
+
+    def _edit(self) -> None:
+        self._open_file_editor(read_only=False)
+
+    def _open_file_editor(self, *, read_only: bool) -> None:
+        sel = self._active.selected_paths()
+        if not sel:
+            self._set_status("select a file to " + ("view" if read_only else "edit"))
+            return
+        path = sel[0]
+        if os.path.isdir(path):
+            self._set_status("that is a directory")
+            return
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                text = fh.read(1_000_000)
+        except OSError as exc:
+            QMessageBox.warning(self, "Open file", str(exc))
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(("View: " if read_only else "Edit: ") + os.path.basename(path))
+        dlg.resize(760, 520)
+        lay = QVBoxLayout(dlg)
+        editor = QPlainTextEdit(dlg)
+        editor.setPlainText(text)
+        editor.setReadOnly(read_only)
+        lay.addWidget(editor, 1)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        if not read_only:
+            save = QPushButton("Save", dlg)
+
+            def do_save():
+                try:
+                    with open(path, "w", encoding="utf-8") as fh:
+                        fh.write(editor.toPlainText())
+                except OSError as exc:
+                    QMessageBox.warning(dlg, "Save", str(exc))
+                    return
+                self._active.refresh()
+                self._set_status(f"saved {os.path.basename(path)}")
+                dlg.accept()
+
+            save.clicked.connect(do_save)
+            row.addWidget(save)
+        close = QPushButton("Close", dlg)
+        close.clicked.connect(dlg.accept)
+        row.addWidget(close)
+        lay.addLayout(row)
+        dlg.exec()
 
     # --- operations -----------------------------------------------------
     def _copy(self) -> None:

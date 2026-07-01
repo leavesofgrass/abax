@@ -189,6 +189,26 @@ def make_dir(parent, name: str) -> str:
     return str(target)
 
 
+def tree_size(path) -> int:
+    """Total size in bytes of ``path`` — the file's own size, or the recursive sum
+    of every file under it for a directory. Unreadable entries are skipped (a
+    directory size should never abort on one permission error)."""
+    p = Path(path)
+    if p.is_file():
+        try:
+            return p.stat().st_size
+        except OSError:
+            return 0
+    total = 0
+    for root, _dirs, files in os.walk(p, onerror=lambda _e: None):
+        for name in files:
+            try:
+                total += os.stat(os.path.join(root, name)).st_size
+            except OSError:
+                continue
+    return total
+
+
 def rename_path(path, new_name: str) -> str:
     """Rename ``path`` to ``new_name`` within the same directory."""
     src = Path(path)

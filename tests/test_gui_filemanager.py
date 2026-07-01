@@ -108,6 +108,72 @@ def test_user_buttons_loaded_from_settings(app, tree):
     assert "Show path" in labels                     # defaults still present
 
 
+def test_select_all_and_invert(app, tree):
+    dlg = _dlg(app, tree / "left")
+    dlg._set_active(dlg.left)
+    dlg._select_all()
+    assert len(dlg.left.selected_paths()) == 2
+    dlg._invert_selection()
+    assert len(dlg.left.selected_paths()) == 0
+
+
+def test_duplicate_in_place(app, tree):
+    dlg = _dlg(app, tree / "left")
+    dlg._set_active(dlg.left)
+    dlg.left.select_names(["a.txt"])
+    dlg._duplicate()
+    names = os.listdir(tree / "left")
+    assert len(names) == 3                            # a.txt, b.txt, a copy
+    assert "duplicated" in dlg._status.text()
+
+
+def test_dirsize_reports_bytes(app, tree):
+    dlg = _dlg(app, tree / "left")
+    dlg._set_active(dlg.left)
+    dlg._dirsize()                                    # whole active dir (nothing selected)
+    assert "bytes" in dlg._status.text()
+
+
+def test_go_home_and_root(app, tree):
+    dlg = _dlg(app, tree / "left")
+    dlg._set_active(dlg.left)
+    dlg._go_home()
+    assert dlg.left.current_dir() == os.path.abspath(os.path.expanduser("~"))
+    dlg._go_root()
+    assert dlg.left.current_dir() == os.path.abspath(dlg.left.current_dir())  # a real root
+
+
+def test_view_and_edit_file(app, tree):
+    from qcell.gui import _qtcompat
+
+    dlg = _dlg(app, tree / "left")
+    dlg._set_active(dlg.left)
+    dlg.left.select_names(["a.txt"])
+    # View/Edit open a modal dialog; auto-close it so the test doesn't block.
+    opened = {}
+    orig = _qtcompat.QDialog.exec
+
+    def fake_exec(self):
+        opened["title"] = self.windowTitle()
+        return 0
+
+    _qtcompat.QDialog.exec = fake_exec
+    try:
+        dlg._view()
+        assert opened["title"].startswith("View: a.txt")
+        dlg._edit()
+        assert opened["title"].startswith("Edit: a.txt")
+    finally:
+        _qtcompat.QDialog.exec = orig
+
+
+def test_function_key_shortcuts_present(app, tree):
+    dlg = _dlg(app, tree / "left")
+    # F5/F6/F7/F8 are live shortcuts on their buttons.
+    for label in ("F5 Copy ->", "F6 Move ->", "F7 New dir", "F8 Delete"):
+        assert dlg._buttons_by_label[label].shortcut().toString() != ""
+
+
 def test_wired_into_window(app):
     from qcell.gui.main_window import MainWindow
 

@@ -7,6 +7,14 @@ All notable changes to qcell are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- **File manager: Worker-style button bank** — the dual-pane manager's toolbar is
+  reorganized into Worker's two banks plus a utilities row. Row 1: **Home**, **F3
+  View**, **F4 Edit**, **F5 Copy**, **F6 Move**, **F7 New dir**, **F8 Delete** (the
+  function keys are live shortcuts); row 2: **/** (filesystem root), **All**,
+  **Invert**, **Start prog**, **Duplicate**, **Reload**, **Find file**, **Dirsize**.
+  New actions: view/edit a file in place, select-all / invert, duplicate into the
+  same pane, run an ad-hoc program (with the `{dir}`/`{sel}`/… placeholders), and a
+  recursive directory-size readout (new pure-stdlib `fileops.tree_size`).
 - **Name-resolved formula ASTs are cached** — on a workbook with any defined name,
   every formula evaluation used to re-walk and rewrite its whole AST to substitute
   named ranges (on each `get_value`, defeating the parsed-AST cache), and the guard
