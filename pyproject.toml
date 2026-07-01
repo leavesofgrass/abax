@@ -30,13 +30,16 @@ jupyter  = ["nbformat", "ipykernel", "anywidget"]
 science  = [
     "numpy", "pandas", "scipy", "pyarrow",
     "scikit-learn", "statsmodels",
-    "lifelines", "pingouin", "scikit-survival", "pymc",
+    "lifelines", "pingouin", "scikit-survival",
 ]
+# Bayesian / probabilistic programming — split out because pymc pulls a heavy
+# stack (pytensor + arviz + numba/llvmlite, ~150 MB). Included in `all`.
+bayes    = ["pymc"]
 # Lean install — the GUI plus every lightweight convenience (TUI, Excel, fast-io,
 # terminal), but NONE of the heavy optional data-science libraries. ~0.22 GB.
 thin     = ["qcell[gui,tui,excel,fast-io,terminal]"]
-# Everything qcell can use, in one shot: thin + Parquet + the science stack. ~0.9 GB.
-all      = ["qcell[thin,parquet,science,jupyter]"]
+# Everything qcell can use, in one shot (the default full-fat set). ~0.84 GB.
+all      = ["qcell[thin,parquet,science,jupyter,bayes]"]
 
 [project.scripts]
 qcell = "qcell.app:main"

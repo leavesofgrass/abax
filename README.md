@@ -39,8 +39,9 @@ QCELL_NO_AUTOINSTALL=1 …        # opt out (or set auto_install=false in settin
 
 pip install -e ".[dev]"        # a development checkout
 # extras: .[gui] PySide6 · .[gui-pyqt] PyQt6 · .[tui] textual · .[excel] openpyxl
-#         .[parquet] pyarrow · .[science] numpy/pandas/scipy/… · .[jupyter] nbformat/ipykernel/anywidget
-#         .[all] everything · .[thin] GUI + light conveniences, no heavy science
+#         .[parquet] pyarrow · .[science] numpy/pandas/scipy/… · .[bayes] pymc (heavy)
+#         .[jupyter] nbformat/ipykernel/anywidget · .[all] everything (default full-fat)
+#         .[thin] GUI + light conveniences, no heavy science
 ```
 
 The core is pure stdlib — the whole test suite passes with **zero** optional

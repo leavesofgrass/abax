@@ -45,10 +45,11 @@ If you have `just` installed, `just install` runs the full developer setup for y
 | `fast-io` | `msgspec`, `platformdirs` | Faster JSON and OS-correct config/data paths |
 | `terminal` | `pyte` | A true PTY terminal panel (with `pywinpty` on Windows) |
 | `parquet` | `pyarrow` | Parquet / Feather I/O |
-| `science` | numpy, pandas, scipy, scikit-learn, statsmodels, lifelines, pingouin, scikit-survival, pymc | The data-science / (bio)statistics stack behind the analysis, ML, and graphing tools |
+| `science` | numpy, pandas, scipy, scikit-learn, statsmodels, lifelines, pingouin, scikit-survival | The data-science / (bio)statistics stack behind the analysis, ML, and graphing tools |
+| `bayes` | pymc | Bayesian / probabilistic programming — split out because it's heavy (pytensor + arviz + numba/llvmlite, ~150 MB) |
 | `jupyter` | `nbformat`, `ipykernel`, `anywidget` | Notebook validation, the qcell Jupyter kernel, and the editable-sheet widget ([jupyter.md](jupyter.md)) |
 | **`thin`** | `gui` + `tui` + `excel` + `fast-io` + `terminal` | A lean desktop install — every lightweight convenience, none of the heavy data libraries |
-| **`all`** | `thin` + `parquet` + `science` + `jupyter` | One-shot install of everything qcell can use |
+| **`all`** | `thin` + `parquet` + `science` + `jupyter` + `bayes` | One-shot install of everything qcell can use (the default full-fat set) |
 
 > **Full-fat by default.** You don't have to pick extras: install just `gui` and,
 > on first launch, qcell **auto-installs the rest in the background** (the science
@@ -58,14 +59,20 @@ If you have `just` installed, `just install` runs the full developer setup for y
 
 ### Install profiles & footprint
 
-Approximate **installed** sizes — similar on Windows and Linux, since the heavy pieces are comparable binary wheels on both:
+Approximate **installed** sizes (excluding the Python interpreter) — within ~10 %
+across Windows, Linux, and macOS, since the heavy pieces are comparable binary
+wheels on each:
 
 | Profile | Command | Size |
 |---------|---------|-----:|
-| Core / headless | `pip install .` | **< 1 MB** (+ the Python interpreter) |
+| Core / headless | `pip install .` | **< 2 MB** |
 | Desktop GUI | `pip install ".[gui]"` | **~0.22 GB** |
-| Lean desktop | `pip install ".[thin]"` | **~0.22 GB** |
-| Everything | `pip install ".[all]"` | **~0.9 GB** |
+| Lean desktop | `pip install ".[thin]"` | **~0.23 GB** |
+| Everything without Bayesian | `pip install ".[thin,parquet,science,jupyter]"` | **~0.69 GB** |
+| Everything | `pip install ".[all]"` | **~0.84 GB** |
+
+Dropping the `bayes` extra (pymc → pytensor + arviz + numba/llvmlite) saves
+~0.15 GB with no loss to the spreadsheet, RF/antenna, DSP, or ML tools.
 
 The GUI tiers are dominated by Qt (~0.2 GB). `all` adds the scientific stack — roughly +0.7 GB of numpy/scipy/pandas/scikit-learn/pyarrow/… The core and curses TUI need nothing beyond the standard library.
 

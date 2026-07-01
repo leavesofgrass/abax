@@ -100,3 +100,9 @@ out with `auto_install: false` or `QCELL_NO_AUTOINSTALL=1`; force it now with
 `qcell deps`). When `numpy` is present it also **accelerates large aggregate
 reductions** (`SUM`/`AVERAGE`/`MIN`/`MAX`/`COUNT`/… over big all-numeric ranges)
 ~3–4× — automatically and with the exact same results as the pure-Python path.
+
+The heaviest optional piece — **`pymc`** (Bayesian / probabilistic programming,
+which pulls pytensor + arviz + numba/llvmlite, ~150 MB) — is a separate **`bayes`**
+extra. It's included in `all` (and the default full-fat auto-install), but you can
+install everything *except* it with `pip install ".[thin,parquet,science,jupyter]"`
+to save ~0.15 GB.

@@ -35,8 +35,11 @@ _SCIENCE = [
     ("numpy", "numpy"), ("pandas", "pandas"), ("scipy", "scipy"),
     ("scikit-learn", "sklearn"), ("statsmodels", "statsmodels"),
     ("pingouin", "pingouin"), ("lifelines", "lifelines"),
-    ("scikit-survival", "sksurv"), ("pymc", "pymc"),
+    ("scikit-survival", "sksurv"),
 ]
+# Bayesian stack, split out (pymc pulls pytensor + arviz + numba/llvmlite ~150 MB).
+# Still part of the default full-fat `ALL` set below.
+_BAYES = [("pymc", "pymc")]
 _TERMINAL = [("pyte", "pyte")]
 if sys.platform == "win32":
     _TERMINAL.append(("pywinpty", "winpty"))   # ConPTY backend on Windows
@@ -50,9 +53,11 @@ FEATURES: dict[str, list[tuple[str, str]]] = {
     "jupyter": [("nbformat", "nbformat"), ("ipykernel", "ipykernel"),
                 ("anywidget", "anywidget")],
     "science": _SCIENCE,
+    "bayes": _BAYES,
 }
 
-# The full-fat set, ordered light -> heavy (markers dedupe across features).
+# The full-fat set (the `all` extra), ordered light -> heavy so the quick wins
+# land first and the heaviest (pymc) last; markers dedupe across features.
 ALL: list[tuple[str, str]] = [
     ("platformdirs", "platformdirs"), ("msgspec", "msgspec"),
     ("openpyxl", "openpyxl"),
@@ -62,6 +67,7 @@ ALL: list[tuple[str, str]] = [
     ("pyarrow", "pyarrow"),
     *_SCIENCE,
     ("ipykernel", "ipykernel"),
+    *_BAYES,
 ]
 
 # --- configuration / hooks (the install fn + marker dir are injectable for tests)

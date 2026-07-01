@@ -76,7 +76,11 @@ def test_registry_is_well_formed():
         for pip, mod in pkgs:
             assert isinstance(pip, str) and isinstance(mod, str)
     assert ("numpy", "numpy") in autodeps.ALL
-    assert ("pymc", "pymc") == autodeps.ALL[-2] or autodeps.ALL[-1][0] == "ipykernel"
+    assert autodeps.ALL[-1] == ("pymc", "pymc")             # heaviest, installed last
+    # pymc is split into its own `bayes` feature but stays in the full-fat set
+    assert ("pymc", "pymc") in autodeps.FEATURES["bayes"]
+    assert ("pymc", "pymc") not in autodeps.FEATURES["science"]
+    assert ("pymc", "pymc") in autodeps.ALL
     # PySide6 is deliberately NOT auto-installed (it's the entry binding)
     assert all(pip != "PySide6" for pip, _ in autodeps.ALL)
 
