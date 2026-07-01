@@ -66,6 +66,23 @@ All notable changes to qcell are documented here. The format follows
 - **DXCC callsign lookup** — a `DXCC(callsign)` formula function (e.g. `=DXCC("W1AW")`
   → `United States`) backed by a 378-prefix table (`core/science/dxcc.py`); handles
   portable prefixes and operational suffixes.
+- **Dynamic-array functions** — `XLOOKUP`, `UNIQUE`, `SORT`, `FILTER` and `SEQUENCE`
+  (pure-stdlib `core/arrayfuncs.py`). They return lists that compose inside the
+  existing aggregates, so `=SUM(UNIQUE(B1:B4))`, `=COUNT(FILTER(A1:A9, B1:B9>0))` and
+  `=SUM(SEQUENCE(5))` work without a spill grid.
+- **Goal Seek** (*Data → Analyze → Goal seek*) — set a target cell to a chosen value
+  by solving for one input cell (secant with a bracketing-bisection fallback,
+  `core/goalseek.py`); the original value is restored if it can't converge.
+- **I/Q constellation export** (*Scientific → I/Q constellation → SVG*) — read a
+  two-column (I, Q) selection and export the constellation as an SVG, reporting
+  power in dBFS. Backed by `core/science/iq.py` (constellation / eye-diagram / EVM /
+  power), available in the console as `iq`.
+- **Workbook compare** (*Data → Analyze → Compare workbook*) — diff the current
+  workbook against another file into a new **Diff** sheet (added / removed / changed
+  cells, per-sheet, with a summary). Pure-stdlib `core/wbdiff.py`, console `wbdiff`.
+- **HTML report export** (*Data → Analyze → Export as HTML report*) — write the whole
+  workbook to a standalone, escaped HTML document (`core/io/html_report.py`, console
+  `html_report`).
 - **Budgeting tools** (*Tools → Budget wizard*) — a guided dialog to set up and
   track expenses: enter monthly income, seed categories from the **50/30/20 rule**
   (or start blank), tweak the amounts, and *Create budget sheet*. It drops a **live
