@@ -85,6 +85,20 @@ def test_registry_is_well_formed():
     assert all(pip != "PySide6" for pip, _ in autodeps.ALL)
 
 
+def test_presets_and_feature_info():
+    assert set(autodeps.preset("thin")) == {"fast-io", "excel", "terminal", "tui"}
+    assert set(autodeps.preset("all")) == set(autodeps.FEATURES)
+    assert autodeps.preset("nonsense") == []
+    # every feature has a chooser description (label, detail, size_mb)
+    for key in autodeps.FEATURES:
+        assert key in autodeps.FEATURE_INFO
+        label, detail, mb = autodeps.FEATURE_INFO[key]
+        assert label and detail and isinstance(mb, int)
+    # thin excludes the heavy stacks
+    assert "science" not in autodeps.preset("thin")
+    assert "bayes" not in autodeps.preset("thin")
+
+
 def test_missing_helper(sandbox):
     pairs = [("json-pkg", "json"), ("nope", "qcell_missing_mod_6")]
     miss = autodeps.missing(pairs)

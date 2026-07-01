@@ -29,7 +29,8 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `recent_files` | list | `[]` | Recently opened file paths. |
 | `window_geometry` | dict | `{}` | Saved GUI window position/size. |
 | `fm_buttons` | list | `[]` | Your custom file-manager command buttons (`{label, command}`); see [File manager](file-manager.md). |
-| `auto_install` | bool | `true` | Auto-install optional dependencies in the background on launch (see [Auto-install](#auto-install)). Set `false` to opt out. |
+| `auto_install` | bool | `true` | Auto-install optional dependencies (and show the first-run chooser); see [Auto-install](#auto-install). Set `false` to opt out. |
+| `deps_prompted` | bool | `false` | Whether the first-run optional-feature chooser has been shown. Set back to `false` to be asked again. |
 | `schema_version` | int | `1` | Settings schema version (managed by qcell). |
 
 You can edit `settings.json` by hand while qcell is closed, but most fields are also exposed through the GUI (theme, fonts, toolbar, faceplate folder) and the TUI, which is the recommended way to change them.
@@ -95,14 +96,14 @@ Set to any non-empty value to disable the background auto-installation of option
 
 ## Auto-install
 
-qcell's core is pure stdlib and every heavier capability is an *optional* package with a graceful fallback. By default qcell fetches those packages **automatically** — on first GUI or TUI launch it installs whatever is missing (the data-science stack, Excel/Parquet I/O, the PTY terminal, and Jupyter integration) in a background daemon thread, so a plain install becomes "full-fat" on its own.
+qcell's core is pure stdlib and every heavier capability is an *optional* package with a graceful fallback. On **first GUI launch** qcell shows a **chooser** that explains each optional feature group and offers two presets — **Thin** (lean everyday conveniences) and **All** (everything, recommended) — plus a checkbox per feature. Your selection is fetched in a background daemon thread (best-effort, non-blocking) and the choice is remembered (`deps_prompted`). In the TUI/headless there's no dialog: a one-time notice points you at `qcell deps` (install everything) or `pip install qcell[…]` (specific extras).
 
 - **Best-effort and non-blocking.** Startup and the UI never wait on `pip`. If pip is unavailable, you're offline, or a build fails, qcell silently keeps using its pure-Python fallbacks.
 - **Once per machine.** A marker file per package (under the cache directory's `autodeps/` folder) means a slow or failing install is not retried on every launch.
 - **Opt out** with `auto_install: false` in settings or `QCELL_NO_AUTOINSTALL=1`.
 - The **Qt GUI binding** (PySide6/PyQt6) is *not* auto-installed — you need it to launch the GUI in the first place, so install it explicitly with `pip install qcell[gui]`.
 
-Controls: **Tools → Install optional features now** forces a fetch immediately (ignoring the markers); `qcell deps` does the same from the command line, synchronously; and `qcell --deps` reports the auto-install state and how many optional packages are present.
+Controls: **Tools → Install optional features** re-opens the chooser (Thin / All / custom) any time; `qcell deps` installs everything from the command line, synchronously; and `qcell --deps` reports the auto-install state and how many optional packages are present.
 
 ## Themes
 

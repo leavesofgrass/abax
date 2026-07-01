@@ -51,11 +51,16 @@ If you have `just` installed, `just install` runs the full developer setup for y
 | **`thin`** | `gui` + `tui` + `excel` + `fast-io` + `terminal` | A lean desktop install — every lightweight convenience, none of the heavy data libraries |
 | **`all`** | `thin` + `parquet` + `science` + `jupyter` + `bayes` | One-shot install of everything qcell can use (the default full-fat set) |
 
-> **Full-fat by default.** You don't have to pick extras: install just `gui` and,
-> on first launch, qcell **auto-installs the rest in the background** (the science
-> stack, Excel/Parquet, terminal, Jupyter). It's best-effort and non-blocking; opt
-> out with `auto_install: false` or `QCELL_NO_AUTOINSTALL=1`, or force it now with
-> `qcell deps`. See [Configuration → Auto-install](configuration.md#auto-install).
+> **You choose on first launch.** You don't have to pick extras at install time:
+> install just `gui`, and the first time you open qcell it shows a short **chooser**
+> that explains each optional feature and offers two presets — **Thin** (lean
+> everyday conveniences, ~25 MB) and **All** (everything, recommended) — plus a
+> checkbox per feature so you can pick your own mix. Your choice is fetched in the
+> background (best-effort, non-blocking) and remembered. Re-open it any time from
+> *Tools → Install optional features*. In the TUI/headless, `qcell deps` installs
+> everything, or `pip install qcell[science]` (etc.) picks specific extras. Opt out
+> of prompting/auto-install entirely with `auto_install: false` or
+> `QCELL_NO_AUTOINSTALL=1`. See [Configuration → Auto-install](configuration.md#auto-install).
 
 ### Install profiles & footprint
 

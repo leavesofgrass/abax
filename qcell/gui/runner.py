@@ -31,13 +31,12 @@ def run_gui(file: str | None = None, registry=None) -> int:
     settings = load_settings(rt.CONFIG_DIR / "settings.json")
     state = StateManager.load(rt.DATA_DIR / "state.json")
 
-    # Make a plain install "full fat": fetch every optional dependency in the
-    # background on first run (data-science stack, Excel/Parquet, terminal,
-    # Jupyter). Best-effort, once per machine, silent on failure; honors the
-    # auto_install setting and QCELL_NO_AUTOINSTALL.
+    # Optional dependencies are fetched on demand (best-effort, background). On the
+    # very first launch qcell asks the user what to install via a chooser (Thin /
+    # All / custom) — see below, after the window is shown; honors the auto_install
+    # setting and QCELL_NO_AUTOINSTALL.
     from .. import autodeps
     autodeps.set_enabled(settings.auto_install)
-    autodeps.prefetch_all()
 
     def _excepthook(exc_type, exc_value, exc_tb):
         if issubclass(exc_type, KeyboardInterrupt):
@@ -59,6 +58,9 @@ def run_gui(file: str | None = None, registry=None) -> int:
     if file:
         window.open_document(file)
     window.show()
+    # First launch: ask which optional features to install (Thin / All / custom).
+    from .dialogs.deps_dialog import maybe_prompt
+    maybe_prompt(window)
     # Launch to a clean grid: the calculator, console, and terminal are opened on
     # demand (shortcuts or View -> Open default workspace), so a first run isn't a
     # pile of panels — and the code-execution consent prompt only appears when the

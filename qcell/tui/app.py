@@ -21,10 +21,22 @@ def run_tui(file: str | None = None, registry=None) -> int:
 
     settings = load_settings(rt.CONFIG_DIR / "settings.json")
 
-    # Same full-fat auto-install as the GUI: fetch optional deps in the background.
+    # First run: point the user at their choices instead of silently installing.
     from .. import autodeps
     autodeps.set_enabled(getattr(settings, "auto_install", True))
-    autodeps.prefetch_all()
+    if autodeps.enabled() and not getattr(settings, "deps_prompted", False):
+        print("qcell: optional features (data science, Excel/Parquet, Jupyter, "
+              "terminal) are not installed yet.")
+        print("  Install everything:  qcell deps        (or launch the GUI for a "
+              "chooser)")
+        print("  Pick specific ones:  pip install qcell[science]  /  [excel]  /  "
+              "[jupyter]  ...")
+        settings.deps_prompted = True
+        try:
+            from ..settings import save_settings
+            save_settings(settings, rt.CONFIG_DIR / "settings.json")
+        except Exception:
+            pass
 
     doc = Document.open(file) if file else Document()
     editor = TuiEditor(doc, registry)

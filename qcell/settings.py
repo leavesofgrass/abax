@@ -46,6 +46,7 @@ if _HAS_MSGSPEC:
         window_geometry: dict = {}
         fm_buttons: list = []
         auto_install: bool = True
+        deps_prompted: bool = False
         schema_version: int = SCHEMA_VERSION
 
     _encoder = msgspec.json.Encoder()
@@ -85,6 +86,7 @@ else:
         window_geometry: dict = field(default_factory=dict)
         fm_buttons: list = field(default_factory=list)
         auto_install: bool = True
+        deps_prompted: bool = False
         schema_version: int = SCHEMA_VERSION
 
     def load_settings(path: Path) -> "Settings":

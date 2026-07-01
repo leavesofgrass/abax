@@ -70,6 +70,40 @@ ALL: list[tuple[str, str]] = [
     *_BAYES,
 ]
 
+# Human-facing descriptions for the first-run chooser: feature -> (label,
+# what it installs, approximate MB). Feature closures share dependencies, so the
+# totals for a preset are smaller than the sum of the parts.
+FEATURE_INFO: dict[str, tuple[str, str, int]] = {
+    "fast-io": ("Faster settings & correct folders",
+                "msgspec + platformdirs", 8),
+    "excel": ("Excel spreadsheets (.xlsx)", "openpyxl", 4),
+    "terminal": ("A true terminal panel",
+                 "pyte" + (" + pywinpty" if sys.platform == "win32" else ""), 3),
+    "tui": ("A richer terminal UI", "textual + rich", 12),
+    "jupyter": ("Jupyter integration",
+                "nbformat + ipykernel + anywidget — notebook validation, the qcell "
+                "kernel, and the editable-sheet widget", 80),
+    "parquet": ("Parquet / Feather data files", "pyarrow", 90),
+    "science": ("Data science: statistics, ML, DataFrames, graphing",
+                "numpy, pandas, scipy, scikit-learn, statsmodels, lifelines, "
+                "pingouin, scikit-survival", 450),
+    "bayes": ("Bayesian / probabilistic modeling (large)",
+              "pymc + pytensor + arviz + numba/llvmlite", 150),
+}
+
+# The two common presets offered by the chooser. "thin" = the lean conveniences
+# (matching the pip `thin` extra minus the Qt binding); "all" = everything.
+PRESETS: dict[str, list[str]] = {
+    "thin": ["fast-io", "excel", "terminal", "tui"],
+    "all": list(FEATURES),
+}
+
+
+def preset(name: str) -> list[str]:
+    """Feature keys for a named preset (``"thin"`` / ``"all"``)."""
+    return list(PRESETS.get(name, []))
+
+
 # --- configuration / hooks (the install fn + marker dir are injectable for tests)
 _INSTALL_FN = None          # set below; tests may replace it
 _MARKER_DIR = None          # None -> CACHE_DIR/autodeps

@@ -103,17 +103,10 @@ class ToolsMixin:
         BudgetWizard(self).exec()
 
     def install_optional_features(self) -> None:
-        """Force a background fetch of every optional dependency (full-fat)."""
-        from .. import autodeps
+        """Open the optional-feature chooser (Thin / All / custom)."""
+        from .dialogs.deps_dialog import DependencyChooser
 
-        autodeps.set_enabled(True)
-        pending = autodeps.prefetch_all(force=True)
-        if pending:
-            self._set_status(
-                f"installing {len(pending)} optional package(s) in the background "
-                "(numerics, Excel/Parquet, terminal, Jupyter)...")
-        else:
-            self._set_status("all optional features are already installed")
+        DependencyChooser(self).exec()
 
     def show_file_manager(self) -> None:
         from .dialogs.filemanager_dialog import FileManagerDialog
