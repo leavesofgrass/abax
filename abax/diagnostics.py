@@ -91,6 +91,11 @@ OPTIONAL_DEPENDENCIES = {
         "fallback": "no probabilistic programming",
         "purpose": "Bayesian / probabilistic programming (MCMC)",
     },
+    "PyNEC": {
+        "available": _has("PyNEC"),
+        "fallback": "built-in method-of-moments antenna solver",
+        "purpose": "reference-grade NEC antenna field solving",
+    },
 }
 
 

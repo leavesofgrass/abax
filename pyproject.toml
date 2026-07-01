@@ -35,11 +35,15 @@ science  = [
 # Bayesian / probabilistic programming — split out because pymc pulls a heavy
 # stack (pytensor + arviz + numba/llvmlite, ~150 MB). Included in `all`.
 bayes    = ["pymc"]
+# Reference-grade NEC antenna solver (a compiled C++/SWIG extension). Optional —
+# the built-in method-of-moments solver works without it. In `all`, not `thin`;
+# wheels aren't published for every platform, so it may need a build toolchain.
+nec      = ["PyNEC"]
 # Lean install — the GUI plus every lightweight convenience (TUI, Excel, fast-io,
 # terminal), but NONE of the heavy optional data-science libraries. ~0.22 GB.
 thin     = ["abax[gui,tui,excel,fast-io,terminal]"]
 # Everything abax can use, in one shot (the default full-fat set). ~0.84 GB.
-all      = ["abax[thin,parquet,science,jupyter,bayes]"]
+all      = ["abax[thin,parquet,science,jupyter,bayes,nec]"]
 
 [project.scripts]
 abax = "abax.app:main"

@@ -40,6 +40,11 @@ _SCIENCE = [
 # Bayesian stack, split out (pymc pulls pytensor + arviz + numba/llvmlite ~150 MB).
 # Still part of the default full-fat `ALL` set below.
 _BAYES = [("pymc", "pymc")]
+# Reference-grade NEC antenna solver (compiled C++/SWIG extension). Part of the
+# default full-fat `ALL` set; NOT in `thin`. May lack wheels on some platforms
+# (notably Windows), in which case the best-effort install just fails silently and
+# abax keeps using its built-in method-of-moments solver.
+_NEC = [("PyNEC", "PyNEC")]
 _TERMINAL = [("pyte", "pyte")]
 if sys.platform == "win32":
     _TERMINAL.append(("pywinpty", "winpty"))   # ConPTY backend on Windows
@@ -54,6 +59,7 @@ FEATURES: dict[str, list[tuple[str, str]]] = {
                 ("anywidget", "anywidget")],
     "science": _SCIENCE,
     "bayes": _BAYES,
+    "nec": _NEC,
 }
 
 # The full-fat set (the `all` extra), ordered light -> heavy so the quick wins
@@ -68,6 +74,7 @@ ALL: list[tuple[str, str]] = [
     *_SCIENCE,
     ("ipykernel", "ipykernel"),
     *_BAYES,
+    *_NEC,          # compiled; last so a build failure can't block the rest
 ]
 
 # Human-facing descriptions for the first-run chooser: feature -> (label,
@@ -89,6 +96,8 @@ FEATURE_INFO: dict[str, tuple[str, str, int]] = {
                 "pingouin, scikit-survival", 450),
     "bayes": ("Bayesian / probabilistic modeling (large)",
               "pymc + pytensor + arviz + numba/llvmlite", 150),
+    "nec": ("Reference-grade NEC antenna solver",
+            "PyNEC (compiled; may need a build toolchain on some platforms)", 5),
 }
 
 # The two common presets offered by the chooser. "thin" = the lean conveniences

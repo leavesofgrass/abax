@@ -11,6 +11,12 @@ All notable changes to abax are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- **PyNEC (reference-grade NEC antenna solver) is now part of the full-fat set.**
+  A new `nec` extra (`pip install abax[nec]`) and, since it's included in `all`, the
+  background auto-installer now fetches **PyNEC** on a default install — but it stays
+  out of `thin`. PyNEC is a compiled C++/SWIG extension without wheels on every
+  platform, so the best-effort install can fail silently; abax then keeps using its
+  built-in method-of-moments solver. `abax --deps` reports its status.
 - **Renamed the project from `qcell` to `abax`.** The Python package
   (`qcell/` → `abax/`), all imports and CLI entry points (`abax`, `abax-kernel`),
   the environment-variable prefix (`QCELL_*` → `ABAX_*`), and the native file
