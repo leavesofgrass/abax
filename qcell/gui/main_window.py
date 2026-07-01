@@ -375,10 +375,13 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         m_data.addSeparator()
         m_analyze = m_data.addMenu("&Analyze")
         self._act(m_analyze, "&Statistics / analysis...", self.show_stats_tool)
+        self._act(m_analyze, "&SQL query...", self.show_sql_query)
+        self._act(m_analyze, "&Profile columns", self.profile_columns)
         self._act(m_analyze, "Open selection in &pandas...", self.show_dataframe)
         self._act(m_analyze, "&Recode / clean column...", self.show_recode)
         self._act(m_analyze, "Pi&vot / group-by...", self.show_pivot)
         self._act(m_analyze, "&Graph / chart...", self.show_graph)
+        self._act(m_analyze, "&Export chart as SVG...", self.export_chart_svg)
 
         # --- Sheet (multi-sheet management) -------------------------------
         m_sheet = mb.addMenu("S&heet")

@@ -120,6 +120,19 @@ def build_namespace(workbook, refresh=None) -> dict:
                 sh.set_cell(r + i, c0 + j, "" if v is None else str(v))
         refresh()
 
+    def sql(query):
+        """Run SQL over the workbook's sheets; returns ``(columns, rows)``."""
+        from . import sqlsheets
+
+        return sqlsheets.run_sql({s.name: s for s in workbook.sheets}, query)
+
+    def describe():
+        """Profile every column of the active sheet (list of stat dicts)."""
+        from . import profile
+
+        return profile.profile_sheet(workbook.sheet)
+
+    from . import profile, sqlsheets
     from .calc import algebraic, ti_engine
     from .calc.rpn import RPN
     from .graphing import compile_expr
@@ -127,6 +140,7 @@ def build_namespace(workbook, refresh=None) -> dict:
         antenna,
         antenna_impedance,
         bayes,
+        chartsvg,
         cluster,
         complexnum,
         eigen,
@@ -179,6 +193,8 @@ def build_namespace(workbook, refresh=None) -> dict:
         "rf": rf, "rf_bands": rf_bands, "antenna": antenna,
         "antenna_impedance": antenna_impedance, "mom": mom, "wire_mom": wire_mom,
         "nec": nec,
+        "sql": sql, "sqlsheets": sqlsheets, "profile": profile,
+        "describe": describe, "chartsvg": chartsvg,
         "algebraic": algebraic, "ti_engine": ti_engine,
         "np": _np, "numpy": _np, "pd": _pd, "pandas": _pd, "scipy": _scipy,
         "sm": _sm, "statsmodels": _sm, "sklearn": _sklearn,

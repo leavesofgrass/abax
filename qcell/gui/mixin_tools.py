@@ -102,6 +102,76 @@ class ToolsMixin:
 
         BudgetWizard(self).exec()
 
+    def show_sql_query(self) -> None:
+        from .dialogs.sql_dialog import SqlDialog
+
+        SqlDialog(self).exec()
+
+    def _unique_sheet_name(self, base: str) -> str:
+        existing = {s.name for s in self._doc.workbook.sheets}
+        if base not in existing:
+            return base
+        n = 2
+        while f"{base} {n}" in existing:
+            n += 1
+        return f"{base} {n}"
+
+    def profile_columns(self) -> None:
+        """Write a per-column profile of the active sheet to a new report sheet."""
+        from ..core import profile
+
+        stats = profile.profile_sheet(self._doc.workbook.sheet)
+        if not stats:
+            self._set_status("nothing to profile")
+            return
+        wb = self._doc.workbook
+        rep = wb.add_sheet(self._unique_sheet_name("Profile"))
+        headers = ["column", "dtype", "count", "missing", "unique",
+                   "min", "max", "mean", "median", "std"]
+        for c, h in enumerate(headers):
+            rep.set_cell(0, c, h)
+        for r, st in enumerate(stats, start=1):
+            rep.set_cell(r, 0, str(st.get("name", "")))
+            for c, key in enumerate(headers[1:], start=1):
+                v = st.get(key)
+                rep.set_cell(r, c, "" if v is None else
+                             (f"{v:.4g}" if isinstance(v, float) else str(v)))
+        wb.active = len(wb.sheets) - 1
+        self._doc.mark_dirty()
+        self.refresh_table()
+        self._set_status(f"profiled {len(stats)} column(s)")
+
+    def export_chart_svg(self) -> None:
+        """Export the selected numeric range as an SVG chart (scatter if 2 columns)."""
+        from pathlib import Path
+
+        from ._qtcompat import QFileDialog
+        from ..core.science import chartsvg
+
+        r1, c1, r2, c2 = self._selected_bounds()
+        sheet = self._doc.workbook.sheet
+        cols: list[list[float]] = []
+        for c in range(c1, c2 + 1):
+            vals = [float(v) for r in range(r1, r2 + 1)
+                    if isinstance((v := sheet.get_value(r, c)), (int, float))
+                    and not isinstance(v, bool)]
+            if vals:
+                cols.append(vals)
+        if not cols:
+            self._set_status("select some numeric cells to chart")
+            return
+        if len(cols) >= 2:
+            n = min(len(cols[0]), len(cols[1]))
+            svg = chartsvg.scatter_svg(list(zip(cols[0][:n], cols[1][:n])), title="Selection")
+        else:
+            svg = chartsvg.line_svg([("series", list(enumerate(cols[0])))], title="Selection")
+        path, _ = QFileDialog.getSaveFileName(self, "Export chart as SVG", "chart.svg",
+                                              "SVG image (*.svg)")
+        if not path:
+            return
+        Path(path).write_text(svg, encoding="utf-8")
+        self._set_status(f"saved chart: {Path(path).name}")
+
     def install_optional_features(self) -> None:
         """Open the optional-feature chooser (Thin / All / custom)."""
         from .dialogs.deps_dialog import DependencyChooser
