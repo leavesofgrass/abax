@@ -37,6 +37,10 @@ COMMON = {
     "NORM.S.DIST", "T.DIST", "T.INV", "CHISQ.DIST", "CHISQ.INV",
     "F.DIST", "F.INV", "CONFIDENCE.T", "T.TEST", "Z.TEST", "F.TEST",
     "CHISQ.TEST", "FORECAST.LINEAR",
+    # Wave D tail — bond / security financial
+    "PRICE", "YIELD", "DURATION", "MDURATION", "DISC", "INTRATE",
+    "RECEIVED", "ACCRINT", "ACCRINTM", "PRICEMAT", "YIELDMAT",
+    "TBILLEQ", "TBILLPRICE", "TBILLYIELD", "COUPNUM", "COUPDAYS",
 }
 
 

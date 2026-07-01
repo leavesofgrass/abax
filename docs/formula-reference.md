@@ -89,10 +89,10 @@ trapped by `IFERROR` / `IFNA` / `ISERROR`.
 
 Function names are case-insensitive. Below, every built-in is grouped by
 family with its signature, a one-line description, and an example. Optional
-arguments are shown in `[brackets]`. There are **over 550 built-in functions** —
-**562 eager** (counting aliases and modern dotted names), **6 lazy** control-flow
+arguments are shown in `[brackets]`. There are **over 580 built-in functions** —
+**584 eager** (counting aliases and modern dotted names), **6 lazy** control-flow
 functions, and **13 reference/context** functions (`ROW`, `OFFSET`, `INDIRECT`,
-`CELL`, …) — **581 names** in all; user macros can add more (see the
+`CELL`, …) — **603 names** in all; user macros can add more (see the
 [UDFs](#user-defined-functions-udfs) note).
 
 Coverage spans the everyday Excel / Gnumeric set: math and trigonometry
@@ -685,6 +685,30 @@ negative and cash **in** positive (Excel sign convention); the `type` argument i
 | `DOLLARFR` | Decimal dollar → fractional | `DOLLARFR(decimal, fraction)` | `=DOLLARFR(1.125,16)` | `1.02` |
 | `PDURATION` | Periods to reach a future value | `PDURATION(rate, pv, fv)` | `=PDURATION(0.025,1000,2000)` | periods |
 | `RRI` | Equivalent interest rate for growth | `RRI(nper, pv, fv)` | `=RRI(96,10000,11000)` | rate |
+
+**Bonds and securities.** Dates are ISO strings; `frequency` is coupons per
+year (1, 2 or 4); `basis` is the day-count convention (0 = US 30/360 default,
+1 = actual/actual, 2 = actual/360, 3 = actual/365, 4 = European 30/360).
+Coupon schedules walk back from maturity with Excel's end-of-month rule.
+
+| Function | Description | Signature | Example | Result |
+|---|---|---|---|---|
+| `PRICE` | Price per 100 face of a coupon bond | `PRICE(settlement, maturity, rate, yld, redemption, frequency, [basis])` | `=PRICE("2008-02-15","2017-11-15",0.0575,0.065,100,2,0)` | `94.634` |
+| `YIELD` | Yield of a coupon bond at a price | `YIELD(settlement, maturity, rate, pr, redemption, frequency, [basis])` | `=YIELD("2008-02-15","2016-11-15",0.0575,95.04287,100,2,0)` | `0.065` |
+| `DURATION` | Macaulay duration (years) | `DURATION(settlement, maturity, coupon, yld, frequency, [basis])` | `=DURATION("2008-01-01","2016-01-01",0.08,0.09,2,1)` | `5.9938` |
+| `MDURATION` | Modified duration | `MDURATION(settlement, maturity, coupon, yld, frequency, [basis])` | `=MDURATION("2008-01-01","2016-01-01",0.08,0.09,2,1)` | `5.7357` |
+| `COUPPCD` / `COUPNCD` | Coupon date before / after settlement | `COUPPCD(settlement, maturity, frequency, [basis])` | `=COUPPCD("2011-01-25","2011-11-15",2,1)` | `2010-11-15` |
+| `COUPNUM` | Coupons remaining to maturity | `COUPNUM(settlement, maturity, frequency, [basis])` | `=COUPNUM("2007-01-25","2008-11-15",2,1)` | `4` |
+| `COUPDAYBS` / `COUPDAYS` / `COUPDAYSNC` | Days from period start to settlement / in the period / to the next coupon | `COUPDAYS(settlement, maturity, frequency, [basis])` | `=COUPDAYS("2011-01-25","2011-11-15",2,1)` | `181` |
+| `DISC` | Discount rate of a discounted security | `DISC(settlement, maturity, pr, redemption, [basis])` | `=DISC("2007-01-25","2007-06-15",97.975,100,1)` | `0.0524` |
+| `PRICEDISC` / `YIELDDISC` | Price / yield of a discounted security | `PRICEDISC(settlement, maturity, discount, redemption, [basis])` | `=PRICEDISC("2008-02-16","2008-03-01",0.0525,100,2)` | `99.796` |
+| `INTRATE` | Interest rate of a fully-invested security | `INTRATE(settlement, maturity, investment, redemption, [basis])` | `=INTRATE("2008-02-15","2008-05-15",1000000,1014420,2)` | `0.0577` |
+| `RECEIVED` | Amount received at maturity | `RECEIVED(settlement, maturity, investment, discount, [basis])` | `=RECEIVED("2008-02-15","2008-05-15",1000000,0.0575,2)` | `1014584.65` |
+| `ACCRINT` | Accrued interest (periodic-interest security) | `ACCRINT(issue, first_interest, settlement, rate, par, frequency, [basis])` | `=ACCRINT("2008-03-01","2008-08-31","2008-05-01",0.1,1000,2,0)` | `16.667` |
+| `ACCRINTM` | Accrued interest at maturity | `ACCRINTM(issue, settlement, rate, par, [basis])` | `=ACCRINTM("2008-04-01","2008-06-15",0.1,1000,3)` | `20.548` |
+| `PRICEMAT` / `YIELDMAT` | Price / yield of an interest-at-maturity security | `PRICEMAT(settlement, maturity, issue, rate, yld, [basis])` | `=PRICEMAT("2008-02-15","2008-04-13","2007-11-11",0.061,0.061,0)` | `99.984` |
+| `TBILLEQ` | T-bill bond-equivalent yield | `TBILLEQ(settlement, maturity, discount)` | `=TBILLEQ("2008-03-31","2008-06-01",0.0914)` | `0.0942` |
+| `TBILLPRICE` / `TBILLYIELD` | T-bill price / discount yield | `TBILLPRICE(settlement, maturity, discount)` | `=TBILLPRICE("2008-03-31","2008-06-01",0.09)` | `98.45` |
 
 ### Information
 

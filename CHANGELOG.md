@@ -104,6 +104,18 @@ All notable changes to abax are documented here. The format follows
     `EvalContext` gained two optional hooks the `Sheet` provides: a raw
     cell-source lookup (backing `ISFORMULA`/`FORMULATEXT`/`CELL`) and a
     sheet-index/count lookup (backing `SHEET`/`SHEETS`).
+- **Wave D tail — bond & security financial functions**
+  (`core/finance_bonds.py`; 22 new, → **584 eager / 603 names**), each pinned
+  to the worked examples in the Excel documentation: the coupon-schedule
+  family **`COUPPCD`/`COUPNCD`/`COUPNUM`/`COUPDAYBS`/`COUPDAYS`/`COUPDAYSNC`**
+  (walking back from maturity with the end-of-month rule, day-count bases
+  0–4), coupon-bond **`PRICE`**/**`YIELD`** (yield inverts price by bisection)
+  and **`DURATION`**/**`MDURATION`**, the discounted-security family
+  **`DISC`**/**`PRICEDISC`**/**`YIELDDISC`**/**`INTRATE`**/**`RECEIVED`**,
+  interest-at-maturity **`ACCRINT`**/**`ACCRINTM`**/**`PRICEMAT`**/
+  **`YIELDMAT`**, and the Treasury-bill trio **`TBILLEQ`** (including the
+  long-bill semiannual-compounding form)/**`TBILLPRICE`**/**`TBILLYIELD`**.
+  The odd-period functions (ODDF*/ODDL*) remain out of scope.
 - **HP-16C: the immediate bit/word keys are implemented** (were stubs) — `MASKL`,
   `MASKR`, `#B` (bit count), `ABS`, `ASR`, `RMD`, `1's`/`2's` complement, `SB`/
   `CB`/`B?` (set/clear/test bit) and `RLn`/`RRn`. Programming-mode keys (GTO/GSB/
