@@ -11,6 +11,10 @@ All notable changes to abax are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- **RF reference panel sends values to the grid** (like the calculator) — the bands
+  / CTCSS dialog is now non-modal, and double-clicking a value (or selecting it and
+  pressing "Send to cell") writes it into the current grid cell(s) as one undoable
+  edit, so you can drop a band edge, wavelength, or PL tone straight into a sheet.
 - **PyNEC (reference-grade NEC antenna solver) is now part of the full-fat set.**
   A new `nec` extra (`pip install abax[nec]`) and, since it's included in `all`, the
   background auto-installer now fetches **PyNEC** on a default install — but it stays

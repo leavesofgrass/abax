@@ -2,8 +2,11 @@
 
 A read-only, filterable view over the pure-stdlib reference data in
 :mod:`abax.core.science.rf_bands`. Type in the filter box to narrow both tables
-(by band name / frequency text); "Bands -> new sheet" drops the band plan into
-the workbook for use in formulas.
+(by band name / frequency text). Like the calculator, values flow into the grid:
+double-click a cell (or select it and press "Send to cell") to write that value
+into the current grid cell(s); "Bands -> new sheet" drops the whole band plan into
+the workbook. The window is non-modal so you can re-aim the grid selection between
+sends.
 """
 
 from __future__ import annotations
@@ -44,9 +47,11 @@ class RfReferenceDialog(QDialog):
         super().__init__(window)
         self._win = window
         self.setWindowTitle("RF reference — bands & CTCSS")
-        self.resize(560, 620)
+        self.setModal(False)          # like the calculator: leave the grid usable
+        self.resize(560, 640)
         self._bands = _band_rows()
         self._tones = _tone_rows()
+        self._active_table = None
         self._build()
 
     def _build(self) -> None:
@@ -64,12 +69,20 @@ class RfReferenceDialog(QDialog):
         root.addWidget(QLabel("CTCSS (PL) tones — EIA standard", self))
         self._tone_table = self._make_table(_TONE_HEADERS, self._tones)
         root.addWidget(self._tone_table, 2)
+        self._active_table = self._band_table
+
+        root.addWidget(QLabel(
+            "Double-click a value (or select it and press Send) to write it to the "
+            "current grid cell.", self))
 
         bar = QHBoxLayout()
+        send = QPushButton("Send to cell ->", self)
+        send.clicked.connect(self._send_selected)
         to_sheet = QPushButton("Bands -> new sheet", self)
         to_sheet.clicked.connect(self._bands_to_sheet)
         close = QPushButton("Close", self)
-        close.clicked.connect(self.accept)
+        close.clicked.connect(self.close)
+        bar.addWidget(send)
         bar.addWidget(to_sheet)
         bar.addStretch(1)
         bar.addWidget(close)
@@ -83,8 +96,46 @@ class RfReferenceDialog(QDialog):
         for r, row in enumerate(rows):
             for c, val in enumerate(row):
                 table.setItem(r, c, QTableWidgetItem(val))
+        table.cellDoubleClicked.connect(
+            lambda r, c, t=table: self._send_cell(t, r, c))
+        table.currentCellChanged.connect(
+            lambda *_a, t=table: setattr(self, "_active_table", t))
         table.resizeColumnsToContents()
         return table
+
+    # --- send to grid (like the calculator's cell interop) --------------------
+    def _send_cell(self, table, row: int, col: int) -> None:
+        item = table.item(row, col)
+        if item is not None and item.text():
+            self._send_value(item.text())
+
+    def _send_selected(self) -> None:
+        table = self._active_table or self._band_table
+        item = table.currentItem()
+        if item is None or not item.text():
+            self._win._set_status("select a value in the table first")
+            return
+        self._send_value(item.text())
+
+    def _send_value(self, value: str) -> None:
+        """Write ``value`` into the grid's current selection (undoable), mirroring
+        the calculator's *send value -> cell*."""
+        from ...core.reference import to_a1
+
+        win = self._win
+        r1, c1, r2, c2 = win._selected_bounds()
+        win._doc.checkpoint("RF reference -> cell")
+        sheet = win._doc.workbook.sheet
+        for r in range(r1, r2 + 1):
+            for c in range(c1, c2 + 1):
+                sheet.set_cell(r, c, value)
+        win._doc.mark_dirty()
+        win.refresh_table()
+        if r1 == r2 and c1 == c2:
+            win._table.setCurrentCell(r1, c1)
+        count = (r2 - r1 + 1) * (c2 - c1 + 1)
+        win._set_status(f"sent {value} to {to_a1(r1, c1)}"
+                        + (f" +{count - 1} more cell(s)" if count > 1 else ""))
 
     def _apply_filter(self, text: str) -> None:
         needle = text.strip().lower()
