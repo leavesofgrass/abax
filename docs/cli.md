@@ -24,7 +24,7 @@ These are parsed before any command and the first two are *fast paths* — they 
 
 ```bash
 $ qcell --version
-qcell 0.1.1
+qcell 0.1.2
 ```
 
 ### `--deps`
