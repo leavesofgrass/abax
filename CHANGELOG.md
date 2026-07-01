@@ -4,7 +4,7 @@ All notable changes to abax are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
 
-> **Note:** This project was renamed from `qcell` to `abax` in version 0.2.0
+> **Note:** This project was renamed from `qcell` to `abax` in version 0.1.2
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
