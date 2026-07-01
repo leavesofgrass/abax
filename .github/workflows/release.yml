@@ -80,3 +80,27 @@ jobs:
           files: artifacts/**/*
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+  # ── Publish to PyPI (Trusted Publishing / OIDC — no API token) ──────────────
+  # Tag pushes only. Uploads the wheel + sdist to PyPI via a Trusted Publisher.
+  # The matching PyPI publisher must be configured as:
+  #   Owner: leavesofgrass · Repository: abax · Workflow: release.yml
+  #   Environment: pypi   (must equal the `environment.name` below, or leave both blank)
+  pypi:
+    name: Publish to PyPI
+    needs: [wheel]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/abax
+    permissions:
+      id-token: write        # required for OIDC / Trusted Publishing
+    steps:
+      - name: Download wheel + sdist
+        uses: actions/download-artifact@v7
+        with:
+          name: wheel
+          path: dist
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
