@@ -1,10 +1,10 @@
-"""Tests for :mod:`qcell.core.science.stats` (pure-stdlib statistics)."""
+"""Tests for :mod:`abax.core.science.stats` (pure-stdlib statistics)."""
 
 from __future__ import annotations
 
 import pytest
 
-from qcell.core.science import stats
+from abax.core.science import stats
 
 
 # --------------------------------------------------------------------------- #

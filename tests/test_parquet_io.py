@@ -1,4 +1,4 @@
-"""Tests for qcell.engine.parquet_io — Parquet/Feather round-trips.
+"""Tests for abax.engine.parquet_io — Parquet/Feather round-trips.
 
 These tests require pandas plus a parquet engine (pyarrow). They skip cleanly
 when those optional deps are absent, so the suite still passes with zero
@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core.sheet import Sheet
-from qcell.core.workbook import Workbook
-from qcell.engine import parquet_io
-from qcell.engine.parquet_io import ParquetError
+from abax.core.sheet import Sheet
+from abax.core.workbook import Workbook
+from abax.engine import parquet_io
+from abax.engine.parquet_io import ParquetError
 
 
 def test_available_returns_bool():

@@ -1,10 +1,10 @@
-"""Tests for :mod:`qcell.core.search` — find and replace over a Sheet."""
+"""Tests for :mod:`abax.core.search` — find and replace over a Sheet."""
 
 from __future__ import annotations
 
 import pytest
 
-from qcell.core.search import (
+from abax.core.search import (
     Match,
     SearchError,
     SearchOptions,
@@ -12,7 +12,7 @@ from qcell.core.search import (
     replace_all,
     replace_match,
 )
-from qcell.core.sheet import Sheet
+from abax.core.sheet import Sheet
 
 
 def make_sheet(cells: dict[str, str] | None = None) -> Sheet:

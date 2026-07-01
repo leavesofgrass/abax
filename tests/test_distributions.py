@@ -1,6 +1,6 @@
 """Distribution formula functions (normal / t / F / chi-square) + confidence.
 
-These expose qcell's existing pure-Python distribution machinery as Excel-named
+These expose abax's existing pure-Python distribution machinery as Excel-named
 spreadsheet functions familiar to spreadsheet and R/RStudio users. Values are
 checked against standard textbook critical values.
 """
@@ -11,9 +11,9 @@ import math
 
 import pytest
 
-from qcell.core.errors import is_error
-from qcell.core.science import stats
-from qcell.core.sheet import Sheet
+from abax.core.errors import is_error
+from abax.core.science import stats
+from abax.core.sheet import Sheet
 
 
 def _val(formula: str):

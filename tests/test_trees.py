@@ -1,10 +1,10 @@
-"""Tests for qcell.core.science.trees — CART decision tree + random forest."""
+"""Tests for abax.core.science.trees — CART decision tree + random forest."""
 
 from __future__ import annotations
 
 import pytest
 
-from qcell.core.science.trees import (
+from abax.core.science.trees import (
     DecisionTreeClassifier,
     RandomForestClassifier,
     TreeError,

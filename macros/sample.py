@@ -1,6 +1,6 @@
-"""Example qcell macros.
+"""Example abax macros.
 
-Load with:  qcell --macros macros/ macro list
+Load with:  abax --macros macros/ macro list
 Or drop this file in CONFIG_DIR/macros/ to have it loaded automatically.
 
 Two kinds of extension are shown:

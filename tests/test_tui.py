@@ -5,8 +5,8 @@ No real terminal is created (spec §12).
 
 from __future__ import annotations
 
-from qcell.engine.document import Document
-from qcell.tui import (
+from abax.engine.document import Document
+from abax.tui import (
     THEMES,
     TuiEditor,
     can_use_powerline,
@@ -290,7 +290,7 @@ def test_clipboard_history_commands():
 
 
 def test_hex_to_ansi_helpers():
-    from qcell.tui import _hex_to_8, _hex_to_256
+    from abax.tui import _hex_to_8, _hex_to_256
 
     assert _hex_to_256("#000000") == 16
     assert _hex_to_256("#ffffff") == 231
@@ -302,7 +302,7 @@ def test_hex_to_ansi_helpers():
 
 
 def test_new_themes_present():
-    from qcell.tui import THEMES
+    from abax.tui import THEMES
 
     for name in ("solarized", "nord", "dark_one", "crt_green", "crt_amber"):
         assert name in THEMES

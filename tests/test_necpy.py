@@ -1,4 +1,4 @@
-"""PyNEC adapter (qcell.engine.necpy): validation order and graceful absence.
+"""PyNEC adapter (abax.engine.necpy): validation order and graceful absence.
 
 These tests must pass WITHOUT PyNEC installed. They cover the always-on stdlib
 parse/validate/serialise path and assert that the real solve path raises
@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core.science import nec
-from qcell.engine import necpy
+from abax.core.science import nec
+from abax.engine import necpy
 
 DIPOLE_DECK = """CM dipole
 CE
@@ -25,7 +25,7 @@ EN
 
 def test_import_layering_without_pynec():
     # Module imports cleanly even with PyNEC absent, and exposes the API.
-    import qcell.engine.necpy as mod
+    import abax.engine.necpy as mod
 
     assert hasattr(mod, "solve_deck")
     assert hasattr(mod, "solve_model")

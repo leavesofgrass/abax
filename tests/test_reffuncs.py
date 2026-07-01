@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core.workbook import Workbook
+from abax.core.workbook import Workbook
 
 
 @pytest.fixture()
@@ -65,7 +65,7 @@ def test_address(grid):
 
 
 def test_is_function_recognizes_context_names():
-    from qcell.core.completion import is_function, signature
+    from abax.core.completion import is_function, signature
 
     for name in ("ROW", "OFFSET", "INDIRECT", "ADDRESS"):
         assert is_function(name)

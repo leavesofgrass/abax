@@ -8,10 +8,10 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell.gui._qtcompat import QApplication  # noqa: E402
-from qcell.gui.command_palette import CommandPalette, fuzzy_score  # noqa: E402
+from abax.gui._qtcompat import QApplication  # noqa: E402
+from abax.gui.command_palette import CommandPalette, fuzzy_score  # noqa: E402
 
 
 @pytest.fixture(scope="module")

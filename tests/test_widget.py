@@ -6,8 +6,8 @@ import importlib.util
 
 import pytest
 
-from qcell import widget
-from qcell.core.sheet import Sheet
+from abax import widget
+from abax.core.sheet import Sheet
 
 
 def _sheet():

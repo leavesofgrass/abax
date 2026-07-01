@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qcell.core.science.filters import (
+from abax.core.science.filters import (
     FilterError,
     butter_bandpass,
     butter_highpass,

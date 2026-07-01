@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core import filesearch as S
+from abax.core import filesearch as S
 
 
 @pytest.fixture()

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core.io.csv_io import dumps_csv, load_csv, loads_csv, save_csv
+from abax.core.io.csv_io import dumps_csv, load_csv, loads_csv, save_csv
 
 
 def test_import_parses_numbers_and_text():

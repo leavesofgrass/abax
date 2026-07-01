@@ -1,0 +1,19 @@
+{
+  "app": "abax",
+  "schema_version": 1,
+  "written_at": "2026-06-30T16:22:42.827355+00:00",
+  "data": {
+    "active": 0,
+    "names": {},
+    "sheets": [
+      {
+        "name": "Sheet1",
+        "cells": {},
+        "cond_rules": [],
+        "formats": {},
+        "styles": {},
+        "validations": []
+      }
+    ]
+  }
+}

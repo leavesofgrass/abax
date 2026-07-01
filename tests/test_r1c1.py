@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core.r1c1 import (
+from abax.core.r1c1 import (
     formula_a1_to_r1c1,
     formula_r1c1_to_a1,
     ref_a1_to_r1c1,

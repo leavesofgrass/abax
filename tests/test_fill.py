@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from qcell.core import Sheet
-from qcell.core.fill import (
+from abax.core import Sheet
+from abax.core.fill import (
     Clip,
     clip_from_tsv,
     copy_region,

@@ -1,6 +1,6 @@
 """venv bootstrap launcher.
 
-Creates a local .venv if missing, installs qcell with the requested extras,
+Creates a local .venv if missing, installs abax with the requested extras,
 and re-execs the CLI inside it. The fast paths (--help/--version/--deps) short
 out *before* any venv work, per the spec.
 """
@@ -30,9 +30,9 @@ def main() -> int:
     # Fast path: never create a venv just to print help/version/deps.
     if args and args[0] in FAST_PATHS:
         sys.path.insert(0, str(ROOT))
-        from qcell.app import main as qcell_main
+        from abax.app import main as abax_main
 
-        return qcell_main(args)
+        return abax_main(args)
 
     py = _venv_python()
     if not py.exists():
@@ -41,10 +41,10 @@ def main() -> int:
         subprocess.check_call([str(py), "-m", "pip", "install", "-e", ".[fast-io]"], cwd=ROOT)
 
     if Path(sys.executable).resolve() != py.resolve():
-        os.execv(str(py), [str(py), "-m", "qcell", *args])
-    from qcell.app import main as qcell_main
+        os.execv(str(py), [str(py), "-m", "abax", *args])
+    from abax.app import main as abax_main
 
-    return qcell_main(args)
+    return abax_main(args)
 
 
 if __name__ == "__main__":

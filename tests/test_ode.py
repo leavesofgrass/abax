@@ -1,4 +1,4 @@
-"""Tests for :mod:`qcell.core.science.ode` ODE solvers."""
+"""Tests for :mod:`abax.core.science.ode` ODE solvers."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qcell.core.science.ode import ODEError, euler, rk4, rk45, solve
+from abax.core.science.ode import ODEError, euler, rk4, rk45, solve
 
 
 def _exp_growth(t, y):

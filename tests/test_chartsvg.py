@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core.science import chartsvg
+from abax.core.science import chartsvg
 
 
 def _is_svg(s: str) -> None:

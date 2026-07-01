@@ -1,5 +1,5 @@
 python := if os_family() == "windows" { "py" } else { "python3" }
-pkg    := "qcell"
+pkg    := "abax"
 
 default:
     @just --list
@@ -25,9 +25,9 @@ pyz:
     {{python}} make_pyz.py
 
 pyz-smoke: pyz
-    {{python}} qcell.pyz --help
-    {{python}} qcell.pyz --version
-    {{python}} qcell.pyz --deps
+    {{python}} abax.pyz --help
+    {{python}} abax.pyz --version
+    {{python}} abax.pyz --deps
 
 wheel:
     {{python}} -m build --wheel

@@ -1,10 +1,10 @@
-"""Layer-seam guard: ``qcell.core`` imports only the standard library at import
+"""Layer-seam guard: ``abax.core`` imports only the standard library at import
 time.
 
 Optional third-party deps (numpy, pandas, pyte, …) are imported lazily inside
 functions or under ``if TYPE_CHECKING``; core never reaches up into
-``qcell.engine`` / ``qcell.gui`` / ``qcell.tui`` (the dependency arrow points
-downward). The one sanctioned cross-module dependency is ``qcell._runtime`` — the
+``abax.engine`` / ``abax.gui`` / ``abax.tui`` (the dependency arrow points
+downward). The one sanctioned cross-module dependency is ``abax._runtime`` — the
 paths/dirs helper, itself stdlib-only. A reorg is exactly when a stray import can
 slip across the seam, so this test pins the invariant the architecture doc states.
 """
@@ -15,12 +15,12 @@ import ast
 import pathlib
 import sys
 
-import qcell
+import abax
 
-ROOT = pathlib.Path(qcell.__file__).parent
+ROOT = pathlib.Path(abax.__file__).parent
 CORE = ROOT / "core"
 STDLIB = set(sys.stdlib_module_names)
-ALLOWED_QCELL = {"qcell", "qcell._runtime"}
+ALLOWED_ABAX = {"abax", "abax._runtime"}
 
 
 def _is_type_checking(test) -> bool:
@@ -53,13 +53,13 @@ def _abs_module(node: ast.ImportFrom, pkg_parts: list[str]) -> str | None:
 
 def _allowed(mod: str) -> bool:
     root = mod.split(".")[0]
-    return root in STDLIB or mod in ALLOWED_QCELL or mod.startswith("qcell.core")
+    return root in STDLIB or mod in ALLOWED_ABAX or mod.startswith("abax.core")
 
 
 def test_core_is_stdlib_only_at_import_time():
     offenders = []
     for path in sorted(CORE.rglob("*.py")):
-        pkg = ["qcell", *path.relative_to(ROOT).parts[:-1]]
+        pkg = ["abax", *path.relative_to(ROOT).parts[:-1]]
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in _runtime_imports(tree):
             mods = ([a.name for a in node.names] if isinstance(node, ast.Import)
@@ -68,5 +68,5 @@ def test_core_is_stdlib_only_at_import_time():
                 if mod and not _allowed(mod):
                     offenders.append(f"{path.relative_to(ROOT)}:{node.lineno} imports {mod!r}")
     assert not offenders, (
-        "qcell.core must import only the standard library at import time "
+        "abax.core must import only the standard library at import time "
         "(optional deps go in lazy/in-function imports):\n" + "\n".join(offenders))

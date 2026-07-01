@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from qcell.core.workbook import Workbook
-from qcell.macros import load_macro_file, run_macro
-from qcell.recorder import Action, MacroRecorder
+from abax.core.workbook import Workbook
+from abax.macros import load_macro_file, run_macro
+from abax.recorder import Action, MacroRecorder
 
 
 def _recording() -> MacroRecorder:
@@ -79,7 +79,7 @@ def test_json_roundtrip(tmp_path):
     rec = _recording()
     path = rec.save_json(tmp_path / "rec.json", "demo")
     env = __import__("json").loads(path.read_text())
-    assert env["app"] == "qcell"
+    assert env["app"] == "abax"
     assert env["kind"] == "macro-recording"
     assert env["schema_version"] == 1
 

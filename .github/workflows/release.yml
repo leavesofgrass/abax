@@ -17,7 +17,7 @@ env:
 
 jobs:
   # ── Wheel + sdist ──────────────────────────────────────────────────────────
-  # qcell is pure Python, so the wheel is `py3-none-any` and one build serves
+  # abax is pure Python, so the wheel is `py3-none-any` and one build serves
   # every platform. This is the artifact to `pip install` when testing a release,
   # and it pre-stages a future PyPI publish. `twine check` guards long-description
   # rendering ahead of that.
@@ -38,26 +38,26 @@ jobs:
           name: wheel
           path: dist/*
 
-  # ── qcell.pyz (single-file zipapp) ──────────────────────────────────────────
+  # ── abax.pyz (single-file zipapp) ──────────────────────────────────────────
   # make_pyz.py ships only optimize=2 .pyc (no source), so the archive is tied to
   # the Python minor version that builds it — pinned to 3.13 here. Users run it
-  # with `python qcell.pyz` on Python 3.13.
+  # with `python abax.pyz` on Python 3.13.
   pyz:
-    name: Build qcell.pyz
+    name: Build abax.pyz
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - name: Build qcell.pyz
+      - name: Build abax.pyz
         run: python make_pyz.py
       - name: Smoke-test the archive
-        run: python qcell.pyz --version
+        run: python abax.pyz --version
       - uses: actions/upload-artifact@v7
         with:
           name: pyz
-          path: qcell.pyz
+          path: abax.pyz
 
   # ── Publish the GitHub Release ──────────────────────────────────────────────
   # Tag pushes only. Collects every built artifact (wheel, sdist, pyz) and

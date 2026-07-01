@@ -12,9 +12,9 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell.gui._qtcompat import (  # noqa: E402
+from abax.gui._qtcompat import (  # noqa: E402
     QApplication,
     QEvent,
     QKeyEvent,
@@ -23,7 +23,7 @@ from qcell.gui._qtcompat import (  # noqa: E402
     QTableView,
     QTableWidgetSelectionRange,
 )
-from qcell.settings import Settings  # noqa: E402
+from abax.settings import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -33,7 +33,7 @@ def app():
 
 @pytest.fixture()
 def win(app):
-    from qcell.gui.main_window import MainWindow
+    from abax.gui.main_window import MainWindow
 
     return MainWindow(Settings())
 
@@ -83,11 +83,11 @@ def test_setdata_commits(win):
 
 
 def test_commit_cell_validation_rejects(win, monkeypatch):
-    import qcell.gui.mixin_document as md
+    import abax.gui.mixin_document as md
 
     monkeypatch.setattr(md.QMessageBox, "warning", lambda *a, **k: None)
     sheet = win._doc.workbook.sheet
-    from qcell.core.validation import ValidationRule
+    from abax.core.validation import ValidationRule
 
     sheet.validations.append((0, 0, 0, 0, ValidationRule(kind="whole", op="ge", p1="0")))
     assert win._commit_cell(0, 0, "not-an-int") is False
@@ -95,7 +95,7 @@ def test_commit_cell_validation_rejects(win, monkeypatch):
 
 
 def test_conditional_fill_background(win):
-    from qcell.core.format.condformat import CondRule
+    from abax.core.format.condformat import CondRule
 
     sheet = win._doc.workbook.sheet
     win._commit_cell(0, 0, "5")
@@ -110,7 +110,7 @@ def test_conditional_fill_background(win):
 def test_conditional_fill_lazy_only_colors_matching(win):
     # A rule over a large range: the model colors matching visible cells without
     # eagerly scanning the whole range.
-    from qcell.core.format.condformat import CondRule
+    from abax.core.format.condformat import CondRule
 
     sheet = win._doc.workbook.sheet
     win._commit_cell(0, 0, "5")    # > 0 -> colored
@@ -126,7 +126,7 @@ def test_conditional_fill_lazy_only_colors_matching(win):
 
 def test_recolor_after_edit(win):
     # Editing a value must re-color it (the per-refresh fill cache is dropped).
-    from qcell.core.format.condformat import CondRule
+    from abax.core.format.condformat import CondRule
 
     sheet = win._doc.workbook.sheet
     win._commit_cell(0, 0, "-1")
@@ -244,7 +244,7 @@ def test_selected_ranges_round_trip(win):
 # --- delegate commit-and-move -------------------------------------------
 
 def test_delegate_enter_sets_pending_move(win):
-    from qcell.gui.grid.grid_view import GridDelegate
+    from abax.gui.grid.grid_view import GridDelegate
 
     delegate = GridDelegate(win)
     editor = QLineEdit()

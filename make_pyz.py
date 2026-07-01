@@ -1,6 +1,6 @@
-"""Build pipeline for qcell.pyz — optimize=2, compressed, stripped.
+"""Build pipeline for abax.pyz — optimize=2, compressed, stripped.
 
-Stages the `qcell` package, byte-compiles with optimize=2 (drops docstrings +
+Stages the `abax` package, byte-compiles with optimize=2 (drops docstrings +
 asserts), strips dev artifacts, verifies the bootstrapper is stdlib-only, then
 zips it. Run via `just pyz`.
 """
@@ -14,9 +14,9 @@ import zipapp
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-SRC = ROOT / "qcell"
+SRC = ROOT / "abax"
 STAGE = ROOT / "_stage"
-OUT = ROOT / "qcell.pyz"
+OUT = ROOT / "abax.pyz"
 
 _STDLIB_OK = {"hashlib", "os", "sys", "zipfile", "pathlib", "importlib"}
 
@@ -33,11 +33,11 @@ def verify_bootstrap_stdlib_only() -> None:
             )
             for name in names:
                 root = name.split(".")[0]
-                # `from qcell.app import main` lives inside bootstrap() and runs
+                # `from abax.app import main` lives inside bootstrap() and runs
                 # only after the archive is on sys.path; the top-level imports
-                # are what must stay stdlib-only. Allow qcell here since it is
+                # are what must stay stdlib-only. Allow abax here since it is
                 # the archive's own package, imported lazily inside a function.
-                if root and root not in _STDLIB_OK and root != "qcell":
+                if root and root not in _STDLIB_OK and root != "abax":
                     raise SystemExit(f"pyz_main.py imports non-stdlib: {root}")
 
 

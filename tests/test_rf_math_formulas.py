@@ -6,8 +6,8 @@ import math
 
 import pytest
 
-from qcell.core.completion import signature
-from qcell.core.workbook import Workbook
+from abax.core.completion import signature
+from abax.core.workbook import Workbook
 
 
 def _val(formula):

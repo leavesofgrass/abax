@@ -8,13 +8,13 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell.core.sheet import Sheet  # noqa: E402
-from qcell.core.workbook import Workbook  # noqa: E402
-from qcell.engine.document import Document  # noqa: E402
-from qcell.gui._qtcompat import QApplication, QFileDialog  # noqa: E402
-from qcell.settings import Settings  # noqa: E402
+from abax.core.sheet import Sheet  # noqa: E402
+from abax.core.workbook import Workbook  # noqa: E402
+from abax.engine.document import Document  # noqa: E402
+from abax.gui._qtcompat import QApplication, QFileDialog  # noqa: E402
+from abax.settings import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -24,7 +24,7 @@ def app():
 
 @pytest.fixture()
 def win(app):
-    from qcell.gui.main_window import MainWindow
+    from abax.gui.main_window import MainWindow
 
     return MainWindow(Settings())
 
@@ -34,7 +34,7 @@ def _wb(sheet):
 
 
 def test_goal_seek_solves(win):
-    from qcell.gui.dialogs.goalseek_dialog import GoalSeekDialog
+    from abax.gui.dialogs.goalseek_dialog import GoalSeekDialog
 
     s = win._doc.workbook.sheet
     s.set_cell(0, 1, "2")            # B1
@@ -50,7 +50,7 @@ def test_goal_seek_solves(win):
 
 def test_compare_workbook(win, tmp_path, monkeypatch):
     win._doc.workbook.sheet.set_cell(0, 0, "hello")
-    other = tmp_path / "other.qcell"
+    other = tmp_path / "other.abax"
     s2 = Sheet("Sheet1")
     s2.set_cell(0, 0, "world")
     Document(_wb(s2), other).save()
@@ -72,7 +72,7 @@ def test_html_export(win, tmp_path, monkeypatch):
 
 
 def test_iq_export(win, tmp_path, monkeypatch):
-    from qcell.gui._qtcompat import QTableWidgetSelectionRange
+    from abax.gui._qtcompat import QTableWidgetSelectionRange
 
     s = win._doc.workbook.sheet
     for r, (i, q) in enumerate([(1, 0), (0, 1), (-1, 0), (0, -1)]):

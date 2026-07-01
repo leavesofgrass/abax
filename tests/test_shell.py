@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sys
 
-from qcell.core.shell import Result, ShellSession, run
+from abax.core.shell import Result, ShellSession, run
 
 
 def test_run_captures_stdout_and_returncode_zero():

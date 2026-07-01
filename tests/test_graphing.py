@@ -1,4 +1,4 @@
-"""HP-48 style function graphing (qcell.core.graphing)."""
+"""HP-48 style function graphing (abax.core.graphing)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qcell.core.graphing import GraphError, braille_plot, compile_expr, sample
+from abax.core.graphing import GraphError, braille_plot, compile_expr, sample
 
 # -- compile_expr -----------------------------------------------------------
 

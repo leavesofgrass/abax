@@ -1,7 +1,7 @@
 # Architecture
 
-This is the contributor's map of qcell: how the code is layered, the invariants
-that keep the layers honest, and the moving parts of the Qt GUI. qcell is a
+This is the contributor's map of abax: how the code is layered, the invariants
+that keep the layers honest, and the moving parts of the Qt GUI. abax is a
 keyboard-first, JSON-first spreadsheet written in Python (stdlib-first, with
 optional accelerators and front-ends).
 
@@ -9,7 +9,7 @@ See also: [index](index.md) · [macros and scripting](macros-and-scripting.md) �
 
 ## The three-layer seam
 
-qcell is organized as three layers, with dependencies flowing strictly
+abax is organized as three layers, with dependencies flowing strictly
 downward:
 
 ```
@@ -17,7 +17,7 @@ core  ──►  engine  ──►  gui / tui
 (pure)     (adapters)   (front-ends)
 ```
 
-- **`qcell/core/` — pure, stdlib-only.** The spreadsheet engine and formula
+- **`abax/core/` — pure, stdlib-only.** The spreadsheet engine and formula
   machinery (tokenizer, parser, evaluator, 400+ functions, sheet/workbook model,
   search, fill/sort, completion, reference-shifting) live at the `core/` root, with
   the pluggable libraries grouped into subpackages:
@@ -31,11 +31,11 @@ core  ──►  engine  ──►  gui / tui
 
   **No Qt, no curses, no Textual, no third-party imports** — ever. core can run
   headless with nothing but the standard library.
-- **`qcell/engine/` — adapters with optional dependencies.** This is where
+- **`abax/engine/` — adapters with optional dependencies.** This is where
   optional packages are allowed. `engine/excel_io.py` uses openpyxl;
   `engine/document.py` dispatches open/save by file extension. Everything here
   has a fallback so the app still works when the optional dep is missing.
-- **`qcell/gui/` and `qcell/tui/` — front-ends.** The Qt desktop GUI and the
+- **`abax/gui/` and `abax/tui/` — front-ends.** The Qt desktop GUI and the
   curses/Textual TUI. These depend on core and engine, never the other way
   around. The TUI is a package split by concern — `capabilities` (terminal
   detection), `themes`, `commands` (parsing), `editor` (the `TuiEditor` state
@@ -55,7 +55,7 @@ core  ──►  engine  ──►  gui / tui
 
 ### Why the seam matters
 
-The seam is what lets qcell ship as a headless CLI, a TUI, and a GUI from one
+The seam is what lets abax ship as a headless CLI, a TUI, and a GUI from one
 codebase, and what lets the test suite pass with **zero optional packages
 installed**. If you find yourself reaching for Qt inside `core/`, or for a
 third-party import inside `core/`, the change belongs in a different layer.
@@ -66,13 +66,13 @@ These are enforced by tests and by convention. Don't break them:
 
 - **`core/` imports only the standard library.** No third-party, no Qt, no
   curses/Textual. (`test_dependencies.py` checks the zero-optional-deps story.)
-- **Qt is touched only through `qcell/gui/_qtcompat.py`.** No module outside
-  `qcell/gui/` imports Qt, and no module — including inside the GUI — imports
+- **Qt is touched only through `abax/gui/_qtcompat.py`.** No module outside
+  `abax/gui/` imports Qt, and no module — including inside the GUI — imports
   `PySide6`/`PyQt6` directly except `_qtcompat.py`.
-- **All native persistence is JSON.** `.qcell`/`.json` files use the workbook
+- **All native persistence is JSON.** `.abax`/`.json` files use the workbook
   JSON envelope; macro recordings use a JSON envelope; settings and state are
   JSON. No pickle, no bespoke binary format.
-- **All paths go through `qcell/_runtime.py`.** Use `_runtime.CONFIG_DIR`,
+- **All paths go through `abax/_runtime.py`.** Use `_runtime.CONFIG_DIR`,
   `DATA_DIR`, `CACHE_DIR`, `LOG_DIR`. No hardcoded paths.
 - **Worker threads never touch Qt widgets.** Background work communicates with
   the UI exclusively via signals (see [async I/O](#async-io-workers)).
@@ -84,14 +84,14 @@ These are enforced by tests and by convention. Don't break them:
 
 ## The binding shim (`gui/_qtcompat.py`)
 
-qcell supports both Qt for Python bindings, and `_qtcompat.py` is the **single
+abax supports both Qt for Python bindings, and `_qtcompat.py` is the **single
 place** binding-specific code is allowed to live. It imports every Qt symbol the
 rest of the GUI needs and re-exports a normalized surface, so no other module
 ever branches on which binding is installed.
 
 - **Default order: PySide6 (LGPL) first, then PyQt6.** PySide6's `Signal` is
   aliased to `pyqtSignal` so the rest of the code uses one name.
-- **Override with `QCELL_QT_BINDING=PyQt6`** to force PyQt6 (useful for testing
+- **Override with `ABAX_QT_BINDING=PyQt6`** to force PyQt6 (useful for testing
   on the other binding).
 - Any Qt class a GUI module needs must be added to the import lists *and*
   `__all__` in `_qtcompat.py`; modules then do
@@ -99,7 +99,7 @@ ever branches on which binding is installed.
 
 ## The virtualized grid (`gui/grid/grid_model.py`)
 
-The grid is a `QTableView` backed by **`QcellTableModel`**, a virtualized
+The grid is a `QTableView` backed by **`AbaxTableModel`**, a virtualized
 `QAbstractTableModel` over the active `Sheet`. This is deliberately *not* a
 `QTableWidget` with one widget per cell — that cost is exactly what the model
 removes.
@@ -160,7 +160,7 @@ The `justfile` wraps the common tasks:
 |---------|----------|
 | `just install` | dev setup — `.[dev,tui,gui,excel,fast-io]` |
 | `just test` | the test suite |
-| `just pyz` | `qcell.pyz` zipapp — `optimize=2`, compressed, docstrings stripped |
+| `just pyz` | `abax.pyz` zipapp — `optimize=2`, compressed, docstrings stripped |
 | `just wheel` | a wheel — complete, **docstrings kept** |
 | `just check` | lint + test + pyz + smoke |
 

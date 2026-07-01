@@ -1,4 +1,4 @@
-"""Tests for :mod:`qcell.core.science.iq`: constellation, eye diagram, EVM, dBFS."""
+"""Tests for :mod:`abax.core.science.iq`: constellation, eye diagram, EVM, dBFS."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qcell.core.science import iq
+from abax.core.science import iq
 
 # --- constellation_points --------------------------------------------------
 

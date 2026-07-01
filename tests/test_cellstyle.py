@@ -1,10 +1,10 @@
-"""Tests for the per-cell visual style model (``qcell.core.format.cellstyle``)."""
+"""Tests for the per-cell visual style model (``abax.core.format.cellstyle``)."""
 
 from __future__ import annotations
 
 import pytest
 
-from qcell.core.format.cellstyle import ALIGNMENTS, CellStyle, merge, toggle
+from abax.core.format.cellstyle import ALIGNMENTS, CellStyle, merge, toggle
 
 
 def test_is_empty():

@@ -1,4 +1,4 @@
-"""Tests for qcell.core.science.rf_math (pure stdlib, pytest)."""
+"""Tests for abax.core.science.rf_math (pure stdlib, pytest)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qcell.core.science import rf_math as rm
+from abax.core.science import rf_math as rm
 
 # --- reactance <-> component ----------------------------------------------
 

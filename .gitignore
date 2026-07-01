@@ -13,8 +13,8 @@ dist/
 _stage/
 *.egg-info/
 *.egg
-# qcell.pyz is built with `just pyz`; not source
-qcell.pyz
+# abax.pyz is built with `just pyz`; not source
+abax.pyz
 
 # Packaging / installer output
 *.whl
@@ -36,7 +36,7 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# qcell runtime data that may appear if run from the source tree
+# abax runtime data that may appear if run from the source tree
 # (config/cache/logs normally live in the platform dirs, not here)
 *.log
 

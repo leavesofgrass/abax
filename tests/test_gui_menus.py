@@ -9,10 +9,10 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell.gui._qtcompat import QApplication  # noqa: E402
-from qcell.settings import Settings  # noqa: E402
+from abax.gui._qtcompat import QApplication  # noqa: E402
+from abax.settings import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -22,7 +22,7 @@ def app():
 
 @pytest.fixture()
 def win(app):
-    from qcell.gui.main_window import MainWindow
+    from abax.gui.main_window import MainWindow
 
     return MainWindow(Settings())
 
@@ -66,7 +66,7 @@ def test_scientific_is_general_math_only(win):
 
 
 def test_about_covers_current_features(win, monkeypatch):
-    from qcell.gui import _qtcompat
+    from abax.gui import _qtcompat
 
     captured = {}
     monkeypatch.setattr(_qtcompat.QMessageBox, "about",

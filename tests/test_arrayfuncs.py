@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core.arrayfuncs import (
+from abax.core.arrayfuncs import (
     EAGER,
     filter_,
     register,
@@ -11,8 +11,8 @@ from qcell.core.arrayfuncs import (
     unique,
     xlookup,
 )
-from qcell.core.errors import CellError
-from qcell.core.values import RangeValue
+from abax.core.errors import CellError
+from abax.core.values import RangeValue
 
 
 def _col(values):

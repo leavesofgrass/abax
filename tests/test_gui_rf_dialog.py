@@ -8,10 +8,10 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell.gui._qtcompat import QApplication  # noqa: E402
-from qcell.settings import Settings  # noqa: E402
+from abax.gui._qtcompat import QApplication  # noqa: E402
+from abax.settings import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -21,13 +21,13 @@ def app():
 
 @pytest.fixture()
 def win(app):
-    from qcell.gui.main_window import MainWindow
+    from abax.gui.main_window import MainWindow
 
     return MainWindow(Settings())
 
 
 def test_rf_dialog_each_mode_computes(win):
-    from qcell.gui.dialogs.rf_dialog import RFDialog
+    from abax.gui.dialogs.rf_dialog import RFDialog
 
     dlg = RFDialog(win)
 
@@ -55,8 +55,8 @@ def test_rf_dialog_is_wired_into_window(win):
 
 
 def test_smith_dialog_gamma_plot_and_paint(win, app):
-    from qcell.gui._qtcompat import QPixmap
-    from qcell.gui.dialogs.smith_dialog import SmithDialog
+    from abax.gui._qtcompat import QPixmap
+    from abax.gui.dialogs.smith_dialog import SmithDialog
 
     dlg = SmithDialog(win)                                  # defaults R=75, X=25, Z0=50
     expect = (complex(75, 25) - 50) / (complex(75, 25) + 50)
@@ -76,8 +76,8 @@ def test_smith_wired_into_window(win):
 
 
 def test_antenna_dialog_modes_and_paint(win, app):
-    from qcell.gui._qtcompat import QPixmap
-    from qcell.gui.dialogs.antenna_dialog import AntennaDialog
+    from abax.gui._qtcompat import QPixmap
+    from abax.gui.dialogs.antenna_dialog import AntennaDialog
 
     dlg = AntennaDialog(win)                                 # default: half-wave dipole
     assert callable(dlg.field_fn())
@@ -91,7 +91,7 @@ def test_antenna_dialog_modes_and_paint(win, app):
 
 
 def test_antenna_plot_updates_when_values_change(win):
-    from qcell.gui.dialogs.antenna_dialog import AntennaDialog
+    from abax.gui.dialogs.antenna_dialog import AntennaDialog
 
     dlg = AntennaDialog(win)
     dlg._kind.setCurrentIndex(2)                             # Linear array
@@ -106,8 +106,8 @@ def test_antenna_plot_updates_when_values_change(win):
 
 
 def test_antenna_nec_and_svg_export(win, tmp_path):
-    from qcell.core.science import antenna, nec
-    from qcell.gui.dialogs.antenna_dialog import AntennaDialog
+    from abax.core.science import antenna, nec
+    from abax.gui.dialogs.antenna_dialog import AntennaDialog
 
     dlg = AntennaDialog(win)
 

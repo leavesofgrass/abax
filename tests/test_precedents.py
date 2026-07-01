@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core.precedents import (
+from abax.core.precedents import (
     Precedent,
     PrecedentError,
     precedent_cells,

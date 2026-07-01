@@ -1,18 +1,18 @@
 # Desktop GUI guide
 
-qcell's Qt desktop app is keyboard-first: you can drive almost everything from
+abax's Qt desktop app is keyboard-first: you can drive almost everything from
 the grid, the formula bar, and the command palette without reaching for the
 mouse. This guide covers day-to-day use of the window — navigation, editing,
 formatting, sheets, and the menu bar.
 
 Launch it with:
 
-    python -m qcell gui data.csv
+    python -m abax gui data.csv
 
 The default Qt binding is **PySide6** (PyQt6 also works; bindings are isolated
 in one place so the rest of the app is unchanged).
 
-New to qcell? Start with [Getting started](getting-started.md). For the formula
+New to abax? Start with [Getting started](getting-started.md). For the formula
 language, see the [Formula reference](formula-reference.md). For paths, themes,
 and persisted options, see [Configuration](configuration.md). For the built-in
 calculators, see [Calculators](calculators.md). The docs index is
@@ -180,7 +180,7 @@ sheet.
 
 ## Themes
 
-qcell ships several built-in themes under *Format → Theme*: Obsidian, Dark One,
+abax ships several built-in themes under *Format → Theme*: Obsidian, Dark One,
 Nord, Solarized, CRT green, CRT amber, Light, and High contrast. Pick one
 directly from the submenu, or open the chooser with `Ctrl+T` (*Format → Choose
 theme…*). Your choice is remembered in settings. There's also an optional
@@ -273,8 +273,8 @@ type inference and an optional row cap.
 
 Supported formats include CSV/TSV, Excel `.xlsx`, LibreOffice `.ods`,
 Parquet/Feather, XML Spreadsheet, Markdown, Jupyter `.ipynb`, R, and native
-`.qcell`/JSON. (Some formats require optional dependencies — run
-`python -m qcell --deps` to see what's installed.)
+`.abax`/JSON. (Some formats require optional dependencies — run
+`python -m abax --deps` to see what's installed.)
 
 ## Command palette
 
@@ -318,7 +318,7 @@ The full menu bar, organised the standard desktop way:
   wizard** (see [budgeting.md](budgeting.md)), **Install optional features now**,
   Macros, Recording, Load macro/UDF file, Run Python script, Calculator faceplates,
   Copy selection as Markdown.
-- **Help** — Keyboard shortcuts (`F1`), About qcell.
+- **Help** — Keyboard shortcuts (`F1`), About abax.
 
 Press `F1` any time for the full, live shortcut list (it's generated from the
 menus, so it's always accurate to your build).

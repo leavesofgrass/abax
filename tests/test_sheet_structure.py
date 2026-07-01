@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from qcell.core import Sheet
-from qcell.core.errors import CellError
-from qcell.core.workbook import Workbook
+from abax.core import Sheet
+from abax.core.errors import CellError
+from abax.core.workbook import Workbook
 
 # --- error literals --------------------------------------------------------
 

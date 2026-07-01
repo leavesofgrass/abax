@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core.sortfilter import (
+from abax.core.sortfilter import (
     SortFilterError,
     filter_rows,
     match,

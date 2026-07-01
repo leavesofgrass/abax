@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core.workbook import Workbook
-from qcell.gui.console.console_bridge import ConsoleBridge
+from abax.core.workbook import Workbook
+from abax.gui.console.console_bridge import ConsoleBridge
 
 
 @pytest.fixture()

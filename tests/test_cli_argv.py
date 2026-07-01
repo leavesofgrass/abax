@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from qcell.app import _normalize_argv
+from abax.app import _normalize_argv
 
 
 def test_bare_file_becomes_gui():
     assert _normalize_argv(["data.csv"]) == ["gui", "data.csv"]
-    assert _normalize_argv(["/path/to/book.qcell"]) == ["gui", "/path/to/book.qcell"]
+    assert _normalize_argv(["/path/to/book.abax"]) == ["gui", "/path/to/book.abax"]
 
 
 def test_subcommands_pass_through():

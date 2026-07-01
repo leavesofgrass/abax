@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import json
 
-from qcell.core import Sheet
-from qcell.core.io.exchange_io import workbook_from_json
-from qcell.core.io.markdown_io import from_markdown, to_markdown
-from qcell.core.io.notebook_io import from_notebook, to_notebook
-from qcell.core.io.r_io import from_r, to_r
-from qcell.core.workbook import Workbook
+from abax.core import Sheet
+from abax.core.io.exchange_io import workbook_from_json
+from abax.core.io.markdown_io import from_markdown, to_markdown
+from abax.core.io.notebook_io import from_notebook, to_notebook
+from abax.core.io.r_io import from_r, to_r
+from abax.core.workbook import Workbook
 
 
 def _grid(rows, name="Sheet1"):
@@ -95,7 +95,7 @@ def test_notebook_lossless_roundtrip_preserves_formulas_and_sheets():
     wb.sheet.set("A3", "=A2*1.1")
     wb.add_sheet("Notes").set("A1", "hi")
     nb = to_notebook(wb)
-    assert "workbook" in nb["metadata"]["qcell"]          # envelope embedded
+    assert "workbook" in nb["metadata"]["abax"]          # envelope embedded
     wb2 = from_notebook(nb)
     assert [s.name for s in wb2.sheets] == ["Data", "Notes"]
     assert wb2.sheet.get_raw(2, 0) == "=A2*1.1"           # formula preserved, not its value

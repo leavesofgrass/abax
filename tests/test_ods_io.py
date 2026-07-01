@@ -6,12 +6,12 @@ import zipfile
 
 import pytest
 
-from qcell.core.workbook import Workbook
-from qcell.engine import ods_io
+from abax.core.workbook import Workbook
+from abax.engine import ods_io
 
 
 def _make_workbook() -> Workbook:
-    from qcell.core.sheet import Sheet
+    from abax.core.sheet import Sheet
 
     sheet = Sheet("Data")
     sheet.set_cell(0, 0, "Name")     # header text

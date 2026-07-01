@@ -9,10 +9,10 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell.gui._qtcompat import QApplication  # noqa: E402
-from qcell.settings import Settings  # noqa: E402
+from abax.gui._qtcompat import QApplication  # noqa: E402
+from abax.settings import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -22,7 +22,7 @@ def app():
 
 @pytest.fixture()
 def win(app):
-    from qcell.gui.main_window import MainWindow
+    from abax.gui.main_window import MainWindow
 
     return MainWindow(Settings())
 
@@ -36,7 +36,7 @@ def _set_op(dlg, prefix: str) -> None:
 
 
 def test_welch_psd_real_writes_two_columns(win):
-    from qcell.gui.dialogs.signal_dialog import SignalDialog
+    from abax.gui.dialogs.signal_dialog import SignalDialog
 
     sheet = win._doc.workbook.sheet
     sr, f, n = 256.0, 40.0, 512
@@ -69,7 +69,7 @@ def test_welch_psd_real_writes_two_columns(win):
 
 
 def test_welch_psd_iq_two_column_selection(win):
-    from qcell.gui.dialogs.signal_dialog import SignalDialog
+    from abax.gui.dialogs.signal_dialog import SignalDialog
 
     sheet = win._doc.workbook.sheet
     sr, f, n = 1000.0, 125.0, 512

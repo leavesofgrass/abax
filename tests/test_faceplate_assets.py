@@ -9,7 +9,7 @@ import zipfile
 
 import pytest
 
-from qcell.core import faceplate_assets as fa
+from abax.core import faceplate_assets as fa
 
 
 def _patch_cache(monkeypatch, tmp_path):

@@ -13,14 +13,14 @@ from __future__ import annotations
 import random
 import time
 
-from qcell.core.errors import CellError
-from qcell.core.functions import (
+from abax.core.errors import CellError
+from abax.core.functions import (
     _first_error,
     _flatten,
     _numbers_checked,
     _numbers_from,
 )
-from qcell.core.values import RangeValue
+from abax.core.values import RangeValue
 
 
 def _reference(args):

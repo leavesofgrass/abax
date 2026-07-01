@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 
-from qcell.core.errors import CellError
-from qcell.core.format.cellformat import format_cell
-from qcell.core.workbook import Workbook
+from abax.core.errors import CellError
+from abax.core.format.cellformat import format_cell
+from abax.core.workbook import Workbook
 
 
 def test_format_specs():

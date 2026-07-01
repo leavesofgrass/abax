@@ -1,4 +1,4 @@
-"""qcell Jupyter kernel: the testable brain (QcellShell) and the kernelspec."""
+"""abax Jupyter kernel: the testable brain (AbaxShell) and the kernelspec."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ import json
 
 import pytest
 
-from qcell import kernel
+from abax import kernel
 
 
 def test_shell_expression_returns_mime_bundle():
-    sh = kernel.QcellShell()
+    sh = kernel.AbaxShell()
     r = sh.run_cell("1 + 1")
     assert r["data"] == {"text/plain": "2"}
     assert r["execution_count"] == 1
@@ -18,7 +18,7 @@ def test_shell_expression_returns_mime_bundle():
 
 
 def test_shell_statement_has_no_display():
-    sh = kernel.QcellShell()
+    sh = kernel.AbaxShell()
     assert sh.run_cell("x = 5")["data"] is None
     # state persists across cells
     assert sh.run_cell("x + 1")["data"] == {"text/plain": "6"}
@@ -26,21 +26,21 @@ def test_shell_statement_has_no_display():
 
 
 def test_shell_captures_stdout():
-    sh = kernel.QcellShell()
+    sh = kernel.AbaxShell()
     r = sh.run_cell("print('hello')")
     assert r["stdout"] == "hello\n"
     assert r["data"] is None
 
 
 def test_shell_renders_sheet_richly():
-    sh = kernel.QcellShell()
+    sh = kernel.AbaxShell()
     sh.workbook.sheet.set_cell(0, 0, "hdr")
     data = sh.run_cell("sheet()")["data"]
     assert "text/html" in data and "text/markdown" in data   # rich in Jupyter
 
 
 def test_shell_survives_errors():
-    sh = kernel.QcellShell()
+    sh = kernel.AbaxShell()
     r = sh.run_cell("1 / 0")
     blob = (r["stdout"] or "") + (r["error"] or "")
     assert "ZeroDivisionError" in blob
@@ -54,8 +54,8 @@ def test_install_kernelspec_writes_valid_json(tmp_path):
     assert spec_file.exists()
     spec = json.loads(spec_file.read_text(encoding="utf-8"))
     assert spec["language"] == "python"
-    assert spec["display_name"] == "qcell"
-    assert spec["argv"][1:3] == ["-m", "qcell.kernel"]
+    assert spec["display_name"] == "abax"
+    assert spec["argv"][1:3] == ["-m", "abax.kernel"]
     assert "{connection_file}" in spec["argv"]
 
 

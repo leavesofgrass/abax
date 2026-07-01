@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qcell.core.science import rf
+from abax.core.science import rf
 
 # --- power / level ---------------------------------------------------------
 
@@ -136,8 +136,8 @@ def test_domain_errors_raise_valueerror():
 # --- formula-layer registration --------------------------------------------
 
 def test_rf_functions_registered_and_callable():
-    from qcell.core.errors import CellError
-    from qcell.core.functions import FUNCTIONS
+    from abax.core.errors import CellError
+    from abax.core.functions import FUNCTIONS
 
     assert FUNCTIONS["DBM2W"]([0.0]) == pytest.approx(1e-3)
     assert FUNCTIONS["FSPL"]([1000.0, 2.4e9]) == pytest.approx(100.05, abs=0.05)
@@ -153,7 +153,7 @@ def test_rf_functions_registered_and_callable():
 
 
 def test_rf_functions_have_signatures():
-    from qcell.core.completion import signature
+    from abax.core.completion import signature
 
     assert "freq_hz" in signature("FSPL")
     assert "z0" in signature("VSWR")

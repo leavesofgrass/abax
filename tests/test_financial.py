@@ -1,4 +1,4 @@
-"""Tests for HP-12C financial / statistics / calendar math (qcell.core.science.financial)."""
+"""Tests for HP-12C financial / statistics / calendar math (abax.core.science.financial)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qcell.core.science.financial import (
+from abax.core.science.financial import (
     FinanceError,
     Stats,
     add_months,

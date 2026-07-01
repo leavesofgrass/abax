@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core.structure import (
+from abax.core.structure import (
     REF_ERROR,
     adjust_formula,
     adjust_range,

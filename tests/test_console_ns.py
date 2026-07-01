@@ -1,9 +1,9 @@
-"""Console namespace builder (qcell.core.console_ns) — bound to a workbook."""
+"""Console namespace builder (abax.core.console_ns) — bound to a workbook."""
 
 from __future__ import annotations
 
-from qcell.core.console_ns import build_namespace
-from qcell.core.workbook import Workbook
+from abax.core.console_ns import build_namespace
+from abax.core.workbook import Workbook
 
 
 def test_namespace_has_expected_keys():

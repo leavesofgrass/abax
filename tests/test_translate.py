@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core.translate import shift_formula, shift_range, shift_reference
+from abax.core.translate import shift_formula, shift_range, shift_reference
 
 
 def test_shift_single_reference():

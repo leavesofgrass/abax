@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core.format.ansipalette import resolve
+from abax.core.format.ansipalette import resolve
 
 FG = (212, 221, 228)
 BG = (12, 16, 20)

@@ -1,7 +1,7 @@
 # File manager
 
 A dual-pane file manager modeled on **Worker** and **Directory Opus**, for
-managing files without leaving qcell. Open it from *Tools → File manager* or with
+managing files without leaving abax. Open it from *Tools → File manager* or with
 `Ctrl+Shift+F` (also in the command palette).
 
 ## Layout

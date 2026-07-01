@@ -11,8 +11,8 @@ import io
 
 import pytest
 
-from qcell.core.io import urlfetch
-from qcell.core.io.urlfetch import UrlFetchError, fetch_url, guess_suffix
+from abax.core.io import urlfetch
+from abax.core.io.urlfetch import UrlFetchError, fetch_url, guess_suffix
 
 
 class _FakeHeaders:

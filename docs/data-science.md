@@ -1,14 +1,14 @@
-# Data science with qcell
+# Data science with abax
 
-qcell is an integrated environment for working with data: a fast, keyboard-first
+abax is an integrated environment for working with data: a fast, keyboard-first
 spreadsheet with statistics, analysis, visualization, and scripting built in. You
 can take a dataset from raw file to finished analysis without leaving the window —
 and drop into Python or pandas the moment you want to. This page walks the
-end-to-end workflow and maps common R/spreadsheet habits onto qcell.
+end-to-end workflow and maps common R/spreadsheet habits onto abax.
 
-Everything here works with qcell's **pure-stdlib core**; heavier libraries
+Everything here works with abax's **pure-stdlib core**; heavier libraries
 (`scipy`, `statsmodels`, `pandas`, …) make some tools richer but are never
-required — qcell degrades gracefully when they're absent.
+required — abax degrades gracefully when they're absent.
 
 ## The workflow
 
@@ -16,9 +16,9 @@ required — qcell degrades gracefully when they're absent.
 
 Open or import data in almost any tabular format — CSV/TSV, Excel `.xlsx`,
 LibreOffice `.ods`, Parquet/Feather, SQLite, JSON / JSON Lines, R `data.frame`,
-Jupyter notebooks, Markdown tables, or the native `.qcell` workbook. Large CSVs
+Jupyter notebooks, Markdown tables, or the native `.abax` workbook. Large CSVs
 stream in with type inference and an optional row cap. See
-[file formats](file-formats.md). From the shell, `qcell data.csv` opens it
+[file formats](file-formats.md). From the shell, `abax data.csv` opens it
 straight in the GUI.
 
 ### 2. Explore
@@ -71,11 +71,11 @@ and naive Bayes.
 ### 7. Export & share
 
 Save to any supported format (computed values or formulas), or convert headlessly
-with `qcell convert in.csv out.parquet`. See the [CLI](cli.md).
+with `abax convert in.csv out.parquet`. See the [CLI](cli.md).
 
 ## Coming from R or a spreadsheet?
 
-| You want… | In qcell |
+| You want… | In abax |
 |-----------|----------|
 | `mean`, `sd`, `median`, `quantile` | `AVERAGE`, `STDEV`, `MEDIAN`, `PERCENTILE`/`QUARTILE` |
 | `lm()` / trendline | Analysis tool → regression, or `SLOPE`/`INTERCEPT`/`RSQ`/`FORECAST` |
@@ -88,16 +88,16 @@ with `qcell convert in.csv out.parquet`. See the [CLI](cli.md).
 
 ## Optional dependencies
 
-qcell works headless and offline with nothing but the standard library. Installing
+abax works headless and offline with nothing but the standard library. Installing
 `scipy`/`statsmodels`/`pingouin` deepens the analysis tool, `pandas` enables the
 DataFrame hand-off and Parquet, and `openpyxl` enables Excel — but each is
-optional, and qcell tells you (and falls back) when one is missing. Run
-`qcell --deps` to see what's available. See [configuration](configuration.md).
+optional, and abax tells you (and falls back) when one is missing. Run
+`abax --deps` to see what's available. See [configuration](configuration.md).
 
-By default qcell installs **full-fat**: it **auto-installs these packages in the
+By default abax installs **full-fat**: it **auto-installs these packages in the
 background** on first launch, so the analysis stack is there when you need it (opt
-out with `auto_install: false` or `QCELL_NO_AUTOINSTALL=1`; force it now with
-`qcell deps`). When `numpy` is present it also **accelerates large aggregate
+out with `auto_install: false` or `ABAX_NO_AUTOINSTALL=1`; force it now with
+`abax deps`). When `numpy` is present it also **accelerates large aggregate
 reductions** (`SUM`/`AVERAGE`/`MIN`/`MAX`/`COUNT`/… over big all-numeric ranges)
 ~3–4× — automatically and with the exact same results as the pure-Python path.
 

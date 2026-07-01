@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core.completion import (
+from abax.core.completion import (
     apply_completion,
     common_prefix,
     complete,
@@ -68,7 +68,7 @@ def test_signature_known_and_fallback():
 
 
 def test_active_call_basic():
-    from qcell.core.completion import active_call
+    from abax.core.completion import active_call
 
     assert active_call("=SUM(", 5) == ("SUM", 0)
     assert active_call("=SUM(1,", 7) == ("SUM", 1)
@@ -76,7 +76,7 @@ def test_active_call_basic():
 
 
 def test_active_call_innermost():
-    from qcell.core.completion import active_call
+    from abax.core.completion import active_call
 
     # cursor inside the inner IF, after its first comma
     text = "=SUM(1, IF(A1,"
@@ -84,21 +84,21 @@ def test_active_call_innermost():
 
 
 def test_active_call_ignores_commas_in_strings():
-    from qcell.core.completion import active_call
+    from abax.core.completion import active_call
 
     text = '=CONCAT("a,b,c",'
     assert active_call(text, len(text)) == ("CONCAT", 1)
 
 
 def test_active_call_none_outside_call():
-    from qcell.core.completion import active_call
+    from abax.core.completion import active_call
 
     assert active_call("=1+2", 4) is None
     assert active_call("=SUM(1)", 7) is None  # call already closed
 
 
 def test_signature_hint_and_format():
-    from qcell.core.completion import format_hint, signature_hint
+    from abax.core.completion import format_hint, signature_hint
 
     hint = signature_hint("=VLOOKUP(A1, B1:C9, ", None)
     assert hint["name"] == "VLOOKUP"
@@ -108,7 +108,7 @@ def test_signature_hint_and_format():
 
 
 def test_format_hint_clamps_variadic():
-    from qcell.core.completion import format_hint, signature_hint
+    from abax.core.completion import format_hint, signature_hint
 
     hint = signature_hint("=SUM(1, 2, 3, ", None)  # past listed params
     rendered = format_hint(hint)
@@ -116,7 +116,7 @@ def test_format_hint_clamps_variadic():
 
 
 def test_udf_appears_after_install():
-    from qcell.core.functions import FUNCTIONS
+    from abax.core.functions import FUNCTIONS
 
     assert "MYUDF" not in function_names()
     FUNCTIONS["MYUDF"] = lambda args: 1  # simulate an installed UDF
@@ -142,7 +142,7 @@ def test_apply_completion_paren_only_for_functions():
 
 
 def test_is_function():
-    from qcell.core.completion import is_function
+    from abax.core.completion import is_function
 
     assert is_function("sum") and is_function("FSPL")
     assert not is_function("Vals")

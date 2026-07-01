@@ -1,10 +1,10 @@
 # Configuration
 
-qcell is configured through a single JSON settings file, a handful of environment variables, and a set of platform-correct runtime directories that hold its config, data, cache, and logs. Almost nothing needs configuring to get started — the defaults are sensible and every optional feature degrades gracefully when its dependency is absent — but this page documents every knob: where settings live, what each field does, the environment variables, the theme presets, the on-demand OpenDyslexic font, and pandoc detection for equation rendering.
+abax is configured through a single JSON settings file, a handful of environment variables, and a set of platform-correct runtime directories that hold its config, data, cache, and logs. Almost nothing needs configuring to get started — the defaults are sensible and every optional feature degrades gracefully when its dependency is absent — but this page documents every knob: where settings live, what each field does, the environment variables, the theme presets, the on-demand OpenDyslexic font, and pandoc detection for equation rendering.
 
 ## Settings file
 
-Settings are stored as JSON in `settings.json` inside qcell's config directory (see [Runtime directories](#runtime-directories) below — typically `…/qcell/settings.json`). The GUI and TUI load it at startup and write it back when you change a setting. If the file is missing or unreadable, qcell silently uses the defaults, so deleting it is a safe way to reset.
+Settings are stored as JSON in `settings.json` inside abax's config directory (see [Runtime directories](#runtime-directories) below — typically `…/abax/settings.json`). The GUI and TUI load it at startup and write it back when you change a setting. If the file is missing or unreadable, abax silently uses the defaults, so deleting it is a safe way to reset.
 
 JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls back to the standard library otherwise; the behavior is identical either way. The schema is versioned and migrates lazily on read (for example, an old `color_scheme` field is renamed to `theme` automatically and written back).
 
@@ -31,13 +31,13 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `fm_buttons` | list | `[]` | Your custom file-manager command buttons (`{label, command}`); see [File manager](file-manager.md). |
 | `auto_install` | bool | `true` | Auto-install optional dependencies (and show the first-run chooser); see [Auto-install](#auto-install). Set `false` to opt out. |
 | `deps_prompted` | bool | `false` | Whether the first-run optional-feature chooser has been shown. Set back to `false` to be asked again. |
-| `schema_version` | int | `1` | Settings schema version (managed by qcell). |
+| `schema_version` | int | `1` | Settings schema version (managed by abax). |
 
-You can edit `settings.json` by hand while qcell is closed, but most fields are also exposed through the GUI (theme, fonts, toolbar, faceplate folder) and the TUI, which is the recommended way to change them.
+You can edit `settings.json` by hand while abax is closed, but most fields are also exposed through the GUI (theme, fonts, toolbar, faceplate folder) and the TUI, which is the recommended way to change them.
 
 ## Runtime directories
 
-qcell never hardcodes paths. It resolves four OS-appropriate directories at startup and creates them if needed. When the `platformdirs` package (from the `fast-io` extra) is installed it uses that; otherwise a built-in fallback mirrors the same logic.
+abax never hardcodes paths. It resolves four OS-appropriate directories at startup and creates them if needed. When the `platformdirs` package (from the `fast-io` extra) is installed it uses that; otherwise a built-in fallback mirrors the same logic.
 
 | Directory | Holds |
 |-----------|-------|
@@ -50,64 +50,64 @@ Typical locations per platform:
 
 | Platform | CONFIG | DATA | CACHE | LOG |
 |----------|--------|------|-------|-----|
-| Windows | `%APPDATA%\qcell` | `%LOCALAPPDATA%\qcell` | `%LOCALAPPDATA%\qcell\Cache` | `%LOCALAPPDATA%\qcell\Logs` |
-| macOS | `~/Library/Application Support/qcell` | same as config | `~/Library/Caches/qcell` | `~/Library/Logs/qcell` |
-| Linux | `$XDG_CONFIG_HOME/qcell` (`~/.config/qcell`) | `$XDG_DATA_HOME/qcell` (`~/.local/share/qcell`) | `$XDG_CACHE_HOME/qcell` (`~/.cache/qcell`) | `…/qcell/logs` |
+| Windows | `%APPDATA%\abax` | `%LOCALAPPDATA%\abax` | `%LOCALAPPDATA%\abax\Cache` | `%LOCALAPPDATA%\abax\Logs` |
+| macOS | `~/Library/Application Support/abax` | same as config | `~/Library/Caches/abax` | `~/Library/Logs/abax` |
+| Linux | `$XDG_CONFIG_HOME/abax` (`~/.config/abax`) | `$XDG_DATA_HOME/abax` (`~/.local/share/abax`) | `$XDG_CACHE_HOME/abax` (`~/.cache/abax`) | `…/abax/logs` |
 
 To see the exact paths on your machine, run:
 
 ```bash
-qcell --deps
+abax --deps
 ```
 
 It prints the config, data, cache, and log directories at the bottom of the report (see [cli.md](cli.md)).
 
 ## Environment variables
 
-### `QCELL_QT_BINDING`
+### `ABAX_QT_BINDING`
 
-Forces which Qt binding the GUI uses. qcell prefers **PySide6** (LGPL) and falls back to **PyQt6**; no GUI code branches on the binding, so the app runs identically on either. Set this to override the default order:
+Forces which Qt binding the GUI uses. abax prefers **PySide6** (LGPL) and falls back to **PyQt6**; no GUI code branches on the binding, so the app runs identically on either. Set this to override the default order:
 
 ```bash
-QCELL_QT_BINDING=PyQt6 qcell gui
+ABAX_QT_BINDING=PyQt6 abax gui
 ```
 
 Only `PyQt6` is treated specially: setting it forces the PyQt6 path even when PySide6 is installed. Any other value (or leaving it unset) keeps the default PySide6-then-PyQt6 order. This is mainly useful for testing both bindings. See [getting-started.md](getting-started.md) for installing each one.
 
-### `QCELL_FACEPLATE_DIR`
+### `ABAX_FACEPLATE_DIR`
 
 Points at a **faceplate-assets root** — a directory that holds per-model subfolders of calculator faceplate artwork used by the GUI's photographic faceplate for the built-in RPN calculator. Each model subfolder must contain a `background.png` and at least one `.kml` layout file.
 
 ```bash
 # Point at a local checkout's voyager assets
-export QCELL_FACEPLATE_DIR=/path/to/qrpn-voyager/qrpn/assets/voyager
-qcell gui
+export ABAX_FACEPLATE_DIR=/path/to/qrpn-voyager/qrpn/assets/voyager
+abax gui
 ```
 
-See [Faceplate assets](#faceplate-assets) for the full resolution order. qcell **bundles no artwork** and never copies these files — it only reads them in place.
+See [Faceplate assets](#faceplate-assets) for the full resolution order. abax **bundles no artwork** and never copies these files — it only reads them in place.
 
 ### `PANDOC`
 
 Points at a pandoc executable for rich equation rendering. See [Pandoc](#pandoc-for-equations) below.
 
-### `QCELL_NO_AUTOINSTALL`
+### `ABAX_NO_AUTOINSTALL`
 
 Set to any non-empty value to disable the background auto-installation of optional dependencies (equivalent to `auto_install: false` in settings). See [Auto-install](#auto-install).
 
 ## Auto-install
 
-qcell's core is pure stdlib and every heavier capability is an *optional* package with a graceful fallback. On **first GUI launch** qcell shows a **chooser** that explains each optional feature group and offers two presets — **Thin** (lean everyday conveniences) and **All** (everything, recommended) — plus a checkbox per feature. Your selection is fetched in a background daemon thread (best-effort, non-blocking) and the choice is remembered (`deps_prompted`). In the TUI/headless there's no dialog: a one-time notice points you at `qcell deps` (install everything) or `pip install qcell[…]` (specific extras).
+abax's core is pure stdlib and every heavier capability is an *optional* package with a graceful fallback. On **first GUI launch** abax shows a **chooser** that explains each optional feature group and offers two presets — **Thin** (lean everyday conveniences) and **All** (everything, recommended) — plus a checkbox per feature. Your selection is fetched in a background daemon thread (best-effort, non-blocking) and the choice is remembered (`deps_prompted`). In the TUI/headless there's no dialog: a one-time notice points you at `abax deps` (install everything) or `pip install abax[…]` (specific extras).
 
-- **Best-effort and non-blocking.** Startup and the UI never wait on `pip`. If pip is unavailable, you're offline, or a build fails, qcell silently keeps using its pure-Python fallbacks.
+- **Best-effort and non-blocking.** Startup and the UI never wait on `pip`. If pip is unavailable, you're offline, or a build fails, abax silently keeps using its pure-Python fallbacks.
 - **Once per machine.** A marker file per package (under the cache directory's `autodeps/` folder) means a slow or failing install is not retried on every launch.
-- **Opt out** with `auto_install: false` in settings or `QCELL_NO_AUTOINSTALL=1`.
-- The **Qt GUI binding** (PySide6/PyQt6) is *not* auto-installed — you need it to launch the GUI in the first place, so install it explicitly with `pip install qcell[gui]`.
+- **Opt out** with `auto_install: false` in settings or `ABAX_NO_AUTOINSTALL=1`.
+- The **Qt GUI binding** (PySide6/PyQt6) is *not* auto-installed — you need it to launch the GUI in the first place, so install it explicitly with `pip install abax[gui]`.
 
-Controls: **Tools → Install optional features** re-opens the chooser (Thin / All / custom) any time; `qcell deps` installs everything from the command line, synchronously; and `qcell --deps` reports the auto-install state and how many optional packages are present.
+Controls: **Tools → Install optional features** re-opens the chooser (Thin / All / custom) any time; `abax deps` installs everything from the command line, synchronously; and `abax --deps` reports the auto-install state and how many optional packages are present.
 
 ## Themes
 
-The GUI ships a set of theme presets in `qcell/gui/theming.py`; the TUI has matching color themes. Set `theme` (GUI) or `tui_theme` (TUI) in `settings.json`, or switch from within the app. An unknown name falls back to the default (`obsidian`).
+The GUI ships a set of theme presets in `abax/gui/theming.py`; the TUI has matching color themes. Set `theme` (GUI) or `tui_theme` (TUI) in `settings.json`, or switch from within the app. An unknown name falls back to the default (`obsidian`).
 
 | Preset | Style |
 |--------|-------|
@@ -124,40 +124,40 @@ The GUI renders any preset through a token-based stylesheet, and the GUI theming
 
 ## OpenDyslexic font
 
-qcell can use the **OpenDyslexic** typeface (SIL OFL 1.1), a free, openly licensed font designed to ease reading for people with dyslexia. When enabled it applies **across the UI** — menus and dialogs, the grid cells, and the Python console / terminal — while the calculator's LCD and the painted faceplates keep their own display fonts. The binaries are **not bundled**: when you enable the dyslexic font (the `dyslexic_font` setting, toggled in the GUI), qcell downloads the Regular and Bold `.otf` files from the upstream GitHub repository (pinned to a fixed commit) into its cache directory (`CACHE/fonts/`) on first use.
+abax can use the **OpenDyslexic** typeface (SIL OFL 1.1), a free, openly licensed font designed to ease reading for people with dyslexia. When enabled it applies **across the UI** — menus and dialogs, the grid cells, and the Python console / terminal — while the calculator's LCD and the painted faceplates keep their own display fonts. The binaries are **not bundled**: when you enable the dyslexic font (the `dyslexic_font` setting, toggled in the GUI), abax downloads the Regular and Bold `.otf` files from the upstream GitHub repository (pinned to a fixed commit) into its cache directory (`CACHE/fonts/`) on first use.
 
 The fetch is best-effort and offline-safe — any network or file error is logged and swallowed, so toggling the font on without a connection simply leaves it unavailable rather than raising an error. Once cached, the font is reused with no further network access.
 
 ## Faceplate assets
 
-The GUI's built-in RPN calculator can render a photographic faceplate (background image + key overlays + a `.kml` layout per calculator model). qcell distributes **none** of this artwork; it reads asset files you supply. A faceplate is considered usable when its model folder contains a `background.png` and at least one `*.kml` layout file.
+The GUI's built-in RPN calculator can render a photographic faceplate (background image + key overlays + a `.kml` layout per calculator model). abax distributes **none** of this artwork; it reads asset files you supply. A faceplate is considered usable when its model folder contains a `background.png` and at least one `*.kml` layout file.
 
-qcell looks for a model's assets in this order and uses the first usable match:
+abax looks for a model's assets in this order and uses the first usable match:
 
 1. The `faceplate_assets_dir` setting, if set (the assets-root folder).
-2. The `QCELL_FACEPLATE_DIR` environment variable (also an assets-root folder).
-3. A local `qrpn-voyager/` or `qv/` checkout found beside the working directory, its parent, or the qcell source tree — assets are expected under `qrpn/assets/voyager/<model>/`. Contributors who keep that checkout handy get the artwork with no configuration.
+2. The `ABAX_FACEPLATE_DIR` environment variable (also an assets-root folder).
+3. A local `qrpn-voyager/` or `qv/` checkout found beside the working directory, its parent, or the abax source tree — assets are expected under `qrpn/assets/voyager/<model>/`. Contributors who keep that checkout handy get the artwork with no configuration.
 
-Both `faceplate_assets_dir` and `QCELL_FACEPLATE_DIR` should point at the **assets root** (the directory that holds the per-model subfolders), for example a local qrpn-voyager checkout's `qrpn/assets/voyager`.
+Both `faceplate_assets_dir` and `ABAX_FACEPLATE_DIR` should point at the **assets root** (the directory that holds the per-model subfolders), for example a local qrpn-voyager checkout's `qrpn/assets/voyager`.
 
 ## Pandoc for equations
 
-qcell can render LaTeX math to MathML for its equation feature. It prefers a real **pandoc** binary and resolves one in this order:
+abax can render LaTeX math to MathML for its equation feature. It prefers a real **pandoc** binary and resolves one in this order:
 
 1. The `PANDOC` environment variable, if it names an executable on the `PATH`.
 2. A `pandoc` executable on the `PATH`.
 3. A pandoc binary managed by the `pypandoc` package, if installed.
 
-If none is found, qcell can bootstrap one on demand by `pip install`-ing the `pypandoc_binary` wheel (which bundles the executable) and then exposing its path through the `PANDOC` environment variable. The whole process is graceful: with no network or no pip it simply reports pandoc as unavailable and falls back to a built-in subset MathML renderer — it never raises.
+If none is found, abax can bootstrap one on demand by `pip install`-ing the `pypandoc_binary` wheel (which bundles the executable) and then exposing its path through the `PANDOC` environment variable. The whole process is graceful: with no network or no pip it simply reports pandoc as unavailable and falls back to a built-in subset MathML renderer — it never raises.
 
-To point qcell at a specific pandoc:
+To point abax at a specific pandoc:
 
 ```bash
 export PANDOC=/usr/local/bin/pandoc
-qcell gui
+abax gui
 ```
 
-`qcell --deps` reports whether pandoc is available and what the fallback is.
+`abax --deps` reports whether pandoc is available and what the fallback is.
 
 ## See also
 

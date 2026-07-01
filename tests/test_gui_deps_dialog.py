@@ -8,11 +8,11 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell import autodeps  # noqa: E402
-from qcell.gui._qtcompat import QApplication, QWidget  # noqa: E402
-from qcell.settings import Settings  # noqa: E402
+from abax import autodeps  # noqa: E402
+from abax.gui._qtcompat import QApplication, QWidget  # noqa: E402
+from abax.settings import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -40,7 +40,7 @@ def no_pip(tmp_path, monkeypatch):
 
 
 def _dlg(win):
-    from qcell.gui.dialogs.deps_dialog import DependencyChooser
+    from abax.gui.dialogs.deps_dialog import DependencyChooser
 
     return DependencyChooser(win)
 
@@ -85,7 +85,7 @@ def test_skip_marks_prompted_without_installing(win, no_pip):
 
 
 def test_maybe_prompt_respects_flags(win, monkeypatch):
-    from qcell.gui.dialogs import deps_dialog
+    from abax.gui.dialogs import deps_dialog
 
     shown = []
     monkeypatch.setattr(deps_dialog, "DependencyChooser",
@@ -106,7 +106,7 @@ def test_maybe_prompt_respects_flags(win, monkeypatch):
 
 
 def test_wired_into_window(app):
-    from qcell.gui.main_window import MainWindow
+    from abax.gui.main_window import MainWindow
 
     w = MainWindow(Settings())
     assert callable(w.install_optional_features)

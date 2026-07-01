@@ -1,4 +1,4 @@
-"""Tests for :mod:`qcell.core.science.complexnum`."""
+"""Tests for :mod:`abax.core.science.complexnum`."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import cmath
 
 import pytest
 
-from qcell.core.science.complexnum import (
+from abax.core.science.complexnum import (
     ComplexError,
     complexnum,
     fmt,

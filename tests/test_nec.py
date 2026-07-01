@@ -6,8 +6,8 @@ import math
 
 import pytest
 
-from qcell.core.science import nec
-from qcell.core.science import wire_mom as W
+from abax.core.science import nec
+from abax.core.science import wire_mom as W
 
 
 def _dipole_pts(segments=16, length=0.5):

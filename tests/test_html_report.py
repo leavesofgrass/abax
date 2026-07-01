@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from qcell.core.io.html_report import sheet_to_html, workbook_to_html
-from qcell.core.sheet import Sheet
+from abax.core.io.html_report import sheet_to_html, workbook_to_html
+from abax.core.sheet import Sheet
 
 
 def _sample_sheet(name: str = "Data") -> Sheet:
@@ -94,7 +94,7 @@ def test_workbook_to_html_includes_all_sheet_names():
 def test_workbook_to_html_uses_real_workbook():
     # Prefer the real Workbook if available; skip gracefully otherwise.
     try:
-        from qcell.core.workbook import Workbook
+        from abax.core.workbook import Workbook
     except Exception:
         return
     wb = Workbook()

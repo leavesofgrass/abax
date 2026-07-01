@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core.io.csv_stream import (
+from abax.core.io.csv_stream import (
     CsvStreamError,
     iter_chunks,
     load_csv_streaming,

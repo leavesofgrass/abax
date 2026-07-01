@@ -1,10 +1,10 @@
-"""Tests for qcell.core.science.dxcc (callsign -> DXCC entity lookup)."""
+"""Tests for abax.core.science.dxcc (callsign -> DXCC entity lookup)."""
 
 from __future__ import annotations
 
 import pytest
 
-from qcell.core.science.dxcc import PREFIXES, entity_for_call
+from abax.core.science.dxcc import PREFIXES, entity_for_call
 
 
 def test_table_is_nonempty_and_uppercase() -> None:

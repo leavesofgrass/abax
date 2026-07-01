@@ -1,6 +1,6 @@
 # Built-in calculators
 
-qcell bundles a set of calculators that live beside the spreadsheet and can
+abax bundles a set of calculators that live beside the spreadsheet and can
 exchange values with the grid. They're handy for a quick computation without
 writing a formula, and the RPN and graphing models are faithful enough to be
 enjoyable in their own right.
@@ -58,10 +58,10 @@ For the RPN models there's a second **Style** dropdown:
 
 - **Vector** (the default) — a de-branded faceplate drawn entirely with Qt's
   painter: a dark two-tone body, sculpted key caps, the gold/blue shift legends,
-  an LCD window, and a neutral badge. **No calculator artwork ships with qcell.**
+  an LCD window, and a neutral badge. **No calculator artwork ships with abax.**
 - **Image** — composites photographic faceplate art (a background plus per-key
   cap images, described by a Nonpareil KML) from an external folder. If you
-  haven't configured one, qcell falls back to the vector face automatically and
+  haven't configured one, abax falls back to the vector face automatically and
   flips the dropdown back to Vector.
 
 Configuring photographic faceplate art is described under
@@ -136,23 +136,23 @@ decimal (above).
 
 ## Photographic faceplate art
 
-qcell **ships no calculator artwork** — the de-branded vector faceplate is the
+abax **ships no calculator artwork** — the de-branded vector faceplate is the
 default and is always available with no setup. If you have your own photographic
-faceplate assets, you can point qcell at them so the RPN models render with image
+faceplate assets, you can point abax at them so the RPN models render with image
 art instead.
 
-qcell looks for an assets folder holding per-model subfolders (each with a
+abax looks for an assets folder holding per-model subfolders (each with a
 `background.png` and a `*.kml` layout), in this order:
 
 1. An explicit **image folder** you set in *Tools → Calculator faceplates → Set
    image folder…* (saved in settings).
-2. The **`QCELL_FACEPLATE_DIR`** environment variable, pointing at the same kind
+2. The **`ABAX_FACEPLATE_DIR`** environment variable, pointing at the same kind
    of assets root.
 3. A local **`qrpn-voyager`** (or `qv`) checkout next to your working directory
-   or the qcell tree — under `qrpn/assets/voyager/<model>` — so contributors who
+   or the abax tree — under `qrpn/assets/voyager/<model>` — so contributors who
    have it handy get the art with no configuration.
 
-qcell only **reads** these files in place — it never bundles or copies them, and
+abax only **reads** these files in place — it never bundles or copies them, and
 it never draws any manufacturer trademark. If no usable assets are found, it quietly uses
 the vector faceplate. After setting a folder, an open calculator
 rebuilds so the new art takes effect immediately. Set the **Style** dropdown to

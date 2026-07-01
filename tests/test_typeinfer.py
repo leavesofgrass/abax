@@ -1,10 +1,10 @@
-"""Tests for qcell.core.typeinfer — pure-stdlib column type inference."""
+"""Tests for abax.core.typeinfer — pure-stdlib column type inference."""
 
 from __future__ import annotations
 
 import datetime
 
-from qcell.core.typeinfer import (
+from abax.core.typeinfer import (
     coerce,
     infer_column_type,
     infer_types,

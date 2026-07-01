@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core.io.flatfile_io import (
+from abax.core.io.flatfile_io import (
     dumps_fixed,
     dumps_jsonl,
     load_fixed,
@@ -12,7 +12,7 @@ from qcell.core.io.flatfile_io import (
     save_fixed,
     save_jsonl,
 )
-from qcell.core.sheet import Sheet
+from abax.core.sheet import Sheet
 
 # --- JSON Lines -----------------------------------------------------------
 

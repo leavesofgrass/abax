@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from qcell.core import richdisplay as RD
-from qcell.core.sheet import Sheet
+from abax.core import richdisplay as RD
+from abax.core.sheet import Sheet
 
 
 class _Rich:
@@ -74,8 +74,8 @@ def test_sheet_markdown_bounds_and_empty():
 
 
 def test_console_worker_renders_rich_result():
-    from qcell.console_worker import Worker
-    from qcell.core.workbook import Workbook
+    from abax.console_worker import Worker
+    from abax.core.workbook import Workbook
 
     s = Sheet()
     s.set_cell(0, 0, "hdr")

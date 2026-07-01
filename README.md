@@ -1,4 +1,4 @@
-# qcell
+# abax
 
 A keyboard-first **statistics and data-science workstation** — an integrated
 environment for data work, built on a fast, scriptable spreadsheet. Load a
@@ -12,31 +12,31 @@ CSV, Excel, Parquet, SQLite, JSON, R, and more.
 It also carries purpose-built tools: **RF & antenna engineering** (link budgets,
 Smith charts, a thin-wire Method-of-Moments solver with NEC `.nec` import/export),
 **Jupyter integration** (a lossless `.ipynb` round-trip, rich display, and
-qcell-as-a-Jupyter-kernel), a **dual-pane file manager** with configurable command
+abax-as-a-Jupyter-kernel), a **dual-pane file manager** with configurable command
 buttons and one-click archiving, and a **budget wizard**.
 
 It runs as a Qt desktop GUI (the default), a vim-style terminal UI, or a headless
 CLI. The core is pure-stdlib Python; every heavier capability is an optional
-dependency with a graceful fallback. When a behaviour is ambiguous, qcell follows
+dependency with a graceful fallback. When a behaviour is ambiguous, abax follows
 **gnumeric**.
 
 ## Install
 
 ```sh
-pip install qcell[gui]         # the Qt GUI (PySide6) — the usual choice
-python -m qcell                # launch it
+pip install abax[gui]         # the Qt GUI (PySide6) — the usual choice
+python -m abax                # launch it
 ```
 
-qcell installs *full-fat by default*: on first launch it **auto-installs the
+abax installs *full-fat by default*: on first launch it **auto-installs the
 remaining optional dependencies in the background** (the data-science stack,
 Excel/Parquet I/O, the PTY terminal, Jupyter integration) so everything just
-works. It's best-effort and non-blocking — qcell keeps using its pure-Python
+works. It's best-effort and non-blocking — abax keeps using its pure-Python
 fallbacks meanwhile — and attempted only once per machine.
 
 ```sh
-python -m qcell deps           # install every optional dependency now (blocking)
-python -m qcell --deps         # show what's present + the auto-install status
-QCELL_NO_AUTOINSTALL=1 …        # opt out (or set auto_install=false in settings)
+python -m abax deps           # install every optional dependency now (blocking)
+python -m abax --deps         # show what's present + the auto-install status
+ABAX_NO_AUTOINSTALL=1 …        # opt out (or set auto_install=false in settings)
 
 pip install -e ".[dev]"        # a development checkout
 # extras: .[gui] PySide6 · .[gui-pyqt] PyQt6 · .[tui] textual · .[excel] openpyxl
@@ -51,13 +51,13 @@ packages installed, and every optional dependency degrades gracefully.
 ## Use
 
 ```sh
-python -m qcell view sales.csv            # print as a table
-python -m qcell get sales.csv D2          # compute one cell
-python -m qcell convert sales.csv out.xlsx
-python -m qcell tui budget.qcell          # curses TUI (vim keys)
-python -m qcell gui budget.qcell          # Qt GUI (PySide6/PyQt6)
-python -m qcell macro run totals book.csv --macros macros/
-python -m qcell deps                      # fetch all optional dependencies
+python -m abax view sales.csv            # print as a table
+python -m abax get sales.csv D2          # compute one cell
+python -m abax convert sales.csv out.xlsx
+python -m abax tui budget.abax          # curses TUI (vim keys)
+python -m abax gui budget.abax          # Qt GUI (PySide6/PyQt6)
+python -m abax macro run totals book.csv --macros macros/
+python -m abax deps                      # fetch all optional dependencies
 ```
 
 ## Formats
@@ -75,21 +75,21 @@ Open and save by file extension — convert between any of them:
 | SQLite | `.db` `.sqlite` | tables / `SELECT` queries ↔ sheets (one sheet per table) |
 | JSON Lines | `.jsonl` `.ndjson` | flat-file record DB; one object per line |
 | Fixed-width | `.fixed` | whitespace-aligned columns |
-| Native / JSON | `.qcell` `.json` | lossless workbook; JSON is also the interchange format |
+| Native / JSON | `.abax` `.json` | lossless workbook; JSON is also the interchange format |
 
 ```sh
-python -m qcell convert budget.csv budget.md      # → GitHub-flavored Markdown table
-python -m qcell convert budget.csv budget.xml     # → XML Spreadsheet (R1C1 formulas)
-python -m qcell convert budget.csv budget.ipynb   # → notebook (markdown + DataFrame)
-python -m qcell convert budget.csv budget.R       # → R data.frame
+python -m abax convert budget.csv budget.md      # → GitHub-flavored Markdown table
+python -m abax convert budget.csv budget.xml     # → XML Spreadsheet (R1C1 formulas)
+python -m abax convert budget.csv budget.ipynb   # → notebook (markdown + DataFrame)
+python -m abax convert budget.csv budget.R       # → R data.frame
 ```
 
-**Foreign JSON.** Opening a `.json` file auto-detects what it is: a native qcell
+**Foreign JSON.** Opening a `.json` file auto-detects what it is: a native abax
 workbook, the spec's interchange envelope (`{app, schema_version, data}`), a qrpn
 calculator save (`{stack, registers}`), a list of records, or a dict of columns.
 
 ```sh
-python -m qcell view qrpn-save.json --sheet stack   # read a qrpn calculator save
+python -m abax view qrpn-save.json --sheet stack   # read a qrpn calculator save
 ```
 
 ## Formulas
@@ -208,20 +208,20 @@ For hams and RF engineers (the *Radio* menu), plus **60+ RF formula functions**:
 
 `.ipynb` export is valid **nbformat 4.5** and round-trips the whole workbook
 losslessly. A `Sheet` renders as an HTML/Markdown table via the IPython
-rich-display protocol. qcell can run **as a Jupyter kernel** (`python -m
-qcell.kernel`, after `pip install qcell[jupyter]`) and expose an **editable sheet
+rich-display protocol. abax can run **as a Jupyter kernel** (`python -m
+abax.kernel`, after `pip install abax[jupyter]`) and expose an **editable sheet
 widget** (anywidget). See [docs/jupyter.md](docs/jupyter.md).
 
 ## The TUI
 
-`python -m qcell tui` — a vim-first curses interface that degrades to ASCII +
+`python -m abax tui` — a vim-first curses interface that degrades to ASCII +
 8-color over SSH. Normal/insert/command modes, the eight themes (live `:theme`),
 `Tab` autocomplete with argument hints, an RPN REPL (`:rpn`), a Python one-liner
 (`:py`), and the same editing/find/macro commands as the GUI via `:`.
 
 ## Macros
 
-Extend qcell with plain Python files — command macros that drive a workbook, and
+Extend abax with plain Python files — command macros that drive a workbook, and
 user-defined functions callable inside formulas:
 
 ```python
@@ -240,9 +240,9 @@ def taxed(args):
 ```
 
 ```sh
-qcell --macros macros/ macro list           # discover macros + UDFs
-qcell --macros macros/ macro run totals book.csv
-qcell --macros macros/ view sheet.csv        # UDFs available everywhere
+abax --macros macros/ macro list           # discover macros + UDFs
+abax --macros macros/ macro run totals book.csv
+abax --macros macros/ view sheet.csv        # UDFs available everywhere
 ```
 
 Reachable from the TUI (`:macro <name>`), the GUI *Tools → Macros* menu, and the
@@ -251,7 +251,7 @@ trust. Auto-discovered from `CONFIG_DIR/macros/*.py`.
 
 ### Recording
 
-Record your edits and qcell writes the macro for you:
+Record your edits and abax writes the macro for you:
 
 - **GUI:** *Tools* menu → *Start recording* / *Start relative recording* /
   *Save recorded macro…* / *Replay recording*. A `● REC` / `● REL` indicator
@@ -265,12 +265,12 @@ record `=A1*2` at B1, replay at B4, and it writes `=A4*2` — cells and relative
 refs shift by the same offset.
 
 ```sh
-qcell --macros macros/ macro run rowcalc data.csv --at B4   # replay relative to C-col B4
+abax --macros macros/ macro run rowcalc data.csv --at B4   # replay relative to C-col B4
 ```
 
 ### Autocomplete & argument hints
 
-While typing a formula, qcell completes function names — built-ins **and** your
+While typing a formula, abax completes function names — built-ins **and** your
 UDFs. In the TUI, `Tab` completes (single → `NAME(`, multiple → common prefix);
 once inside a call it shows the signature with the **current argument** marked —
 `VLOOKUP(lookup, table, »col_index«, [approximate])`. In the GUI, the formula bar
@@ -281,7 +281,7 @@ shows a completion popup and a floating signature tooltip that tracks your curso
 ```sh
 just install    # dev setup
 just test       # tests (pass with zero optional deps)
-just pyz        # qcell.pyz — one-file, optimize=2, compressed, stripped
+just pyz        # abax.pyz — one-file, optimize=2, compressed, stripped
 just wheel      # wheel (docstrings kept)
 just check      # lint + test + pyz + smoke
 ```
@@ -289,7 +289,7 @@ just check      # lint + test + pyz + smoke
 ## Layout
 
 ```
-qcell/
+abax/
   core/      stdlib-only engine at the root: references, tokenizer, parser,
              evaluator, functions, sheet, workbook; fill/series; translate
              (ref-shift), r1c1, completion. Pluggable libraries in subpackages:

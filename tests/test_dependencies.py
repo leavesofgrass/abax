@@ -1,14 +1,14 @@
 """The most important test file: the suite must pass with ZERO optional deps.
 
-Everything imported here is stdlib + qcell core. No msgspec, openpyxl, PyQt6,
+Everything imported here is stdlib + abax core. No msgspec, openpyxl, PyQt6,
 textual, platformdirs required.
 """
 
 from __future__ import annotations
 
-from qcell import diagnostics
-from qcell.core import Sheet
-from qcell.core.io.csv_io import dumps_csv, loads_csv
+from abax import diagnostics
+from abax.core import Sheet
+from abax.core.io.csv_io import dumps_csv, loads_csv
 
 
 def test_core_imports_without_optional_deps():
@@ -27,7 +27,7 @@ def test_diagnostics_registry_complete():
 
 def test_format_deps_runs():
     text = diagnostics.format_deps()
-    assert "qcell optional dependencies" in text
+    assert "abax optional dependencies" in text
 
 
 def test_csv_roundtrip_pure_stdlib():

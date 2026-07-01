@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from qcell.core.errors import CellError
-from qcell.core.text_datetime_fns import (
+from abax.core.errors import CellError
+from abax.core.text_datetime_fns import (
     SIGNATURES,
     _clean,
     _datevalue,

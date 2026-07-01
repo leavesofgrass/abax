@@ -1,11 +1,11 @@
-"""Tests for :mod:`qcell.core.sqlsheets` — SQL over spreadsheet sheets."""
+"""Tests for :mod:`abax.core.sqlsheets` — SQL over spreadsheet sheets."""
 
 from __future__ import annotations
 
 import pytest
 
-from qcell.core.sheet import Sheet
-from qcell.core.sqlsheets import SqlError, result_to_sheet, run_sql
+from abax.core.sheet import Sheet
+from abax.core.sqlsheets import SqlError, result_to_sheet, run_sql
 
 
 def _make_sheet(name, rows):

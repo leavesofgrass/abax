@@ -1,6 +1,6 @@
-# qcell documentation
+# abax documentation
 
-qcell is a keyboard-first **statistics and data-science workstation** — an
+abax is a keyboard-first **statistics and data-science workstation** — an
 integrated environment for data work, built on a fast, scriptable spreadsheet.
 Import a dataset, explore it with **400+ formula functions** (statistics and
 distributions, financial, engineering, database, and RF/ham-radio), run built-in
@@ -14,7 +14,7 @@ dependencies auto-install in the background).
   [licensing.md](licensing.md).
 - Default Qt binding: **PySide6** (LGPL); PyQt6 is also supported.
 
-## Data science with qcell
+## Data science with abax
 
 - [Data science overview](data-science.md) — the end-to-end workflow: import →
   explore → analyze → reshape → visualize → script → export.
@@ -30,9 +30,9 @@ dependencies auto-install in the background).
   Smith chart, dipole impedance, and a thin-wire **Method-of-Moments** solver with
   NEC `.nec` import/export.
 - [Jupyter integration](jupyter.md) — lossless `.ipynb` round-trip, rich display,
-  qcell as a Jupyter kernel, and the editable-sheet widget.
+  abax as a Jupyter kernel, and the editable-sheet widget.
 
-## Working in qcell
+## Working in abax
 
 - [Getting started](getting-started.md) — install, launch, and a 5-minute walkthrough.
 - [GUI guide](gui-guide.md) — the grid, Excel-style keyboard navigation, selection
@@ -42,7 +42,7 @@ dependencies auto-install in the background).
 - [Budgeting](budgeting.md) — the budget wizard and the live `SUMIF`-driven budget
   sheet.
 - [File formats](file-formats.md) — CSV, Excel, ODS, Parquet, XML, Markdown,
-  Jupyter, R, SQLite, JSON Lines, and the native `.qcell` envelope.
+  Jupyter, R, SQLite, JSON Lines, and the native `.abax` envelope.
 - [Command-line interface](cli.md) — headless `view`/`convert`/`get`/`macro`/`deps`
   plus the GUI/TUI launchers.
 - [Configuration](configuration.md) — settings, auto-install, environment

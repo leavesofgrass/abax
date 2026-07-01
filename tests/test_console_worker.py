@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from qcell.console_worker import Worker
-from qcell.core.workbook import Workbook
+from abax.console_worker import Worker
+from abax.core.workbook import Workbook
 
 
 def _env():

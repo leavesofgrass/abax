@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from qcell.core import fileops as F
+from abax.core import fileops as F
 
 
 @pytest.fixture()

@@ -1,10 +1,10 @@
-"""Tests for the workbook named-range registry (``qcell.core.names``)."""
+"""Tests for the workbook named-range registry (``abax.core.names``)."""
 
 from __future__ import annotations
 
 import pytest
 
-from qcell.core.names import (
+from abax.core.names import (
     NameError,
     NameRegistry,
     is_valid_name,

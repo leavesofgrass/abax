@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core import Sheet
-from qcell.core.errors import CellError
+from abax.core import Sheet
+from abax.core.errors import CellError
 
 
 def _grid(rows):

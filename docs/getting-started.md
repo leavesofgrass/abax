@@ -1,17 +1,17 @@
 # Getting started
 
-qcell is a keyboard-first statistics and data-science workstation built on a
+abax is a keyboard-first statistics and data-science workstation built on a
 scriptable spreadsheet. It reads and writes CSV, TSV, Excel `.xlsx`, the native
-`.qcell`/`.json` format, and many more (see [file formats](file-formats.md)), and
+`.abax`/`.json` format, and many more (see [file formats](file-formats.md)), and
 runs three ways: a Qt desktop GUI (the default), a curses/Textual terminal UI
 (TUI), and a headless command-line interface (CLI). This guide covers installing
-qcell, the ways to launch it, and a five-minute walkthrough from an empty grid to a
+abax, the ways to launch it, and a five-minute walkthrough from an empty grid to a
 saved spreadsheet with a working formula. For the end-to-end data workflow, see the
 [data science overview](data-science.md).
 
 ## Installing
 
-qcell is pure Python and works with no optional packages at all — the core spreadsheet engine is stdlib-only. The graphical interfaces and the data/format features are pulled in through *extras*, each with a graceful stdlib fallback. Install only what you need.
+abax is pure Python and works with no optional packages at all — the core spreadsheet engine is stdlib-only. The graphical interfaces and the data/format features are pulled in through *extras*, each with a graceful stdlib fallback. Install only what you need.
 
 Clone or download the project, then install from the project root:
 
@@ -25,7 +25,7 @@ pip install ".[gui]"
 # Lean desktop: GUI + every lightweight convenience, no heavy data libraries
 pip install ".[thin]"
 
-# Everything qcell can use, including the data-science stack
+# Everything abax can use, including the data-science stack
 pip install ".[all]"
 
 # Full developer setup
@@ -47,20 +47,20 @@ If you have `just` installed, `just install` runs the full developer setup for y
 | `parquet` | `pyarrow` | Parquet / Feather I/O |
 | `science` | numpy, pandas, scipy, scikit-learn, statsmodels, lifelines, pingouin, scikit-survival | The data-science / (bio)statistics stack behind the analysis, ML, and graphing tools |
 | `bayes` | pymc | Bayesian / probabilistic programming — split out because it's heavy (pytensor + arviz + numba/llvmlite, ~150 MB) |
-| `jupyter` | `nbformat`, `ipykernel`, `anywidget` | Notebook validation, the qcell Jupyter kernel, and the editable-sheet widget ([jupyter.md](jupyter.md)) |
+| `jupyter` | `nbformat`, `ipykernel`, `anywidget` | Notebook validation, the abax Jupyter kernel, and the editable-sheet widget ([jupyter.md](jupyter.md)) |
 | **`thin`** | `gui` + `tui` + `excel` + `fast-io` + `terminal` | A lean desktop install — every lightweight convenience, none of the heavy data libraries |
-| **`all`** | `thin` + `parquet` + `science` + `jupyter` + `bayes` | One-shot install of everything qcell can use (the default full-fat set) |
+| **`all`** | `thin` + `parquet` + `science` + `jupyter` + `bayes` | One-shot install of everything abax can use (the default full-fat set) |
 
 > **You choose on first launch.** You don't have to pick extras at install time:
-> install just `gui`, and the first time you open qcell it shows a short **chooser**
+> install just `gui`, and the first time you open abax it shows a short **chooser**
 > that explains each optional feature and offers two presets — **Thin** (lean
 > everyday conveniences, ~25 MB) and **All** (everything, recommended) — plus a
 > checkbox per feature so you can pick your own mix. Your choice is fetched in the
 > background (best-effort, non-blocking) and remembered. Re-open it any time from
-> *Tools → Install optional features*. In the TUI/headless, `qcell deps` installs
-> everything, or `pip install qcell[science]` (etc.) picks specific extras. Opt out
+> *Tools → Install optional features*. In the TUI/headless, `abax deps` installs
+> everything, or `pip install abax[science]` (etc.) picks specific extras. Opt out
 > of prompting/auto-install entirely with `auto_install: false` or
-> `QCELL_NO_AUTOINSTALL=1`. See [Configuration → Auto-install](configuration.md#auto-install).
+> `ABAX_NO_AUTOINSTALL=1`. See [Configuration → Auto-install](configuration.md#auto-install).
 
 ### Install profiles & footprint
 
@@ -81,14 +81,14 @@ Dropping the `bayes` extra (pymc → pytensor + arviz + numba/llvmlite) saves
 
 The GUI tiers are dominated by Qt (~0.2 GB). `all` adds the scientific stack — roughly +0.7 GB of numpy/scipy/pandas/scikit-learn/pyarrow/… The core and curses TUI need nothing beyond the standard library.
 
-> qcell is licensed **GPL-3.0-or-later**. The default GUI binding is **PySide6**, which is LGPL-3.0. If you prefer PyQt6, install the `gui-pyqt` extra instead — the GUI code never branches on the binding, so it behaves identically on either.
+> abax is licensed **GPL-3.0-or-later**. The default GUI binding is **PySide6**, which is LGPL-3.0. If you prefer PyQt6, install the `gui-pyqt` extra instead — the GUI code never branches on the binding, so it behaves identically on either.
 
 ### Choosing the Qt binding
 
-When both bindings are installed, qcell prefers PySide6. To force PyQt6 (handy for testing), set the `QCELL_QT_BINDING` environment variable:
+When both bindings are installed, abax prefers PySide6. To force PyQt6 (handy for testing), set the `ABAX_QT_BINDING` environment variable:
 
 ```bash
-QCELL_QT_BINDING=PyQt6 qcell gui
+ABAX_QT_BINDING=PyQt6 abax gui
 ```
 
 See [configuration.md](configuration.md) for more on environment variables.
@@ -98,45 +98,45 @@ See [configuration.md](configuration.md) for more on environment variables.
 Run the dependency report to see which optional packages are present and which fall back to a built-in alternative. This is a fast path — it never imports the heavy Qt or terminal stacks:
 
 ```bash
-qcell --deps
+abax --deps
 ```
 
-It also prints where qcell keeps its config, data, cache, and log directories.
+It also prints where abax keeps its config, data, cache, and log directories.
 
-## Launching qcell
+## Launching abax
 
-qcell can be run as the `qcell` script (installed by the extras above) or as a module with `python -m qcell`. The two are equivalent.
+abax can be run as the `abax` script (installed by the extras above) or as a module with `python -m abax`. The two are equivalent.
 
 ### The GUI is the default
 
-Running qcell with **no subcommand** opens the Qt GUI:
+Running abax with **no subcommand** opens the Qt GUI:
 
 ```bash
-qcell                 # opens the GUI on an empty workbook
-qcell data.csv        # the bare-file form is not a subcommand — use `gui`
-qcell gui             # explicitly open the GUI, empty
-qcell gui data.csv    # open the GUI on a file
+abax                 # opens the GUI on an empty workbook
+abax data.csv        # the bare-file form is not a subcommand — use `gui`
+abax gui             # explicitly open the GUI, empty
+abax gui data.csv    # open the GUI on a file
 ```
 
-If Qt is not installed, qcell falls back automatically: it opens the TUI when standard output is a terminal, and otherwise prints help. To open the GUI on a specific file, use the `gui` subcommand with a path.
+If Qt is not installed, abax falls back automatically: it opens the TUI when standard output is a terminal, and otherwise prints help. To open the GUI on a specific file, use the `gui` subcommand with a path.
 
 ### The terminal UI
 
 ```bash
-qcell tui             # curses/Textual TUI on an empty workbook
-qcell tui data.csv    # open a file in the TUI
+abax tui             # curses/Textual TUI on an empty workbook
+abax tui data.csv    # open a file in the TUI
 ```
 
 The TUI is keyboard-driven with vim-style bindings on by default and a `:command` line for everything else (find, fill, sort, macros, the RPN calculator, and more).
 
 ### Headless CLI
 
-For scripting and quick lookups, qcell never opens a window:
+For scripting and quick lookups, abax never opens a window:
 
 ```bash
-qcell view data.csv               # print the sheet as a text table
-qcell get data.csv B7             # print one computed cell value
-qcell convert data.csv out.xlsx   # convert between formats by extension
+abax view data.csv               # print the sheet as a text table
+abax get data.csv B7             # print one computed cell value
+abax convert data.csv out.xlsx   # convert between formats by extension
 ```
 
 The full command and flag reference lives in [cli.md](cli.md).
@@ -145,10 +145,10 @@ The full command and flag reference lives in [cli.md](cli.md).
 
 This walkthrough uses the GUI, but the same concepts (typing into cells, writing a formula, saving) apply in the TUI.
 
-### 1. Open qcell
+### 1. Open abax
 
 ```bash
-qcell gui
+abax gui
 ```
 
 You get an empty grid with rows numbered `1, 2, 3, …` and columns labelled `A, B, C, …`, just like any spreadsheet.
@@ -174,7 +174,7 @@ Move to cell **B5** and type a formula. Formulas start with `=`:
 =SUM(B2:B4)
 ```
 
-Press `Enter`. The cell shows the computed total, `12`. qcell ships with around 200 functions — `SUM`, `AVERAGE`, `IF`, `VLOOKUP`, `CONCAT`, date functions, and more. As you type a function name the GUI offers autocomplete and an argument hint showing the current parameter. See [formula-reference.md](formula-reference.md) for the full function list.
+Press `Enter`. The cell shows the computed total, `12`. abax ships with around 200 functions — `SUM`, `AVERAGE`, `IF`, `VLOOKUP`, `CONCAT`, date functions, and more. As you type a function name the GUI offers autocomplete and an argument hint showing the current parameter. See [formula-reference.md](formula-reference.md) for the full function list.
 
 A few things worth knowing right away:
 
@@ -186,19 +186,19 @@ A few things worth knowing right away:
 
 Save with `Ctrl+S` and pick a filename. The extension chooses the format:
 
-- `myfile.qcell` or `myfile.json` — qcell's native JSON format (keeps formulas, multiple sheets, formatting, and conditional rules).
+- `myfile.abax` or `myfile.json` — abax's native JSON format (keeps formulas, multiple sheets, formatting, and conditional rules).
 - `myfile.csv` / `.tsv` — plain delimited text.
 - `myfile.xlsx` — Excel (requires the `excel` extra).
 
-All of qcell's own persistence is JSON, so `.qcell`/`.json` round-trips everything losslessly. CSV and Excel keep what those formats can represent.
+All of abax's own persistence is JSON, so `.abax`/`.json` round-trips everything losslessly. CSV and Excel keep what those formats can represent.
 
 ### 5. Reopen or inspect from the CLI
 
 Once saved, you can re-open the file in any interface, or peek at it without launching a window:
 
 ```bash
-qcell view myfile.qcell      # see the whole sheet as a table
-qcell get myfile.qcell B5    # prints: 12
+abax view myfile.abax      # see the whole sheet as a table
+abax get myfile.abax B5    # prints: 12
 ```
 
 ## Where to go next

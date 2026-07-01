@@ -1,4 +1,4 @@
-"""Excel/Gnumeric coverage gate — track how much of the common function set qcell
+"""Excel/Gnumeric coverage gate — track how much of the common function set abax
 implements, and pin that the parity packs (math/stats/text-date/finance/eng) and
 their headline functions are actually registered and evaluate."""
 
@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import math
 
-from qcell.core.functions import FUNCTIONS
-from qcell.core.workbook import Workbook
+from abax.core.functions import FUNCTIONS
+from abax.core.workbook import Workbook
 
 # A representative slice of the everyday Excel function set across categories.
 # Not exhaustive — a canary that the parity waves stayed wired up.

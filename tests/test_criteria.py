@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core.criteria import make_predicate
+from abax.core.criteria import make_predicate
 
 
 def test_numeric_comparisons():

@@ -1,10 +1,10 @@
-"""Tests for :mod:`qcell.core.science.cluster`."""
+"""Tests for :mod:`abax.core.science.cluster`."""
 
 from __future__ import annotations
 
 import pytest
 
-from qcell.core.science.cluster import (
+from abax.core.science.cluster import (
     ClusterError,
     agglomerative,
     dbscan,

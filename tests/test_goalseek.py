@@ -1,4 +1,4 @@
-"""Tests for the one-variable goal solver (``qcell/core/goalseek.py``)."""
+"""Tests for the one-variable goal solver (``abax/core/goalseek.py``)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qcell.core.goalseek import GoalSeekError, goal_seek
+from abax.core.goalseek import GoalSeekError, goal_seek
 
 
 def test_quadratic_secant() -> None:

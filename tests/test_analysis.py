@@ -1,4 +1,4 @@
-"""Tests for the statistics/analysis engine (``qcell.engine.analysis``).
+"""Tests for the statistics/analysis engine (``abax.engine.analysis``).
 
 The descriptive-stats test and the registry/error tests run with zero optional
 packages installed. Tests needing scipy / statsmodels / lifelines use
@@ -11,8 +11,8 @@ import math
 
 import pytest
 
-from qcell.engine import analysis as A
-from qcell.engine.analysis import AnalysisError, AnalysisResult
+from abax.engine import analysis as A
+from abax.engine.analysis import AnalysisError, AnalysisResult
 
 
 # --------------------------------------------------------------------------- #

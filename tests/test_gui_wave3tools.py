@@ -8,10 +8,10 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell.gui._qtcompat import QApplication  # noqa: E402
-from qcell.settings import Settings  # noqa: E402
+from abax.gui._qtcompat import QApplication  # noqa: E402
+from abax.settings import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -21,7 +21,7 @@ def app():
 
 @pytest.fixture()
 def win(app):
-    from qcell.gui.main_window import MainWindow
+    from abax.gui.main_window import MainWindow
 
     return MainWindow(Settings())
 
@@ -31,8 +31,8 @@ def test_import_from_url_loads(win, tmp_path, monkeypatch):
     src = tmp_path / "remote.csv"
     src.write_text("a,b\n1,2\n3,4\n", encoding="utf-8")
 
-    from qcell.core.io import urlfetch
-    from qcell.gui import _qtcompat
+    from abax.core.io import urlfetch
+    from abax.gui import _qtcompat
 
     monkeypatch.setattr(urlfetch, "fetch_url", lambda url, **kw: src)
     monkeypatch.setattr(_qtcompat.QInputDialog, "getText",
@@ -48,7 +48,7 @@ def test_import_from_url_loads(win, tmp_path, monkeypatch):
 
 
 def test_import_from_url_cancel(win, monkeypatch):
-    from qcell.gui import _qtcompat
+    from abax.gui import _qtcompat
 
     monkeypatch.setattr(_qtcompat.QInputDialog, "getText",
                         staticmethod(lambda *a, **k: ("", False)))
@@ -60,8 +60,8 @@ def test_import_from_url_cancel(win, monkeypatch):
 
 
 def test_solve_nec_pynec_absent(win, monkeypatch):
-    from qcell.engine import necpy
-    from qcell.gui import _qtcompat
+    from abax.engine import necpy
+    from abax.gui import _qtcompat
 
     monkeypatch.setattr(necpy, "available", lambda: False)
     shown = []
@@ -81,8 +81,8 @@ def test_url_and_nec_palette_wiring(win):
 
 
 def test_console_ns_has_urlfetch():
-    from qcell.core.console_ns import build_namespace
-    from qcell.core.workbook import Workbook
+    from abax.core.console_ns import build_namespace
+    from abax.core.workbook import Workbook
 
     ns = build_namespace(Workbook())
     assert "urlfetch" in ns

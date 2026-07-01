@@ -1,8 +1,8 @@
-"""Tests for :mod:`qcell.core.latexmath` — LaTeX → MathML / Unicode."""
+"""Tests for :mod:`abax.core.latexmath` — LaTeX → MathML / Unicode."""
 
 from __future__ import annotations
 
-from qcell.core import latexmath
+from abax.core import latexmath
 
 # --- to_unicode -------------------------------------------------------------
 

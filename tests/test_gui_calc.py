@@ -8,10 +8,10 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell.gui._qtcompat import QApplication, QTableWidgetSelectionRange  # noqa: E402
-from qcell.settings import Settings  # noqa: E402
+from abax.gui._qtcompat import QApplication, QTableWidgetSelectionRange  # noqa: E402
+from abax.settings import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -21,7 +21,7 @@ def app():
 
 @pytest.fixture()
 def win(app):
-    from qcell.gui.main_window import MainWindow
+    from abax.gui.main_window import MainWindow
 
     return MainWindow(Settings())
 
@@ -85,7 +85,7 @@ def test_uncommitted_entry_is_read(win):
 
 
 def test_algebraic_model_is_wired(win):
-    from qcell.gui.calc.algebraic_faceplate import AlgebraicFaceplate
+    from abax.gui.calc.algebraic_faceplate import AlgebraicFaceplate
 
     win.show_calculator()
     panel = win._calc_panel()
@@ -97,7 +97,7 @@ def test_algebraic_model_is_wired(win):
 
 
 def test_model_list_order_and_default(win):
-    from qcell.gui.calc.calculator_panel import _MODELS
+    from abax.gui.calc.calculator_panel import _MODELS
 
     labels = [m[0] for m in _MODELS]
     assert labels[0] == "Algebraic"                              # algebraic first
@@ -171,7 +171,7 @@ def test_calc_model_choice_persists(win):
     panel._model_box.setCurrentIndex(ix)
     assert win._settings.calc_model == "15c"
 
-    from qcell.gui.calc.calculator_panel import CalculatorPanel
+    from abax.gui.calc.calculator_panel import CalculatorPanel
     restored = CalculatorPanel(win)
     assert (restored._kind, restored._key) == ("hp", "15c")
     assert restored._model_box.currentText() == "HP-15C"

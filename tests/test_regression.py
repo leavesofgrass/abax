@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core.science.regression import (
+from abax.core.science.regression import (
     RegressionError,
     correl,
     forecast,

@@ -1,10 +1,10 @@
-"""Tests for the group-by / pivot-table engine (``qcell.core.pivot``)."""
+"""Tests for the group-by / pivot-table engine (``abax.core.pivot``)."""
 
 from __future__ import annotations
 
 import pytest
 
-from qcell.core.pivot import (
+from abax.core.pivot import (
     AGGREGATIONS,
     PivotError,
     crosstab,

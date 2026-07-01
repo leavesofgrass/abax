@@ -1,4 +1,4 @@
-"""Oracle tests for qcell.core.math_fns.
+"""Oracle tests for abax.core.math_fns.
 
 Every function is asserted against a documented Excel result. Transcendental
 results use rel_tol=1e-6; exact algebra uses rel_tol=1e-9.
@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import math
 
-from qcell.core import math_fns as M
-from qcell.core.errors import CellError
-from qcell.core.math_fns import SIGNATURES, register
+from abax.core import math_fns as M
+from abax.core.errors import CellError
+from abax.core.math_fns import SIGNATURES, register
 
 ALG = dict(rel_tol=1e-9)
 TRANS = dict(rel_tol=1e-6)

@@ -1,4 +1,4 @@
-"""Tests for qcell.core.stats_dist — Excel-named statistics distributions,
+"""Tests for abax.core.stats_dist — Excel-named statistics distributions,
 correlation/regression helpers, descriptive extras and *IFS conditional
 aggregates. Oracle values are documented Excel results, compared with a
 relative tolerance of 1e-4.
@@ -10,9 +10,9 @@ import math
 
 import pytest
 
-from qcell.core.errors import CellError
-from qcell.core.stats_dist import SIGNATURES, register
-from qcell.core.values import RangeValue
+from abax.core.errors import CellError
+from abax.core.stats_dist import SIGNATURES, register
+from abax.core.values import RangeValue
 
 # Build a live registry so we call the functions exactly as the engine does.
 FUNCS: dict = {}

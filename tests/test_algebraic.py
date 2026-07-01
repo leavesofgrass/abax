@@ -1,4 +1,4 @@
-"""Tests for the algebraic (infix) calculator engine (``qcell/core/algebraic.py``)."""
+"""Tests for the algebraic (infix) calculator engine (``abax/core/algebraic.py``)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qcell.core.calc.algebraic import (
+from abax.core.calc.algebraic import (
     SAFE_CONSTS,
     SAFE_FUNCTIONS,
     AlgebraicCalc,

@@ -12,11 +12,11 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell.core.workbook import Workbook  # noqa: E402
-from qcell.gui._qtcompat import QApplication, QThread  # noqa: E402
-from qcell.settings import Settings  # noqa: E402
+from abax.core.workbook import Workbook  # noqa: E402
+from abax.gui._qtcompat import QApplication, QThread  # noqa: E402
+from abax.settings import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -26,7 +26,7 @@ def app():
 
 @pytest.fixture()
 def win(app):
-    from qcell.gui.main_window import MainWindow
+    from abax.gui.main_window import MainWindow
 
     return MainWindow(Settings())
 
@@ -54,7 +54,7 @@ def test_async_open_loads_file(win, app, tmp_path):
 
 
 def test_async_open_error_restores_ui(win, app, tmp_path, monkeypatch):
-    import qcell.gui.mixin_document as md
+    import abax.gui.mixin_document as md
 
     seen = {}
     monkeypatch.setattr(md.QMessageBox, "critical",
@@ -67,12 +67,12 @@ def test_async_open_error_restores_ui(win, app, tmp_path, monkeypatch):
 
 def test_async_save_roundtrips(win, app, tmp_path):
     win._commit_cell(0, 0, "=2*21")
-    out = tmp_path / "out.qcell"
+    out = tmp_path / "out.abax"
     win.save_document(str(out))
     _wait_io(win, app)
     assert out.exists()
     assert win._doc.dirty is False
-    assert win._doc.path.name == "out.qcell"
+    assert win._doc.path.name == "out.abax"
     assert Workbook.load_json(out).sheet.get_value(0, 0) == 42.0
 
 
@@ -88,7 +88,7 @@ def test_async_import_csv(win, app, tmp_path, monkeypatch):
     # import_large_csv does `from ._qtcompat import QFileDialog` at call time,
     # so patching the module attribute redirects it. The tiny file stays under
     # the row-cap threshold, so no QInputDialog is shown.
-    monkeypatch.setattr("qcell.gui._qtcompat.QFileDialog", _FakeFileDialog)
+    monkeypatch.setattr("abax.gui._qtcompat.QFileDialog", _FakeFileDialog)
     win.import_large_csv()
     assert win._io_busy
     _wait_io(win, app)

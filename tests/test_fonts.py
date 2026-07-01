@@ -5,7 +5,7 @@ from __future__ import annotations
 import urllib.error
 import urllib.request
 
-from qcell.core import fonts
+from abax.core import fonts
 
 _FAKE_OTF = b"OTTO\x00fake"
 

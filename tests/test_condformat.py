@@ -1,8 +1,8 @@
-"""Tests for conditional formatting (``qcell.core.format.condformat``)."""
+"""Tests for conditional formatting (``abax.core.format.condformat``)."""
 
 from __future__ import annotations
 
-from qcell.core.format.condformat import (
+from abax.core.format.condformat import (
     CondRule,
     _lerp_color,
     _parse_hex,
@@ -10,7 +10,7 @@ from qcell.core.format.condformat import (
     evaluate,
     scale_context,
 )
-from qcell.core.sheet import Sheet
+from abax.core.sheet import Sheet
 
 
 def _col(rule: CondRule, sheet: Sheet) -> dict[tuple[int, int], str]:

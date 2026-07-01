@@ -1,12 +1,20 @@
 # Changelog
 
-All notable changes to qcell are documented here. The format follows
+All notable changes to abax are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow
 [Semantic Versioning](https://semver.org/).
+
+> **Note:** This project was renamed from `qcell` to `abax` in version 0.2.0
+> (out of respect for an existing open-source project already using the `qcell`
+> name on GitHub). Historical entries below use the old name.
 
 ## [Unreleased]
 
 ### Changed
+- **Renamed the project from `qcell` to `abax`.** The Python package
+  (`qcell/` → `abax/`), all imports and CLI entry points (`abax`, `abax-kernel`),
+  the environment-variable prefix (`QCELL_*` → `ABAX_*`), and the native file
+  extension (`.qcell` → `.abax`) all change accordingly.
 - **Tokenizer: function names with interior digits now parse** — a name like
   `DEC2BIN`/`BIN2DEC` was mis-lexed (`DEC2` as a cell reference, then `BIN`), because
   the ref pattern matched a letters-then-digits prefix even when more name characters

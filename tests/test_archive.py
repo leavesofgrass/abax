@@ -8,7 +8,7 @@ import zipfile
 
 import pytest
 
-from qcell.core import archive as A
+from abax.core import archive as A
 
 
 @pytest.fixture()

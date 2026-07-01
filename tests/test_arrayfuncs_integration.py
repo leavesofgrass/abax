@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from qcell.core.functions import FUNCTIONS
-from qcell.core.sheet import Sheet
+from abax.core.functions import FUNCTIONS
+from abax.core.sheet import Sheet
 
 
 def _sheet():

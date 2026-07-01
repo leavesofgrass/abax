@@ -3,8 +3,8 @@ validations, not just cell formulas and conditional-format rules."""
 
 from __future__ import annotations
 
-from qcell.core.validation import list_rule
-from qcell.core.workbook import Workbook
+from abax.core.validation import list_rule
+from abax.core.workbook import Workbook
 
 
 def _wb_with_column():

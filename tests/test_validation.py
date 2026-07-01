@@ -1,10 +1,10 @@
-"""Tests for the data-validation rule model (``qcell.core.validation``)."""
+"""Tests for the data-validation rule model (``abax.core.validation``)."""
 
 from __future__ import annotations
 
 import pytest
 
-from qcell.core.validation import (
+from abax.core.validation import (
     KINDS,
     OPS,
     ValidationRule,

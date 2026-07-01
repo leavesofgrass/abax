@@ -1,8 +1,8 @@
 # File formats
 
-qcell is JSON-first but reads and writes many tabular formats. Every open and
+abax is JSON-first but reads and writes many tabular formats. Every open and
 save is dispatched purely by **file extension** in
-[`qcell/engine/document.py`](../qcell/engine/document.py) — the single façade the
+[`abax/engine/document.py`](../abax/engine/document.py) — the single façade the
 GUI, TUI, and CLI all call. This page lists every supported format, what import
 and export actually do, and which formats need an optional dependency.
 
@@ -13,7 +13,7 @@ See also: [index](index.md) · [formula reference](formula-reference.md) ·
 
 | Format | Extensions | Read | Write | Optional dep | Fallback when absent |
 | --- | --- | :---: | :---: | --- | --- |
-| Native workbook | `.json` `.qcell` | yes | yes | — (stdlib `json`) | always available |
+| Native workbook | `.json` `.abax` | yes | yes | — (stdlib `json`) | always available |
 | CSV | `.csv` | yes | yes | — | always available |
 | TSV / tab | `.tsv` `.tab` | yes | yes | — | always available |
 | Excel | `.xlsx` `.xlsm` | yes | yes | `openpyxl` | error with install hint |
@@ -30,13 +30,13 @@ See also: [index](index.md) · [formula reference](formula-reference.md) ·
 
 Only **Excel** and **Parquet/Feather** require third-party packages. Everything
 else is pure standard library and works in a zero-optional-dependency install.
-Run `python -m qcell --deps` to see what is installed on your machine.
+Run `python -m abax --deps` to see what is installed on your machine.
 
 ## A shared data model
 
 Whatever the source format, importing produces the same in-memory model: a
 `Workbook` of one or more `Sheet`s, where each cell holds **raw text**. A field
-that begins with `=` becomes a formula and is re-evaluated by qcell's own engine
+that begins with `=` becomes a formula and is re-evaluated by abax's own engine
 (see the [formula reference](formula-reference.md)); everything else is a literal
 value. Single-sheet formats (CSV, Markdown, JSON Lines, fixed-width, Parquet)
 load into a one-sheet workbook; multi-sheet formats (native JSON, Excel, XML,
@@ -46,14 +46,14 @@ On export, most formats write **computed values** by default (what you see in th
 grid), while a few write **raw text** so formulas survive a round-trip — see each
 format below.
 
-## Native workbook (`.json` / `.qcell`)
+## Native workbook (`.json` / `.abax`)
 
-qcell's own format is a self-describing JSON **envelope** produced by
-`Workbook.to_envelope` ([`qcell/core/workbook.py`](../qcell/core/workbook.py)):
+abax's own format is a self-describing JSON **envelope** produced by
+`Workbook.to_envelope` ([`abax/core/workbook.py`](../abax/core/workbook.py)):
 
 ```json
 {
-  "app": "qcell",
+  "app": "abax",
   "schema_version": 3,
   "written_at": "2026-06-29T12:00:00+00:00",
   "data": {
@@ -80,11 +80,11 @@ files migrate forward on load.
 
 ### `.json` auto-detects native vs foreign
 
-A `.json` (or `.qcell`) file is opened through
-[`qcell/core/io/exchange_io.py`](../qcell/core/io/exchange_io.py), which inspects the
+A `.json` (or `.abax`) file is opened through
+[`abax/core/io/exchange_io.py`](../abax/core/io/exchange_io.py), which inspects the
 payload shape and does the right thing:
 
-- **qcell workbook envelope** (`data.sheets` present) → loaded losslessly.
+- **abax workbook envelope** (`data.sheets` present) → loaded losslessly.
 - **qrpn calculator save** (`{stack, registers}`) → a `stack` sheet plus a
   `registers` key/value sheet.
 - **list of objects** (records) → one row per object; keys become the header row.
@@ -92,7 +92,7 @@ payload shape and does the right thing:
 - **dict of equal-length lists** → columns (keys become headers).
 - **dict of scalars** → a two-column `key` / `value` sheet.
 
-This means you can drop almost any JSON another tool wrote into qcell and get a
+This means you can drop almost any JSON another tool wrote into abax and get a
 sensible table back.
 
 ### The generic interchange envelope
@@ -103,33 +103,33 @@ The spec's "JSON everywhere" principle (§3e) is the shape
 { "app": "<producer>", "schema_version": <int>, "written_at": "<iso8601>", "data": <payload> }
 ```
 
-Any tool can write this; qcell reads it by examining `data`. `app` is used as a
+Any tool can write this; abax reads it by examining `data`. `app` is used as a
 hint (for example an `app` containing `qrpn` is treated as a calculator save).
-qcell's own `to_exchange` simply returns the workbook envelope above — so qcell's
+abax's own `to_exchange` simply returns the workbook envelope above — so abax's
 native files *are* valid interchange envelopes.
 
 ## CSV / TSV / tab (`.csv`, `.tsv`, `.tab`)
 
-Implemented in [`qcell/core/io/csv_io.py`](../qcell/core/io/csv_io.py) on the stdlib
+Implemented in [`abax/core/io/csv_io.py`](../abax/core/io/csv_io.py) on the stdlib
 `csv` module. Import places each field as raw cell text (a field starting with
 `=` becomes a formula); empty fields are skipped. `.tsv`/`.tab` use a tab
 delimiter. Export writes **computed values** by default (`values=True`); the API
 can also write raw text to preserve formulas (`values=False`). UTF-8 throughout.
 
 ```bash
-python -m qcell convert data.csv data.tsv
-python -m qcell view data.csv
+python -m abax convert data.csv data.tsv
+python -m abax view data.csv
 ```
 
 ### Streaming large CSVs
 
-[`qcell/core/io/csv_stream.py`](../qcell/core/io/csv_stream.py) imports big CSVs
+[`abax/core/io/csv_stream.py`](../abax/core/io/csv_stream.py) imports big CSVs
 without loading the whole file into memory. It provides:
 
 - `sniff_csv(path)` — a fast **preview**: delimiter and header detection, a
   sample of rows, an approximate total row count (exact under 5 MB, estimated
   above), and a per-column inferred type (int / float / bool / date / text via
-  `qcell.core.typeinfer`).
+  `abax.core.typeinfer`).
 - `iter_chunks(path, n)` — yields fixed-size chunks of rows; the file is never
   fully materialised.
 - `load_csv_streaming(path, max_rows=..., coerce_types=True)` — builds a sheet
@@ -138,9 +138,9 @@ without loading the whole file into memory. It provides:
 
 ## Excel (`.xlsx`, `.xlsm`) — needs `openpyxl`
 
-[`qcell/engine/excel_io.py`](../qcell/engine/excel_io.py) uses `openpyxl`. Every
+[`abax/engine/excel_io.py`](../abax/engine/excel_io.py) uses `openpyxl`. Every
 worksheet becomes a sheet. The workbook is loaded with `data_only=False`, so
-Excel formulas are kept **as text** and re-evaluated by qcell rather than read as
+Excel formulas are kept **as text** and re-evaluated by abax rather than read as
 cached values. On export the default writes **raw cell text** (so formulas
 survive the round-trip into Excel); the API can write computed values instead.
 Sheet titles are capped at Excel's 31-character limit.
@@ -150,12 +150,12 @@ clear hint:
 
 ```
 pip install openpyxl
-# or:  pip install qcell[excel]
+# or:  pip install abax[excel]
 ```
 
 ## OpenDocument spreadsheet (`.ods`)
 
-[`qcell/engine/ods_io.py`](../qcell/engine/ods_io.py) is **pure stdlib** — it
+[`abax/engine/ods_io.py`](../abax/engine/ods_io.py) is **pure stdlib** — it
 reads and writes the ODF `content.xml` directly with `zipfile` and
 `xml.etree.ElementTree`, so it needs no `odfpy`/`ezodf`. Import reads the **first**
 sheet, honouring `number-columns-repeated` / `number-rows-repeated` (repeats are
@@ -166,7 +166,7 @@ parse as numbers are written as `float`; everything else as `string`.
 
 ## Parquet / Feather (`.parquet`, `.pq`, `.feather`, `.ft`) — needs `pandas` + engine
 
-[`qcell/engine/parquet_io.py`](../qcell/engine/parquet_io.py) uses `pandas` plus
+[`abax/engine/parquet_io.py`](../abax/engine/parquet_io.py) uses `pandas` plus
 a columnar engine (`pyarrow` or `fastparquet`). The DataFrame's column names
 become the header row; every value is stringified (nulls → empty cells). Export
 treats row 0 as the header and writes the **active sheet** only, using displayed
@@ -177,24 +177,24 @@ Missing dependency raises `ParquetError`:
 
 ```
 pip install pandas pyarrow
-# or:  pip install qcell[fast-io]
+# or:  pip install abax[fast-io]
 ```
 
 ## XML Spreadsheet / SpreadsheetML (`.xml`)
 
-[`qcell/core/io/xml_io.py`](../qcell/core/io/xml_io.py) reads and writes the Excel 2003
+[`abax/core/io/xml_io.py`](../abax/core/io/xml_io.py) reads and writes the Excel 2003
 "XML Spreadsheet" dialect (`<Worksheet>/<Table>/<Row>/<Cell>/<Data>`), which both
 Excel and gnumeric understand — pure stdlib. Notable details:
 
 - Formulas are stored in **R1C1** in the `ss:Formula` attribute and converted
-  to/from A1 via [`qcell/core/r1c1.py`](../qcell/core/r1c1.py).
+  to/from A1 via [`abax/core/r1c1.py`](../abax/core/r1c1.py).
 - Sparse rows and cells use `ss:Index` (so gaps don't bloat the file).
 - `ss:Type` is written/read as `Number`, `String`, or `Boolean`.
 - Cell errors are emitted as strings.
 
 ## Markdown GFM tables (`.md`, `.markdown`)
 
-[`qcell/core/io/markdown_io.py`](../qcell/core/io/markdown_io.py) treats GitHub-Flavored
+[`abax/core/io/markdown_io.py`](../abax/core/io/markdown_io.py) treats GitHub-Flavored
 Markdown tables as a first-class format. Export produces a padded,
 alignment-aware table (per-column `l`/`c`/`r`), using the first row as the header
 (or column letters if you turn headers off), and renders **computed values**.
@@ -213,21 +213,21 @@ The GUI command palette also offers **Copy selection as Markdown**.
 
 ## Jupyter notebook (`.ipynb`)
 
-[`qcell/core/io/notebook_io.py`](../qcell/core/io/notebook_io.py) reads and writes
+[`abax/core/io/notebook_io.py`](../abax/core/io/notebook_io.py) reads and writes
 valid **nbformat 4.5** (per-cell `id`s) with **no `nbformat` dependency**, and
 **round-trips the whole workbook losslessly**: the full workbook envelope
 (formulas, multiple sheets, defined names, styles) is embedded in the notebook
-metadata and restored on import, so a `.ipynb` written by qcell converts back to a
-`.qcell` with nothing lost. Each sheet also renders as a Markdown-table cell, so the
-notebook is readable in any viewer. A **foreign** notebook (not written by qcell) is
+metadata and restored on import, so a `.ipynb` written by abax converts back to a
+`.abax` with nothing lost. Each sheet also renders as a Markdown-table cell, so the
+notebook is readable in any viewer. A **foreign** notebook (not written by abax) is
 imported by scanning its Markdown tables — each table becomes a sheet named after
 the nearest heading. See [jupyter.md](jupyter.md) for rich display, the kernel, and
-the editable-sheet widget; `qcell.engine.nbvalidate` validates a notebook against
+the editable-sheet widget; `abax.engine.nbvalidate` validates a notebook against
 the nbformat schema when it's installed.
 
 ## R data.frame (`.r`, `.rdata`)
 
-[`qcell/core/io/r_io.py`](../qcell/core/io/r_io.py) exports each sheet as a
+[`abax/core/io/r_io.py`](../abax/core/io/r_io.py) exports each sheet as a
 `name <- data.frame(col = c(...), ...)` block (first row supplies the column
 names, `stringsAsFactors = FALSE`). Import is a **best-effort** parser for that
 same shape and for bare `name <- c(...)` vectors. Strings are quoted/escaped,
@@ -235,7 +235,7 @@ same shape and for bare `name <- c(...)` vectors. Strings are quoted/escaped,
 
 ## JSON Lines (`.jsonl`, `.ndjson`)
 
-[`qcell/core/io/flatfile_io.py`](../qcell/core/io/flatfile_io.py) — one JSON object per
+[`abax/core/io/flatfile_io.py`](../abax/core/io/flatfile_io.py) — one JSON object per
 line. On import, row 0 is the ordered union of all object keys (first-seen
 order); each later row holds that object's values as strings, with a missing key
 left blank. On export, row 0 supplies the field names and each later row becomes
@@ -244,14 +244,14 @@ skipped).
 
 ## Fixed-width text (`.fixed`)
 
-Also in [`qcell/core/io/flatfile_io.py`](../qcell/core/io/flatfile_io.py). Import either
+Also in [`abax/core/io/flatfile_io.py`](../abax/core/io/flatfile_io.py). Import either
 slices each line by explicit character widths or, by default, splits on runs of
 two-or-more spaces (the layout of `column -t` output). Export renders each column
 left-aligned and padded to its widest value plus a gap.
 
 ## SQLite (`.db`, `.sqlite`, `.sqlite3`)
 
-[`qcell/core/io/sqlite_io.py`](../qcell/core/io/sqlite_io.py) uses the stdlib `sqlite3`
+[`abax/core/io/sqlite_io.py`](../abax/core/io/sqlite_io.py) uses the stdlib `sqlite3`
 module. Opening a database loads **every user table** (excluding `sqlite_*`
 internals) into its own sheet; row 0 is the column names and rows 1.. are the
 data, all stored as text. Saving writes the active sheet to one table: row 0
@@ -269,10 +269,10 @@ already exists.
 The headless CLI converts by extension — no GUI required:
 
 ```bash
-python -m qcell convert sales.xlsx sales.csv      # Excel  → CSV
-python -m qcell convert data.csv data.parquet     # CSV    → Parquet
-python -m qcell convert book.qcell book.ods        # native → OpenDocument
-python -m qcell convert table.db table.md          # SQLite → Markdown
+python -m abax convert sales.xlsx sales.csv      # Excel  → CSV
+python -m abax convert data.csv data.parquet     # CSV    → Parquet
+python -m abax convert book.abax book.ods        # native → OpenDocument
+python -m abax convert table.db table.md          # SQLite → Markdown
 ```
 
 See the [command-line interface](cli.md) for the full set of subcommands.

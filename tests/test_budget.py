@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core import budget as B
-from qcell.core.sheet import Sheet
+from abax.core import budget as B
+from abax.core.sheet import Sheet
 
 
 def test_model_rollups():

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core import fmbuttons as B
+from abax.core import fmbuttons as B
 
 
 def _ctx(tmp_path):

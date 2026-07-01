@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from qcell.core.errors import CellError
-from qcell.core.functions import FUNCTIONS
-from qcell.core.io import adif_io
-from qcell.core.sheet import Sheet
-from qcell.core.workbook import Workbook
-from qcell.engine.document import Document
+from abax.core.errors import CellError
+from abax.core.functions import FUNCTIONS
+from abax.core.io import adif_io
+from abax.core.sheet import Sheet
+from abax.core.workbook import Workbook
+from abax.engine.document import Document
 
 
 def _wb(sheet):
@@ -21,7 +21,7 @@ def test_dxcc_formula_function():
 
 
 def test_dxcc_in_completion():
-    from qcell.core.completion import signature
+    from abax.core.completion import signature
 
     assert signature("DXCC") == "DXCC(callsign)"
 

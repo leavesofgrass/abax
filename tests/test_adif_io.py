@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core.io.adif_io import (
+from abax.core.io.adif_io import (
     grid_to_records,
     parse_adif,
     records_to_grid,

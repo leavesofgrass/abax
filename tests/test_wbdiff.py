@@ -1,10 +1,10 @@
-"""Tests for :mod:`qcell.core.wbdiff`."""
+"""Tests for :mod:`abax.core.wbdiff`."""
 
 from __future__ import annotations
 
-from qcell.core.sheet import Sheet
-from qcell.core.wbdiff import diff_sheets, diff_workbooks, summary
-from qcell.core.workbook import Workbook
+from abax.core.sheet import Sheet
+from abax.core.wbdiff import diff_sheets, diff_workbooks, summary
+from abax.core.workbook import Workbook
 
 
 def _sheet(name, cells):

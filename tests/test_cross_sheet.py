@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from qcell.core import ast_nodes as A
-from qcell.core.errors import CellError
-from qcell.core.parser import parse
-from qcell.core.workbook import Workbook
+from abax.core import ast_nodes as A
+from abax.core.errors import CellError
+from abax.core.parser import parse
+from abax.core.workbook import Workbook
 
 # --- parsing ---------------------------------------------------------------
 
@@ -85,7 +85,7 @@ def test_missing_sheet_is_ref_error():
 
 def test_standalone_sheet_cross_ref_is_ref_error():
     # A Sheet with no workbook can't resolve cross-sheet refs.
-    from qcell.core import Sheet
+    from abax.core import Sheet
 
     s = Sheet()
     s.set("A1", "=Other!A1")
@@ -119,14 +119,14 @@ def test_chained_cross_sheet():
 def test_cross_sheet_survives_json_roundtrip(tmp_path):
     wb = _two_sheet_wb()
     wb.sheet.set("A1", "=SUM(Data!A1:A3)")
-    path = tmp_path / "wb.qcell"
+    path = tmp_path / "wb.abax"
     wb.save_json(path)
     wb2 = Workbook.load_json(path)
     assert wb2.sheet.get("A1") == 60  # resolves after reload (sheets linked)
 
 
 def test_fill_preserves_sheet_qualifier():
-    from qcell.core.fill import fill_down
+    from abax.core.fill import fill_down
 
     wb = _two_sheet_wb()
     wb.sheet.set("A1", "=Data!A1")
@@ -137,7 +137,7 @@ def test_fill_preserves_sheet_qualifier():
 
 
 def test_xml_roundtrip_cross_sheet():
-    from qcell.core.io.xml_io import from_spreadsheetml, to_spreadsheetml
+    from abax.core.io.xml_io import from_spreadsheetml, to_spreadsheetml
 
     wb = _two_sheet_wb()
     wb.sheet.set("A1", "=Data!A2")

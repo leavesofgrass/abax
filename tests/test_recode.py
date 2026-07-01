@@ -1,11 +1,11 @@
-"""Tests for the column recode / clean engine (``qcell.core.recode``)."""
+"""Tests for the column recode / clean engine (``abax.core.recode``)."""
 
 from __future__ import annotations
 
 import pytest
 
-from qcell.core import recode
-from qcell.core.recode import RecodeError
+from abax.core import recode
+from abax.core.recode import RecodeError
 
 
 # --------------------------------------------------------------------------- #

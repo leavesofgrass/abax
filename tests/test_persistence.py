@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 
-from qcell.core.workbook import Workbook
-from qcell.settings import Settings, _migrate_settings, load_settings, save_settings
-from qcell.state import StateManager
+from abax.core.workbook import Workbook
+from abax.settings import Settings, _migrate_settings, load_settings, save_settings
+from abax.state import StateManager
 
 
 def test_settings_roundtrip(tmp_path):
@@ -30,11 +30,11 @@ def test_settings_migration_v0_to_v1():
 def test_save_json_is_atomic_and_roundtrips(tmp_path):
     wb = Workbook()
     wb.sheet.set("A1", "=1+2")
-    path = tmp_path / "book.qcell"
+    path = tmp_path / "book.abax"
     wb.save_json(path)
     assert path.exists()
     # the temp file used for the atomic replace must not linger
-    assert not (tmp_path / "book.qcell.tmp").exists()
+    assert not (tmp_path / "book.abax.tmp").exists()
     assert Workbook.load_json(path).sheet.get_value(0, 0) == 3.0
 
 
@@ -58,10 +58,10 @@ def test_workbook_envelope_is_self_describing(tmp_path):
     wb = Workbook()
     wb.sheet.set("A1", "1")
     wb.sheet.set("A2", "=A1+1")
-    path = tmp_path / "book.qcell"
+    path = tmp_path / "book.abax"
     wb.save_json(path)
     env = json.loads(path.read_text())
-    assert env["app"] == "qcell"
+    assert env["app"] == "abax"
     assert env["schema_version"] == 1
     assert "written_at" in env
     assert "sheets" in env["data"]
@@ -73,7 +73,7 @@ def test_workbook_json_roundtrip(tmp_path):
     wb.sheet.set("B1", "=A1*3")
     wb.add_sheet("Second")
     wb.get_sheet("Second").set("A1", "hi")
-    path = tmp_path / "book.qcell"
+    path = tmp_path / "book.abax"
     wb.save_json(path)
 
     wb2 = Workbook.load_json(path)

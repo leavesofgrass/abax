@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core.science import antenna_impedance as A
-from qcell.core.science import mom
+from abax.core.science import antenna_impedance as A
+from abax.core.science import mom
 
 
 def test_gauss_legendre_is_exact_for_polynomials():

@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "qcell"
+name = "abax"
 version = "0.1.2"
 description = "A keyboard-first statistics and data-science workstation: a scriptable spreadsheet with built-in statistics, analysis, and visualization."
 readme = "README.md"
@@ -23,9 +23,9 @@ fast-io  = ["msgspec", "platformdirs"]
 terminal = ["pyte"]                # true PTY terminal (with pywinpty on Windows)
 parquet  = ["pyarrow"]             # Parquet/Feather I/O (via pandas)
 # Jupyter integration (all optional, each with a graceful fallback): notebook
-# schema validation, the qcell Jupyter kernel, and the editable-sheet widget.
+# schema validation, the abax Jupyter kernel, and the editable-sheet widget.
 jupyter  = ["nbformat", "ipykernel", "anywidget"]
-# The data-science stack qcell uses opportunistically (each with a pure-stdlib
+# The data-science stack abax uses opportunistically (each with a pure-stdlib
 # fallback): numerics, DataFrames, ML, and (bio)statistics.
 science  = [
     "numpy", "pandas", "scipy", "pyarrow",
@@ -37,19 +37,19 @@ science  = [
 bayes    = ["pymc"]
 # Lean install — the GUI plus every lightweight convenience (TUI, Excel, fast-io,
 # terminal), but NONE of the heavy optional data-science libraries. ~0.22 GB.
-thin     = ["qcell[gui,tui,excel,fast-io,terminal]"]
-# Everything qcell can use, in one shot (the default full-fat set). ~0.84 GB.
-all      = ["qcell[thin,parquet,science,jupyter,bayes]"]
+thin     = ["abax[gui,tui,excel,fast-io,terminal]"]
+# Everything abax can use, in one shot (the default full-fat set). ~0.84 GB.
+all      = ["abax[thin,parquet,science,jupyter,bayes]"]
 
 [project.scripts]
-qcell = "qcell.app:main"
-qcell-kernel = "qcell.kernel:main"
+abax = "abax.app:main"
+abax-kernel = "abax.kernel:main"
 
 [tool.setuptools.packages.find]
-include = ["qcell*"]   # auto-discover qcell and all subpackages (core/io, core/calc, …)
+include = ["abax*"]   # auto-discover abax and all subpackages (core/io, core/calc, …)
 
 [tool.setuptools.package-data]
-"qcell.gui" = ["themes/*.qss"]
+"abax.gui" = ["themes/*.qss"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -89,7 +89,7 @@ relative-imports-order = "closest-to-furthest"
 [tool.ruff.lint.per-file-ignores]
 # _qtcompat re-exports the Qt binding surface for the rest of the GUI; those
 # imports are intentional re-exports, not unused.
-"qcell/gui/_qtcompat.py" = ["F401"]
+"abax/gui/_qtcompat.py" = ["F401"]
 # tui/__init__ re-exports the package's public surface (incl. a few private
 # helpers the tests import); intentional re-exports, not unused.
-"qcell/tui/__init__.py" = ["F401"]
+"abax/tui/__init__.py" = ["F401"]

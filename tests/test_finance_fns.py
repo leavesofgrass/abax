@@ -1,4 +1,4 @@
-"""Tests for qcell.core.finance_fns (Excel-compatible financial functions).
+"""Tests for abax.core.finance_fns (Excel-compatible financial functions).
 
 Oracle values are documented Excel results; compared with math.isclose at
 rel_tol=1e-4 unless an exact integer/ratio is expected.
@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import math
 
-from qcell.core import finance_fns as F
-from qcell.core.errors import CellError
+from abax.core import finance_fns as F
+from abax.core.errors import CellError
 
 
 def close(a, b, rel_tol=1e-4):
@@ -77,21 +77,21 @@ def test_npv_full_stream():
 
 
 def test_irr():
-    from qcell.core.values import RangeValue
+    from abax.core.values import RangeValue
 
     rv = RangeValue([[-70000, 12000, 15000, 18000, 21000, 26000]])
     assert close(F._fn_irr([rv]), 0.0866, rel_tol=1e-3)
 
 
 def test_irr_no_convergence():
-    from qcell.core.values import RangeValue
+    from abax.core.values import RangeValue
 
     rv = RangeValue([[100, 200, 300]])  # all positive: no root
     assert isinstance(F._fn_irr([rv]), CellError)
 
 
 def test_xnpv_xirr():
-    from qcell.core.values import RangeValue
+    from abax.core.values import RangeValue
 
     vals = RangeValue([[-10000, 2750, 4250, 3250, 2750]])
     dates = RangeValue([[
@@ -104,7 +104,7 @@ def test_xnpv_xirr():
 
 
 def test_mirr():
-    from qcell.core.values import RangeValue
+    from abax.core.values import RangeValue
 
     rv = RangeValue([[-120000, 39000, 30000, 21000, 37000, 46000]])
     assert close(F._fn_mirr([rv, 0.10, 0.12]), 0.1261)

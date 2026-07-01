@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qcell.core.science import antenna_impedance as A
+from abax.core.science import antenna_impedance as A
 
 
 def test_sine_cosine_integrals_match_tables():
@@ -51,8 +51,8 @@ def test_singular_near_full_wavelength():
 
 
 def test_formula_integration():
-    from qcell.core.errors import CellError
-    from qcell.core.functions import FUNCTIONS
+    from abax.core.errors import CellError
+    from abax.core.functions import FUNCTIONS
 
     assert FUNCTIONS["DIPOLER"]([0.5, 1e-5]) == pytest.approx(73.1, abs=1.0)
     assert FUNCTIONS["DIPOLEX"]([0.5, 1e-5]) == pytest.approx(42.5, abs=1.0)

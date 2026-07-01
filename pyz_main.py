@@ -2,7 +2,7 @@
 
 This file MUST import only the Python standard library — verified by an AST
 walk in make_pyz.py and tests/test_pyz.py. It locates the bundled package on
-sys.path and hands control to qcell.app.main.
+sys.path and hands control to abax.app.main.
 """
 
 import os
@@ -16,7 +16,7 @@ def bootstrap():
     here = os.path.dirname(os.path.abspath(__file__))
     if here not in sys.path:
         sys.path.insert(0, here)
-    from qcell.app import main
+    from abax.app import main
 
     return main(sys.argv[1:])
 

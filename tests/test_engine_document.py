@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.engine import HAS_OPENPYXL
-from qcell.engine.document import Document
+from abax.engine import HAS_OPENPYXL
+from abax.engine.document import Document
 
 
 def test_open_csv_and_save_json(tmp_path):
@@ -13,7 +13,7 @@ def test_open_csv_and_save_json(tmp_path):
     src.write_text("1,2,=A1+B1\n")
     doc = Document.open(src)
     assert doc.workbook.sheet.get("C1") == 3
-    out = tmp_path / "out.qcell"
+    out = tmp_path / "out.abax"
     doc.save(out)
     assert out.exists()
     reopened = Document.open(out)
@@ -42,7 +42,7 @@ def test_xlsx_roundtrip(tmp_path):
 
 @pytest.mark.skipif(HAS_OPENPYXL, reason="openpyxl IS installed")
 def test_xlsx_without_openpyxl_raises(tmp_path):
-    from qcell.engine.excel_io import load_xlsx
+    from abax.engine.excel_io import load_xlsx
 
     with pytest.raises(RuntimeError):
         load_xlsx(tmp_path / "missing.xlsx")

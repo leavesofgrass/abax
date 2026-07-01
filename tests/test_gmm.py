@@ -1,4 +1,4 @@
-"""Tests for the diagonal-covariance Gaussian mixture (``qcell.core.science.gmm``)."""
+"""Tests for the diagonal-covariance Gaussian mixture (``abax.core.science.gmm``)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import random
 
 import pytest
 
-from qcell.core.science.gmm import GaussianMixture, GMMError
+from abax.core.science.gmm import GaussianMixture, GMMError
 
 
 def _two_blobs(seed: int = 1) -> tuple[list[list[float]], list[int]]:

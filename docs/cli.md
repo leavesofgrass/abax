@@ -1,14 +1,14 @@
 # Command-line interface
 
-The `qcell` command is the single entry point for every interface: the desktop GUI, the terminal UI, and a set of headless subcommands for viewing, converting, and querying spreadsheets without opening a window. This page documents every subcommand and flag, with example invocations and the output you can expect. Everything below works equally as `qcell …` (the installed script) or `python -m qcell …`.
+The `abax` command is the single entry point for every interface: the desktop GUI, the terminal UI, and a set of headless subcommands for viewing, converting, and querying spreadsheets without opening a window. This page documents every subcommand and flag, with example invocations and the output you can expect. Everything below works equally as `abax …` (the installed script) or `python -m abax …`.
 
 ## Synopsis
 
 ```
-qcell [--version] [--deps] [--macros PATH ...] [COMMAND] [ARGS]
+abax [--version] [--deps] [--macros PATH ...] [COMMAND] [ARGS]
 ```
 
-With **no command**, qcell opens the GUI when a Qt binding is installed; if Qt is missing it opens the TUI when standard output is a terminal, and otherwise prints help. See [getting-started.md](getting-started.md) for installation and the choice of Qt binding.
+With **no command**, abax opens the GUI when a Qt binding is installed; if Qt is missing it opens the TUI when standard output is a terminal, and otherwise prints help. See [getting-started.md](getting-started.md) for installation and the choice of Qt binding.
 
 ## Global flags
 
@@ -16,15 +16,15 @@ These are parsed before any command and the first two are *fast paths* — they 
 
 | Flag | Effect |
 |------|--------|
-| `--version` | Print `qcell <version>` and exit. |
+| `--version` | Print `abax <version>` and exit. |
 | `--deps` | Print the optional-dependency status report (with the **auto-install** state and how many optional packages are present) and the config/data/cache/log directories, then exit. |
 | `--macros PATH` | Load a macro file or directory. Repeatable. Adds its `@macro` commands and `@register_function` UDFs to every command (`view`, `get`, `gui`, `tui`, `macro`). |
 
 ### `--version`
 
 ```bash
-$ qcell --version
-qcell 0.1.2
+$ abax --version
+abax 0.1.2
 ```
 
 ### `--deps`
@@ -32,7 +32,7 @@ qcell 0.1.2
 Reports each optional package as available or missing (with the fallback that kicks in when it is absent), plus external tools like pandoc, and prints the runtime directories.
 
 ```bash
-$ qcell --deps
+$ abax --deps
 optional dependencies:
   [OK ] msgspec       available
   [-- ] openpyxl      missing  (fallback: ...)
@@ -40,10 +40,10 @@ optional dependencies:
   ...
   [-- ] pandoc        missing  (fallback: built-in subset MathML)
 
-  config: C:\Users\you\AppData\Roaming\qcell
-  data:   C:\Users\you\AppData\Local\qcell
-  cache:  C:\Users\you\AppData\Local\qcell\Cache
-  log:    C:\Users\you\AppData\Local\qcell\Logs
+  config: C:\Users\you\AppData\Roaming\abax
+  data:   C:\Users\you\AppData\Local\abax
+  cache:  C:\Users\you\AppData\Local\abax\Cache
+  log:    C:\Users\you\AppData\Local\abax\Logs
 ```
 
 (The exact list and paths depend on your platform and what is installed.) See [configuration.md](configuration.md) for what each directory holds.
@@ -52,7 +52,7 @@ optional dependencies:
 
 ```bash
 # Load one macro file and one directory, then open the TUI with them available
-qcell --macros ./my_macros.py --macros ~/.config/qcell/macros tui data.csv
+abax --macros ./my_macros.py --macros ~/.config/abax/macros tui data.csv
 ```
 
 Macros from `CONFIG_DIR/macros/*.py` are always discovered automatically; `--macros` adds more on top.
@@ -64,14 +64,14 @@ Macros from `CONFIG_DIR/macros/*.py` are always discovered automatically; `--mac
 Launch the Qt GUI, optionally opening a file. This is also what runs when you give no command at all.
 
 ```bash
-qcell gui                # empty workbook
-qcell gui report.qcell   # open a file
-qcell gui data.csv
+abax gui                # empty workbook
+abax gui report.abax   # open a file
+abax gui data.csv
 ```
 
 | Argument | Description |
 |----------|-------------|
-| `file` | Optional spreadsheet to open (`.csv`, `.tsv`, `.xlsx`, `.qcell`, `.json`, and more). |
+| `file` | Optional spreadsheet to open (`.csv`, `.tsv`, `.xlsx`, `.abax`, `.json`, and more). |
 
 Requires a Qt binding (`gui` or `gui-pyqt` extra). See [gui-guide.md](gui-guide.md).
 
@@ -80,8 +80,8 @@ Requires a Qt binding (`gui` or `gui-pyqt` extra). See [gui-guide.md](gui-guide.
 Launch the curses/Textual TUI, optionally opening a file.
 
 ```bash
-qcell tui                # empty workbook
-qcell tui data.csv       # open a file
+abax tui                # empty workbook
+abax tui data.csv       # open a file
 ```
 
 | Argument | Description |
@@ -93,7 +93,7 @@ qcell tui data.csv       # open a file
 Render a spreadsheet as a plain-text table on standard output. Computed values are shown (formulas are evaluated), and columns are aligned with `A, B, C …` headers and `1, 2, 3 …` row labels.
 
 ```bash
-$ qcell view data.csv
+$ abax view data.csv
   | A        | B
 --------------------
 1 | Item     | Price
@@ -104,24 +104,24 @@ $ qcell view data.csv
 
 | Argument / flag | Description |
 |-----------------|-------------|
-| `file` | Spreadsheet to open (`.csv`/`.xlsx`/`.json`/`.qcell`/…). |
+| `file` | Spreadsheet to open (`.csv`/`.xlsx`/`.json`/`.abax`/…). |
 | `--sheet NAME` | Which sheet to print. Defaults to the workbook's active sheet. |
 
-If the named sheet does not exist, qcell prints `no such sheet: NAME` to standard error and exits with status `2`. An empty sheet prints `(empty)`.
+If the named sheet does not exist, abax prints `no such sheet: NAME` to standard error and exits with status `2`. An empty sheet prints `(empty)`.
 
 ```bash
-qcell view book.xlsx --sheet Summary
+abax view book.xlsx --sheet Summary
 ```
 
 ### `convert src dst [--values]` — convert between formats
 
-Open `src` and save it to `dst`. The format is chosen entirely by the **destination file extension** (`.csv`, `.tsv`, `.tab`, `.xlsx`, `.json`, `.qcell`, and the other formats qcell supports).
+Open `src` and save it to `dst`. The format is chosen entirely by the **destination file extension** (`.csv`, `.tsv`, `.tab`, `.xlsx`, `.json`, `.abax`, and the other formats abax supports).
 
 ```bash
-$ qcell convert data.csv data.xlsx
+$ abax convert data.csv data.xlsx
 converted data.csv -> data.xlsx
 
-$ qcell convert book.xlsx out.csv
+$ abax convert book.xlsx out.csv
 converted book.xlsx -> out.csv
 ```
 
@@ -131,17 +131,17 @@ converted book.xlsx -> out.csv
 | `dst` | Destination file to write; its extension picks the output format. |
 | `--values` | Write computed values instead of formulas. |
 
-If the conversion cannot be performed — for example saving to `.xlsx` without the `excel` extra installed — qcell prints the error to standard error and exits with status `3`.
+If the conversion cannot be performed — for example saving to `.xlsx` without the `excel` extra installed — abax prints the error to standard error and exits with status `3`.
 
 ### `get file ref` — one cell's value
 
-Print the computed value of a single cell from the workbook's active sheet, formatted the way qcell would display it.
+Print the computed value of a single cell from the workbook's active sheet, formatted the way abax would display it.
 
 ```bash
-$ qcell get data.csv B7
+$ abax get data.csv B7
 42
 
-$ qcell get budget.qcell C10
+$ abax get budget.abax C10
 1,250.00
 ```
 
@@ -158,15 +158,15 @@ progress. Useful for headless setups where you want everything up front instead 
 waiting for the background auto-installer.
 
 ```bash
-$ qcell deps
+$ abax deps
 Attempted 5 package(s): msgspec, textual, nbformat, anywidget, pyte
 Optional dependencies present: 20/20
 ```
 
-qcell already auto-installs these in the background on first GUI/TUI launch (see
-[configuration.md](configuration.md#auto-install)); `qcell deps` just does it now
+abax already auto-installs these in the background on first GUI/TUI launch (see
+[configuration.md](configuration.md#auto-install)); `abax deps` just does it now
 and synchronously. The Qt GUI binding is *not* installed this way — you choose it
-with `pip install qcell[gui]`. Set `QCELL_NO_AUTOINSTALL=1` (or `auto_install:
+with `pip install abax[gui]`. Set `ABAX_NO_AUTOINSTALL=1` (or `auto_install:
 false` in settings) to disable automatic installation entirely.
 
 ### `macro list` — list macros and UDFs
@@ -174,7 +174,7 @@ false` in settings) to disable automatic installation entirely.
 List the macros and user-defined functions that were discovered (from `CONFIG_DIR/macros` plus any `--macros` paths).
 
 ```bash
-$ qcell macro list
+$ abax macro list
 macros:
   totals
   uppercase_headers
@@ -186,7 +186,7 @@ user functions:
 If nothing was found:
 
 ```bash
-$ qcell macro list
+$ abax macro list
 no macros found (drop .py files in CONFIG_DIR/macros or pass --macros PATH)
 ```
 
@@ -196,15 +196,15 @@ Open `FILE`, run the macro called `NAME` against its workbook, print any message
 
 ```bash
 # Run the 'totals' macro and overwrite the file
-$ qcell macro run totals report.qcell
+$ abax macro run totals report.abax
 ... any messages the macro logged ...
-ran macro 'totals'; saved report.qcell
+ran macro 'totals'; saved report.abax
 
 # Save the result to a new file instead
-$ qcell macro run totals report.qcell -o report_with_totals.qcell
+$ abax macro run totals report.abax -o report_with_totals.abax
 
 # Run a relative-recording macro anchored at cell C5
-$ qcell macro run my_recording data.csv --at C5
+$ abax macro run my_recording data.csv --at C5
 ```
 
 | Argument / flag | Description |
@@ -214,7 +214,7 @@ $ qcell macro run my_recording data.csv --at C5
 | `-o`, `--output OUT` | Save path. Defaults to overwriting the input `FILE`. |
 | `--at A1` | Anchor cell for **relative** macros (e.g. `C5`). Relative recordings offset every target and relative reference from this anchor; absolute (`$`) references stay put. |
 
-If the macro is not found or fails, qcell prints the error to standard error and exits with status `4`.
+If the macro is not found or fails, abax prints the error to standard error and exits with status `4`.
 
 ## Exit codes
 

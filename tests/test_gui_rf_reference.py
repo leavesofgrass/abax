@@ -8,10 +8,10 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell.gui._qtcompat import QApplication  # noqa: E402
-from qcell.settings import Settings  # noqa: E402
+from abax.gui._qtcompat import QApplication  # noqa: E402
+from abax.settings import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -21,14 +21,14 @@ def app():
 
 @pytest.fixture()
 def win(app):
-    from qcell.gui.main_window import MainWindow
+    from abax.gui.main_window import MainWindow
 
     return MainWindow(Settings())
 
 
 def test_dialog_populates(win):
-    from qcell.core.science import rf_bands
-    from qcell.gui.dialogs.rf_reference_dialog import RfReferenceDialog
+    from abax.core.science import rf_bands
+    from abax.gui.dialogs.rf_reference_dialog import RfReferenceDialog
 
     dlg = RfReferenceDialog(win)
     assert dlg._band_table.rowCount() == len(rf_bands.US_AMATEUR_BANDS)
@@ -39,7 +39,7 @@ def test_dialog_populates(win):
 
 
 def test_filter_hides_nonmatching(win):
-    from qcell.gui.dialogs.rf_reference_dialog import RfReferenceDialog
+    from abax.gui.dialogs.rf_reference_dialog import RfReferenceDialog
 
     dlg = RfReferenceDialog(win)
     dlg._filter.setText("20m")
@@ -51,7 +51,7 @@ def test_filter_hides_nonmatching(win):
 
 
 def test_bands_to_sheet(win):
-    from qcell.gui.dialogs.rf_reference_dialog import RfReferenceDialog
+    from abax.gui.dialogs.rf_reference_dialog import RfReferenceDialog
 
     dlg = RfReferenceDialog(win)
     before = len(win._doc.workbook.sheets)

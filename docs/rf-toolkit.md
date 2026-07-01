@@ -1,10 +1,10 @@
 # RF / ham-radio toolkit
 
-qcell ships a set of **radio-frequency engineering functions** — power/level
+abax ships a set of **radio-frequency engineering functions** — power/level
 conversions, transmission-line and matching math, link-budget and propagation
 formulas, antenna helpers, and the **Maidenhead grid locator** — so you can build a
 link budget, antenna, or matching spreadsheet natively. They are backed by
-[`qcell/core/science/rf.py`](../qcell/core/science/rf.py) (pure standard library;
+[`abax/core/science/rf.py`](../abax/core/science/rf.py) (pure standard library;
 no third-party dependency).
 
 See also: [formula reference](formula-reference.md) ·
@@ -141,11 +141,11 @@ textbook 73.1 + j42.5 Ω half-wave result):
 
 ## Antenna modeling — Method of Moments & NEC
 
-For real wire-antenna analysis, qcell has a thin-wire **Method of Moments** solver
+For real wire-antenna analysis, abax has a thin-wire **Method of Moments** solver
 (pure stdlib), available in the Python console:
 
 ```python
-from qcell.core.science import mom, wire_mom, nec
+from abax.core.science import mom, wire_mom, nec
 
 mom.dipole_input_impedance(0.5, 1e-3)          # a straight dipole
 wire_mom.yagi(0.47, [(0.5, -0.25), (0.45, 0.15)], spacing_wl=0.2)  # a Yagi
@@ -156,7 +156,7 @@ wire_mom.yagi(0.47, [(0.5, -0.25), (0.45, 0.15)], spacing_wl=0.2)  # a Yagi
 - `wire_mom` — arbitrary 3-D wire structures (bent wires, V antennas, parasitic
   **Yagi** arrays), with a far-field pattern and front-to-back ratio.
 - `nec` — read and write NEC2 `.nec` decks (`parse_nec` / `to_nec` / `solve`), so
-  qcell exchanges models with 4nec2 / EZNEC / xnec2c. The Antenna pattern viewer's
+  abax exchanges models with 4nec2 / EZNEC / xnec2c. The Antenna pattern viewer's
   *Export NEC* button writes a deck for the current geometry.
 
 A live PyNEC adapter (for reference-grade accuracy) remains a future option; the

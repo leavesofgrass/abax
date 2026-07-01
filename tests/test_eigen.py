@@ -1,4 +1,4 @@
-"""Tests for :mod:`qcell.core.science.eigen` — eigenvalues and matrix decompositions."""
+"""Tests for :mod:`abax.core.science.eigen` — eigenvalues and matrix decompositions."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qcell.core.science.eigen import (
+from abax.core.science.eigen import (
     EigenError,
     cholesky,
     condition_number,

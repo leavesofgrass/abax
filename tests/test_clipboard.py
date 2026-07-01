@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import io
 
-import qcell.core.clipboard as clip
-from qcell.core.clipboard import ClipboardManager, ClipEntry
+import abax.core.clipboard as clip
+from abax.core.clipboard import ClipboardManager, ClipEntry
 
 
 def test_add_order_newest_first():

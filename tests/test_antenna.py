@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from qcell.core.science import antenna
+from abax.core.science import antenna
 
 
 def test_isotropic_is_unity_directivity():
@@ -49,7 +49,7 @@ def test_pattern_samples_normalised():
 
 
 def test_polar_svg():
-    from qcell.core.science import antenna
+    from abax.core.science import antenna
     samples = antenna.pattern_samples(antenna.half_wave_dipole(), count=181)
     svg = antenna.polar_svg(samples, title="Half-wave dipole")
     assert svg.startswith("<svg") and svg.rstrip().endswith("</svg>")

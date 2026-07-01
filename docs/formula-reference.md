@@ -1,14 +1,14 @@
 # Formula reference
 
-This is the complete reference for qcell's formula engine: the syntax of
+This is the complete reference for abax's formula engine: the syntax of
 formulas, the value and error model, and every built-in function grouped by
 family. It tracks the authoritative registries `FUNCTIONS`, `LAZY_FUNCTIONS` and
-`CONTEXT_FUNCTIONS` in the `qcell/core/functions/` package.
+`CONTEXT_FUNCTIONS` in the `abax/core/functions/` package.
 
 See also: [Documentation index](index.md) and
 [Macros and scripting](macros-and-scripting.md).
 
-> qcell is free software licensed under **GPL-3.0-or-later**.
+> abax is free software licensed under **GPL-3.0-or-later**.
 
 ## Formula basics
 
@@ -243,7 +243,7 @@ hyperbolic `SECH`, `CSCH`, `COTH`) plus `ACOT`.
 
 ### Statistics
 
-Beyond the aggregate functions above, qcell ships gnumeric-style statistics
+Beyond the aggregate functions above, abax ships gnumeric-style statistics
 and lightweight regression / distribution helpers.
 
 | Function | Description | Signature | Example | Result |

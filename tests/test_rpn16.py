@@ -1,10 +1,10 @@
-"""Tests for the HP-16C integer RPN engine (:mod:`qcell.core.calc.rpn16`)."""
+"""Tests for the HP-16C integer RPN engine (:mod:`abax.core.calc.rpn16`)."""
 
 from __future__ import annotations
 
 import pytest
 
-from qcell.core.calc.rpn16 import RPN16, RPN16Error, Voyager16Keypad
+from abax.core.calc.rpn16 import RPN16, RPN16Error, Voyager16Keypad
 
 
 def test_hex_and() -> None:

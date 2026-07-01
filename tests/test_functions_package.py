@@ -5,8 +5,8 @@ edit to a submodule cannot silently drop or duplicate a registration."""
 
 from __future__ import annotations
 
-import qcell.core.functions as fns
-from qcell.core.functions import FUNCTIONS, LAZY_FUNCTIONS
+import abax.core.functions as fns
+from abax.core.functions import FUNCTIONS, LAZY_FUNCTIONS
 
 
 def test_registry_sizes():
@@ -23,7 +23,7 @@ def test_core_functions_present():
 
 
 def test_helpers_reexported_for_macros():
-    # qcell.macros reaches these as functions._text etc.
+    # abax.macros reaches these as functions._text etc.
     for h in ("_text", "_flatten", "_numbers", "_as_number", "_arg"):
         assert hasattr(fns, h), h
 

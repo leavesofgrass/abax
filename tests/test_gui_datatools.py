@@ -8,10 +8,10 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell.gui._qtcompat import QApplication  # noqa: E402
-from qcell.settings import Settings  # noqa: E402
+from abax.gui._qtcompat import QApplication  # noqa: E402
+from abax.settings import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -21,7 +21,7 @@ def app():
 
 @pytest.fixture()
 def win(app):
-    from qcell.gui.main_window import MainWindow
+    from abax.gui.main_window import MainWindow
 
     w = MainWindow(Settings())
     s = w._doc.workbook.sheet
@@ -34,7 +34,7 @@ def win(app):
 
 
 def test_sql_dialog_runs_and_writes_sheet(win):
-    from qcell.gui.dialogs.sql_dialog import SqlDialog
+    from abax.gui.dialogs.sql_dialog import SqlDialog
 
     dlg = SqlDialog(win)
     dlg._sql.setPlainText("SELECT name FROM Sheet1 WHERE age > 25 ORDER BY age")
@@ -50,7 +50,7 @@ def test_sql_dialog_runs_and_writes_sheet(win):
 
 
 def test_sql_dialog_reports_bad_sql(win, monkeypatch):
-    from qcell.gui.dialogs import sql_dialog
+    from abax.gui.dialogs import sql_dialog
 
     warned = []
     monkeypatch.setattr(sql_dialog.QMessageBox, "warning",
@@ -73,17 +73,17 @@ def test_profile_columns_writes_report(win):
 
 
 def test_export_chart_gathers_numeric(win, tmp_path, monkeypatch):
-    from qcell.gui import mixin_tools
+    from abax.gui import mixin_tools
 
     saved = tmp_path / "chart.svg"
     monkeypatch.setattr(mixin_tools, "QFileDialog", None, raising=False)
-    from qcell.gui._qtcompat import QFileDialog
+    from abax.gui._qtcompat import QFileDialog
     monkeypatch.setattr(QFileDialog, "getSaveFileName",
                         staticmethod(lambda *a, **k: (str(saved), "")))
     # select the age column (col 1, rows 1..3)
     win._table.setCurrentCell(1, 1)
     win._table.setRangeSelected(
-        __import__("qcell.gui._qtcompat", fromlist=["QTableWidgetSelectionRange"])
+        __import__("abax.gui._qtcompat", fromlist=["QTableWidgetSelectionRange"])
         .QTableWidgetSelectionRange(1, 1, 3, 1), True)
     win.export_chart_svg()
     assert saved.exists() and saved.read_text().startswith("<svg")

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core import Sheet
-from qcell.core.workbook import Workbook
-from qcell.engine.document import Document
-from qcell.macros import (
+from abax.core import Sheet
+from abax.core.workbook import Workbook
+from abax.engine.document import Document
+from abax.macros import (
     MacroError,
     discover_macros,
     install_functions,

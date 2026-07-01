@@ -8,10 +8,10 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell.gui._qtcompat import QApplication  # noqa: E402
-from qcell.settings import Settings  # noqa: E402
+from abax.gui._qtcompat import QApplication  # noqa: E402
+from abax.settings import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -21,13 +21,13 @@ def app():
 
 @pytest.fixture()
 def win(app):
-    from qcell.gui.main_window import MainWindow
+    from abax.gui.main_window import MainWindow
 
     return MainWindow(Settings())
 
 
 def test_seed_50_30_20(win):
-    from qcell.gui.dialogs.budget_dialog import BudgetWizard
+    from abax.gui.dialogs.budget_dialog import BudgetWizard
 
     dlg = BudgetWizard(win)
     dlg._income.setText("4000")
@@ -38,7 +38,7 @@ def test_seed_50_30_20(win):
 
 
 def test_blank_template(win):
-    from qcell.gui.dialogs.budget_dialog import BudgetWizard
+    from abax.gui.dialogs.budget_dialog import BudgetWizard
 
     dlg = BudgetWizard(win)
     dlg._template.setCurrentText("Blank")
@@ -47,7 +47,7 @@ def test_blank_template(win):
 
 
 def test_create_budget_sheet_is_live(win):
-    from qcell.gui.dialogs.budget_dialog import BudgetWizard
+    from abax.gui.dialogs.budget_dialog import BudgetWizard
 
     dlg = BudgetWizard(win)
     dlg._income.setText("3000")
@@ -69,7 +69,7 @@ def test_create_budget_sheet_is_live(win):
 
 
 def test_create_twice_gets_unique_name(win):
-    from qcell.gui.dialogs.budget_dialog import BudgetWizard
+    from abax.gui.dialogs.budget_dialog import BudgetWizard
 
     BudgetWizard(win).create_budget()
     second = BudgetWizard(win).create_budget()

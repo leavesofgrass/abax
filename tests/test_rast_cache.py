@@ -5,7 +5,7 @@ every evaluation)."""
 
 from __future__ import annotations
 
-from qcell.core.workbook import Workbook
+from abax.core.workbook import Workbook
 
 
 def _fresh():

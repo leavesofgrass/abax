@@ -1,6 +1,6 @@
 # Budgeting
 
-qcell includes a small budgeting workflow that turns your budget into a **live
+abax includes a small budgeting workflow that turns your budget into a **live
 spreadsheet** — because tracking a budget is exactly what a spreadsheet is good
 at. Open it from *Tools → Budget wizard* (or the command palette).
 
@@ -12,7 +12,7 @@ at. Open it from *Tools → Budget wizard* (or the command palette).
    income, or **Blank** to start from a plain list. Edit the category table freely
    — add rows, rename, change amounts. A running summary shows how much you've
    allocated and what's left unallocated.
-3. **Create budget sheet.** qcell adds a new **Budget** sheet to your workbook and
+3. **Create budget sheet.** abax adds a new **Budget** sheet to your workbook and
    switches to it.
 
 ## The live budget sheet
@@ -27,7 +27,7 @@ The generated sheet has two parts side by side:
 
 Because *Spent* is a formula, **logging an expense updates the whole budget
 automatically** — type a row in the expenses log (matching a category name) and
-the Spent, Remaining, and totals recompute through qcell's formula engine. No
+the Spent, Remaining, and totals recompute through abax's formula engine. No
 special code path: it's an ordinary spreadsheet you can edit, chart, or export
 like any other.
 
@@ -35,7 +35,7 @@ The model and worksheet builder live in `core/budget.py` (pure stdlib), so you c
 also build a budget from the Python console:
 
 ```python
-from qcell.core import budget as B
+from abax.core import budget as B
 b = B.Budget(income=4000, categories=B.fifty_thirty_twenty(4000))
 for r, c, raw in B.budget_cells(b):
     sheet.set_cell(r, c, raw)

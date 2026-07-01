@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from qcell.core.science import rf_bands as B
+from abax.core.science import rf_bands as B
 
 
 def test_band_for_frequency_known_bands():
@@ -47,10 +47,10 @@ def test_nearest_ctcss():
 
 
 def test_formula_integration():
-    from qcell.core.functions import FUNCTIONS
+    from abax.core.functions import FUNCTIONS
 
     assert FUNCTIONS["HAMBAND"]([14_100_000]) == "20m"
-    from qcell.core.errors import CellError
+    from abax.core.errors import CellError
 
     assert isinstance(FUNCTIONS["HAMBAND"]([13_000_000]), CellError)   # #N/A
     assert FUNCTIONS["CTCSSTONE"]([13]) == 100.0

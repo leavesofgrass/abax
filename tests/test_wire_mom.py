@@ -7,8 +7,8 @@ import math
 
 import pytest
 
-from qcell.core.science import mom
-from qcell.core.science import wire_mom as W
+from abax.core.science import mom
+from abax.core.science import wire_mom as W
 
 
 def _dipole_wire(length, segments):

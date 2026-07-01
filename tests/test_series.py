@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core.series import extend_series
+from abax.core.series import extend_series
 
 
 def test_numeric_progression():

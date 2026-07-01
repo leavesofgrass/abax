@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from qcell.core.undo import UndoStack
-from qcell.engine.document import Document
+from abax.core.undo import UndoStack
+from abax.engine.document import Document
 
 # --- the pure stack --------------------------------------------------------
 

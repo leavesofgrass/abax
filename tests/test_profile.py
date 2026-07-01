@@ -1,11 +1,11 @@
-"""Tests for qcell.core.profile — column & sheet data profiling."""
+"""Tests for abax.core.profile — column & sheet data profiling."""
 
 from __future__ import annotations
 
 import statistics
 
-from qcell.core.profile import profile_column, profile_sheet
-from qcell.core.sheet import Sheet
+from abax.core.profile import profile_column, profile_sheet
+from abax.core.sheet import Sheet
 
 
 def test_numeric_column_stats():

@@ -12,10 +12,10 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell.gui._qtcompat import QApplication, QEvent, Qt, QTableWidgetSelectionRange  # noqa: E402
-from qcell.settings import Settings  # noqa: E402
+from abax.gui._qtcompat import QApplication, QEvent, Qt, QTableWidgetSelectionRange  # noqa: E402
+from abax.settings import Settings  # noqa: E402
 
 try:
     from PySide6.QtGui import QKeyEvent
@@ -30,7 +30,7 @@ def app():
 
 @pytest.fixture()
 def win(app):
-    from qcell.gui.main_window import MainWindow
+    from abax.gui.main_window import MainWindow
 
     return MainWindow(Settings())
 

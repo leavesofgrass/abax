@@ -8,10 +8,10 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-pytest.importorskip("qcell.gui._qtcompat")
+pytest.importorskip("abax.gui._qtcompat")
 
-from qcell.gui._qtcompat import QApplication  # noqa: E402
-from qcell.settings import Settings  # noqa: E402
+from abax.gui._qtcompat import QApplication  # noqa: E402
+from abax.settings import Settings  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -29,7 +29,7 @@ def tree(tmp_path):
 
 
 def _dlg(app, start):
-    from qcell.gui.dialogs.filemanager_dialog import FileManagerDialog
+    from abax.gui.dialogs.filemanager_dialog import FileManagerDialog
 
     return FileManagerDialog(None, start_dir=str(start))
 
@@ -74,7 +74,7 @@ def test_zip_and_extract_roundtrip(app, tree):
     dlg._set_active(dlg.left)
     dlg.left.select_names(["a.txt", "b.txt"])
     # archive directly through the core (skips the save dialog) then extract via the UI
-    from qcell.core import archive
+    from abax.core import archive
     bundle = tree / "bundle.zip"
     archive.create_archive(dlg.left.selected_paths(), bundle)
     dlg.left.set_dir(str(tree))
@@ -85,7 +85,7 @@ def test_zip_and_extract_roundtrip(app, tree):
 
 
 def test_run_command_button(app, tree):
-    from qcell.core import fmbuttons
+    from abax.core import fmbuttons
 
     dlg = _dlg(app, tree / "left")
     dlg._set_active(dlg.left)
@@ -95,9 +95,9 @@ def test_run_command_button(app, tree):
 
 
 def test_user_buttons_loaded_from_settings(app, tree):
-    from qcell.gui._qtcompat import QWidget
-    from qcell.gui.dialogs.filemanager_dialog import FileManagerDialog
-    from qcell.settings import Settings
+    from abax.gui._qtcompat import QWidget
+    from abax.gui.dialogs.filemanager_dialog import FileManagerDialog
+    from abax.settings import Settings
 
     win = QWidget()                                  # cheap stand-in for the window
     win._settings = Settings()
@@ -144,7 +144,7 @@ def test_go_home_and_root(app, tree):
 
 
 def test_view_and_edit_file(app, tree):
-    from qcell.gui import _qtcompat
+    from abax.gui import _qtcompat
 
     dlg = _dlg(app, tree / "left")
     dlg._set_active(dlg.left)
@@ -175,7 +175,7 @@ def test_function_key_shortcuts_present(app, tree):
 
 
 def test_wired_into_window(app):
-    from qcell.gui.main_window import MainWindow
+    from abax.gui.main_window import MainWindow
 
     win = MainWindow(Settings())
     assert callable(win.show_file_manager)

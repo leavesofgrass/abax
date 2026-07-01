@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from qcell import _runtime
-from qcell.core.functions import FUNCTIONS
-from qcell.core.values import RangeValue
+from abax import _runtime
+from abax.core.functions import FUNCTIONS
+from abax.core.values import RangeValue
 
 np = pytest.importorskip("numpy")
 
-from qcell.engine import npkernel  # noqa: E402
+from abax.engine import npkernel  # noqa: E402
 
 
 @pytest.fixture()
@@ -71,7 +71,7 @@ def test_falls_back_on_blank_none(accel):
 
 
 def test_falls_back_on_error_value(accel):
-    from qcell.core.errors import CellError
+    from abax.core.errors import CellError
 
     grid = [[1.0] for _ in range(5000)]
     grid[10] = [CellError(CellError.DIV0)]
@@ -95,7 +95,7 @@ def test_bools_count_as_one_and_zero():
 def test_engine_import_registers_accelerator():
     import importlib
 
-    import qcell.engine
-    importlib.reload(qcell.engine)
+    import abax.engine
+    importlib.reload(abax.engine)
     assert _runtime.aggregate_accelerator() is npkernel.reduce_range
     _runtime.set_aggregate_accelerator(None)

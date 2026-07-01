@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from qcell.core.calc.voyager import LEGENDS_15C, VoyagerKeypad, grid_pos
+from abax.core.calc.voyager import LEGENDS_15C, VoyagerKeypad, grid_pos
 
 # Button numbers for the keys used below (from LEGENDS_15C primaries).
 B = {"7": 17, "8": 18, "9": 19, "4": 27, "5": 28, "6": 29, "1": 37, "2": 38,

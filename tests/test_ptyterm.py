@@ -15,7 +15,7 @@ import time
 
 import pytest
 
-from qcell.core.ptyterm import PtyError, PtyTerminal, pty_available
+from abax.core.ptyterm import PtyError, PtyTerminal, pty_available
 
 
 def test_pty_available_returns_bool() -> None:
@@ -48,16 +48,16 @@ def test_live_pty_echo() -> None:
     term.start()
     try:
         assert term.alive
-        term.write("echo qcellpty\r\n")
+        term.write("echo abaxpty\r\n")
 
         found = False
         deadline = time.monotonic() + 5.0
         while time.monotonic() < deadline:
-            if any("qcellpty" in line for line in term.read_screen()):
+            if any("abaxpty" in line for line in term.read_screen()):
                 found = True
                 break
             time.sleep(0.1)
-        assert found, "expected 'qcellpty' to appear on the PTY screen"
+        assert found, "expected 'abaxpty' to appear on the PTY screen"
 
         row, col = term.cursor()
         assert isinstance(row, int) and isinstance(col, int)

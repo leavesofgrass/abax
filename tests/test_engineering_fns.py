@@ -1,4 +1,4 @@
-"""Tests for qcell.core.engineering_fns (base conversions, bitwise, special,
+"""Tests for abax.core.engineering_fns (base conversions, bitwise, special,
 Bessel, and database D-functions)."""
 
 from __future__ import annotations
@@ -7,9 +7,9 @@ import math
 
 import pytest
 
-from qcell.core.engineering_fns import SIGNATURES, register
-from qcell.core.errors import CellError
-from qcell.core.values import RangeValue
+from abax.core.engineering_fns import SIGNATURES, register
+from abax.core.errors import CellError
+from abax.core.values import RangeValue
 
 
 @pytest.fixture(scope="module")

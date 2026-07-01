@@ -1,10 +1,10 @@
-"""Tests for keyboard-navigation helpers (``qcell.core.navigation``)."""
+"""Tests for keyboard-navigation helpers (``abax.core.navigation``)."""
 
 from __future__ import annotations
 
 import pytest
 
-from qcell.core.navigation import (
+from abax.core.navigation import (
     NavError,
     current_region,
     jump_edge,

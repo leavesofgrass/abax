@@ -1,10 +1,10 @@
-"""Notebook validation: qcell's own export is valid; structural checks bite."""
+"""Notebook validation: abax's own export is valid; structural checks bite."""
 
 from __future__ import annotations
 
-from qcell.core.sheet import Sheet
-from qcell.core.workbook import Workbook
-from qcell.engine import nbvalidate
+from abax.core.sheet import Sheet
+from abax.core.workbook import Workbook
+from abax.engine import nbvalidate
 
 
 def _workbook():
@@ -17,7 +17,7 @@ def _workbook():
 
 
 def test_our_export_validates_clean():
-    # Regression guard: whatever notebook qcell writes must be valid (4.5 ids etc.)
+    # Regression guard: whatever notebook abax writes must be valid (4.5 ids etc.)
     assert nbvalidate.validate_workbook(_workbook()) == []
 
 

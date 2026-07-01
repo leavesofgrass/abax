@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from qcell import autodeps
+from abax import autodeps
 
 
 @pytest.fixture()
@@ -15,7 +15,7 @@ def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(autodeps, "_INSTALL_FN", lambda pip, **kw: calls.append(pip) or True)
     autodeps._attempted_session.clear()
     autodeps.set_enabled(None)
-    monkeypatch.delenv("QCELL_NO_AUTOINSTALL", raising=False)
+    monkeypatch.delenv("ABAX_NO_AUTOINSTALL", raising=False)
     yield calls
     autodeps.set_enabled(None)
     autodeps._attempted_session.clear()
@@ -28,7 +28,7 @@ def test_installed_present_module_is_skipped(sandbox):
 
 
 def test_missing_module_is_installed_once(sandbox):
-    pkg = [("totally-bogus-dist", "qcell_no_such_module_xyz")]
+    pkg = [("totally-bogus-dist", "abax_no_such_module_xyz")]
     assert autodeps.ensure(pkg, background=False) == ["totally-bogus-dist"]
     assert sandbox == ["totally-bogus-dist"]
     # a second call is a no-op (marker recorded)
@@ -37,26 +37,26 @@ def test_missing_module_is_installed_once(sandbox):
 
 
 def test_force_ignores_marker(sandbox):
-    pkg = [("bogus2", "qcell_missing_mod_2")]
+    pkg = [("bogus2", "abax_missing_mod_2")]
     autodeps.ensure(pkg, background=False)
     assert autodeps.ensure(pkg, background=False, force=True) == ["bogus2"]
     assert sandbox == ["bogus2", "bogus2"]
 
 
 def test_marker_file_written(sandbox, tmp_path):
-    autodeps.ensure([("markme", "qcell_missing_mod_3")], background=False)
+    autodeps.ensure([("markme", "abax_missing_mod_3")], background=False)
     assert (tmp_path / "markme.attempted").exists()
 
 
 def test_disabled_via_setter(sandbox):
     autodeps.set_enabled(False)
-    assert autodeps.ensure([("x", "qcell_missing_mod_4")], background=False) == []
+    assert autodeps.ensure([("x", "abax_missing_mod_4")], background=False) == []
     assert sandbox == []
 
 
 def test_disabled_via_env(sandbox, monkeypatch):
-    monkeypatch.setenv("QCELL_NO_AUTOINSTALL", "1")
-    assert autodeps.ensure([("x", "qcell_missing_mod_5")], background=False) == []
+    monkeypatch.setenv("ABAX_NO_AUTOINSTALL", "1")
+    assert autodeps.ensure([("x", "abax_missing_mod_5")], background=False) == []
     assert sandbox == []
 
 
@@ -100,6 +100,6 @@ def test_presets_and_feature_info():
 
 
 def test_missing_helper(sandbox):
-    pairs = [("json-pkg", "json"), ("nope", "qcell_missing_mod_6")]
+    pairs = [("json-pkg", "json"), ("nope", "abax_missing_mod_6")]
     miss = autodeps.missing(pairs)
-    assert miss == [("nope", "qcell_missing_mod_6")]
+    assert miss == [("nope", "abax_missing_mod_6")]
