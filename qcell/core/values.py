@@ -12,10 +12,11 @@ from typing import Any, Iterator
 
 
 class RangeValue:
-    __slots__ = ("grid",)
+    __slots__ = ("grid", "_flat")
 
     def __init__(self, grid: list[list[Any]]) -> None:
         self.grid = grid
+        self._flat = None
 
     @property
     def nrows(self) -> int:
@@ -26,7 +27,12 @@ class RangeValue:
         return len(self.grid[0]) if self.grid else 0
 
     def flat(self) -> list[Any]:
-        return [v for row in self.grid for v in row]
+        # A RangeValue is immutable once built, and several functions flatten the
+        # same range more than once (SUMPRODUCT, AND/OR over one range, COUNTIF…),
+        # so memoize the single materialization.
+        if self._flat is None:
+            self._flat = [v for row in self.grid for v in row]
+        return self._flat
 
     def row(self, i: int) -> list[Any]:
         return list(self.grid[i])

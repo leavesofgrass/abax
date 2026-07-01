@@ -347,14 +347,17 @@ def _paired(args) -> tuple[list[float], list[float]] | None:
     a, b = _arg(args, 0), _arg(args, 1)
     xs = a.flat() if isinstance(a, RangeValue) else _flatten([a])
     ys = b.flat() if isinstance(b, RangeValue) else _flatten([b])
-    pairs = [
-        (_try_num(x), _try_num(y))
-        for x, y in zip(xs, ys)
-        if _try_num(x) is not None and _try_num(y) is not None
-    ]
-    if not pairs:
+    # Coerce each value once (was calling _try_num up to 4x per pair).
+    px: list[float] = []
+    py: list[float] = []
+    for x, y in zip(xs, ys):
+        nx, ny = _try_num(x), _try_num(y)
+        if nx is not None and ny is not None:
+            px.append(nx)
+            py.append(ny)
+    if not px:
         return None
-    return [p[0] for p in pairs], [p[1] for p in pairs]
+    return px, py
 
 
 def _correl(args):
@@ -911,12 +914,14 @@ def _sumproduct(args):
     length = len(ranges[0])
     if any(len(r) != length for r in ranges):
         return CellError(CellError.VALUE)
+    # Coerce every range to numbers once, then multiply position-wise (was
+    # re-running _try_num on every element inside the O(length x n) loop).
+    numeric = [[_try_num(v) or 0.0 for v in r.flat()] for r in ranges]
     total = 0.0
-    flats = [r.flat() for r in ranges]
-    for i in range(length):
+    for values in zip(*numeric):
         product = 1.0
-        for f in flats:
-            product *= _try_num(f[i]) or 0.0
+        for v in values:
+            product *= v
         total += product
     return total
 

@@ -268,8 +268,15 @@ class Sheet:
         """``(n_rows, n_cols)`` covering all populated cells (0,0 if empty)."""
         if not self._cells:
             return 0, 0
-        max_row = max(r for r, _ in self._cells)
-        max_col = max(c for _, c in self._cells)
+        # Single pass over the keys: two `max()` generators were walking the whole
+        # cell dict twice on every call (and this is called on every grid refresh,
+        # export, and TUI render).
+        max_row = max_col = 0
+        for r, c in self._cells:
+            if r > max_row:
+                max_row = r
+            if c > max_col:
+                max_col = c
         return max_row + 1, max_col + 1
 
     def iter_cells(self) -> Iterator[tuple[int, int, Cell]]:
