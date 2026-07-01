@@ -90,6 +90,47 @@ def test_antenna_dialog_modes_and_paint(win, app):
     dlg._plotw.render(QPixmap(240, 240))                     # exercise paintEvent (no crash)
 
 
+def test_antenna_plot_updates_when_values_change(win):
+    from qcell.gui.dialogs.antenna_dialog import AntennaDialog
+
+    dlg = AntennaDialog(win)
+    dlg._kind.setCurrentIndex(2)                             # Linear array
+    dlg._n.setText("3")
+    dlg._plot()
+    three = list(dlg._plotw._samples)
+    # editing a value and finishing the edit re-plots (no Plot click needed)
+    dlg._n.setText("9")
+    dlg._n.editingFinished.emit()
+    nine = list(dlg._plotw._samples)
+    assert nine != three                                    # the pattern changed
+
+
+def test_antenna_nec_and_svg_export(win, tmp_path):
+    from qcell.core.science import antenna, nec
+    from qcell.gui.dialogs.antenna_dialog import AntennaDialog
+
+    dlg = AntennaDialog(win)
+
+    # dipole geometry -> one z-directed wire, centre feed
+    wires, feeds = dlg.nec_geometry()
+    assert len(wires) == 1 and len(feeds) == 1
+    deck = nec.to_nec(wires, feeds, 300.0)
+    assert "GW 1" in deck and "EX 0 1" in deck and "FR 0 1 0 0 300" in deck
+
+    # array geometry -> N wires with progressive-phase complex feeds
+    dlg._kind.setCurrentIndex(2)
+    dlg._n.setText("4")
+    dlg._phase.setText("90")
+    wires, feeds = dlg.nec_geometry()
+    assert len(wires) == 4 and len(feeds) == 4
+    assert abs(feeds[1][2] - complex(0, 1)) < 1e-9          # 90° on element 1
+    assert nec.to_nec(wires, feeds, 144.0).count("GW") == 4
+
+    # SVG of the current pattern
+    svg = antenna.polar_svg(antenna.pattern_samples(dlg.field_fn(), count=181))
+    assert svg.startswith("<svg") and "<path" in svg
+
+
 def test_antenna_wired_into_window(win):
     assert callable(win.show_antenna_pattern)
     assert "Antenna pattern..." in win._palette_actions()

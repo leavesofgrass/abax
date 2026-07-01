@@ -9,15 +9,18 @@ the antenna axis vertical (nulls top/bottom for a dipole).
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 from .._qtcompat import (
     QColor,
     QComboBox,
     QDialog,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPainter,
     QPainterPath,
     QPen,
@@ -92,14 +95,30 @@ class AntennaDialog(QDialog):
         self._n = QLineEdit("4", self)
         self._spacing = QLineEdit("0.5", self)
         self._phase = QLineEdit("0", self)
+        self._freq = QLineEdit("300", self)         # MHz, only used for NEC export
+        # Re-plot live as the values change (Enter or focus-out), not just on Plot.
+        for edit in (self._n, self._spacing, self._phase):
+            edit.editingFinished.connect(self._plot)
+            edit.returnPressed.connect(self._plot)
         form.addRow("Pattern:", self._kind)
         form.addRow("Array N:", self._n)
         form.addRow("Spacing (λ):", self._spacing)
         form.addRow("Phase (°):", self._phase)
+        form.addRow("Freq (MHz, NEC):", self._freq)
         side.addLayout(form)
         btn = QPushButton("Plot", self)
         btn.clicked.connect(self._plot)
         side.addWidget(btn)
+
+        exports = QHBoxLayout()
+        svg_btn = QPushButton("Export SVG...", self)
+        svg_btn.clicked.connect(self._export_svg)
+        nec_btn = QPushButton("Export NEC...", self)
+        nec_btn.clicked.connect(self._export_nec)
+        exports.addWidget(svg_btn)
+        exports.addWidget(nec_btn)
+        side.addLayout(exports)
+
         self._readout = QLabel(self)
         self._readout.setWordWrap(True)
         side.addWidget(self._readout, 1)
@@ -129,3 +148,73 @@ class AntennaDialog(QDialog):
         self._readout.setText(
             f"Directivity: {antenna.gain_dbi(f):.2f} dBi\n"
             f"Half-power beamwidth: {antenna.half_power_beamwidth(f):.1f}°")
+
+    def nec_geometry(self, segments: int = 10):
+        """``(wires, feeds)`` in wavelengths for the current antenna, for a NEC deck.
+
+        Dipoles are one z-directed wire; a linear array is N half-wave dipoles along
+        x with the progressive phase carried as complex feed voltages. UI-free."""
+        i = self._kind.currentIndex()
+        seg = max(2, segments + (segments & 1))          # even -> node at centre
+        center = seg // 2
+
+        def dipole(length: float, x: float = 0.0):
+            half = length / 2.0
+            dz = length / seg
+            return [(x, 0.0, -half + k * dz) for k in range(seg + 1)]
+
+        if i == 0:
+            return [dipole(0.5)], [(0, center, 1.0)]
+        if i == 1:
+            return [dipole(1.0)], [(0, center, 1.0)]
+        n = max(1, int(float(self._n.text())))
+        spacing = float(self._spacing.text())
+        phase = math.radians(float(self._phase.text()))
+        wires = [dipole(0.5, x=m * spacing) for m in range(n)]
+        feeds = [(m, center, complex(math.cos(m * phase), math.sin(m * phase)))
+                 for m in range(n)]
+        return wires, feeds
+
+    def _export_svg(self) -> None:
+        from ...core.science import antenna
+
+        try:
+            samples = antenna.pattern_samples(self.field_fn(), count=361)
+        except ValueError:
+            QMessageBox.warning(self, "Export SVG", "Fix the array values first.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export pattern as SVG", "antenna.svg", "SVG image (*.svg)")
+        if not path:
+            return
+        svg = antenna.polar_svg(samples, title=self._kind.currentText())
+        try:
+            Path(path).write_text(svg, encoding="utf-8")
+        except OSError as exc:
+            QMessageBox.warning(self, "Export SVG", str(exc))
+            return
+        self._readout.setText(self._readout.text() + f"\nSaved SVG: {Path(path).name}")
+
+    def _export_nec(self) -> None:
+        from ...core.science import nec
+
+        try:
+            wires, feeds = self.nec_geometry()
+            freq = float(self._freq.text())
+            if freq <= 0:
+                raise ValueError
+        except ValueError:
+            QMessageBox.warning(self, "Export NEC",
+                                "Array values and a positive frequency are required.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export NEC deck", "antenna.nec", "NEC decks (*.nec)")
+        if not path:
+            return
+        deck = nec.to_nec(wires, feeds, freq, comment=f"qcell {self._kind.currentText()}")
+        try:
+            Path(path).write_text(deck, encoding="utf-8")
+        except OSError as exc:
+            QMessageBox.warning(self, "Export NEC", str(exc))
+            return
+        self._readout.setText(self._readout.text() + f"\nSaved NEC: {Path(path).name}")

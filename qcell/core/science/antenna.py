@@ -111,6 +111,49 @@ def pattern_samples(field_fn, count: int = 361, decibels: bool = False,
     return out
 
 
+def _svg_escape(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def polar_svg(samples, title: str = "", size: int = 360, margin: int = 18) -> str:
+    """A standalone SVG string of a polar pattern plot (pure stdlib).
+
+    ``samples`` is the ``[(theta, magnitude 0..1)]`` list from
+    :func:`pattern_samples`. Draws amplitude rings, angle spokes and the closed
+    pattern curve, antenna axis vertical — the same view as the GUI, exportable.
+    """
+    cx = cy = size / 2.0
+    radius = size / 2.0 - margin
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
+        f'viewBox="0 0 {size} {size}">',
+        f'<rect width="{size}" height="{size}" fill="white"/>',
+    ]
+    for frac in (0.25, 0.5, 0.75, 1.0):
+        parts.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{radius * frac:.1f}" '
+                     'fill="none" stroke="#bbbbbb" stroke-width="1"/>')
+    for deg in range(0, 360, 30):
+        a = math.radians(deg)
+        x = cx + radius * math.sin(a)
+        y = cy - radius * math.cos(a)
+        parts.append(f'<line x1="{cx:.1f}" y1="{cy:.1f}" x2="{x:.1f}" y2="{y:.1f}" '
+                     'stroke="#dddddd" stroke-width="1"/>')
+    if samples:
+        d = []
+        for i, (th, mag) in enumerate(samples):
+            x = cx + mag * radius * math.sin(th)
+            y = cy - mag * radius * math.cos(th)
+            d.append(f'{"M" if i == 0 else "L"}{x:.2f} {y:.2f}')
+        d.append("Z")
+        parts.append(f'<path d="{" ".join(d)}" fill="none" stroke="#1565c0" '
+                     'stroke-width="2"/>')
+    if title:
+        parts.append(f'<text x="{cx:.1f}" y="14" text-anchor="middle" '
+                     f'font-family="sans-serif" font-size="12">{_svg_escape(title)}</text>')
+    parts.append("</svg>")
+    return "\n".join(parts)
+
+
 # Convenience pattern factories (return a one-arg field_fn) -----------------
 
 def half_wave_dipole():

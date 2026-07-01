@@ -159,7 +159,11 @@ All notable changes to qcell are documented here. The format follows
   pattern sampling — the first step toward full Method-of-Moments / NEC modeling.
 - **Antenna pattern viewer** (*Tools → Scientific → Antenna pattern*) — a QPainter
   polar plot of the analytic patterns (half-/full-wave dipole, uniform linear array)
-  with directivity (dBi) and half-power beamwidth readout.
+  with directivity (dBi) and half-power beamwidth readout. The plot now **re-renders
+  live** as you edit N / spacing / phase (not only on the Plot button), and it can
+  **export the pattern as SVG** (pure-Python `antenna.polar_svg`) or **export a NEC
+  `.nec` deck** of the geometry (dipole, or an N-element dipole array with the
+  progressive phase as complex feed voltages) at a chosen frequency.
 - **Welch power-spectral-density estimate** — `core.science.spectral.welch_psd`
   (averaged Hann-windowed periodograms; lower-variance than a single FFT). Real
   input gives a one-sided PSD; **complex I/Q** input gives the two-sided spectrum

@@ -46,3 +46,14 @@ def test_pattern_samples_normalised():
     assert all(0.0 <= m <= 1.0 for m in mags)
     sdb = antenna.pattern_samples(antenna.half_wave_dipole(), count=181, decibels=True)
     assert all(0.0 <= m <= 1.0 for _, m in sdb)
+
+
+def test_polar_svg():
+    from qcell.core.science import antenna
+    samples = antenna.pattern_samples(antenna.half_wave_dipole(), count=181)
+    svg = antenna.polar_svg(samples, title="Half-wave dipole")
+    assert svg.startswith("<svg") and svg.rstrip().endswith("</svg>")
+    assert "<path" in svg                       # the pattern curve
+    assert svg.count("<circle") == 4            # amplitude rings
+    assert "Half-wave dipole" in svg
+    assert antenna.polar_svg([], title="empty").count("<path") == 0
