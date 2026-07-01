@@ -89,11 +89,11 @@ trapped by `IFERROR` / `IFNA` / `ISERROR`.
 
 Function names are case-insensitive. Below, every built-in is grouped by
 family with its signature, a one-line description, and an example. Optional
-arguments are shown in `[brackets]`. There are **over 580 built-in functions** —
+arguments are shown in `[brackets]`. There are **over 600 built-in functions** —
 **584 eager** (counting aliases and modern dotted names), **6 lazy** control-flow
-functions, and **13 reference/context** functions (`ROW`, `OFFSET`, `INDIRECT`,
-`CELL`, …) — **603 names** in all; user macros can add more (see the
-[UDFs](#user-defined-functions-udfs) note).
+functions, and **21 reference/context** functions (`ROW`, `OFFSET`, `INDIRECT`,
+`CELL`, `LET`, `LAMBDA`, …) — **611 names** in all; user macros can add more
+(see the [UDFs](#user-defined-functions-udfs) note).
 
 Coverage spans the everyday Excel / Gnumeric set: math and trigonometry
 (including hyperbolic and reciprocal), combinatorics, a full statistical
@@ -558,6 +558,28 @@ forces a function's first value so it does *not* spill.
 **`IF` over an array** broadcasts element-wise: `=IF(A1:A9>0,"+","−")` spills a
 label per row, and `=SUM(IF(A1:A9>0,A1:A9,0))` sums just the positives — the
 classic array-formula pattern, no Ctrl+Shift+Enter needed.
+
+### LET, LAMBDA and functional helpers
+
+`LET` names intermediate results so a formula computes them once and reads
+clearly; `LAMBDA` builds a reusable function value. A lambda is *used* by
+passing it to one of the functional helpers below, or by naming it with `LET`
+and calling the name — `=LET(f, LAMBDA(x, x*x), f(5))` → `25`. (The
+direct-call form `=LAMBDA(x,x+1)(5)` is not supported, and an un-applied
+lambda in a cell shows `#CALC!`.) Binding names may not look like cell
+references (`x` works, `x1` is the reference X1) — the same restriction Excel
+imposes — and a workbook-defined name takes precedence over a LET name.
+
+| Function | Description | Signature | Example | Result |
+|---|---|---|---|---|
+| `LET` | Bind names to values, then evaluate | `LET(name1, value1, [name2, value2, ...], calculation)` | `=LET(x, 2, y, x+1, x*y)` | `6` |
+| `LAMBDA` | A function value (use via LET or the helpers) | `LAMBDA(param1, ..., body)` | `=LET(f, LAMBDA(x, x*x), f(5))` | `25` |
+| `MAP` | Apply a lambda element-wise (spills) | `MAP(array1, [array2, ...], lambda)` | `=MAP(A1:A3, LAMBDA(x, x*2))` | doubled column |
+| `REDUCE` | Fold an array to one value | `REDUCE(initial, array, lambda(acc, value))` | `=REDUCE(0, A1:A3, LAMBDA(a, v, a+v))` | the sum |
+| `SCAN` | Fold, keeping every intermediate (spills) | `SCAN(initial, array, lambda(acc, value))` | `=SCAN(0, A1:A3, LAMBDA(a, v, a+v))` | running total |
+| `BYROW` | One lambda result per row (spills a column) | `BYROW(array, lambda(row))` | `=BYROW(A1:B3, LAMBDA(r, SUM(r)))` | row sums |
+| `BYCOL` | One lambda result per column (spills a row) | `BYCOL(array, lambda(column))` | `=BYCOL(A1:B3, LAMBDA(c, MAX(c)))` | column maxima |
+| `MAKEARRAY` | Build an array from a lambda of (row, col) | `MAKEARRAY(rows, cols, lambda(r, c))` | `=MAKEARRAY(2, 3, LAMBDA(r, c, r*c))` | 2×3 times table |
 
 ### Logical and control flow
 

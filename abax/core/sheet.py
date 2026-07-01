@@ -17,6 +17,7 @@ from typing import Any, Iterator
 from .cells import Cell
 from .errors import CellError, FormulaError
 from .evaluator import EvalContext, evaluate
+from .lambda_fns import LambdaValue
 from .parser import parse
 from .reference import parse_a1, to_a1
 from .spill import to_grid
@@ -32,6 +33,10 @@ ARRAY_FUNCTIONS = frozenset({
     "FREQUENCY", "MODE.MULT", "TREND", "GROWTH", "LINEST", "LOGEST",
     # Matrix functions that spill.
     "MMULT", "MINVERSE", "MUNIT",
+    # Wave I text splitter and the LET/LAMBDA functional helpers — all can
+    # return arrays (REDUCE folds to a scalar and LAMBDA is a value, so
+    # neither is listed).
+    "TEXTSPLIT", "LET", "MAP", "SCAN", "BYROW", "BYCOL", "MAKEARRAY",
 })
 
 
@@ -347,6 +352,9 @@ class Sheet:
             val = CellError(CellError.CIRC)
         finally:
             self._computing.discard(key)
+        if isinstance(val, LambdaValue):
+            # A LAMBDA that was never applied can't be shown in a cell.
+            val = CellError(CellError.CALC)
         return val
 
     def _resolve_spill(self, sheet_name: str, row: int, col: int) -> "list | None":

@@ -27,10 +27,11 @@ class EvalContext:
     same ``(sheet, r, c) -> value`` the evaluator uses; ``eval(node)`` evaluates an
     argument node on demand (carrying this context onward)."""
 
-    __slots__ = ("resolver", "row", "col", "spill", "source", "sheet_info")
+    __slots__ = ("resolver", "row", "col", "spill", "source", "sheet_info", "env")
 
     def __init__(self, resolver: Resolver, row: int, col: int, spill: Any = None,
-                 source: Any = None, sheet_info: Any = None) -> None:
+                 source: Any = None, sheet_info: Any = None,
+                 env: "dict | None" = None) -> None:
         self.resolver = resolver
         self.row = row
         self.col = col
@@ -46,6 +47,10 @@ class EvalContext:
         # 1-based index of the named sheet ("" = the calling sheet) and the
         # workbook's sheet count. Backs SHEET / SHEETS; None outside a Sheet.
         self.sheet_info = sheet_info
+        # Optional LET/LAMBDA name bindings (upper-cased name -> value),
+        # consulted by the ``Name`` branch before it errors with #NAME?.
+        # Nested scopes are chained child contexts (see core.lambda_fns).
+        self.env = env
 
     def eval(self, node: Any) -> Any:
         return evaluate(node, self.resolver, self)
@@ -136,6 +141,8 @@ def evaluate(node: Any, resolver: Resolver, ctx: "EvalContext | None" = None) ->
             return CellError(CellError.REF)
         return [list(r) for r in grid]
     if isinstance(node, A.Name):
+        if ctx is not None and ctx.env is not None and node.text in ctx.env:
+            return ctx.env[node.text]
         if node.text == "TRUE":
             return True
         if node.text == "FALSE":
@@ -288,6 +295,14 @@ def _eval_func(node: A.Func, resolver: Resolver, ctx: "EvalContext | None" = Non
 
     fn = FUNCTIONS.get(name)
     if fn is None:
+        # A LET/LAMBDA-bound name used with call syntax — =LET(F,LAMBDA(x,x*x),F(5))
+        # — invokes the bound lambda with the evaluated arguments.
+        if ctx is not None and ctx.env is not None and name in ctx.env:
+            from .lambda_fns import LambdaValue
+
+            bound = ctx.env[name]
+            if isinstance(bound, LambdaValue):
+                return bound.call([evaluate(a, resolver, ctx) for a in node.args])
         return CellError(CellError.NAME, name)
     args = [evaluate(a, resolver, ctx) for a in node.args]
     try:

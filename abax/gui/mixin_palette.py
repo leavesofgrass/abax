@@ -53,7 +53,7 @@ class PaletteMixin:
             f"<b>abax {__version__}</b><br>"
             "A keyboard-first statistics, data-science, and RF/ham-radio "
             "workstation.<br><br>"
-            "A scriptable spreadsheet with 550+ formula functions — math and "
+            "A scriptable spreadsheet with 600+ formula functions — math and "
             "engineering, statistics and distributions, financial, text, date/time, "
             "database, dynamic arrays with true spill (SORT / UNIQUE / FILTER / "
             "SEQUENCE / broadcasting), and a full RF formula set — plus built-in "

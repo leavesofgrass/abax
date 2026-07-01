@@ -116,6 +116,24 @@ All notable changes to abax are documented here. The format follows
   **`YIELDMAT`**, and the Treasury-bill trio **`TBILLEQ`** (including the
   long-bill semiannual-compounding form)/**`TBILLPRICE`**/**`TBILLYIELD`**.
   The odd-period functions (ODDF*/ODDL*) remain out of scope.
+- **`LET`, `LAMBDA` and the functional helpers** (`core/lambda_fns.py`; →
+  **611 names**) — modern Excel's named bindings and first-class functions:
+  - **`LET(name, value, …, calculation)`** — sequential bindings (later values
+    see earlier names, scopes nest and shadow); a LET whose calculation is an
+    array *spills*. Powered by an `env` on `EvalContext` that the evaluator's
+    `Name` branch consults before erroring — nested scopes are chained child
+    contexts, so there is no AST rewriting.
+  - **`LAMBDA(params…, body)`** — a first-class function value that closes
+    over its defining scope. Used by passing it to a helper or by naming it
+    via LET and *calling the name*: `=LET(f, LAMBDA(x, x*x), f(5))` → `25`
+    (an unknown function name that matches a bound lambda invokes it). An
+    un-applied lambda in a cell shows **`#CALC!`**, like Excel.
+  - **`MAP` / `REDUCE` / `SCAN` / `BYROW` / `BYCOL` / `MAKEARRAY`** — the
+    functional array helpers; MAP/SCAN/BYROW/BYCOL/MAKEARRAY spill and all
+    compose inside aggregates (`=SUM(MAP(A1:A3, LAMBDA(x, x*x)))`).
+  - Limitations (documented): no direct-call syntax `=LAMBDA(…)(args)`,
+    binding names must not look like cell references (Excel's restriction
+    too), and workbook-defined names take precedence over LET names.
 - **HP-16C: the immediate bit/word keys are implemented** (were stubs) — `MASKL`,
   `MASKR`, `#B` (bit count), `ABS`, `ASR`, `RMD`, `1's`/`2's` complement, `SB`/
   `CB`/`B?` (set/clear/test bit) and `RLn`/`RRn`. Programming-mode keys (GTO/GSB/

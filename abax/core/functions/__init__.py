@@ -218,3 +218,12 @@ try:
     _reffuncs.register(CONTEXT_FUNCTIONS)
 except Exception:  # noqa: BLE001
     pass
+
+# LET / LAMBDA and the functional array helpers (MAP/REDUCE/SCAN/BYROW/BYCOL/
+# MAKEARRAY) also use the context convention — they evaluate sub-expressions
+# under name bindings carried on the EvalContext.
+try:
+    from .. import lambda_fns as _lambda_fns  # noqa: E402
+    _lambda_fns.register(CONTEXT_FUNCTIONS)
+except Exception:  # noqa: BLE001
+    pass
