@@ -65,6 +65,20 @@ def test_scientific_is_general_math_only(win):
         assert gone not in tools, gone
 
 
+def test_about_covers_current_features(win, monkeypatch):
+    from qcell.gui import _qtcompat
+
+    captured = {}
+    monkeypatch.setattr(_qtcompat.QMessageBox, "about",
+                        staticmethod(lambda parent, title, text: captured.update(text=text)))
+    win.show_about()
+    text = captured["text"]
+    # The About box should reflect the breadth of the app, not just "spreadsheet".
+    for keyword in ("RF", "signal processing", "antenna modeling", "Jupyter kernel",
+                    "machine learning", "Smith chart", "XLOOKUP"):
+        assert keyword in text, keyword
+
+
 def test_report_and_compare_moved(win):
     file_items = _items(win, "File")
     data_items = _items(win, "Data")

@@ -51,14 +51,27 @@ class PaletteMixin:
             self,
             "About qcell",
             f"<b>qcell {__version__}</b><br>"
-            "A keyboard-first statistics and data-science workstation.<br><br>"
-            "A scriptable spreadsheet with ~150 formula functions (including "
-            "statistical distributions), built-in analysis, pivot/recode, "
-            "graphing, and a pandas hand-off — over CSV, Excel, Parquet, SQLite, "
-            "JSON, R, and more.<br><br>"
-            "Includes built-in calculators — RPN (programmer, scientific, "
-            "financial), graphing, and algebraic — that exchange values with "
-            "the grid.",
+            "A keyboard-first statistics, data-science, and RF/ham-radio "
+            "workstation.<br><br>"
+            "A scriptable spreadsheet with 200+ formula functions — statistics and "
+            "distributions, dynamic arrays (XLOOKUP / UNIQUE / SORT / FILTER / "
+            "SEQUENCE), and a full RF formula set — plus built-in analysis: SQL "
+            "over sheets, column profiling, pivot / recode, goal seek, workbook "
+            "diff, charting (SVG), and a pandas hand-off. Reads and writes CSV, "
+            "Excel, Parquet, SQLite, JSON, R, ODS, Markdown, ADIF logs, and Jupyter "
+            "notebooks — or fetch straight from a URL.<br><br>"
+            "<b>Scientific:</b> matrices and eigenvalues, numerical and ODE "
+            "solvers, signal processing (FFT, digital filters, spectra, I/Q "
+            "constellation / eye), and machine learning (PCA, k-means, "
+            "regression).<br><br>"
+            "<b>Radio:</b> an RF / impedance toolkit, Smith chart, antenna "
+            "modeling (method-of-moments, NEC decks, optional PyNEC), an amateur "
+            "band-plan / CTCSS reference, and grid-square / DXCC lookups.<br><br>"
+            "Runs three ways — a Qt desktop GUI, a vim-style terminal UI, and a "
+            "headless CLI — and doubles as a <b>Jupyter kernel</b> for running "
+            "qcell inside JupyterLab.<br><br>"
+            "Built-in calculators — RPN (programmer, scientific, financial), "
+            "graphing, and algebraic — exchange values with the grid.",
         )
 
     def show_command_palette(self) -> None:
