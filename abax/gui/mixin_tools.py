@@ -430,6 +430,11 @@ class ToolsMixin:
 
         MLDialog(self).exec()
 
+    def show_curve_fit(self) -> None:
+        from .dialogs.curvefit_dialog import CurveFitDialog
+
+        CurveFitDialog(self).exec()
+
     def show_graph(self) -> None:
         from .dialogs.graph_dialog import GraphDialog
 

@@ -100,6 +100,7 @@ class PaletteMixin:
             "Open selection in pandas...": self.show_dataframe,
             "Recode / clean column...": self.show_recode,
             "Pivot / group-by...": self.show_pivot,
+            "Curve fit...": self.show_curve_fit,
             "New sheet": self.insert_sheet,
             "Duplicate sheet": self.duplicate_sheet,
             "Delete sheet": self.delete_sheet,

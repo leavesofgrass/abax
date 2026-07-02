@@ -98,3 +98,29 @@ def test_wave2_palette_wiring(win):
     for label in ("Goal seek...", "Compare workbook...",
                   "Export as HTML report...", "I/Q constellation -> SVG"):
         assert label in actions
+
+
+def test_curve_fit_linear_writes_fitted_column(win):
+    from abax.gui.dialogs.curvefit_dialog import CurveFitDialog
+
+    s = win._doc.workbook.sheet
+    # y = 2x + 1 in columns A (x) and B (y).
+    for r, x in enumerate([0, 1, 2, 3]):
+        s.set_cell(r, 0, str(x))
+        s.set_cell(r, 1, str(2 * x + 1))
+    dlg = CurveFitDialog(win)
+    dlg._x.setText("A1:A4")
+    dlg._y.setText("B1:B4")
+    dlg._model.setCurrentIndex(0)          # Linear
+    dlg._write.setChecked(True)
+    dlg._out.setText("C1")
+    dlg._apply()
+    # R² reported as a perfect fit.
+    assert "R" in dlg._readout.text()
+    # Fitted column reproduces y = 2x + 1.
+    for r, x in enumerate([0, 1, 2, 3]):
+        assert abs(float(s.get_value(r, 2)) - (2 * x + 1)) < 1e-6
+
+
+def test_curve_fit_palette_wiring(win):
+    assert "Curve fit..." in win._palette_actions()

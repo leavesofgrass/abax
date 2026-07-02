@@ -387,6 +387,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._act(m_analyze, "Open selection in &pandas...", self.show_dataframe)
         self._act(m_analyze, "&Recode / clean column...", self.show_recode)
         self._act(m_analyze, "Pi&vot / group-by...", self.show_pivot)
+        self._act(m_analyze, "&Curve fit...", self.show_curve_fit)
         m_analyze.addSeparator()
         self._act(m_analyze, "&Goal seek...", self.show_goal_seek)
 
