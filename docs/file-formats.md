@@ -28,6 +28,9 @@ See also: [index](index.md) · [formula reference](formula-reference.md) ·
 | Fixed-width | `.fixed` | yes | yes | — | always available |
 | ADIF logbook | `.adi` `.adif` | yes | yes | — | always available |
 | SQLite | `.db` `.sqlite` `.sqlite3` | yes | yes | — (stdlib `sqlite3`) | always available |
+| Stata / SPSS | `.dta` `.sav` `.zsav` `.por` | yes | no | `pyreadstat` (`abax[stats-io]`) | error with install hint |
+| HDF5 | `.h5` `.hdf5` | yes | no | `h5py` (`abax[hdf5]`) | error with install hint |
+| 7-Zip archive | `.7z` | yes | yes | `py7zr` (`abax[7z]`) | `.zip`/`.tar` still work; 7z shows a hint |
 
 Only **Excel** and **Parquet/Feather** require third-party packages. Everything
 else is pure standard library and works in a zero-optional-dependency install.
@@ -282,6 +285,41 @@ embedded quotes escaped; values are never string-formatted into SQL.
 The module API also supports loading a single table or an arbitrary
 `SELECT … ` query, and choosing `replace` / `append` / `fail` when a table
 already exists.
+
+## Statistical formats: Stata / SPSS (`.dta`, `.sav`) — needs `pyreadstat`
+
+[`abax/engine/statfiles.py`](../abax/engine/statfiles.py) reads Stata (`.dta`),
+SPSS (`.sav`, `.zsav`) and SAS-transport-adjacent (`.por`) files via the optional
+`pyreadstat` package. Variable names become the header row and values are
+converted to abax's cell types (dates/datetimes render as ISO strings). Import
+only — there's no writer. Without the package the read raises a clear
+`install abax[stats-io]` message and the rest of the app is unaffected.
+
+```bash
+pip install "abax[stats-io]"   # or the full-fat: pip install "abax[all]"
+```
+
+## HDF5 (`.h5`, `.hdf5`) — needs `h5py`
+
+[`abax/engine/hdf5_io.py`](../abax/engine/hdf5_io.py) walks an HDF5 file's group
+tree and loads each **tabular** (1-D/2-D) dataset into its own sheet (the
+dataset's path becomes the sheet name); structured/compound arrays use their
+field names as the header. Scalar, 3-D+, and empty datasets are skipped. Import
+only; a missing `h5py` gives an `install abax[hdf5]` hint.
+
+```bash
+pip install "abax[hdf5]"
+```
+
+## 7-Zip archives (`.7z`) — needs `py7zr`
+
+Handled by the file manager rather than a plain open: a **7z** button compresses
+the selection, **Extract** unpacks a `.7z`, and **Open in archive** lists a
+`.zip`/`.tar`/`.7z`'s contents and opens a supported member (CSV, Excel, Parquet,
+ODS, `.abax`, …) straight into the grid — extracting just that member, no full
+unpack. `.7z` needs the optional `py7zr` package (`pip install abax[7z]`, in the
+`thin`/`all` sets); without it `.zip`/`.tar` still work and the 7z actions show
+an install hint. Extraction keeps the path-traversal (zip-slip) guard.
 
 ## Quick reference: converting between formats
 

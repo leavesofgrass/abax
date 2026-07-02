@@ -295,6 +295,19 @@ when offline). When on, the family is pushed across menus, dialogs, lists, the
 console/terminal, and the cells (via the model's FontRole) — deliberately not
 the QPainter calculator faceplates, so the LCD/keypad keep their display fonts.
 
+## Preferences
+
+*Edit → Preferences…* (`Ctrl+,`) opens a tabbed settings dialog so you don't have
+to hand-edit `settings.json`:
+
+- **Appearance** — theme, the OpenDyslexic font toggle, and the default zoom.
+- **Behaviour** — autosave on/off and its interval (seconds), and the **code
+  isolation** level (off / isolated / strict) used for the Python console,
+  macros, and scripts.
+
+Appearance changes apply live; **OK** / **Apply** persist to `settings.json` and
+**Cancel** reverts.
+
 ## Formula precedents
 
 With a formula cell active, press `Ctrl+[` (*View → Show formula precedents*) to
@@ -304,15 +317,24 @@ says so.
 
 ## Recalculation
 
-Recalculation is **automatic**. Cell values are computed on demand and memoized,
-and any edit clears the value cache so every dependent recomputes — including
-dependents that live on other sheets (cross-sheet refs invalidate every sheet's
-cache). You never have to trigger a recompute after typing a value or a formula.
+Recalculation is **automatic and incremental**. Cell values are computed on
+demand and memoized; editing a cell invalidates only the cells that actually
+depend on it — the edited cell plus the transitive closure that references it,
+cross-sheet references included — instead of the whole workbook. On a large sheet
+this keeps a keystroke's recompute to the handful of affected cells. Volatile
+functions (`NOW`/`RAND`) and dynamic references (`INDIRECT`/`OFFSET`) are always
+refreshed, so nothing goes stale. (Setting `ABAX_INCREMENTAL=0` in the
+environment restores the older blanket-recompute, should you ever need it.)
 
-When you want to force a full pass anyway — for example after loading data, or to
-re-roll volatile functions like `RAND` / `NOW` — *Data → Recalculate* (`F9`)
-recomputes every formula in the workbook and refreshes the grid, and the status
-bar confirms with `recalculated`.
+*Data → Recalculate* (`F9`) forces a full pass over the workbook — handy after
+loading data or to re-roll volatiles — and `Shift+F9` recomputes just the active
+sheet; the status bar confirms with `recalculated`.
+
+**Manual calculation.** *Data → Calculation: auto/manual* switches to manual
+mode: an edit then updates only the edited cell and **defers** every dependent
+recalculation until you press `F9` (the status bar shows `calculation: MANUAL`).
+It's the escape hatch for very large or slow sheets; switching back to automatic
+immediately flushes the pending edits.
 
 ## Undo / redo
 
@@ -328,6 +350,22 @@ into one cell collapses to one checkpoint). The **Undo history** dialog shows th
 timeline of checkpoints so you can jump back several steps at once. (Note:
 deleting a sheet is *not* reversible with `Ctrl+Z`, and is confirmed before it
 happens.)
+
+## Cell comments
+
+Attach a note to any cell from the **right-click menu** — *Insert comment…* on a
+bare cell, or *Edit comment…* / *Delete comment* on one that already has one.
+Commented cells show a small marker in the corner and reveal the note as a
+tooltip on hover. Comments are metadata (not part of the formula): they shift
+with row/column insertion and deletion, save inside the `.abax` workbook, and are
+covered by undo/redo.
+
+## Accessibility
+
+The grid is wired for screen readers — the active cell announces its A1 address
+and value (plus its formula, if any), and the row/column headers announce
+`row 1` / `column A`. Together with the OpenDyslexic font and zoom in
+[Preferences](#preferences), abax aims to stay usable for low-vision work.
 
 ## Copy / paste / fill / sort
 

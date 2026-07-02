@@ -182,6 +182,19 @@ The GUI gates all code execution behind a one-time consent prompt (`ConsoleMixin
 the `code_consent` setting) that states the active level plainly. See
 [macros and scripting](macros-and-scripting.md) and `dev/sandbox-design.md`.
 
+## Incremental recalculation
+
+Editing a cell once cleared every sheet's value cache. A workbook-scoped
+**reverse-dependents index** ([`core/depgraph.py`](../abax/core/depgraph.py))
+inverts a formula's precedents, so an edit now invalidates only the edited cell
+and the transitive closure that references it — cross-sheet edges included. The
+contract is **over-approximation**: volatiles (`NOW`/`RAND`), dynamic references
+(`INDIRECT`/`OFFSET`), defined names, unknown macros, and any workbook that
+currently spills fall back to the full blanket-clear, so a stale value is never
+served — a differential fuzz test compares incremental invalidation against a
+full recalc across random edit streams. `ABAX_INCREMENTAL=0` restores the old
+path; a `Workbook.calc_mode` of `"manual"` defers dependent recalc until `F9`.
+
 ## Testing
 
 - **Offscreen Qt.** GUI tests run with the offscreen Qt platform so they need no
@@ -191,6 +204,10 @@ the `code_consent` setting) that states the active level plainly. See
   that core stays pure and every optional adapter has a working fallback.
 - **`test_pyz.py`** verifies that `pyz_main.py`'s top-level imports are
   stdlib-only, protecting the zipapp's cold-start path.
+- **CI matrix + quality gates.** `.github/workflows/ci.yml` runs `just check`
+  across Linux/macOS/Windows × Python 3.11–3.13, plus a benchmark-regression gate
+  (`scripts/bench_gate.py` vs. a committed baseline) and a ratcheting coverage
+  floor on `abax/core`.
 
 ## Build
 
