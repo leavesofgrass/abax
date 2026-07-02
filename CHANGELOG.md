@@ -89,8 +89,22 @@ parallel agents:_
 - **Cluster-count selection** — for the clustering tools, an **elbow** curve and
   **silhouette** sweep (k-means) plus **BIC/AIC** model selection (GMM) suggest
   how many clusters to use; surfaced in the ML dialog and the console.
+- **Optional `LAMBDA` parameters + `ISOMITTED`** — a `LAMBDA` may now be called
+  with fewer args than declared; the trailing params are *omitted*, and
+  `ISOMITTED(param)` tests for that, enabling default-argument patterns like
+  `=LAMBDA(a,b, IF(ISOMITTED(b), a, a+b))`. Registry: **590 → 591**.
+- **HDF5 import** — open `.h5`/`.hdf5` files via the optional **`h5py`** package
+  (`pip install abax[hdf5]`, in the full-fat set): each tabular dataset loads
+  into its own sheet. Graceful fallback when the package is absent — the same
+  engine-adapter pattern as the Stata/SPSS and Parquet readers.
 
 ### Changed
+- **Faster `used_bounds()`** — the sheet extent (used on every grid refresh,
+  export, and TUI render) is now tracked incrementally instead of re-scanned:
+  ~0.4 µs/call on a 10,000-cell sheet, independent of size.
+- A generated **function-coverage dashboard** (`scripts/function_coverage.py` →
+  `docs/function-coverage.md`) reports formula parity vs. the common Excel /
+  Gnumeric set (currently ~96%).
 - **Manual / automatic calculation mode** (*Data → Calculation: auto/manual*).
   In manual mode an edit updates only the edited cell and defers all dependent
   recalculation until **F9** (`Shift+F9` for the active sheet) — the escape hatch
