@@ -170,8 +170,11 @@ be fetched on demand. Widgets are screen-reader labelled.
   Its save format is qv-compatible (`{stack, registers}`).
 - **Python console** (`Ctrl+Shift+Y`) — a REPL wired to the live workbook
   (`doc`, `wb`, `cell(ref)`, `put(ref, val)`, `rpn`, `refresh()`). TUI `:py <code>`.
+  Console/scripts/macros run at a selectable **code-isolation** level — in-process,
+  an out-of-process resource-limited worker (default), or a **strict OS sandbox**
+  (no network, writes to a scratch dir only).
 - **Clipboard manager** (`Ctrl+Shift+V`) — copy history with pinning; TUI
-  `:clips`/`:clip`. Runs trusted Python for macros/console — not a sandbox.
+  `:clips`/`:clip`.
 - **Graphing** (*Data → Graph*) — plot a function of `x` or a selected column;
   `QPainter` in the GUI, HP-48-style **braille** in the TUI (`:plot sin(x) -6 6`).
 - **Equation editor** (*Insert → Equation*) — type LaTeX, get a live Unicode
@@ -254,8 +257,10 @@ abax --macros macros/ view sheet.csv        # UDFs available everywhere
 ```
 
 Reachable from the TUI (`:macro <name>`), the GUI *Tools → Macros* menu, and the
-command palette. Macros run trusted Python (not a sandbox) — only load files you
-trust. Auto-discovered from `CONFIG_DIR/macros/*.py`.
+command palette. Macros run your Python code — by default isolated (an
+out-of-process, resource-limited worker), optionally in a **strict OS sandbox**,
+or in-process; only load files you trust. Auto-discovered from
+`CONFIG_DIR/macros/*.py`.
 
 ### Recording
 

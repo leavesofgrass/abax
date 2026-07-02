@@ -265,8 +265,8 @@ pandas-eye view of a block without leaving the app — and the
 
 ## The console namespace
 
-The embedded Python console (and the sandboxed console worker) is wired to the
-live workbook via [`abax/core/console_ns.py`](../abax/core/console_ns.py). Every
+The embedded Python console (and the console worker, however isolated) is wired
+to the live workbook via [`abax/core/console_ns.py`](../abax/core/console_ns.py). Every
 engine on this page is exposed by name, so anything a dialog does you can script:
 
 | Name(s) | What it gives you |

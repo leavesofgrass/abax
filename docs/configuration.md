@@ -24,6 +24,7 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `last_sheet` | int | `0` | Active sheet index, restored on launch. |
 | `last_cell` | string | `""` | Cursor cell (A1), restored on launch. |
 | `code_consent` | bool | `false` | Whether you've consented to run untrusted code (console/terminal/scripts/macros). Set back to `false` to be prompted again. |
+| `code_isolation` | string | `"isolated"` | How code execution is isolated: `off` (in-process, no worker/limits), `isolated` (out-of-process worker + resource limits), or `strict` (also OS-confine filesystem + network). Cycle it from the command palette; see [Macros & scripting](macros-and-scripting.md). |
 | `faceplate_assets_dir` | string | `""` | Folder of calculator faceplate artwork (see [Faceplate assets](#faceplate-assets)). |
 | `show_toolbar` | bool | `true` | Show the GUI toolbar. |
 | `recent_files` | list | `[]` | Recently opened file paths. |
@@ -31,7 +32,7 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `fm_buttons` | list | `[]` | Your custom file-manager command buttons (`{label, command}`); see [File manager](file-manager.md). |
 | `auto_install` | bool | `true` | Auto-install optional dependencies (and show the first-run chooser); see [Auto-install](#auto-install). Set `false` to opt out. |
 | `deps_prompted` | bool | `false` | Whether the first-run optional-feature chooser has been shown. Set back to `false` to be asked again. |
-| `schema_version` | int | `1` | Settings schema version (managed by abax). |
+| `schema_version` | int | `2` | Settings schema version (managed by abax). |
 
 You can edit `settings.json` by hand while abax is closed, but most fields are also exposed through the GUI (theme, fonts, toolbar, faceplate folder) and the TUI, which is the recommended way to change them.
 

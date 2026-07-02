@@ -18,8 +18,8 @@ core  ──►  engine  ──►  gui / tui
 ```
 
 - **`abax/core/` — pure, stdlib-only.** The spreadsheet engine and formula
-  machinery (tokenizer, parser, evaluator, 500+ functions, the dynamic-array
-  spill engine, sheet/workbook model,
+  machinery (tokenizer, parser, evaluator, 600+ functions incl. `LET`/`LAMBDA`,
+  the dynamic-array spill engine, sheet/workbook model,
   search, fill/sort, completion, reference-shifting) live at the `core/` root, with
   the pluggable libraries grouped into subpackages:
   - **`core/io/`** — tabular import/export adapters (CSV/TSV, XML, Markdown, SQLite,
@@ -142,6 +142,45 @@ path, so importing Qt there is fine.
 
 `sys.excepthook` is installed at GUI startup (`gui/runner.py`) so anything that
 does escape is logged rather than lost.
+
+## Code execution & sandboxing
+
+The Python console, the script runner, and command macros all run user code, so
+they share one execution path with a **user-chosen isolation level** (the
+`code_isolation` setting: `off` / `isolated` / `strict`). `make_exec_bridge(level)`
+(`gui/console/console_bridge.py`) returns the transport; both transports expose
+the same `execute` / `execute_script` / `execute_macro` / `interrupt` / `close`
+surface, so callers never branch on the level.
+
+- **The worker (`console_worker.py`).** A `Worker` whose `handle` / `handle_script`
+  / `handle_macro` methods are **pure** — the live `Workbook` crosses in and out
+  as a JSON *envelope* per command, user vars persist in the child, and it
+  dispatches by `op` (`exec` / `script` / `macro`). Being pure, it is unit-tested
+  without a subprocess and reused directly in-process.
+- **`off` — `InProcessBridge`.** Calls the pure `Worker` in this process. No
+  subprocess, no limits, no confinement, no interrupt. Fastest; a crash takes the
+  GUI down.
+- **`isolated` (default) — `ConsoleBridge`.** Spawns `console_worker` as a child
+  and frames length-prefixed JSON over its pipes; a crash/hang/runaway there can't
+  take down the GUI. **Resource limits** (`proclimits.py`): POSIX `setrlimit`
+  applied in the child, or a Windows Job Object assigned by the parent (memory /
+  CPU / process caps, kill-on-job-close), plus a wall-clock watchdog in the bridge.
+- **`strict` — `ConsoleBridge(strict=True)`.** Adds OS confinement. `sandbox.py`
+  is the platform-agnostic seam (a `Confinement` strategy + a private writable
+  scratch dir); `sandbox_windows.py` (AppContainer, via `_winsandbox_ctypes.py`),
+  `sandbox_linux.py` (bubblewrap), and `sandbox_macos.py` (sandbox-exec) implement
+  it. The load-bearing safety mechanism is a **fail-closed self-test**: after
+  confinement is applied the worker attempts to write outside scratch and open a
+  socket, and refuses to run user code if either escape succeeds — and the bridge
+  refuses to spawn at all when no confinement is available. `restricted.py` is the
+  Phase-4 AST-allowlist fallback (labelled hardening, *not* a boundary).
+
+**Invariant (honesty).** `off`/`isolated` are documented as crash/resource
+isolation, **not** a security boundary; `strict` is a real boundary only where a
+platform primitive exists and the self-test passes, and refuses everywhere else.
+The GUI gates all code execution behind a one-time consent prompt (`ConsoleMixin`,
+the `code_consent` setting) that states the active level plainly. See
+[macros and scripting](macros-and-scripting.md) and `dev/sandbox-design.md`.
 
 ## Testing
 

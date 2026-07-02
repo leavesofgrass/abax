@@ -444,14 +444,16 @@ launch.
   the calculator's current value into every selected cell (undoable). Its
   faceplate art folder is set under *Tools → Calculator faceplates → Set image
   folder…*. See [Calculators](calculators.md) for the key-by-key details.
-- **Python console** (`Ctrl+Shift+Y`, *View → Python console*) — an embedded REPL
-  whose user code runs **out-of-process** (a subprocess on a background thread),
-  so a crash, hang, or runaway there never freezes the GUI, and a runaway can be
-  interrupted (which kills the worker; the next command respawns it). The live
-  workbook is shipped to the worker and back as a JSON envelope each command. Its
-  namespace includes `doc`, `wb`, `sheet()`, `cell(ref)`, `put(ref, val)`,
-  `refresh()`, `rpn`, and the engineering / data-science toolkits when installed;
-  Tab-completes those plus Python keywords and builtins.
+- **Python console** (`Ctrl+Shift+Y`, *View → Python console*) — an embedded REPL.
+  By default (the `isolated` level) its user code runs **out-of-process** (a
+  subprocess on a background thread), so a crash, hang, or runaway there never
+  freezes the GUI, and a runaway can be interrupted (which kills the worker; the
+  next command respawns it). The live workbook is shipped to the worker and back
+  as a JSON envelope each command. Its namespace includes `doc`, `wb`, `sheet()`,
+  `cell(ref)`, `put(ref, val)`, `refresh()`, `rpn`, and the engineering /
+  data-science toolkits when installed; Tab-completes those plus Python keywords
+  and builtins. The console's title bar shows the active **code-isolation level**
+  (in-process / isolated / strict) — cycle it from the command palette.
 - **Terminal** (`` Ctrl+` ``, *View → Terminal*) — a dockable shell. It prefers a
   **true PTY** terminal (ConPTY on Windows, `pty` on POSIX) that renders a real
   `pyte` screen with full colour/SGR styling — interactive full-screen programs
@@ -460,8 +462,14 @@ launch.
 
 The console and terminal both run **arbitrary code with your full privileges**,
 so the first time you open either one abax shows a one-time **consent gate**
-("Run untrusted code?"). Approving is remembered in settings; the subprocess
-gives crash/memory isolation, not a security sandbox.
+("Run untrusted code?"). Approving is remembered in settings. How isolated that
+code is depends on the **code-isolation level** (command palette → *Cycle code
+isolation*): `off` runs it in-process (no isolation), `isolated` (default) uses
+the out-of-process, resource-limited worker (crash/resource isolation, not a
+security boundary), and `strict` OS-confines the worker (no network, writes to a
+scratch dir only) and refuses to run if that confinement can't be established.
+For untrusted code, use `strict` or a throwaway VM/container. See
+[Macros & scripting](macros-and-scripting.md) for the full description.
 
 *View → Open default workspace* lays out the everyday arrangement in one click:
 the spreadsheet upper-left, a floating calculator, and the Python console
