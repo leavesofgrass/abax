@@ -452,6 +452,154 @@ def test_plot_expression_still_works():
     assert ed.plot_bounds is None  # expression form uses auto-ranging
 
 
+def test_visual_mode_enter_and_extend():
+    """`v` enters visual mode; h/j/k/l extend the selection from the anchor."""
+    ed = TuiEditor(Document())
+    ed.row, ed.col = 1, 1  # start at B2
+    ed.dispatch_normal("v")
+    assert ed.mode == "visual"
+    assert (ed.anchor_row, ed.anchor_col) == (1, 1)
+    ed.dispatch_normal("j")  # cursor -> B3 (below)
+    ed.dispatch_normal("l")  # cursor -> C3
+    assert ed.visual_bounds() == (1, 1, 2, 2)  # B2:C3, normalized
+
+
+def test_visual_mode_extends_upward_and_left():
+    """Selecting toward the origin still yields a normalized (r1<=r2) range."""
+    ed = TuiEditor(Document())
+    ed.row, ed.col = 2, 2  # C3
+    ed.dispatch_normal("v")
+    ed.dispatch_normal("k")  # C2
+    ed.dispatch_normal("h")  # B2
+    assert ed.visual_bounds() == (1, 1, 2, 2)  # anchor C3, cursor B2 -> B2:C3
+
+
+def test_visual_line_mode_spans_full_width():
+    """`V` selects whole rows across the used column width."""
+    ed = TuiEditor(Document())
+    ed.sheet.set("A1", "1")
+    ed.sheet.set("C1", "3")  # widen used bounds to column C (index 2)
+    ed.row, ed.col = 0, 0
+    ed.dispatch_normal("V")
+    assert ed.mode == "visual-line"
+    ed.dispatch_normal("j")  # extend to row 2
+    r1, c1, r2, c2 = ed.visual_bounds()
+    assert (r1, r2) == (0, 1)
+    assert (c1, c2) == (0, 2)  # whole width A..C
+
+
+def test_visual_aggregate_in_status_line():
+    """Sum / count / average of the numeric cells appear while in visual mode."""
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    for ref, v in [("A1", "10"), ("A2", "20"), ("A3", "hello")]:
+        ed.sheet.set(ref, v)
+    ed.row, ed.col = 0, 0
+    ed.dispatch_normal("v")
+    _handle_key(ed, "j")
+    _handle_key(ed, "j")  # A1:A3 — status line refreshes as the selection grows
+    total, count, avg = ed.visual_aggregate()
+    assert total == 30.0
+    assert count == 2  # the text cell is not counted
+    assert avg == 15.0
+    assert "sum=30" in ed.message
+    assert "count=2" in ed.message
+    assert "avg=15" in ed.message
+
+
+def test_visual_yank_copies_range_and_exits():
+    """`y` copies the selected range to the clipboard/registers and leaves visual."""
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    for ref, v in [("A1", "1"), ("B1", "2"), ("A2", "3"), ("B2", "4")]:
+        ed.sheet.set(ref, v)
+    ed.row, ed.col = 0, 0
+    ed.dispatch_normal("v")
+    ed.dispatch_normal("l")
+    ed.dispatch_normal("j")  # A1:B2
+    _handle_key(ed, "y")
+    assert ed.mode == "normal"
+    assert ed.clip is not None
+    assert ed.clip.nrows == 2 and ed.clip.ncols == 2
+    assert len(ed.clips.entries()) == 1
+    # The yanked clip pastes back verbatim elsewhere.
+    from abax.core.fill import paste_clip
+
+    paste_clip(ed.sheet, ed.clip, "D1", mode="absolute")
+    assert ed.sheet.get("D1") == 1
+    assert ed.sheet.get("E2") == 4
+
+
+def test_visual_delete_clears_with_undo():
+    """`d` clears the selection under an undo checkpoint; undo restores it."""
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    for ref, v in [("A1", "1"), ("B1", "2"), ("A2", "3"), ("B2", "4")]:
+        ed.sheet.set(ref, v)
+    ed.row, ed.col = 0, 0
+    ed.dispatch_normal("v")
+    ed.dispatch_normal("l")
+    ed.dispatch_normal("j")  # A1:B2
+    _handle_key(ed, "d")
+    assert ed.mode == "normal"
+    assert ed.sheet.get_raw(0, 0) == ""
+    assert ed.sheet.get_raw(1, 1) == ""
+    assert ed.doc.can_undo
+    ed.doc.undo()
+    assert ed.sheet.get("A1") == 1
+    assert ed.sheet.get("B2") == 4
+
+
+def test_visual_delete_via_x_records_clears():
+    """`x` in visual mode also clears the range and records the clears."""
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    ed.sheet.set("A1", "1")
+    ed.sheet.set("A2", "2")
+    ed.recorder.start("t")
+    ed.row, ed.col = 0, 0
+    ed.dispatch_normal("v")
+    ed.dispatch_normal("j")  # A1:A2
+    _handle_key(ed, "x")
+    assert ed.sheet.get_raw(0, 0) == ""
+    assert ed.sheet.get_raw(1, 0) == ""
+    assert ed.recorder.count == 2  # one clear per non-empty cell
+    assert all(a.kind == "clear" for a in ed.recorder.actions)
+
+
+def test_visual_escape_cancels_selection():
+    """Esc leaves visual mode without mutating the sheet."""
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    ed.sheet.set("A1", "keep")
+    ed.row, ed.col = 0, 0
+    ed.dispatch_normal("v")
+    ed.dispatch_normal("j")
+    _handle_key(ed, "\x1b")
+    assert ed.mode == "normal"
+    assert ed.sheet.get("A1") == "keep"
+    assert ed.message == ""
+
+
+def test_visual_movement_via_arrow_keys():
+    """Arrow keys extend the visual selection exactly like h/j/k/l."""
+    import curses
+
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    ed.row, ed.col = 0, 0
+    ed.dispatch_normal("v")
+    _handle_key(ed, curses.KEY_DOWN)
+    _handle_key(ed, curses.KEY_RIGHT)
+    assert ed.visual_bounds() == (0, 0, 1, 1)  # A1:B2
+
+
 def test_relative_record_and_replay_at_cursor():
     ed = TuiEditor(Document())
     # start relative recording at B2

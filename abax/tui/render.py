@@ -94,6 +94,8 @@ def _render(stdscr, curses, editor, attr, cap, colors, cond_attr) -> None:
     sheet = editor.sheet
     col_w = 10
     n_cols = max(1, (max_x - 5) // (col_w + 1))
+    # Active visual selection (r1, c1, r2, c2), or None when not in visual mode.
+    vsel = editor.visual_bounds() if editor.mode in ("visual", "visual-line") else None
     # Header row.
     _addstr(stdscr, 0, 0, " " * 5, attr("label"))
     x = 5
@@ -110,8 +112,13 @@ def _render(stdscr, curses, editor, attr, cap, colors, cond_attr) -> None:
             if x >= max_x:
                 break
             text = sheet.display(r, c)[:col_w].ljust(col_w)
+            in_sel = vsel is not None and vsel[0] <= r <= vsel[2] and vsel[1] <= c <= vsel[3]
             if r == editor.row and c == editor.col:
                 a = attr("cursor") | curses.A_REVERSE
+            elif in_sel:
+                # Highlight the visual selection (bold reverse, like the cursor
+                # but tinted with the accent role to distinguish it).
+                a = attr("accent") | curses.A_REVERSE
             else:
                 ca = cond_attr(colors.get((r, c)))
                 if ca is not None:
@@ -145,8 +152,11 @@ def _render(stdscr, curses, editor, attr, cap, colors, cond_attr) -> None:
         elif editor.arg_hint:
             line += "   " + editor.arg_hint
         _addstr(stdscr, max_y - 1, 0, line[: max_x - 1], attr("accent"))
+    elif editor.mode in ("visual", "visual-line"):
+        hint = "VISUAL  h/j/k/l extend  ·  y yank  ·  d/x delete  ·  Esc cancel"
+        _addstr(stdscr, max_y - 1, 0, hint[: max_x - 1], attr("dim"))
     else:
-        hint = "i edit  u undo  ? help  :find  :rpn  :plot  :eq  :fmt  :py  :func  :w :q"
+        hint = "i edit  v visual  u undo  ? help  :find  :rpn  :plot  :eq  :fmt  :py  :func  :w :q"
         _addstr(stdscr, max_y - 1, 0, hint[: max_x - 1], attr("dim"))
 
 

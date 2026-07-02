@@ -44,10 +44,28 @@ def _handle_key(editor: TuiEditor, ch) -> None:
         if key is not None:
             editor.message = ""
             editor.dispatch_normal(key)
+    elif editor.mode in ("visual", "visual-line"):
+        _handle_visual(editor, ch)
     elif editor.mode == "insert":
         _handle_insert(editor, ch)
     elif editor.mode == "command":
         _handle_command(editor, ch)
+
+
+def _handle_visual(editor: TuiEditor, ch) -> None:
+    # Movement (h/j/k/l AND arrow keys) extends the selection from the anchor;
+    # the cursor moves while the anchor stays put. Operations act on the range.
+    key = ch if isinstance(ch, str) else _arrow_vi(ch)
+    if key in ("h", "j", "k", "l"):
+        editor.move(*{"h": (0, -1), "l": (0, 1),
+                      "j": (1, 0), "k": (-1, 0)}[key])
+        editor.visual_refresh()
+    elif key == "\x1b" or key == "v":  # Esc / v cancels
+        editor.cancel_visual()
+    elif key == "y":  # yank the selection
+        editor.visual_yank()
+    elif key in ("d", "x"):  # delete/clear the selection (undo checkpoint)
+        editor.visual_delete()
 
 
 def _handle_rpn(editor: TuiEditor, ch) -> None:

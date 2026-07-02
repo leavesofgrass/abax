@@ -73,7 +73,9 @@ class TuiEditor:
         self.recorder = MacroRecorder()
         self.row = 0
         self.col = 0
-        self.mode = "normal"  # normal | insert | command | browser | help
+        self.mode = "normal"  # normal|insert|command|browser|visual|visual-line|help
+        self.anchor_row = 0  # visual-mode selection anchor (fixed corner)
+        self.anchor_col = 0
         self.command_buf = ""
         self.edit_buf = ""
         self.completions: list[str] = []
@@ -748,6 +750,10 @@ class TuiEditor:
             self.next_match(-1)
         elif ch == "i":
             self.begin_insert()
+        elif ch == "v":  # visual (cell-range) selection
+            self.begin_visual(line=False)
+        elif ch == "V":  # visual-line (whole-row) selection
+            self.begin_visual(line=True)
         elif ch == ":":
             self.begin_command()
         elif ch == "x":
@@ -776,3 +782,91 @@ class TuiEditor:
                            on_set=self.recorder.record_set)
                 self.doc.mark_dirty()
                 self.message = f"pasted at {self.cursor_a1()}"
+
+    # --- visual selection mode -------------------------------------------
+
+    def begin_visual(self, *, line: bool = False) -> None:
+        """Enter visual (``v``) or visual-line (``V``) mode.
+
+        The current cell becomes the *anchor*; subsequent movement extends the
+        selection from it. The live selection aggregate is shown immediately.
+        """
+        self.anchor_row, self.anchor_col = self.row, self.col
+        self.mode = "visual-line" if line else "visual"
+        self.message = self._visual_aggregate_text()
+
+    def cancel_visual(self) -> None:
+        """Leave visual mode without acting on the selection (``Esc``)."""
+        self.mode = "normal"
+        self.message = ""
+
+    def visual_bounds(self) -> tuple[int, int, int, int]:
+        """``(r1, c1, r2, c2)`` for the active selection, normalized r1<=r2 etc.
+
+        In visual-line mode the columns span the whole used width so the
+        selection always covers complete rows.
+        """
+        r1, r2 = sorted((self.anchor_row, self.row))
+        if self.mode == "visual-line":
+            _, n_cols = self.sheet.used_bounds()
+            c1, c2 = 0, max(0, n_cols - 1)
+        else:
+            c1, c2 = sorted((self.anchor_col, self.col))
+        return r1, c1, r2, c2
+
+    def visual_aggregate(self) -> tuple[float, int, float | None]:
+        """``(sum, count, average)`` over the numeric cells of the selection.
+
+        ``count`` is the number of numeric (non-blank, non-bool) cells; the
+        average is ``None`` when there are none.
+        """
+        r1, c1, r2, c2 = self.visual_bounds()
+        total = 0.0
+        count = 0
+        for r in range(r1, r2 + 1):
+            for c in range(c1, c2 + 1):
+                val = self.sheet.get_value(r, c)
+                if isinstance(val, (int, float)) and not isinstance(val, bool):
+                    total += float(val)
+                    count += 1
+        avg = (total / count) if count else None
+        return total, count, avg
+
+    def _visual_aggregate_text(self) -> str:
+        r1, c1, r2, c2 = self.visual_bounds()
+        rng = f"{to_a1(r1, c1)}:{to_a1(r2, c2)}"
+        total, count, avg = self.visual_aggregate()
+        if not count:
+            return f"{rng}  count=0"
+        return (f"{rng}  sum={_fmt_num(total)}  count={count}  "
+                f"avg={_fmt_num(avg)}")
+
+    def visual_refresh(self) -> None:
+        """Recompute the status-line aggregate after the selection moved."""
+        self.message = self._visual_aggregate_text()
+
+    def visual_yank(self) -> None:
+        """Copy the selection to the clipboard/registers, then leave visual mode."""
+        from ..core.fill import copy_region, region_to_tsv
+
+        rng = self.visual_bounds()
+        self.clip = copy_region(self.sheet, rng)
+        self.clips.add(region_to_tsv(self.sheet, rng))
+        r1, c1, r2, c2 = rng
+        label = f"{to_a1(r1, c1)}:{to_a1(r2, c2)}"
+        self.mode = "normal"
+        self.message = f"yanked {label}"
+
+    def visual_delete(self) -> None:
+        """Clear the selected cells with an undo checkpoint, then leave visual mode."""
+        r1, c1, r2, c2 = self.visual_bounds()
+        label = f"{to_a1(r1, c1)}:{to_a1(r2, c2)}"
+        self.doc.checkpoint(f"delete {label}")
+        for r in range(r1, r2 + 1):
+            for c in range(c1, c2 + 1):
+                if self.sheet.get_raw(r, c):
+                    self.sheet.set_cell(r, c, "")
+                    self.recorder.record_clear(to_a1(r, c))
+        self.doc.mark_dirty()
+        self.mode = "normal"
+        self.message = f"cleared {label}"
