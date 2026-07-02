@@ -89,6 +89,16 @@ manufacturer's **AL** value in nH/turn².
 | `DISHGAIN(diameter_m, freq_hz, [eff=0.55])` | parabolic-dish gain (dBi) |
 | `DISHBW(diameter_m, freq_hz)` | parabolic-dish half-power beamwidth (degrees) |
 | `DOPPLER(freq_hz, velocity_mps)` | Doppler shift for a closing/opening velocity (Hz) |
+| `ZINLINER(z_load_r, z_load_x, z0, elec_len_deg)` | real part of lossless-line input impedance Zin (Ω) |
+| `ZINLINEX(z_load_r, z_load_x, z0, elec_len_deg)` | imaginary part of lossless-line input impedance Zin (Ω) |
+| `LINELOSS(length_m, freq_hz, matched_loss_db_per_100m)` | matched line loss (dB) |
+
+`ZINLINER`/`ZINLINEX` transform the load `ZL = z_load_r + j·z_load_x` through a
+lossless line of characteristic impedance `z0` and electrical length
+`elec_len_deg` (90° = quarter wave, 180° = half wave):
+`Zin = Z0·(ZL + jZ0·tan βl)/(Z0 + jZL·tan βl)`. A quarter-wave line maps `ZL` to
+`Z0²/ZL`; a half-wave line repeats the load. Return the real / imaginary parts
+separately, mirroring `DIPOLER`/`DIPOLEX`.
 
 ## Link budget & propagation
 

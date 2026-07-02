@@ -163,6 +163,28 @@ def _rfm_numeric(name: str, spec: tuple):
     return wrapper
 
 
+def _txline_z_component(part: str):
+    """Real/imag part of a lossless-line input impedance ``Zin`` from the load
+    resistance/reactance, characteristic impedance and electrical length (deg).
+    Mirrors :func:`_ant_z_component` — keeps the formula layer real-valued by
+    returning the parts separately (see ZINLINER / ZINLINEX)."""
+    def wrapper(args):
+        from ..science import rf_math as M
+        try:
+            r = _as_number(_arg(args, 0))
+            x = _as_number(_arg(args, 1))
+            z0 = _as_number(_arg(args, 2))
+            elen = _as_number(_arg(args, 3))
+        except (ValueError, TypeError):
+            return CellError(CellError.VALUE)
+        try:
+            z = M.zin_line(complex(r, x), z0, elen)
+        except (ValueError, TypeError, ZeroDivisionError, OverflowError):
+            return CellError(CellError.NUM)
+        return z.real if part == "r" else z.imag
+    return wrapper
+
+
 _R = _RF_REQUIRED
 
 
@@ -180,5 +202,6 @@ __all__ = [
     "_ant_z_component",
     "_ant_radres",
     "_ant_resonant",
+    "_txline_z_component",
     "_R",
 ]

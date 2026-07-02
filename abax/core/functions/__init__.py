@@ -171,6 +171,10 @@ FUNCTIONS.update({
     "DISHGAIN": _rfm_numeric("parabolic_gain_dbi", (_R, _R, 0.55)),
     "DISHBW": _rfm_numeric("parabolic_beamwidth_deg", (_R, _R)),
     "DOPPLER": _rfm_numeric("doppler_shift_hz", (_R, _R)),
+    # transmission line
+    "ZINLINER": _txline_z_component("r"),
+    "ZINLINEX": _txline_z_component("x"),
+    "LINELOSS": _rfm_numeric("line_loss_db", (_R, _R, _R)),
 })
 
 # Modern array functions (UNIQUE/SORT/FILTER/SEQUENCE/TRANSPOSE/VSTACK/TAKE/…)

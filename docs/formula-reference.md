@@ -892,6 +892,8 @@ units note, and worked examples in [RF toolkit](rf-toolkit.md).
 | `LOOPLEN` | full-wave loop length (m) | `LOOPLEN(freq_hz)` | |
 | `DISHGAIN` / `DISHBW` | parabolic-dish gain / beamwidth | `DISHGAIN(diam_m, freq_hz, [eff])` | |
 | `DOPPLER` | Doppler shift (Hz) | `DOPPLER(freq_hz, velocity_mps)` | |
+| `ZINLINER` / `ZINLINEX` | lossless-line input Z real / imag (Ω) | `ZINLINER(zl_r, zl_x, z0, elen_deg)` | `=ZINLINER(100,0,50,90)` → `25` |
+| `LINELOSS` | matched line loss (dB) | `LINELOSS(length_m, freq_hz, loss_db_per_100m)` | `=LINELOSS(50,1e8,4)` → `2` |
 
 For antenna modeling beyond these closed-form functions — the thin-wire Method of
 Moments solver and NEC `.nec` I/O — see [RF toolkit](rf-toolkit.md).

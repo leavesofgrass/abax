@@ -179,6 +179,9 @@ SIGNATURES = {
     "LOOPLEN": "LOOPLEN(freq_hz)",
     "DISHGAIN": "DISHGAIN(diameter_m, freq_hz, [efficiency=0.55])",
     "DISHBW": "DISHBW(diameter_m, freq_hz)", "DOPPLER": "DOPPLER(freq_hz, velocity_mps)",
+    "ZINLINER": "ZINLINER(z_load_r, z_load_x, z0, elec_len_deg)",
+    "ZINLINEX": "ZINLINEX(z_load_r, z_load_x, z0, elec_len_deg)",
+    "LINELOSS": "LINELOSS(length_m, freq_hz, matched_loss_db_per_100m)",
 }
 
 # The Excel/Gnumeric-parity function packs carry their own signatures; merge them

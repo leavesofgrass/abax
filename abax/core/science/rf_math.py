@@ -164,6 +164,108 @@ def parabolic_beamwidth_deg(diameter_m: float, freq_hz: float) -> float:
     return 70.0 * lam / diameter_m
 
 
+# --- transmission line -----------------------------------------------------
+
+def zin_line(z_load_complex: complex, z0: float, electrical_length_deg: float) -> complex:
+    """Input impedance of a lossless transmission line terminated in ``Z_L``:
+
+        Zin = Z0 * (ZL + j*Z0*tan(bl)) / (Z0 + j*ZL*tan(bl))
+
+    where ``bl`` (beta*l) is the electrical length in radians. ``z_load_complex``
+    is the (complex) load impedance and ``z0`` the (real) characteristic impedance
+    in ohms; ``electrical_length_deg`` is the line length in electrical degrees
+    (90 deg = quarter wave, 180 deg = half wave). Returns a complex impedance.
+
+    A quarter-wave line (90 deg) transforms ZL to Z0**2/ZL; a half-wave line
+    (180 deg) repeats the load (Zin = ZL). Requires z0 > 0.
+    """
+    if z0 <= 0:
+        raise ValueError("characteristic impedance must be > 0")
+    zl = complex(z_load_complex)
+    bl = math.radians(electrical_length_deg)
+    # cos(bl)==0 (odd multiples of 90 deg) -> tan diverges; use the cos/sin form
+    # so the quarter-wave case is exact rather than an overflow.
+    c = math.cos(bl)
+    s = math.sin(bl)
+    num = zl * c + 1j * z0 * s
+    den = z0 * c + 1j * zl * s
+    if den == 0:
+        raise ValueError("degenerate line (division by zero)")
+    return z0 * num / den
+
+
+def line_loss_db(length_m: float, freq_hz: float, matched_loss_db_per_100m: float) -> float:
+    """Matched (SWR = 1) transmission-line loss in dB.
+
+    Textbook model: for a matched line the loss in dB scales linearly with the
+    physical length, so ``loss = matched_loss_db_per_100m * (length_m / 100)``.
+    ``matched_loss_db_per_100m`` is the cable's rated matched loss per 100 m at
+    the frequency of interest (``freq_hz`` is carried for API symmetry with the
+    frequency-dependent RF functions and validated as > 0 but does not otherwise
+    enter this simple linear model). Requires length_m >= 0, freq_hz > 0 and
+    matched_loss_db_per_100m >= 0.
+    """
+    if length_m < 0:
+        raise ValueError("length must be >= 0")
+    if freq_hz <= 0:
+        raise ValueError("frequency must be > 0")
+    if matched_loss_db_per_100m < 0:
+        raise ValueError("matched loss must be >= 0")
+    return matched_loss_db_per_100m * (length_m / 100.0)
+
+
+def stub_match_short(z_load_complex: complex, z0: float) -> tuple[float, float]:
+    """Shunt single-stub match with a SHORT-circuited stub.
+
+    Standard closed-form for matching a complex load ``ZL`` to a real line of
+    characteristic impedance ``Z0`` with a shorted shunt stub. Returns
+    ``(distance_wl, stub_len_wl)`` — the distance from the load to the stub and
+    the stub length, both in wavelengths (0 <= value < 0.5).
+
+    Derivation (Pozar, *Microwave Engineering*): with normalized load admittance,
+    pick the line length ``d`` so the real part of the normalized input admittance
+    at the stub point equals 1; the shorted stub then cancels the residual
+    (normalized) susceptance ``b``. For a shorted stub the input susceptance is
+    ``-cot(bl)``, so ``l = atan2(-1, b) / (2*pi)`` in wavelengths (folded into
+    ``[0, 0.5)``). Requires z0 > 0 and a load with a non-zero real part.
+    """
+    if z0 <= 0:
+        raise ValueError("characteristic impedance must be > 0")
+    zl = complex(z_load_complex)
+    rl, xl = zl.real, zl.imag
+    if rl <= 0:
+        raise ValueError("load must have a positive real part")
+
+    if abs(rl - z0) < 1e-12 and abs(xl) < 1e-12:
+        # already matched: zero-length line, stub does nothing (half wavelength)
+        return 0.0, 0.5
+
+    # t = tan(beta*d); Pozar eqn (5.9): solve R(d)=Z0.
+    if abs(rl - z0) < 1e-12:
+        t = -xl / (2.0 * z0)
+    else:
+        disc = rl * ((z0 - rl) ** 2 + xl ** 2) / z0
+        t = (xl + math.sqrt(disc)) / (rl - z0)
+
+    d = math.atan(t) / _TWO_PI
+    if d < 0:
+        d += 0.5
+
+    # Normalized input admittance at the stub point; by construction its
+    # conductance is 1, and we read off the residual susceptance b to cancel.
+    bl = _TWO_PI * d
+    tb = math.tan(bl)
+    zin = z0 * (zl + 1j * z0 * tb) / (z0 + 1j * zl * tb)
+    b_norm = (z0 / zin).imag   # y_in * Z0 = 1 + j*b_norm
+
+    # A short-circuited shunt stub presents normalized susceptance -cot(beta*l);
+    # to cancel +b_norm we need cot(beta*l) = b_norm, i.e. tan(beta*l) = 1/b_norm.
+    stub_len = math.atan2(1.0, b_norm) / _TWO_PI
+    if stub_len < 0:
+        stub_len += 0.5
+    return d, stub_len
+
+
 # --- Doppler --------------------------------------------------------------
 
 def doppler_shift_hz(freq_hz: float, velocity_mps: float) -> float:
