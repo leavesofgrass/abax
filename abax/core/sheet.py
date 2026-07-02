@@ -75,6 +75,9 @@ class Sheet:
         self.cell_formats: dict[tuple[int, int], str] = {}
         # Per-cell visual styles (core.cellstyle.CellStyle); persisted likewise.
         self.cell_styles: dict[tuple[int, int], Any] = {}
+        # Per-cell comments/notes (plain text); metadata only, not formula inputs.
+        # Persisted likewise; shown as a marker + tooltip by the GUI.
+        self.cell_comments: dict[tuple[int, int], str] = {}
         # Data-validation rules over ranges: list of (r1, c1, r2, c2, ValidationRule).
         self.validations: list = []
         self._cells: dict[tuple[int, int], Cell] = {}
@@ -222,6 +225,8 @@ class Sheet:
                              if (nk := move(k)) is not None}
         self.cell_styles = {nk: st for k, st in self.cell_styles.items()
                             if (nk := move(k)) is not None}
+        self.cell_comments = {nk: text for k, text in self.cell_comments.items()
+                              if (nk := move(k)) is not None}
 
         # Shift conditional-format rule ranges; drop any fully deleted.
         new_rules = []
@@ -283,6 +288,19 @@ class Sheet:
             if r1 <= row <= r2 and c1 <= col <= c2:
                 return rule
         return None
+
+    def set_comment(self, row: int, col: int, text: str) -> None:
+        """Attach a comment/note to a cell. Empty (or whitespace-only) text
+        removes it. Comments are metadata — they do not affect cell values."""
+        key = (row, col)
+        if text and text.strip():
+            self.cell_comments[key] = text
+        else:
+            self.cell_comments.pop(key, None)
+
+    def get_comment(self, row: int, col: int) -> str | None:
+        """The comment attached to ``(row, col)``, or None if there is none."""
+        return self.cell_comments.get((row, col))
 
     def get_cell(self, row: int, col: int) -> Cell | None:
         return self._cells.get((row, col))

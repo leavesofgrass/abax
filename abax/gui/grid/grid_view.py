@@ -19,13 +19,16 @@ from __future__ import annotations
 from .._qtcompat import (
     QAbstractItemDelegate,
     QAbstractItemView,
+    QBrush,
     QColor,
     QComboBox,
     QEvent,
     QItemSelection,
     QItemSelectionModel,
     QLineEdit,
+    QPainterPath,
     QPen,
+    QPointF,
     QStyledItemDelegate,
     Qt,
     QTableView,
@@ -35,6 +38,10 @@ from .._qtcompat import (
 
 # Excel-style dynamic-array spill outline colour (a calm blue).
 _SPILL_COLOR = "#3b82f6"
+
+# Comment marker: a small red triangle tucked into the cell's top-right corner.
+_COMMENT_COLOR = "#dc2626"
+_COMMENT_MARKER_SIZE = 6
 
 _VIM_KEYS = frozenset("jkhlgG/")
 
@@ -55,11 +62,13 @@ class GridDelegate(QStyledItemDelegate):
         self._win = window
 
     def paint(self, painter, option, index):  # noqa: N802 (Qt override)
-        """Draw the cell, then trace the dashed spill outline on any region edge
-        passing through it — the visual cue that these values came from one
-        dynamic-array formula (only the anchor is editable)."""
+        """Draw the cell, then overlay a small red triangle on any commented cell
+        and trace the dashed spill outline on any region edge passing through it —
+        the visual cues for a note and for a dynamic-array spill respectively."""
         super().paint(painter, option, index)
         sheet = self._win._doc.workbook.sheet
+        if sheet.get_comment(index.row(), index.column()) is not None:
+            self._paint_comment_marker(painter, option)
         edges = sheet.spill_edges(index.row(), index.column())
         if not edges:
             return
@@ -76,6 +85,22 @@ class GridDelegate(QStyledItemDelegate):
             painter.drawLine(rect.topLeft(), rect.bottomLeft())
         if "right" in edges:
             painter.drawLine(rect.topRight(), rect.bottomRight())
+        painter.restore()
+
+    def _paint_comment_marker(self, painter, option) -> None:
+        """Fill a small red triangle in the cell's top-right corner (the note cue)."""
+        rect = option.rect
+        size = _COMMENT_MARKER_SIZE
+        top_right = rect.topRight()
+        path = QPainterPath()
+        path.moveTo(QPointF(top_right.x() - size, top_right.y() + 1))
+        path.lineTo(QPointF(top_right.x() + 1, top_right.y() + 1))
+        path.lineTo(QPointF(top_right.x() + 1, top_right.y() + size + 1))
+        path.closeSubpath()
+        painter.save()
+        painter.setRenderHint(painter.RenderHint.Antialiasing, True)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.fillPath(path, QBrush(QColor(_COMMENT_COLOR)))
         painter.restore()
 
     def _list_rule(self, index):

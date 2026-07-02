@@ -65,6 +65,38 @@ class DocumentMixin:
         self.refresh_table()  # dependents may have changed
         return True
 
+    # --- cell comments / notes -------------------------------------------
+
+    def edit_comment(self) -> None:
+        """Add or edit the comment on the current cell via a text prompt."""
+        from ._qtcompat import QInputDialog
+
+        row, col = self._table.currentRow(), self._table.currentColumn()
+        if row < 0 or col < 0:
+            return
+        sheet = self._doc.workbook.sheet
+        current = sheet.get_comment(row, col) or ""
+        text, ok = QInputDialog.getMultiLineText(
+            self, "Cell comment", f"Comment for {to_a1(row, col)}:", current)
+        if not ok:
+            return
+        self._set_comment(row, col, text)
+
+    def delete_comment(self) -> None:
+        """Remove the comment on the current cell."""
+        row, col = self._table.currentRow(), self._table.currentColumn()
+        if row < 0 or col < 0:
+            return
+        if self._doc.workbook.sheet.get_comment(row, col) is None:
+            return
+        self._set_comment(row, col, "")
+
+    def _set_comment(self, row: int, col: int, text: str) -> None:
+        self._doc.checkpoint(f"comment {to_a1(row, col)}")
+        self._doc.workbook.sheet.set_comment(row, col, text)
+        self._doc.mark_dirty()
+        self.refresh_table()
+
     # --- copy / paste / fill (grid editing) ------------------------------
 
     def _record(self, ref: str, raw: str) -> None:

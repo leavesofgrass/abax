@@ -184,6 +184,7 @@ class Workbook:
                         "formats": {to_a1(r, c): spec for (r, c), spec in s.cell_formats.items()},
                         "styles": {to_a1(r, c): st.to_dict()
                                    for (r, c), st in s.cell_styles.items() if not st.is_empty()},
+                        "comments": {to_a1(r, c): text for (r, c), text in s.cell_comments.items()},
                         "validations": [
                             {"range": f"{to_a1(r1, c1)}:{to_a1(r2, c2)}", "rule": rule.to_dict()}
                             for r1, c1, r2, c2, rule in s.validations],
@@ -211,6 +212,9 @@ class Workbook:
             sheet.cell_formats = {parse_a1(ref): spec for ref, spec in s.get("formats", {}).items()}
             sheet.cell_styles = {parse_a1(ref): CellStyle.from_dict(d)
                                  for ref, d in s.get("styles", {}).items()}
+            # Comments are optional — older files without the key load fine.
+            sheet.cell_comments = {parse_a1(ref): text
+                                   for ref, text in s.get("comments", {}).items()}
             from .validation import ValidationRule
 
             for v in s.get("validations", []):

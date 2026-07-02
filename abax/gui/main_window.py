@@ -732,6 +732,16 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         m.addAction(make_icon("condformat"), "Conditional format...", self.add_conditional_format)
         m.addSeparator()
 
+        row, col = self._table.currentRow(), self._table.currentColumn()
+        has_comment = (row >= 0 and col >= 0
+                       and self._doc.workbook.sheet.get_comment(row, col) is not None)
+        if has_comment:
+            m.addAction("Edit comment...", self.edit_comment)
+            m.addAction("Delete comment", self.delete_comment)
+        else:
+            m.addAction("Insert comment...", self.edit_comment)
+        m.addSeparator()
+
         data = m.addMenu("Data")
         data.addAction(make_icon("sort"), "Sort ascending", lambda: self._sort_selection(False))
         data.addAction(make_icon("sort"), "Sort descending", lambda: self._sort_selection(True))

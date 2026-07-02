@@ -98,6 +98,9 @@ class AbaxTableModel(QAbstractTableModel):
             return sheet.display(r, c)
         if role == role_e.EditRole:
             return sheet.get_raw(r, c)
+        if role == role_e.ToolTipRole:
+            # A cell comment surfaces as the cell's tooltip (None -> no tooltip).
+            return sheet.get_comment(r, c)
         if role not in (role_e.BackgroundRole, role_e.ForegroundRole,
                         role_e.FontRole, role_e.TextAlignmentRole):
             return None
