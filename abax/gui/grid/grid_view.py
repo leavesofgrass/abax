@@ -196,7 +196,14 @@ class CellTableView(QTableView):
             | QAbstractItemView.EditTrigger.AnyKeyPressed)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        # Screen-reader identity for the grid itself. The model serves per-cell
+        # AccessibleText/Description roles; Qt announces the focused cell on move,
+        # and we mirror the current cell onto the view's description as a fallback.
+        self.setAccessibleName("Spreadsheet grid")
+        self.setAccessibleDescription(
+            "Spreadsheet cells. Arrow keys move; type to edit; F2 edits in place.")
         self.selectionModel().currentChanged.connect(self._emit_current_changed)
+        self.selectionModel().currentChanged.connect(self._announce_current)
 
     # -- current-cell signal ----------------------------------------------
 
@@ -206,6 +213,19 @@ class CellTableView(QTableView):
             cur.column() if cur.isValid() else -1,
             prev.row() if prev.isValid() else -1,
             prev.column() if prev.isValid() else -1)
+
+    def _announce_current(self, cur, prev) -> None:
+        """Mirror the active cell onto the view's accessible description.
+
+        Qt already raises a focus event that names the cell (via the model's
+        AccessibleTextRole) as the current index moves; this keeps the view's own
+        description in sync so a reader querying the grid hears the live cell too.
+        """
+        if not cur.isValid():
+            return
+        text = cur.data(Qt.ItemDataRole.AccessibleTextRole)
+        if text:
+            self.setAccessibleDescription(str(text))
 
     # -- QTableWidget-compatible API --------------------------------------
 

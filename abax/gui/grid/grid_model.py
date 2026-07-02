@@ -15,7 +15,7 @@ not the computed value.
 from __future__ import annotations
 
 from .._qtcompat import QAbstractTableModel, QBrush, QColor, QFont, QModelIndex, Qt
-from ...core.reference import index_to_col
+from ...core.reference import index_to_col, to_a1
 
 # Headroom past the used range so there is always blank space to type into; the
 # view virtualizes, so a generous extent is cheap. It grows on demand and never
@@ -76,11 +76,15 @@ class AbaxTableModel(QAbstractTableModel):
         return 0 if parent.isValid() else self._cols
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):  # noqa: N802
-        if role != Qt.ItemDataRole.DisplayRole:
-            return None
-        if orientation == Qt.Orientation.Horizontal:
-            return index_to_col(section)
-        return str(section + 1)
+        role_e = Qt.ItemDataRole
+        if role in (role_e.DisplayRole, role_e.AccessibleTextRole):
+            if orientation == Qt.Orientation.Horizontal:
+                label = index_to_col(section)
+                # A screen reader hears "column A", not a bare letter.
+                return f"column {label}" if role == role_e.AccessibleTextRole else label
+            label = str(section + 1)
+            return f"row {label}" if role == role_e.AccessibleTextRole else label
+        return None
 
     def flags(self, index):  # noqa: N802 (Qt override)
         if not index.isValid():
@@ -101,6 +105,22 @@ class AbaxTableModel(QAbstractTableModel):
         if role == role_e.ToolTipRole:
             # A cell comment surfaces as the cell's tooltip (None -> no tooltip).
             return sheet.get_comment(r, c)
+        if role == role_e.AccessibleTextRole:
+            # What a screen reader announces for the cell: its A1 address and the
+            # value the sighted user sees. An empty cell reads as just its address.
+            ref = to_a1(r, c)
+            shown = sheet.display(r, c)
+            return f"{ref} {shown}" if shown else ref
+        if role == role_e.AccessibleDescriptionRole:
+            # Extra spoken detail: the underlying formula (so a formula cell is
+            # distinguishable from a literal by ear) and whether it has a comment.
+            parts = []
+            raw = sheet.get_raw(r, c)
+            if raw.startswith("="):
+                parts.append(f"formula {raw}")
+            if sheet.get_comment(r, c):
+                parts.append("has comment")
+            return ", ".join(parts) if parts else None
         if role not in (role_e.BackgroundRole, role_e.ForegroundRole,
                         role_e.FontRole, role_e.TextAlignmentRole):
             return None
