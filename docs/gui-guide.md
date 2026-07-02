@@ -302,6 +302,18 @@ highlight every cell the formula reads from. It's a quick way to trace where a
 result comes from. If the cell isn't a formula with references, the status bar
 says so.
 
+## Recalculation
+
+Recalculation is **automatic**. Cell values are computed on demand and memoized,
+and any edit clears the value cache so every dependent recomputes — including
+dependents that live on other sheets (cross-sheet refs invalidate every sheet's
+cache). You never have to trigger a recompute after typing a value or a formula.
+
+When you want to force a full pass anyway — for example after loading data, or to
+re-roll volatile functions like `RAND` / `NOW` — *Data → Recalculate* (`F9`)
+recomputes every formula in the workbook and refreshes the grid, and the status
+bar confirms with `recalculated`.
+
 ## Undo / redo
 
 | Action | Shortcut |
@@ -407,10 +419,12 @@ Import paths:
   off the UI thread and opens it, guessing the format from the URL / content type.
 
 Supported formats include CSV/TSV, Excel `.xlsx`, LibreOffice `.ods`,
-Parquet/Feather, XML Spreadsheet, Markdown, Jupyter `.ipynb`, R, and native
-`.abax`/JSON. *File → Export as HTML report…* writes the whole workbook to a
-standalone HTML page. (Some formats require optional dependencies — run
-`python -m abax --deps` to see what's installed.)
+Parquet/Feather, XML Spreadsheet, Markdown, Jupyter `.ipynb`, R, SQLite, ADIF
+amateur-radio logbooks (`.adi`/`.adif`), and native `.abax`/JSON. *File → Export
+as HTML report…* writes the whole workbook to a standalone HTML page. (Some
+formats require optional dependencies — run `python -m abax --deps` to see what's
+installed.) The full list of what each format keeps is in
+[File formats](file-formats.md).
 
 ## Command palette
 

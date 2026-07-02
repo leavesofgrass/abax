@@ -26,6 +26,7 @@ See also: [index](index.md) · [formula reference](formula-reference.md) ·
 | R data.frame | `.r` `.rdata` | yes | yes | — | always available |
 | JSON Lines | `.jsonl` `.ndjson` | yes | yes | — | always available |
 | Fixed-width | `.fixed` | yes | yes | — | always available |
+| ADIF logbook | `.adi` `.adif` | yes | yes | — | always available |
 | SQLite | `.db` `.sqlite` `.sqlite3` | yes | yes | — (stdlib `sqlite3`) | always available |
 
 Only **Excel** and **Parquet/Feather** require third-party packages. Everything
@@ -248,6 +249,24 @@ Also in [`abax/core/io/flatfile_io.py`](../abax/core/io/flatfile_io.py). Import 
 slices each line by explicit character widths or, by default, splits on runs of
 two-or-more spaces (the layout of `column -t` output). Export renders each column
 left-aligned and padded to its widest value plus a gap.
+
+## ADIF amateur-radio logbook (`.adi`, `.adif`)
+
+[`abax/core/io/adif_io.py`](../abax/core/io/adif_io.py) reads and writes ADIF
+(Amateur Data Interchange Format), the standard interchange format for
+amateur-radio logbooks — pure stdlib. A logbook is text whose fields are written
+as `<FIELDNAME:LENGTH>value` (the length is the value's **UTF-8 byte** count, so
+values are parsed in bytes and survive multi-byte characters). An optional header
+ends at `<EOH>`; each QSO record ends at `<EOR>` (both case-insensitive, and
+field names are stored upper-cased).
+
+Import loads the file into a single sheet named **`Log`**: row 0 is the union of
+all field names (first-seen order), and each later row is one QSO, with a missing
+field left blank. Export takes row 0 as the field names and writes each data row
+back as a QSO record (empty cells are skipped), under an `abax` header
+(`<ADIF_VER:5>3.1.4`, `<PROGRAMID:5>abax`, `<EOH>`). See the
+[RF toolkit](rf-toolkit.md) for the ham-radio functions (band plan, CTCSS,
+Maidenhead grid, and the `DXCC` prefix lookup) that pair with a logbook sheet.
 
 ## SQLite (`.db`, `.sqlite`, `.sqlite3`)
 

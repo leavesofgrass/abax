@@ -42,7 +42,7 @@ dependencies auto-install in the background).
 - [Budgeting](budgeting.md) — the budget wizard and the live `SUMIF`-driven budget
   sheet.
 - [File formats](file-formats.md) — CSV, Excel, ODS, Parquet, XML, Markdown,
-  Jupyter, R, SQLite, JSON Lines, and the native `.abax` envelope.
+  Jupyter, R, SQLite, JSON Lines, ADIF logbooks, and the native `.abax` envelope.
 - [Command-line interface](cli.md) — headless `view`/`convert`/`get`/`macro`/`deps`
   plus the GUI/TUI launchers.
 - [Configuration](configuration.md) — settings, auto-install, environment
