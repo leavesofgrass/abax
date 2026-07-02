@@ -10,7 +10,47 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+_The first batch of the 0.1.20 roadmap (see `dev/roadmap.md`) — six workstreams
+built in parallel:_
+
 ### Added
+- **Nonparametric & rank statistics** (`core/science/nonparam.py`, pure stdlib):
+  Mann-Whitney U, Wilcoxon signed-rank, Kruskal-Wallis H, Spearman ρ and
+  Kendall τ-b — each with a two-sided p-value and tie handling, oracle-tested
+  against known values. Exposed as `nonparam` in the Python console. Fills a
+  real gap: parametric tests were strong but rank tests needed scipy.
+- **Distribution charts** in the pure-stdlib SVG grapher
+  (`core/science/chartsvg.py`): **box-and-whisker**, **violin** (Gaussian KDE),
+  **normal Q-Q**, **ECDF**, and a **correlation heatmap** (viridis) — the four
+  distribution views an analyst reaches for first, plus a heatmap. Offered from
+  the Graph dialog; works in the cold-start `.pyz` and TUI SVG export.
+- **REGEX text functions** — `REGEXTEST`, `REGEXEXTRACT` (first / all-spilling /
+  capture-group modes), `REGEXREPLACE` (`core/regex_fns.py`, Python `re`,
+  cached compile, `re.error` → `#VALUE!`). Registry: **584 → 587**.
+- **Antenna Modeler dialog** (*Tools → Radio → Antenna modeler*) — a GUI over
+  the built-in Method-of-Moments solver (`core/science/wire_mom.py`): define a
+  dipole or Yagi and read gain (dBi), front-to-back (dB), feed-point impedance,
+  and a polar radiation pattern. Surfaces a solver that was built and tested but
+  previously reachable only from the console (sanity: ½λ dipole ≈ 2.15 dBi/85 Ω,
+  3-element Yagi ≈ 7.6 dBi, F/B ≈ 25 dB).
+- **ADIF logbook** — `.adi`/`.adif` files open and save as sheets (*Tools →
+  Radio → Open logbook (ADIF)*), with best-effort `CALL → DXCC` entity
+  enrichment on open. The ADIF engine existed but was console-only.
+- **HP-15C statistics registers** — Σ+/Σ-/mean/std-dev/L.R. (linear regression)/
+  lin-est,r now work on the 15C float RPN engine (they were unimplemented
+  `_PROGRAM_KEYS`), reusing the HP-12C's proven accumulator pattern.
+
+### Changed
+- **`IFERROR` / `IFNA` are now array-aware.** They catch errors **element-wise**
+  over a spilled array (like the array-aware `IF`), so
+  `=IFERROR(A1:A100/B1:B100, 0)` guards a whole column — previously per-cell
+  errors inside a spill survived uncaught.
+- **TUI: undo/redo, a help overlay, and range plots.** Destructive TUI actions
+  now checkpoint, so `u` / `Ctrl-R` (and `:undo`/`:redo`) work; `?` / `:help`
+  opens a scrollable list of every key and command; and `:plot A1:A50 [B1:B50]`
+  graphs a sheet range (the expression form still works).
+
+### Added (earlier in this cycle)
 - **7-Zip (`.7z`) archives in the file manager.** A new **7z** button compresses
   the selection to `.7z`, **Extract** handles `.7z`, and a new **Open in archive**
   action lists a `.zip`/`.tar`/`.7z`'s contents and opens a supported file (CSV,
