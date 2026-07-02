@@ -83,6 +83,12 @@ class ViewMixin:
 
         ThemeDialog(self).exec()
 
+    def show_preferences(self) -> None:
+        """Open the Preferences dialog (theme, font, zoom, autosave, isolation)."""
+        from .dialogs.preferences_dialog import PreferencesDialog
+
+        PreferencesDialog(self).exec()
+
     def set_theme(self, name: str) -> None:
         self._settings.theme = name
         self.apply_current_theme()

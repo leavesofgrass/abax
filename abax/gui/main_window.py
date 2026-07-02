@@ -283,6 +283,8 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._act(m_edit, "&Find / Replace...", self.show_find_replace, "Ctrl+F").setIcon(make_icon("find"))
         self._act(m_edit, "&Go to...", self.show_goto, "Ctrl+G")
         self._act(m_edit, "Command &Palette...", self.show_command_palette, "Ctrl+Shift+P").setIcon(make_icon("palette"))
+        m_edit.addSeparator()
+        self._act(m_edit, "Pre&ferences...", self.show_preferences, "Ctrl+,")
 
         # --- View (freeze - panels - display) -----------------------------
         m_view = mb.addMenu("&View")
@@ -520,7 +522,23 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._autosave.timeout.connect(
             lambda: save_settings(self._settings, rt.CONFIG_DIR / "settings.json")
         )
-        self._autosave.start(30_000)
+        self.restart_autosave()
+
+    def restart_autosave(self) -> None:
+        """(Re)apply the autosave settings to the running timer.
+
+        Honours ``settings.autosave_enabled`` and ``settings.autosave_interval``
+        (seconds), so the Preferences dialog can change the cadence live. When
+        disabled the timer is simply stopped; settings still persist on close.
+        """
+        timer = getattr(self, "_autosave", None)
+        if timer is None:
+            return
+        if getattr(self._settings, "autosave_enabled", True):
+            secs = int(getattr(self._settings, "autosave_interval", 30) or 30)
+            timer.start(max(1, secs) * 1000)
+        else:
+            timer.stop()
 
     # --- window state + status cluster -----------------------------------
 

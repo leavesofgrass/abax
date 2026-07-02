@@ -82,6 +82,7 @@ class PaletteMixin:
             "Save": lambda: self.save_document(None),
             "Save As...": self.save_document_as,
             "Choose theme...": self.choose_theme,
+            "Preferences...": self.show_preferences,
             "Toggle vim mode": self.toggle_vim_mode,
             "Recalculate": self._recalculate,
             "Find / Replace...": self.show_find_replace,

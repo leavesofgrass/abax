@@ -27,14 +27,16 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `code_isolation` | string | `"isolated"` | How code execution is isolated: `off` (in-process, no worker/limits), `isolated` (out-of-process worker + resource limits), or `strict` (also OS-confine filesystem + network). Cycle it from the command palette; see [Macros & scripting](macros-and-scripting.md). |
 | `faceplate_assets_dir` | string | `""` | Folder of calculator faceplate artwork (see [Faceplate assets](#faceplate-assets)). |
 | `show_toolbar` | bool | `true` | Show the GUI toolbar. |
+| `autosave_enabled` | bool | `true` | Whether the GUI periodically autosaves `settings.json`. |
+| `autosave_interval` | int | `30` | Autosave cadence in seconds (when enabled). |
 | `recent_files` | list | `[]` | Recently opened file paths. |
 | `window_geometry` | dict | `{}` | Saved GUI window position/size. |
 | `fm_buttons` | list | `[]` | Your custom file-manager command buttons (`{label, command}`); see [File manager](file-manager.md). |
 | `auto_install` | bool | `true` | Auto-install optional dependencies (and show the first-run chooser); see [Auto-install](#auto-install). Set `false` to opt out. |
 | `deps_prompted` | bool | `false` | Whether the first-run optional-feature chooser has been shown. Set back to `false` to be asked again. |
-| `schema_version` | int | `2` | Settings schema version (managed by abax). |
+| `schema_version` | int | `3` | Settings schema version (managed by abax). |
 
-You can edit `settings.json` by hand while abax is closed, but most fields are also exposed through the GUI (theme, fonts, toolbar, faceplate folder) and the TUI, which is the recommended way to change them.
+You can edit `settings.json` by hand while abax is closed, but most fields are also exposed through the GUI — the **Preferences** dialog (Edit → Preferences…, `Ctrl+,`) covers theme, font, default zoom, autosave, and code isolation, and individual menus/palette entries cover the toolbar and faceplate folder — and through the TUI, which is the recommended way to change them.
 
 ## Runtime directories
 

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ._runtime import _HAS_MSGSPEC
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def _migrate_settings(data: dict) -> dict:
@@ -27,6 +27,11 @@ def _migrate_settings(data: dict) -> dict:
             data["code_isolation"] = "strict" if data.get("sandbox_strict") else "isolated"
         data.pop("sandbox_strict", None)
         data["schema_version"] = 2
+    if v < 3:
+        # v2 -> v3: the autosave timer became configurable
+        # ('autosave_enabled' + 'autosave_interval' seconds). Older files simply
+        # take the defaults (on, 30s).
+        data["schema_version"] = 3
     return data
 
 
@@ -54,6 +59,9 @@ if _HAS_MSGSPEC:
         faceplate_assets_dir: str = ""
         faceplate_repo: str = ""
         show_toolbar: bool = True
+        # Periodic autosave of settings.json: whether it runs, and how often.
+        autosave_enabled: bool = True
+        autosave_interval: int = 30  # seconds
         recent_files: list = []
         window_geometry: dict = {}
         fm_buttons: list = []
@@ -96,6 +104,9 @@ else:
         faceplate_assets_dir: str = ""
         faceplate_repo: str = ""
         show_toolbar: bool = True
+        # Periodic autosave of settings.json: whether it runs, and how often.
+        autosave_enabled: bool = True
+        autosave_interval: int = 30  # seconds
         recent_files: list = field(default_factory=list)
         window_geometry: dict = field(default_factory=dict)
         fm_buttons: list = field(default_factory=list)
