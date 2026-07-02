@@ -10,8 +10,8 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
-_The first batch of the 0.1.20 roadmap (see `dev/roadmap.md`) — six workstreams
-built in parallel:_
+_The first waves of the 0.1.20 roadmap (see `dev/roadmap.md`), built by
+parallel agents:_
 
 ### Added
 - **Nonparametric & rank statistics** (`core/science/nonparam.py`, pure stdlib):
@@ -39,6 +39,19 @@ built in parallel:_
 - **HP-15C statistics registers** — Σ+/Σ-/mean/std-dev/L.R. (linear regression)/
   lin-est,r now work on the 15C float RPN engine (they were unimplemented
   `_PROGRAM_KEYS`), reusing the HP-12C's proven accumulator pattern.
+- **Transmission-line RF functions** — `ZINLINER`/`ZINLINEX` (real/imag of a
+  lossless line's input impedance, mirroring the `DIPOLER`/`DIPOLEX` pair) and
+  `LINELOSS` (matched line loss, dB), backed by `rf_math.zin_line` /
+  `line_loss_db` plus a `stub_match_short` helper. Oracle-tested on the classic
+  λ/4 impedance inversion and λ/2 repeat. Registry: **587 → 590**.
+- **HP-15C `SOLVE` and `∫`** — immediate-mode root-finding (hybrid
+  secant/bisection with automatic bracketing) and adaptive-Simpson integration
+  on the Voyager engine, backed by new pure-stdlib `core/science/numeric.py`
+  routines (root of x²−2 → √2, ∫₀^π sin → 2, all to 1e-6).
+- **TI calculator STAT** — an L1–L6 list store with **1-Var Stats** (mean, Σx,
+  Σx², sample/population sd, five-number summary), **2-Var Stats**, and
+  **LinReg(ax+b)** (slope, intercept, r, r²), reusing the `core/science` stats
+  and regression helpers.
 
 ### Changed
 - **`IFERROR` / `IFNA` are now array-aware.** They catch errors **element-wise**
@@ -49,6 +62,12 @@ built in parallel:_
   now checkpoint, so `u` / `Ctrl-R` (and `:undo`/`:redo`) work; `?` / `:help`
   opens a scrollable list of every key and command; and `:plot A1:A50 [B1:B50]`
   graphs a sheet range (the expression form still works).
+- **Pivot tables go deeper.** `pivot_table` gained **grand-total margins**
+  (recomputed from the pooled raw cells, so a mean/median margin is the true
+  aggregate — not a mean of means), **multiple value fields** with per-field
+  aggregators, and **percent-of-total** (grand / row / column). The pivot dialog
+  exposes margins and % of total; all new parameters are optional, so existing
+  calls are unchanged.
 
 ### Added (earlier in this cycle)
 - **7-Zip (`.7z`) archives in the file manager.** A new **7z** button compresses
