@@ -15,6 +15,7 @@ COMMON = {
     # math / trig / info
     "SINH", "COSH", "TANH", "COMBIN", "PERMUT", "GAMMA", "ROMAN", "BASE",
     "EVEN", "ODD", "MROUND", "QUOTIENT", "ISEVEN", "ISODD", "ERROR.TYPE",
+    "ISOMITTED",
     # statistics / distributions
     "BINOMDIST", "POISSON", "EXPONDIST", "GAMMADIST", "BETADIST", "WEIBULL",
     "HYPGEOMDIST", "STANDARDIZE", "DEVSQ", "AVEDEV", "RANK.EQ",

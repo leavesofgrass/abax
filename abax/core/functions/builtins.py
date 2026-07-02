@@ -1304,6 +1304,15 @@ def _iserror(args):
     return is_error(_arg(args, 0))
 
 
+def _isomitted(args):
+    # TRUE when the argument is a trailing LAMBDA parameter the caller left off
+    # (the OMITTED sentinel from core.lambda_fns), FALSE for any ordinary value.
+    # Imported lazily: lambda_fns pulls in the evaluator, and this module is
+    # imported very early during functions-package assembly.
+    from ..lambda_fns import is_omitted
+    return is_omitted(_arg(args, 0))
+
+
 # --- lazy (control-flow) functions ----------------------------------------
 
 
@@ -1602,6 +1611,7 @@ __all__ = [
     "_istext",
     "_islogical",
     "_iserror",
+    "_isomitted",
     "_lazy_if",
     "_lazy_iferror",
     "_lazy_ifna",

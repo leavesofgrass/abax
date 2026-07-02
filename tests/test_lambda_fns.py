@@ -86,7 +86,46 @@ def test_named_lambda_call_via_let():
 
 def test_lambda_wrong_arity():
     s = Sheet()
-    s.set("A1", "=LET(f, LAMBDA(x, x*x), f(1, 2))")
+    s.set("A1", "=LET(f, LAMBDA(x, x*x), f(1, 2))")   # too MANY args still errors
+    assert "VALUE" in str(s.get("A1")).upper()
+
+
+# --- optional (omitted) trailing parameters + ISOMITTED --------------------
+
+
+def test_lambda_omitted_trailing_param():
+    # b omitted -> ISOMITTED(b) is TRUE, so the guarded branch returns a.
+    s = Sheet()
+    s.set("A1", "=LET(f, LAMBDA(a, b, IF(ISOMITTED(b), a, a+b)), f(5))")
+    assert s.get("A1") == 5
+
+
+def test_lambda_omitted_trailing_param_supplied():
+    # b supplied -> ISOMITTED(b) is FALSE, so a+b is returned.
+    s = Sheet()
+    s.set("A1", "=LET(f, LAMBDA(a, b, IF(ISOMITTED(b), a, a+b)), f(5, 3))")
+    assert s.get("A1") == 8
+
+
+def test_lambda_omitted_default_pattern():
+    # A default-argument pattern: supply 10 when the second arg is omitted.
+    s = Sheet()
+    s.set("A1", "=LET(f, LAMBDA(a, b, a + IF(ISOMITTED(b), 10, b)), f(5))")
+    assert s.get("A1") == 15
+    s.set("A2", "=LET(f, LAMBDA(a, b, a + IF(ISOMITTED(b), 10, b)), f(5, 2))")
+    assert s.get("A2") == 7
+
+
+def test_isomitted_on_ordinary_value_is_false():
+    s = Sheet()
+    s.set("A1", "=ISOMITTED(1)")
+    assert s.get("A1") is False
+
+
+def test_omitted_param_in_arithmetic_errors():
+    # Using an omitted parameter directly in arithmetic (unguarded) is #VALUE!.
+    s = Sheet()
+    s.set("A1", "=LET(f, LAMBDA(a, b, a + b), f(5))")
     assert "VALUE" in str(s.get("A1")).upper()
 
 

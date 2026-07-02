@@ -87,7 +87,7 @@ FUNCTIONS: dict[str, Callable[[list], Any]] = {
     # logical / info
     "AND": _and, "OR": _or, "XOR": _xor, "NOT": _not, "TRUE": _true, "FALSE": _false,
     "NA": _na, "ISBLANK": _isblank, "ISNUMBER": _isnumber, "ISTEXT": _istext,
-    "ISLOGICAL": _islogical, "ISERROR": _iserror,
+    "ISLOGICAL": _islogical, "ISERROR": _iserror, "ISOMITTED": _isomitted,
 }
 
 LAZY_FUNCTIONS: dict[str, Callable] = {

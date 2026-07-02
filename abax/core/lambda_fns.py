@@ -39,6 +39,31 @@ from .spill import as_grid
 from .values import RangeValue
 
 
+class _Omitted:
+    """The value bound to a LAMBDA parameter that the caller left off the end.
+
+    A unique, module-level singleton (:data:`OMITTED`). It is deliberately *not*
+    a number/string/None/CellError, so an omitted parameter used directly in
+    arithmetic flows through the evaluator's ``_num`` and yields ``#VALUE!``
+    (Excel raises there too) — the caller is expected to guard with ISOMITTED
+    first. ISOMITTED is the only function that treats it specially.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid only
+        return "OMITTED"
+
+
+#: Sentinel bound to trailing LAMBDA parameters the caller omitted.
+OMITTED = _Omitted()
+
+
+def is_omitted(value: Any) -> bool:
+    """True iff *value* is the omitted-argument sentinel."""
+    return value is OMITTED
+
+
 class LambdaValue:
     """A first-class LAMBDA: parameter names, a body AST, and the defining
     context (closure). Callable via :meth:`call` with evaluated arguments."""
@@ -53,8 +78,13 @@ class LambdaValue:
     def call(self, args: list) -> Any:
         from .evaluator import evaluate
 
-        if len(args) != len(self.params):
+        # Too many arguments is an error; too few is allowed — the trailing
+        # unbound parameters are "omitted" and bind to the OMITTED sentinel
+        # (testable with ISOMITTED).
+        if len(args) > len(self.params):
             return CellError(CellError.VALUE)
+        if len(args) < len(self.params):
+            args = list(args) + [OMITTED] * (len(self.params) - len(args))
         child = _with_env(self.ctx, dict(zip(self.params, args)))
         return evaluate(self.body, child.resolver, child)
 
