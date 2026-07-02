@@ -30,10 +30,11 @@ See also: [index](index.md) · [formula reference](formula-reference.md) ·
 | SQLite | `.db` `.sqlite` `.sqlite3` | yes | yes | — (stdlib `sqlite3`) | always available |
 | Stata / SPSS | `.dta` `.sav` `.zsav` `.por` | yes | no | `pyreadstat` (`abax[stats-io]`) | error with install hint |
 | HDF5 | `.h5` `.hdf5` | yes | no | `h5py` (`abax[hdf5]`) | error with install hint |
-| 7-Zip archive | `.7z` | yes | yes | `py7zr` (`abax[7z]`) | `.zip`/`.tar` still work; 7z shows a hint |
+| 7-Zip archive | `.7z` | yes | yes | `py7zr` (`abax[sevenzip]`) | `.zip`/`.tar` still work; 7z shows a hint |
 
-Only **Excel** and **Parquet/Feather** require third-party packages. Everything
-else is pure standard library and works in a zero-optional-dependency install.
+**Excel**, **Parquet/Feather**, **Stata/SPSS**, **HDF5**, and **7-Zip** each need
+an optional package (see the table's *Optional dep* column); everything else is
+pure standard library and works in a zero-optional-dependency install.
 Run `python -m abax --deps` to see what is installed on your machine.
 
 ## A shared data model
@@ -181,7 +182,7 @@ Missing dependency raises `ParquetError`:
 
 ```
 pip install pandas pyarrow
-# or:  pip install abax[fast-io]
+# or the full-fat set (bundles pandas + a parquet engine):  pip install abax[all]
 ```
 
 ## XML Spreadsheet / SpreadsheetML (`.xml`)
@@ -317,8 +318,8 @@ Handled by the file manager rather than a plain open: a **7z** button compresses
 the selection, **Extract** unpacks a `.7z`, and **Open in archive** lists a
 `.zip`/`.tar`/`.7z`'s contents and opens a supported member (CSV, Excel, Parquet,
 ODS, `.abax`, …) straight into the grid — extracting just that member, no full
-unpack. `.7z` needs the optional `py7zr` package (`pip install abax[7z]`, in the
-`thin`/`all` sets); without it `.zip`/`.tar` still work and the 7z actions show
+unpack. `.7z` needs the optional `py7zr` package (`pip install abax[sevenzip]`, in
+the `thin`/`all` sets); without it `.zip`/`.tar` still work and the 7z actions show
 an install hint. Extraction keeps the path-traversal (zip-slip) guard.
 
 ## Quick reference: converting between formats

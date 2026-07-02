@@ -34,9 +34,9 @@ Archive creation supports `.zip`, `.tar`, `.tar.gz`/`.tgz`, `.tar.bz2`,
 `.tar.xz`, and **`.7z`**. Extraction rejects any member that would escape the
 destination directory (the "zip-slip" / "tar-slip" guard).
 
-**`.7z` support** needs the optional **`py7zr`** package (`pip install abax[7z]`;
+**`.7z` support** needs the optional **`py7zr`** package (`pip install abax[sevenzip]`;
 it's in the `thin` and `all` sets and the background auto-installer). Without it,
-`.zip`/`.tar` still work and the 7z actions report a clear "install `abax[7z]`"
+`.zip`/`.tar` still work and the 7z actions report a clear "install `abax[sevenzip]`"
 message. **Open in archive** extracts the chosen member to a temporary file and
 loads it like any other spreadsheet — so you can open a CSV or workbook from
 inside a `.zip`/`.tar`/`.7z` without unpacking the whole archive first.

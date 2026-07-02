@@ -510,7 +510,7 @@ class FileManagerDialog(QDialog):
         path = sel[0]
         try:
             if not _archives.is_archive(path):
-                self._set_status("not a readable archive (.7z needs abax[7z])")
+                self._set_status("not a readable archive (.7z needs abax[sevenzip])")
                 return
             names = _archives.list_archive(path)
         except (OSError, archive.ArchiveError) as exc:

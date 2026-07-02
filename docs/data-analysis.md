@@ -227,7 +227,7 @@ column next to Y* ticked — writes the model's fitted `ŷ` down a column from t
 cell you name. Bad input (mismatched X/Y counts, a non-positive value for the log
 models, a degree ≥ the number of points) is reported rather than crashing. For
 the underlying `polyfit`/`expfit`/`powerfit` and the closed-form linear helpers,
-see [data science](data-science.md#regression-forecasting--curve-fitting).
+see [data science](data-science.md#regression-forecasting--curve-fitting-pure-stdlib).
 
 ## Goal seek
 
@@ -339,7 +339,7 @@ engine on this page is exposed by name, so anything a dialog does you can script
 | `describe()` | per-column profile of the active sheet |
 | `profile` | the profiling module (`profile_column`, `profile_sheet`) |
 | `wbdiff` | workbook/sheet diff (`diff_workbooks`, `summary`) |
-| `goalseek` | `goal_seek(f, target, x0)` |
+| `goalseek` | `goal_seek(sheet, target_ref, target_value, changing_ref)` |
 | `html_report` | `sheet_to_html`, `workbook_to_html` |
 | `chartsvg` | `line_svg` / `bar_svg` / `scatter_svg` / `histogram_svg` |
 | `urlfetch` | fetch remote data |

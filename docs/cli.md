@@ -172,7 +172,7 @@ waiting for the background auto-installer.
 ```bash
 $ abax deps
 Attempted 5 package(s): msgspec, textual, nbformat, anywidget, pyte
-Optional dependencies present: 20/20
+Optional dependencies present: 24/24
 ```
 
 abax already auto-installs these in the background on first GUI/TUI launch (see

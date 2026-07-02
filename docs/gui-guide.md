@@ -446,8 +446,9 @@ the window. While I/O is in flight:
 Save takes an independent snapshot of the workbook (rebuilt from its raw-text
 envelope) so the saver thread never races the UI thread's compute caches. The UI
 is restored automatically when the operation finishes, and errors are reported in
-a dialog. Only one open/save runs at a time. Settings are also autosaved every 30
-seconds, and window state is flushed on close (and on any uncaught error).
+a dialog. Only one open/save runs at a time. Settings autosave on by default every
+30 seconds — the on/off and interval are configurable (Preferences → Behaviour →
+Autosave) — and window state is flushed on close (and on any uncaught error).
 
 Import paths:
 
@@ -555,8 +556,10 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
   Choose theme (`Ctrl+T`).
 - **Data** — Sort, Sort ascending, Sort descending, Filter, Clear filter, Name
   range, Name manager, Data validation, Compare workbook, Recalculate (`F9`),
-  Analyze → (Statistics / analysis, SQL query, Profile columns, Open selection in
-  pandas, Recode / clean column, Pivot / group-by, Goal seek).
+  Recalculate sheet (`Shift+F9`), Calculation: auto/manual,
+  Analyze → (Descriptive Statistics, Statistics / analysis, SQL query, Profile
+  columns, Open selection in pandas, Recode / clean column, Pivot / group-by,
+  Curve fit, Goal seek).
 - **Sheet** — New sheet (`Shift+F11`), Duplicate sheet, Rename sheet, Delete
   sheet, Next sheet (`Ctrl+PgDown`), Previous sheet (`Ctrl+PgUp`).
 - **Tools** — Scientific → (Matrix tool, Numerical solver, Signal / data tool,
@@ -564,8 +567,9 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
   manager (`Ctrl+Shift+F`), Macros (submenu), Recording (start/stop, relative,
   save, replay), Load macro / UDF file, Run Python script, **Code isolation
   (sandbox)** → (Off / Isolated / Strict), **Radio** → (RF toolkit, Smith chart,
-  Antenna pattern, RF reference (bands / CTCSS), I/Q constellation → SVG, Solve
-  NEC deck (PyNEC)), Calculator faceplates, Copy selection as Markdown.
+  Antenna pattern, Antenna modeler, Open logbook (ADIF), RF reference (bands /
+  CTCSS), I/Q constellation → SVG, Smith chart → SVG, Solve NEC deck (PyNEC)),
+  Calculator faceplates, Copy selection as Markdown.
 - **Help** — Keyboard shortcuts (`F1`), About abax.
 
 Press `F1` any time for the full, live shortcut list (it's generated from the
@@ -624,11 +628,19 @@ docs — this is the one-line "what it does" index.
 - **Smith chart** — plot a load impedance, its reflection coefficient, and a
   matching path.
 - **Antenna pattern** — a QPainter polar plot of the analytic patterns.
+- **Antenna modeler** — define a wire dipole or Yagi and read modelled gain
+  (dBi), front-to-back, feed-point impedance, and a polar pattern from the
+  built-in method-of-moments solver.
 - **RF reference (bands & CTCSS)** — the US amateur band plan and standard CTCSS
   tones; non-modal, so it can send values into the grid (double-click / Send)
   while you keep working, like the calculator.
 - **I/Q constellation → SVG** — read a two-column (I, Q) selection and export the
   constellation as SVG.
+- **Smith chart → SVG** — export a pure-SVG Smith chart (constant-R/X circles,
+  the load's reflection coefficient Γ, and an optional VSWR circle) for a given
+  Z / Z₀.
+- **Open logbook (ADIF)** — open an `.adi`/`.adif` amateur-radio log as a sheet
+  (with best-effort CALL → DXCC entity enrichment), and save sheets back to ADIF.
 - **Solve NEC deck (PyNEC)** — solve a NEC deck with PyNEC when installed (the
   built-in method-of-moments solver works without it).
 

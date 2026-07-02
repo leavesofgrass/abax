@@ -5,7 +5,7 @@
 ``py7zr`` dependency. Everything degrades gracefully: :func:`available` reports
 whether ``py7zr`` is importable, and every operation raises
 :class:`~abax.core.archive.ArchiveError` with an actionable message when it isn't
-(``pip install abax[7z]``).
+(``pip install abax[sevenzip]``).
 
 Like the stdlib archive core, extraction is **path-traversal-safe**: a member
 that would escape the destination directory raises rather than writing outside
@@ -35,7 +35,7 @@ def _require():
     except Exception as exc:  # noqa: BLE001
         raise ArchiveError(
             "7-Zip support needs the 'py7zr' package — install it with "
-            "'pip install abax[7z]' (or 'pip install py7zr').") from exc
+            "'pip install abax[sevenzip]' (or 'pip install py7zr').") from exc
     return py7zr
 
 

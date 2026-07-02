@@ -148,9 +148,9 @@ parallel agents:_
   action lists a `.zip`/`.tar`/`.7z`'s contents and opens a supported file (CSV,
   Excel, Parquet, ODS, JSON/`.abax`, …) straight into the grid — extracting just
   that member to a temp file, no full unpack. `.7z` needs the optional **`py7zr`**
-  package (`pip install abax[7z]`; included in the `thin`/`all` sets and the
+  package (`pip install abax[sevenzip]`; included in the `thin`/`all` sets and the
   background auto-installer); without it the `.zip`/`.tar` actions still work and
-  the 7z actions show a clear "install `abax[7z]`" message. Implemented as an
+  the 7z actions show a clear "install `abax[sevenzip]`" message. Implemented as an
   engine-layer adapter (`engine/archive7z.py`) behind a unified archive facade
   (`engine/archives.py`) that routes `.zip`/`.tar` to the stdlib core and `.7z`
   to `py7zr`; extraction keeps the path-traversal (zip-slip) guard.

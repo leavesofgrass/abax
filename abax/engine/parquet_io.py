@@ -30,7 +30,7 @@ _FALLBACK_MSG = (
     "Parquet/Feather import/export requires 'pandas' plus a parquet engine "
     "('pyarrow' or 'fastparquet'). Install them with:\n"
     "    pip install pandas pyarrow\n"
-    "or install abax's fast-io extra:  pip install abax[fast-io]"
+    "or install abax's full set:  pip install abax[all]"
 )
 
 

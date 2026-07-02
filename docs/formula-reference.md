@@ -776,7 +776,7 @@ These return scalars; complex numbers are encoded as text such as `"3+4i"`
 | `IMSUM` | Sum of complex numbers | `IMSUM(c, ...)` | `=IMSUM("3+4i","1+2i")` | `4+6i` |
 | `IMSUB` | Difference of two complex numbers | `IMSUB(c1, c2)` | `=IMSUB("3+4i","1+2i")` | `2+2i` |
 | `IMPRODUCT` | Product of complex numbers | `IMPRODUCT(c, ...)` | `=IMPRODUCT("1+1i","1+1i")` | `2i` |
-| `IMDIV` | Quotient of two complex numbers | `IMDIV(c1, c2)` | `=IMDIV("4+2i","1+1i")` | `3-1i` |
+| `IMDIV` | Quotient of two complex numbers | `IMDIV(c1, c2)` | `=IMDIV("4+2i","1+1i")` | `3-i` |
 | `IMABS` | Modulus (magnitude) | `IMABS(c)` | `=IMABS("3+4i")` | `5` |
 | `IMREAL` | Real part | `IMREAL(c)` | `=IMREAL("3+4i")` | `3` |
 | `IMAGINARY` | Imaginary part | `IMAGINARY(c)` | `=IMAGINARY("3+4i")` | `4` |
