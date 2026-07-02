@@ -8,6 +8,23 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
+## [0.1.4.1] — 2026-07-02
+
+_Patch: a crash in CSV **streaming** on Python 3.11/3.12, caught by the new CI
+matrix on its first run._
+
+### Fixed
+- **CSV streaming on Python 3.11 / 3.12.** `csv_stream.py` used
+  `Path.read_text(newline="")`, but the `newline=` keyword on `read_text()` only
+  exists on Python 3.13+ — so streaming a CSV raised `TypeError` on 3.11/3.12.
+  Now uses `Path.open(newline="")`, which works on every supported Python.
+  (Regular, non-streaming CSV loading was unaffected.)
+- **CI / tests:** the multi-OS × multi-Python CI matrix went green — the justfile
+  interpreter is now overridable (`JUST_PYTHON`) so a runner's `py` launcher can't
+  pick a Python without the dev deps; the macOS `RLIMIT_AS` sandbox tests are
+  restricted to Linux (macOS doesn't enforce it); and the Windows strict-
+  AppContainer e2e test is skipped on hosted runners (verified on real Windows).
+
 ## [0.1.4] — 2026-07-02
 
 _A large feature release: incremental recalculation, deeper formula & `LAMBDA`
