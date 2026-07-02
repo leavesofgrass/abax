@@ -17,6 +17,7 @@ from .._qtcompat import (
     QVBoxLayout,
 )
 from ...core import goalseek
+from ...core.errors import FormulaError
 from ...core.reference import parse_a1, to_a1
 
 
@@ -51,37 +52,27 @@ class GoalSeekDialog(QDialog):
 
     def solve(self) -> str:
         sheet = self._win._doc.workbook.sheet
+        target_ref = self._target.text().strip()
+        changing_ref = self._changing.text().strip()
         try:
-            tr, tc = parse_a1(self._target.text())
-            cr, cc = parse_a1(self._changing.text())
+            parse_a1(target_ref)
+            parse_a1(changing_ref)
             target = float(self._value.text())
-        except ValueError:
+        except (ValueError, FormulaError):
             QMessageBox.warning(self, "Goal Seek", "Enter valid cell refs and a number.")
             return ""
-        original = sheet.get_raw(cr, cc)
 
-        def f(x: float) -> float:
-            sheet.set_cell(cr, cc, repr(x))
-            v = sheet.get_value(tr, tc)
-            if not isinstance(v, (int, float)) or isinstance(v, bool):
-                raise ValueError("target cell is not numeric")
-            return float(v)
-
+        # The core solver restores the changing cell on failure, so the sheet is
+        # left untouched when no solution is found.
         try:
-            x0 = float(sheet.get_value(cr, cc) or 0)
-        except (TypeError, ValueError):
-            x0 = 0.0
-        try:
-            result = goalseek.goal_seek(f, target, x0)
-        except (goalseek.GoalSeekError, ValueError) as exc:
-            sheet.set_cell(cr, cc, original)                 # restore on failure
+            result = goalseek.goal_seek(sheet, target_ref, target, changing_ref)
+        except goalseek.GoalSeekError as exc:
             QMessageBox.warning(self, "Goal Seek", f"No solution found: {exc}")
             return ""
-        sheet.set_cell(cr, cc, repr(result))                 # keep the solution
         self._win._doc.mark_dirty()
         self._win.refresh_table()
         self._win._set_status(
-            f"Goal Seek: {self._changing.text()} = {result:.6g} "
-            f"makes {self._target.text()} = {target:g}")
+            f"Goal Seek: {changing_ref} = {result:.6g} "
+            f"makes {target_ref} = {target:g}")
         self.accept()
         return f"{result:.6g}"

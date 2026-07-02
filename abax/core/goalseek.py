@@ -1,177 +1,75 @@
-"""One-variable root / goal solver (find ``x`` such that ``f(x) == target``).
+"""Goal Seek — find the input-cell value that drives a formula cell to a target.
 
-The public entry point is :func:`goal_seek`. It first tries the secant method,
-seeded from two nearby points, because it converges fast on smooth functions
-and needs no bracket. When the seed points bracket a sign change -- or a short
-expanding search can find such a bracket -- it falls back to bisection, which
-cannot diverge and so gives robustness on awkward or poorly-seeded problems.
+The public entry point is :func:`goal_seek`. Given a *target* cell (typically a
+formula), a desired numeric result, and a *changing* cell to vary, it searches
+for the value of the changing cell that makes the target cell equal the goal.
 
-Pure stdlib (only :mod:`math`) -> lives in ``core``.
+It works by defining ``g(x)`` = "write ``x`` into the changing cell, recompute,
+read the target cell, subtract the desired value" and handing ``g`` to
+:func:`abax.core.science.numeric.solve_root` (a self-bracketing hybrid
+secant/bisection solver). On success the changing cell is left holding the
+solution; on failure it is restored to its original raw text so the sheet is
+unchanged, and :class:`GoalSeekError` is raised.
+
+Pure stdlib -> lives in ``core``.
 """
 
 from __future__ import annotations
 
-import math
-from collections.abc import Callable
+from .reference import parse_a1
+from .science.numeric import NumericError, solve_root
 
 
 class GoalSeekError(Exception):
-    """Raised when the solver cannot find a value satisfying the goal.
+    """Raised when Goal Seek cannot find a value satisfying the goal.
 
-    Covers convergence failure, a NaN/inf result, and any exception raised by
-    the user-supplied function while it is being evaluated.
+    Covers convergence failure, an un-bracketable target, and the case where the
+    target cell never evaluates to a number. On failure the changing cell is
+    restored to its original contents.
     """
-
-
-def _finite(value: float) -> float:
-    """Return ``value`` as a float, rejecting NaN and infinities."""
-    result = float(value)
-    if not math.isfinite(result):
-        raise GoalSeekError("function produced a non-finite value")
-    return result
 
 
 def goal_seek(
-    f: Callable[[float], float],
-    target: float,
-    x0: float,
-    *,
-    x1: float | None = None,
+    sheet,
+    target_ref: str,
+    target_value: float,
+    changing_ref: str,
+    lo: float = -1.0e6,
+    hi: float = 1.0e6,
     tol: float = 1e-9,
-    max_iter: int = 100,
 ) -> float:
-    """Return ``x`` such that ``f(x)`` is approximately ``target``.
+    """Return the ``changing_ref`` value that makes ``target_ref`` == ``target_value``.
 
-    Define ``g(x) = f(x) - target`` and search for a root of ``g``.
+    ``target_ref`` and ``changing_ref`` are A1 strings (e.g. ``"B1"``, ``"A1"``).
+    ``lo`` and ``hi`` seed the solver's search bracket. On success the changing
+    cell is written with the found solution and the sheet is recomputed; the
+    solution ``x`` is returned.
 
-    The secant method is tried first, seeded from ``x0`` and ``x1``. When
-    ``x1`` is ``None`` it defaults to ``x0 + 1`` (if ``x0 == 0``) or ``x0 * 1.1``
-    otherwise. If the seed points bracket a sign change, or an expanding search
-    around them finds a bracket, bisection is used for robustness.
-
-    Convergence is reached when ``abs(g(x)) <= tol`` or the update step falls
-    below ``tol``.
-
-    :raises GoalSeekError: if ``f`` raises, yields a NaN/inf value, or the
-        method fails to converge within ``max_iter`` iterations.
+    :raises GoalSeekError: if the target never evaluates to a number, or the
+        solver cannot bracket / converge on a solution. In that case the
+        changing cell is restored to its original raw text.
     """
-    if tol <= 0:
-        raise GoalSeekError("tol must be positive")
-    if max_iter <= 0:
-        raise GoalSeekError("max_iter must be positive")
+    tr, tc = parse_a1(target_ref)
+    cr, cc = parse_a1(changing_ref)
+    target_value = float(target_value)
+
+    original = sheet.get_raw(cr, cc)
 
     def g(x: float) -> float:
-        try:
-            value = f(x)
-        except GoalSeekError:
-            raise
-        except Exception as exc:  # noqa: BLE001 - surface any callable failure
-            raise GoalSeekError(f"function raised at x={x!r}: {exc!r}") from exc
-        return _finite(value) - target
+        sheet.set_cell(cr, cc, repr(float(x)))
+        value = sheet.get_value(tr, tc)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise GoalSeekError(
+                f"target cell {target_ref} is not numeric (got {value!r})"
+            )
+        return float(value) - target_value
 
-    if x1 is None:
-        x1 = x0 + 1.0 if x0 == 0 else x0 * 1.1
-
-    a = float(x0)
-    b = float(x1)
-    ga = g(a)
-    if abs(ga) <= tol:
-        return a
-    gb = g(b)
-    if abs(gb) <= tol:
-        return b
-
-    # If we already bracket a root, go straight to the robust method.
-    if ga * gb < 0:
-        return _bisect(g, a, b, ga, gb, tol, max_iter)
-
-    # Otherwise try the fast secant iteration first.
     try:
-        return _secant(g, a, b, ga, gb, tol, max_iter)
-    except GoalSeekError:
-        # Secant stalled or diverged: look for a bracket, then bisect.
-        bracket = _find_bracket(g, a, b, max_iter)
-        if bracket is None:
-            raise
-        lo, hi, glo, ghi = bracket
-        return _bisect(g, lo, hi, glo, ghi, tol, max_iter)
+        root, _residual = solve_root(g, float(lo), float(hi), tol=tol)
+    except (NumericError, GoalSeekError) as exc:
+        sheet.set_cell(cr, cc, original)  # restore -> sheet unchanged on failure
+        raise GoalSeekError(f"goal seek failed: {exc}") from exc
 
-
-def _secant(
-    g: Callable[[float], float],
-    a: float,
-    b: float,
-    ga: float,
-    gb: float,
-    tol: float,
-    max_iter: int,
-) -> float:
-    """Run the secant iteration, raising ``GoalSeekError`` on stall/divergence."""
-    for _ in range(max_iter):
-        denom = gb - ga
-        if denom == 0.0:
-            raise GoalSeekError("secant step stalled (flat secant)")
-        x = b - gb * (b - a) / denom
-        if not math.isfinite(x):
-            raise GoalSeekError("secant produced a non-finite iterate")
-        gx = g(x)
-        if abs(gx) <= tol or abs(x - b) <= tol:
-            return x
-        a, ga = b, gb
-        b, gb = x, gx
-    raise GoalSeekError(f"secant failed to converge within {max_iter} iterations")
-
-
-def _bisect(
-    g: Callable[[float], float],
-    lo: float,
-    hi: float,
-    glo: float,
-    ghi: float,
-    tol: float,
-    max_iter: int,
-) -> float:
-    """Bisect a sign-changing bracket ``[lo, hi]`` down to ``tol``."""
-    if glo * ghi > 0:
-        raise GoalSeekError("bisection requires a sign-changing bracket")
-    for _ in range(max_iter):
-        mid = 0.5 * (lo + hi)
-        gmid = g(mid)
-        if abs(gmid) <= tol or 0.5 * abs(hi - lo) <= tol:
-            return mid
-        if glo * gmid < 0:
-            hi, ghi = mid, gmid
-        else:
-            lo, glo = mid, gmid
-    raise GoalSeekError(f"bisection failed to converge within {max_iter} iterations")
-
-
-def _find_bracket(
-    g: Callable[[float], float],
-    a: float,
-    b: float,
-    max_iter: int,
-) -> tuple[float, float, float, float] | None:
-    """Expand outward from ``[a, b]`` searching for a sign change.
-
-    Returns ``(lo, hi, g(lo), g(hi))`` when found, else ``None``.
-    """
-    if a == b:
-        b = a + 1.0
-    lo, hi = (a, b) if a < b else (b, a)
-    glo = g(lo)
-    ghi = g(hi)
-    if glo * ghi < 0:
-        return lo, hi, glo, ghi
-    width = hi - lo
-    if width == 0.0:
-        width = 1.0
-    for _ in range(max_iter):
-        width *= 2.0
-        lo -= width
-        hi += width
-        glo = g(lo)
-        ghi = g(hi)
-        if glo * ghi < 0:
-            return lo, hi, glo, ghi
-    return None
+    # Keep the solution in the changing cell and recompute dependents.
+    sheet.set_cell(cr, cc, repr(root))
+    return root
