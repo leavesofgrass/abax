@@ -87,6 +87,7 @@ class PaletteMixin:
             "Recalculate": self._recalculate,
             "Find / Replace...": self.show_find_replace,
             "Show formula precedents": self.show_precedents,
+            "Descriptive Statistics...": self.show_describe,
             "Statistics / analysis...": self.show_stats_tool,
             "SQL query...": self.show_sql_query,
             "Profile columns": self.profile_columns,

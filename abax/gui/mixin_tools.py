@@ -374,6 +374,11 @@ class ToolsMixin:
 
         StatsDialog(self).show()
 
+    def show_describe(self) -> None:
+        from .dialogs.describe_dialog import DescribeDialog
+
+        DescribeDialog(self).exec()
+
     def show_dataframe(self) -> None:
         from .dialogs.dataframe_dialog import DataFrameDialog
 

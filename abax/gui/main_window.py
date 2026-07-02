@@ -380,6 +380,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._act(m_data, "&Recalculate", self._recalculate, "F9")
         m_data.addSeparator()
         m_analyze = m_data.addMenu("&Analyze")
+        self._act(m_analyze, "&Descriptive Statistics...", self.show_describe)
         self._act(m_analyze, "&Statistics / analysis...", self.show_stats_tool)
         self._act(m_analyze, "&SQL query...", self.show_sql_query)
         self._act(m_analyze, "&Profile columns", self.profile_columns)
