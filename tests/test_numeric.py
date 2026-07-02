@@ -8,11 +8,13 @@ import pytest
 
 from abax.core.science.numeric import (
     NumericError,
+    adaptive_simpson,
     bisection,
     derivative,
     integrate,
     newton,
     secant,
+    solve_root,
     trapz,
 )
 
@@ -61,6 +63,89 @@ def test_secant_cubic_root():
 def test_secant_zero_denominator_raises():
     with pytest.raises(NumericError):
         secant(lambda x: 5.0, 0.0, 1.0)
+
+
+# --- solve_root (HP-15C SOLVE) --------------------------------------------
+
+def test_solve_root_sqrt2_bracket():
+    root, froot = solve_root(lambda x: x * x - 2, 0, 2)
+    assert root == pytest.approx(1.41421356, abs=TOL)
+    assert froot == pytest.approx(0.0, abs=TOL)
+
+
+def test_solve_root_cos_minus_x():
+    # cos(x) - x = 0 -> Dottie number ~0.7390851.
+    root, froot = solve_root(lambda x: math.cos(x) - x, 0, 1)
+    assert root == pytest.approx(0.7390851, abs=TOL)
+    assert froot == pytest.approx(0.0, abs=TOL)
+
+
+def test_solve_root_returns_tuple_with_fvalue():
+    result = solve_root(lambda x: x - 3, 0, 10)
+    assert isinstance(result, tuple) and len(result) == 2
+    root, froot = result
+    assert root == pytest.approx(3.0, abs=TOL)
+    assert froot == pytest.approx(0.0, abs=TOL)
+
+
+def test_solve_root_exact_endpoint():
+    root, froot = solve_root(lambda x: x - 2, 2, 5)
+    assert root == pytest.approx(2.0, abs=TOL)
+    assert froot == 0.0
+
+
+def test_solve_root_single_guess_finds_bracket():
+    # Only a guess given; solver must bracket outward and converge.
+    root, froot = solve_root(lambda x: x * x - 2, 1.0)
+    assert root == pytest.approx(math.sqrt(2), abs=TOL)
+    assert froot == pytest.approx(0.0, abs=TOL)
+
+
+def test_solve_root_single_guess_linear():
+    root, froot = solve_root(lambda x: 3 * x - 6, 0.0)
+    assert root == pytest.approx(2.0, abs=TOL)
+    assert froot == pytest.approx(0.0, abs=TOL)
+
+
+def test_solve_root_no_sign_change_bracket_raises():
+    with pytest.raises(NumericError):
+        solve_root(lambda x: x * x + 1, -1, 1)
+
+
+# --- adaptive_simpson (HP-15C INTEGRATE / ∫) ------------------------------
+
+def test_adaptive_simpson_sin():
+    # ∫₀^π sin x dx = 2.
+    assert adaptive_simpson(math.sin, 0, math.pi) == pytest.approx(2.0, abs=TOL)
+
+
+def test_adaptive_simpson_xsquared():
+    # ∫₀^1 x² dx = 1/3.
+    assert adaptive_simpson(lambda x: x * x, 0, 1) == pytest.approx(1.0 / 3.0, abs=TOL)
+
+
+def test_adaptive_simpson_exp():
+    # ∫₀^1 eˣ dx = e - 1.
+    assert adaptive_simpson(math.exp, 0, 1) == pytest.approx(math.e - 1.0, abs=TOL)
+
+
+def test_adaptive_simpson_reversed_bounds_negates():
+    forward = adaptive_simpson(lambda x: x * x, 0, 1)
+    assert adaptive_simpson(lambda x: x * x, 1, 0) == pytest.approx(-forward, abs=TOL)
+
+
+def test_adaptive_simpson_equal_bounds_zero():
+    assert adaptive_simpson(math.sin, 1.0, 1.0) == 0.0
+
+
+def test_integrate_adaptive_method():
+    # The adaptive method is reachable through integrate(..., method="adaptive").
+    assert integrate(math.sin, 0, math.pi, method="adaptive") == pytest.approx(
+        2.0, abs=TOL
+    )
+    assert integrate(math.exp, 0, 1, method="adaptive") == pytest.approx(
+        math.e - 1.0, abs=TOL
+    )
 
 
 # --- integrate ------------------------------------------------------------

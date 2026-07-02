@@ -228,3 +228,77 @@ def test_voyager_stat_keys_no_longer_program_keys() -> None:
         assert label not in _PROGRAM_KEYS
     # Genuine program keys remain rejected.
     assert "GTO" in _PROGRAM_KEYS and "SOLVE" in _PROGRAM_KEYS
+
+
+# --- SOLVE / INTEGRATE engine API -----------------------------------------
+
+def test_voyager_solve_bracket_pushes_root() -> None:
+    import math
+
+    kp = VoyagerKeypad()
+    root = kp.solve(lambda x: x * x - 2, 0, 2)
+    assert math.isclose(root, math.sqrt(2), abs_tol=1e-6)
+    # Root lands in X; f(root) is left in Y (classic HP SOLVE convention).
+    assert math.isclose(kp.rpn.x, math.sqrt(2), abs_tol=1e-6)
+    assert math.isclose(kp.rpn.y, 0.0, abs_tol=1e-6)
+
+
+def test_voyager_solve_cos_minus_x() -> None:
+    import math
+
+    kp = VoyagerKeypad()
+    root = kp.solve(lambda x: math.cos(x) - x, 0, 1)
+    assert math.isclose(root, 0.7390851, abs_tol=1e-6)
+
+
+def test_voyager_solve_single_guess() -> None:
+    import math
+
+    kp = VoyagerKeypad()
+    root = kp.solve(lambda x: x * x - 2, 1.0)
+    assert math.isclose(root, math.sqrt(2), abs_tol=1e-6)
+
+
+def test_voyager_solve_lifts_stack() -> None:
+    # A pending entry is committed and the result lifts the stack.
+    kp = VoyagerKeypad()
+    for ch in "9":
+        kp._apply(ch)          # digit entry pending
+    kp.solve(lambda x: x - 3, 0, 10)   # root = 3
+    assert kp.rpn.x == 3.0
+    # 9 was committed then pushed up through Y (froot) into Z.
+    assert kp.rpn.z == 9.0
+
+
+def test_voyager_integrate_sin() -> None:
+    import math
+
+    kp = VoyagerKeypad()
+    result = kp.integrate(math.sin, 0, math.pi)
+    assert math.isclose(result, 2.0, abs_tol=1e-6)
+    assert math.isclose(kp.rpn.x, 2.0, abs_tol=1e-6)
+
+
+def test_voyager_integrate_exp() -> None:
+    import math
+
+    kp = VoyagerKeypad()
+    result = kp.integrate(math.exp, 0, 1)
+    assert math.isclose(result, math.e - 1.0, abs_tol=1e-6)
+
+
+def test_voyager_integrate_xsquared() -> None:
+    kp = VoyagerKeypad()
+    result = kp.integrate(lambda x: x * x, 0, 1)
+    assert abs(result - 1.0 / 3.0) < 1e-6
+
+
+def test_voyager_solve_no_bracket_raises() -> None:
+    import pytest
+
+    from abax.core.science.numeric import NumericError
+
+    kp = VoyagerKeypad()
+    with pytest.raises(NumericError):
+        kp.solve(lambda x: x * x + 1, -1, 1)
+    assert kp.message  # error text recorded

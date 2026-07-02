@@ -9,7 +9,10 @@ is a thin drawing layer on top of this.
 
 from __future__ import annotations
 
+from typing import Callable, Optional
+
 from .rpn import RPN, RPNError
+from ..science import numeric
 
 # Button number -> (primary, gold-f, blue-g) legend, HP-15C (the scientific Voyager).
 LEGENDS_15C: dict[int, tuple[str, str, str]] = {
@@ -96,6 +99,59 @@ class VoyagerKeypad:
 
     def label_for(self, number: int) -> tuple[str, str, str]:
         return LEGENDS_15C.get(number, ("", "", ""))
+
+    # --- SOLVE / INTEGRATE engine API -------------------------------------
+    #
+    # The HP-15C SOLVE and ∫ keys need a program label to define f(x). In the
+    # immediate-mode keypad that program memory does not exist, so pressing the
+    # keys reports a message (see ``_PROGRAM_KEYS``). These methods are the
+    # single-expression form of those operations: the caller supplies f(x) as a
+    # plain Python callable and the result lands in X exactly like any other
+    # operation (the stack lifts, so the previous X moves up to Y).
+
+    def solve(
+        self,
+        f: Callable[[float], float],
+        a: float,
+        b: Optional[float] = None,
+    ) -> float:
+        """HP-15C SOLVE: find a root of ``f`` and push it into X.
+
+        Accepts a sign-changing bracket ``[a, b]`` or a single guess ``a``
+        (leave ``b`` as ``None``). Returns the root; ``f`` there is left in Y so
+        the classic HP convention of "root in X, f(root) in Y" holds. On failure
+        the error text is recorded in :attr:`message` and re-raised.
+        """
+        self._commit_entry()
+        try:
+            root, froot = numeric.solve_root(f, a, b)
+        except numeric.NumericError as exc:
+            self.message = str(exc)
+            raise
+        self.rpn.push(froot)
+        self.rpn.push(root)
+        return root
+
+    def integrate(
+        self,
+        f: Callable[[float], float],
+        a: float,
+        b: float,
+    ) -> float:
+        """HP-15C ∫ (INTEGRATE): integrate ``f`` over ``[a, b]``, push into X.
+
+        Uses adaptive Simpson's rule to a sensible tolerance. Returns the
+        integral; on failure the error text is recorded in :attr:`message` and
+        re-raised.
+        """
+        self._commit_entry()
+        try:
+            result = numeric.adaptive_simpson(f, a, b)
+        except numeric.NumericError as exc:
+            self.message = str(exc)
+            raise
+        self.rpn.push(result)
+        return result
 
     # --- input ------------------------------------------------------------
 
