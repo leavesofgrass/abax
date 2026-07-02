@@ -117,6 +117,8 @@ class PaletteMixin:
             "Smith chart...": self.show_smith_chart,
             "RF reference (bands / CTCSS)...": self.show_rf_reference,
             "Antenna pattern...": self.show_antenna_pattern,
+            "Antenna modeler...": self.show_antenna_modeler,
+            "Open logbook (ADIF)...": self.show_adif_logbook,
             "Python console...": self.show_pyconsole,
             "Cycle code isolation (off / isolated / strict)": self.cycle_code_isolation,
             "Graph...": self.show_graph,

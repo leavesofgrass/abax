@@ -288,6 +288,28 @@ class ToolsMixin:
 
         AntennaDialog(self).exec()
 
+    def show_antenna_modeler(self) -> None:
+        """Model a real dipole / Yagi with method-of-moments (wire_mom).
+
+        Reports gain (dBi), front-to-back (dB) and feed-point impedance from the
+        physical dimensions, with an azimuth radiation pattern."""
+        from .dialogs.antenna_modeler_dialog import AntennaModelerDialog
+
+        AntennaModelerDialog(self).exec()
+
+    def show_adif_logbook(self) -> None:
+        """Open an amateur-radio logbook (ADIF ``.adi``/``.adif``) as a sheet.
+
+        Routes through the normal document-open path (Document dispatches ADIF to
+        :mod:`abax.core.io.adif_io` and enriches CALL -> DXCC entity)."""
+        from ._qtcompat import QFileDialog
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open logbook (ADIF)", "", "ADIF logbook (*.adi *.adif);;All files (*)")
+        if not path:
+            return
+        self.open_document(path)
+
     def show_rf_reference(self) -> None:
         """Open the RF reference panel (amateur bands + CTCSS tones).
 

@@ -95,7 +95,9 @@ class Document:
         elif ext in (".adi", ".adif"):
             from ..core.io import adif_io
 
-            wb = _single(adif_io.load_adif(path))
+            sheet = adif_io.load_adif(path)
+            _enrich_dxcc(sheet)
+            wb = _single(sheet)
         elif ext in (".db", ".sqlite", ".sqlite3"):
             from ..core.io import sqlite_io
 
@@ -166,3 +168,30 @@ class Document:
 
 def _single(sheet) -> Workbook:
     return Workbook.from_sheets([sheet])
+
+
+def _enrich_dxcc(sheet) -> None:
+    """Append a ``DXCC`` column to a logbook sheet, resolved from each ``CALL``.
+
+    Best-effort: a sheet with a header row containing ``CALL`` gets a new column
+    of DXCC entity names (blank where the callsign is unknown). Does nothing if
+    there is no CALL column or the DXCC data is unavailable."""
+    try:
+        from ..core.science.dxcc import entity_for_call
+    except Exception:  # noqa: BLE001 - optional enrichment, never fatal
+        return
+    nr, nc = sheet.used_bounds()
+    if nr < 1 or nc < 1:
+        return
+    headers = [str(sheet.get_value(0, c) or "").strip().upper() for c in range(nc)]
+    if "CALL" not in headers or "DXCC" in headers:
+        return
+    call_col = headers.index("CALL")
+    dxcc_col = nc
+    sheet.set_cell(0, dxcc_col, "DXCC")
+    for r in range(1, nr):
+        call = sheet.get_value(r, call_col)
+        if call:
+            entity = entity_for_call(str(call))
+            if entity:
+                sheet.set_cell(r, dxcc_col, entity)

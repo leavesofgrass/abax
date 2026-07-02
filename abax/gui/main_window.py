@@ -429,6 +429,8 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._act(m_radio, "&RF toolkit...", self.show_rf_tool)
         self._act(m_radio, "Smith &chart...", self.show_smith_chart)
         self._act(m_radio, "&Antenna pattern...", self.show_antenna_pattern)
+        self._act(m_radio, "Antenna &modeler...", self.show_antenna_modeler)
+        self._act(m_radio, "Open &logbook (ADIF)...", self.show_adif_logbook)
         m_radio.addSeparator()
         self._act(m_radio, "RF re&ference (bands / CTCSS)...", self.show_rf_reference)
         self._act(m_radio, "&I/Q constellation -> SVG", self.export_iq_svg)
