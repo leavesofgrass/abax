@@ -6,6 +6,12 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 
+# Coverage.py data + reports (see [tool.coverage] in pyproject / CI coverage job)
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
 # Build artifacts
 build/
 dist/

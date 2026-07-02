@@ -14,7 +14,7 @@ keywords = ["statistics", "data-science", "data-analysis", "spreadsheet", "panda
 dependencies = []   # core is stdlib-only; everything else is optional
 
 [project.optional-dependencies]
-dev      = ["pytest", "pytest-xdist", "pytest-timeout", "ruff==0.15.20", "build"]
+dev      = ["pytest", "pytest-xdist", "pytest-timeout", "pytest-cov", "ruff==0.15.20", "build"]
 tui      = ["textual", "rich", "windows-curses; sys_platform == 'win32'"]  # curses TUI needs windows-curses on Windows
 gui      = ["PySide6-Essentials"]  # LGPL Qt Widgets/Gui/Core only — no QtWebEngine/Addons
 gui-pyqt = ["PyQt6"]               # GPL/commercial alternative binding
@@ -102,3 +102,31 @@ relative-imports-order = "closest-to-furthest"
 # tui/__init__ re-exports the package's public surface (incl. a few private
 # helpers the tests import); intentional re-exports, not unused.
 "abax/tui/__init__.py" = ["F401"]
+
+# ── Coverage (pytest-cov / coverage.py) ─────────────────────────────────────
+# Scoped to the engine (abax/core) — the stdlib-only calculation core that every
+# front-end sits on. The CI "coverage" job runs `pytest --cov=abax/core` with a
+# --cov-fail-under floor (see .github/workflows/ci.yml); this section defines
+# what counts. The floor is a ratchet set just under the current measured
+# number, so it only moves up.
+[tool.coverage.run]
+branch = true
+source = ["abax/core"]
+# `parallel` lets pytest-xdist workers each write their own data file; the CI
+# job (and `coverage combine`) merges them. Harmless for a single-process run.
+parallel = true
+
+[tool.coverage.report]
+# Don't count lines that are unreachable-by-design or platform/optional-dep
+# specific — they'd otherwise depress the floor for code that can't run in a
+# lean CI environment.
+exclude_also = [
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "@(abc\\.)?abstractmethod",
+    "pragma: no cover",
+]
+show_missing = true
+skip_covered = false

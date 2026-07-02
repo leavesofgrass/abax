@@ -1,0 +1,120 @@
+name: CI
+
+# Runs on every push and pull request. Three concerns, three jobs:
+#   check    — lint + test + pyz build across the OS x Python matrix (mirrors
+#              `just check`).
+#   coverage — engine coverage ratchet on abax/core (single runner).
+#   bench    — recalc throughput regression gate vs a committed baseline.
+on:
+  push:
+  pull_request:
+
+# One in-flight run per ref; a new push cancels the previous run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUTF8: "1"
+
+jobs:
+  # ── Lint + test + pyz across OS x Python (the `just check` matrix) ──────────
+  # abax core is stdlib-only; the tests exercise the GUI/TUI/science front-ends
+  # when those extras are present. We install the `dev` extra (pytest, ruff,
+  # build, pytest-cov) plus `thin` (GUI + lightweight conveniences) — the same
+  # surface `just install` sets up — so the suite runs the same code paths CI
+  # can support without pulling the ~0.84 GB full-fat stack.
+  check:
+    name: check (${{ matrix.os }} / py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      - name: Install project (dev + thin extras)
+        run: python -m pip install -e ".[dev,thin]"
+
+      # Headless Qt on Linux needs an X server surrogate; the GUI tests import a
+      # QApplication. macOS/Windows runners ship a usable windowing layer.
+      - name: Run just check (Linux, headless Qt)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a just check
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+      - name: Run just check (macOS / Windows)
+        if: runner.os != 'Linux'
+        run: just check
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+  # ── Coverage ratchet on abax/core ──────────────────────────────────────────
+  # A floor, not an aspiration: --cov-fail-under is set just under the current
+  # measured coverage, so the gate only ratchets upward. Runs once (Linux /
+  # 3.13) — coverage of pure-Python logic is platform-independent.
+  coverage:
+    name: coverage (abax/core ratchet)
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install project (dev + thin extras)
+        run: python -m pip install -e ".[dev,thin]"
+
+      # Floor = current measured coverage (81.49%) rounded DOWN to 81. This is a
+      # ratchet: raise it when coverage rises, never a number to chase.
+      - name: pytest --cov=abax/core (fail under the ratchet floor)
+        run: >
+          xvfb-run -a python -m pytest -n auto
+          --cov=abax/core --cov-report=term-missing
+          --cov-fail-under=81
+
+  # ── Benchmark regression gate ──────────────────────────────────────────────
+  # Runs the recalc throughput gate against scripts/bench_baseline.json and
+  # fails only if a metric regresses beyond the lenient threshold (default 30%).
+  # Single runner; the baseline was captured on a developer machine, so the
+  # generous threshold absorbs the CPU difference — this catches algorithmic
+  # regressions, not raw-clock differences between machines.
+  bench:
+    name: benchmark regression gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # The gate touches only abax.core (stdlib-only) via the profiler's
+      # workload builder, so no extras are needed here.
+      - name: Install project
+        run: python -m pip install -e .
+
+      - name: Run benchmark gate
+        run: python scripts/bench_gate.py
