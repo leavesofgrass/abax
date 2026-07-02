@@ -1,9 +1,10 @@
 """High-level document façade used by the GUI and TUI.
 
 Dispatches open/save to the right backend by file extension:
-``.json``/``.abax`` (native), ``.csv``/``.tsv``, ``.xlsx``. Tracks the
-current path and dirty state. This is the single entry point both front-ends
-call so they never touch backend modules directly.
+``.json``/``.abax`` (native), ``.csv``/``.tsv``, ``.xlsx``, ``.parquet``,
+``.ods``, ``.h5``/``.hdf5`` (read-only), and more. Tracks the current path and
+dirty state. This is the single entry point both front-ends call so they never
+touch backend modules directly.
 """
 
 from __future__ import annotations
@@ -116,6 +117,10 @@ class Document:
             from . import statfiles
 
             wb = statfiles.load_statfile(path)
+        elif ext in (".h5", ".hdf5"):
+            from . import hdf5_io
+
+            wb = hdf5_io.load_hdf5(path)
         else:
             raise ValueError(f"unsupported file type: {ext!r}")
         return cls(wb, path)

@@ -96,6 +96,11 @@ OPTIONAL_DEPENDENCIES = {
         "fallback": "no probabilistic programming",
         "purpose": "Bayesian / probabilistic programming (MCMC)",
     },
+    "h5py": {
+        "available": _has("h5py"),
+        "fallback": "no .h5 / .hdf5 import",
+        "purpose": "HDF5 (.h5/.hdf5) dataset import",
+    },
     "PyNEC": {
         "available": _has("PyNEC"),
         "fallback": "built-in method-of-moments antenna solver",

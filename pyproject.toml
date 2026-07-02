@@ -36,6 +36,9 @@ science  = [
 # Bayesian / probabilistic programming — split out because pymc pulls a heavy
 # stack (pytensor + arviz + numba/llvmlite, ~150 MB). Included in `all`.
 bayes    = ["pymc"]
+# HDF5 (.h5 / .hdf5) dataset import via h5py (wraps the libhdf5 C library).
+# Optional — abax simply can't open HDF5 files without it. Included in `all`.
+hdf5     = ["h5py"]
 # Reference-grade NEC antenna solver (a compiled C++/SWIG extension). Optional —
 # the built-in method-of-moments solver works without it. In `all`, not `thin`;
 # wheels aren't published for every platform, so it may need a build toolchain.
@@ -48,7 +51,7 @@ stats-io = ["pyreadstat"]
 # terminal), but NONE of the heavy optional data-science libraries. ~0.22 GB.
 thin     = ["abax[gui,tui,excel,fast-io,terminal,sevenzip]"]
 # Everything abax can use, in one shot (the default full-fat set). ~0.84 GB.
-all      = ["abax[thin,parquet,science,jupyter,bayes,nec,stats-io]"]
+all      = ["abax[thin,parquet,science,jupyter,bayes,stats-io,hdf5,nec]"]
 
 [project.scripts]
 abax = "abax.app:main"

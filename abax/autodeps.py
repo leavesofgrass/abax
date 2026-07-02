@@ -64,6 +64,7 @@ FEATURES: dict[str, list[tuple[str, str]]] = {
                 ("anywidget", "anywidget")],
     "science": _SCIENCE,
     "bayes": _BAYES,
+    "hdf5": [("h5py", "h5py")],
     "nec": _NEC,
     "stats-io": _STATS_IO,
 }
@@ -82,6 +83,7 @@ ALL: list[tuple[str, str]] = [
     ("ipykernel", "ipykernel"),
     *_STATS_IO,
     *_BAYES,
+    ("h5py", "h5py"),
     *_NEC,          # compiled; last so a build failure can't block the rest
 ]
 
@@ -105,6 +107,7 @@ FEATURE_INFO: dict[str, tuple[str, str, int]] = {
                 "pingouin, scikit-survival", 450),
     "bayes": ("Bayesian / probabilistic modeling (large)",
               "pymc + pytensor + arviz + numba/llvmlite", 150),
+    "hdf5": ("HDF5 data files (.h5 / .hdf5)", "h5py", 15),
     "nec": ("Reference-grade NEC antenna solver",
             "PyNEC (compiled; may need a build toolchain on some platforms)", 5),
     "stats-io": ("Stata / SPSS data files (.dta / .sav)",
