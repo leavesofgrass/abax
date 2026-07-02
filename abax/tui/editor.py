@@ -9,6 +9,55 @@ from .commands import _fmt_num, parse_command
 from .themes import THEMES
 from ..core.reference import to_a1
 
+# Static help table: ``(key-or-command, one-line description)`` shown by the
+# ``?`` / ``:help`` overlay. Kept here so both the overlay renderer and tests
+# read the same source of truth.
+HELP_ENTRIES: list[tuple[str, str]] = [
+    ("-- movement --", ""),
+    ("h j k l", "move cursor left / down / up / right (also arrow keys)"),
+    ("g", "jump to the first row"),
+    ("G", "jump to the last used row"),
+    ("0", "jump to the first column"),
+    ("n / N", "next / previous search match"),
+    ("-- editing --", ""),
+    ("i", "insert: edit the current cell (Enter commits, Esc cancels)"),
+    ("x", "clear the current cell"),
+    ("y", "yank (copy) the current cell"),
+    ("p", "paste the yanked cell/region at the cursor"),
+    ("u", "undo the last change"),
+    ("Ctrl-R", "redo the last undone change"),
+    ("-- overlays --", ""),
+    ("?", "open this help overlay"),
+    (":func", "open the function browser"),
+    (":rpn", "open the RPN calculator"),
+    (":plot", "plot an expression or a cell range"),
+    ("-- commands --", ""),
+    (":w [path]", "write (save) the workbook"),
+    (":q", "quit"),
+    (":wq / :x", "save and quit"),
+    (":undo / :redo", "undo / redo the last change"),
+    (":help", "open this help overlay"),
+    (":find <pat>", "search cells (regex); n/N to navigate"),
+    (":replace <p> <r>", "regex replace across the sheet"),
+    (":s/pat/repl/[i]", "vim-style substitute on the current sheet"),
+    (":copy [range]", "copy a range (default: current cell)"),
+    (":paste [dest]", "paste the copied range"),
+    (":fill down|right|series <range>", "fill a range"),
+    (":sort <range> [col] [desc]", "sort a range"),
+    (":fmt <spec> [range]", "apply a number format"),
+    (":convert <v> <from> <to>", "unit conversion"),
+    (":theme <name>", "switch the colour theme"),
+    (":py <python>", "run a Python snippet against the sheet"),
+    (":eq <latex>", "render LaTeX math to unicode"),
+    (":!<cmd>", "run a shell command"),
+    (":func [filter]", "browse function names"),
+    (":rpn [tokens]", "RPN calculator (REPL or one-shot)"),
+    (":plot <expr|range>", "plot an expression or cell range(s)"),
+    (":macro <name>", "run a saved macro"),
+    (":rec ...", "record / replay a macro"),
+    (":clips / :clip <i>", "clipboard history"),
+]
+
 
 class TuiEditor:
     """Headless spreadsheet editor state: cursor + mode + sheet.
@@ -24,7 +73,7 @@ class TuiEditor:
         self.recorder = MacroRecorder()
         self.row = 0
         self.col = 0
-        self.mode = "normal"  # normal | insert | command | browser
+        self.mode = "normal"  # normal | insert | command | browser | help
         self.command_buf = ""
         self.edit_buf = ""
         self.completions: list[str] = []
@@ -34,6 +83,7 @@ class TuiEditor:
         self.match_idx = 0
         self.browser: list[str] = []  # function-browser entries when mode == browser
         self.browser_idx = 0
+        self.help_idx = 0  # scroll offset when mode == help
         self.theme_name = "obsidian"  # live TUI theme (changeable via :theme)
         from ..core.clipboard import ClipboardManager
 
@@ -42,6 +92,7 @@ class TuiEditor:
         self.rpn_input = ""  # input buffer when mode == rpn
         self.plot_pts: list = []  # sampled points when mode == plot
         self.plot_expr = ""
+        self.plot_bounds = None  # (xmin, xmax, ymin, ymax) for range plots, else None
         self.message = ""
         self.running = True
 
@@ -61,6 +112,7 @@ class TuiEditor:
         self.edit_buf = self.sheet.get_raw(self.row, self.col)
 
     def commit_insert(self) -> None:
+        self.doc.checkpoint(f"edit {self.cursor_a1()}")
         self.sheet.set_cell(self.row, self.col, self.edit_buf)
         self.recorder.record_set(self.cursor_a1(), self.edit_buf)
         self.doc.mark_dirty()
@@ -187,8 +239,48 @@ class TuiEditor:
             self._handle_eq(raw[2:].strip() if raw.startswith("eq") else "")
         elif cmd == "convert":
             self._handle_convert(args)
+        elif cmd == "undo":
+            self.do_undo()
+        elif cmd == "redo":
+            self.do_redo()
+        elif cmd == "help":
+            self._open_help()
         else:
             self.message = f"unknown command: {cmd}"
+
+    # --- undo / redo ------------------------------------------------------
+
+    def do_undo(self) -> None:
+        """Restore the previous checkpoint and refresh the view."""
+        if self.doc.undo():
+            self._clamp_cursor()
+            self.message = "undone"
+        else:
+            self.message = "nothing to undo"
+
+    def do_redo(self) -> None:
+        """Re-apply the most recently undone checkpoint and refresh the view."""
+        if self.doc.redo():
+            self._clamp_cursor()
+            self.message = "redone"
+        else:
+            self.message = "nothing to redo"
+
+    def _clamp_cursor(self) -> None:
+        """Keep the cursor non-negative after the sheet is swapped by undo/redo."""
+        self.row = max(0, self.row)
+        self.col = max(0, self.col)
+
+    # --- help overlay -----------------------------------------------------
+
+    def _open_help(self) -> None:
+        self.help_idx = 0
+        self.mode = "help"
+
+    def help_move(self, step: int) -> None:
+        n = len(HELP_ENTRIES)
+        if n:
+            self.help_idx = max(0, min(self.help_idx + step, n - 1))
 
     def _handle_convert(self, args: list[str]) -> None:
         from ..core.science.units import UnitError, convert
@@ -225,11 +317,25 @@ class TuiEditor:
         self.doc.mark_dirty()
         self.message = f"format {spec} over {rng}"
 
+    _RANGE_ARG = None
+
+    def _is_range_arg(self, arg: str) -> bool:
+        """True when ``arg`` looks like an A1 cell/range (e.g. ``A1`` or ``A1:A50``)."""
+        import re
+
+        if TuiEditor._RANGE_ARG is None:
+            TuiEditor._RANGE_ARG = re.compile(r"^\$?[A-Za-z]{1,3}\$?\d+(:\$?[A-Za-z]{1,3}\$?\d+)?$")
+        return bool(TuiEditor._RANGE_ARG.match(arg.strip()))
+
     def _handle_plot(self, args: list[str]) -> None:
         from ..core.graphing import GraphError, sample
 
         if not args:
-            self.message = "usage: :plot <expr> [xmin xmax]"
+            self.message = "usage: :plot <expr> [xmin xmax]  |  :plot A1:A50 [B1:B50]"
+            return
+        # Range form: :plot A1:A50  (y vs index) or :plot A1:A50 B1:B50  (x, y).
+        if self._is_range_arg(args[0]):
+            self._plot_ranges(args)
             return
         try:
             xmin = float(args[1]) if len(args) > 1 else -6.283185
@@ -239,6 +345,47 @@ class TuiEditor:
             self.message = f"plot: {exc}"
             return
         self.plot_expr = args[0]
+        self.plot_bounds = None
+        self.mode = "plot"
+
+    def _range_numbers(self, rng: str) -> list[float | None]:
+        """Read a range's cells in row-major order as floats (None for non-numeric)."""
+        from ..core.reference import parse_range
+
+        r1, c1, r2, c2 = parse_range(rng)
+        out: list[float | None] = []
+        for r in range(r1, r2 + 1):
+            for c in range(c1, c2 + 1):
+                v = self.sheet.get_value(r, c)
+                if isinstance(v, bool) or not isinstance(v, (int, float)):
+                    out.append(None)
+                else:
+                    out.append(float(v))
+        return out
+
+    def _plot_ranges(self, args: list[str]) -> None:
+        try:
+            first = self._range_numbers(args[0])
+            if len(args) > 1 and self._is_range_arg(args[1]):
+                # (x, y): first range is x, second is y.
+                second = self._range_numbers(args[1])
+                pts = [(x, y) for x, y in zip(first, second) if x is not None]
+                self.plot_expr = f"{args[1]} vs {args[0]}"
+            else:
+                # y vs implicit index 0,1,2,…
+                pts = [(float(i), y) for i, y in enumerate(first)]
+                self.plot_expr = args[0]
+        except Exception as exc:
+            self.message = f"plot: {exc}"
+            return
+        finite = [(x, y) for (x, y) in pts if y is not None]
+        if not finite:
+            self.message = "plot: no numeric data in range"
+            return
+        xs = [x for x, _ in finite]
+        yvals = [y for _, y in finite]
+        self.plot_pts = pts
+        self.plot_bounds = (min(xs), max(xs), min(yvals), max(yvals))
         self.mode = "plot"
 
     def _handle_eq(self, latex: str) -> None:
@@ -348,6 +495,7 @@ class TuiEditor:
         if entry is None:
             self.message = "no such clip"
             return
+        self.doc.checkpoint(f"paste clip {args[0]}")
         clip = clip_from_tsv(entry.text, (self.row, self.col))
         paste_clip(self.sheet, clip, (self.row, self.col), mode="absolute",
                    on_set=self.recorder.record_set)
@@ -394,6 +542,7 @@ class TuiEditor:
         if len(args) < 2:
             self.message = "usage: :replace <pattern> <replacement>  (or :s/pat/repl/)"
             return
+        self.doc.checkpoint("replace")
         try:
             n = replace_all(self.sheet, args[0], args[1], SearchOptions(regex=True),
                             on_set=self.recorder.record_set)
@@ -414,6 +563,7 @@ class TuiEditor:
         pat, repl = parts[0], parts[1]
         flags = parts[2] if len(parts) > 2 else ""
         opts = SearchOptions(regex=True, case_sensitive=("i" not in flags))
+        self.doc.checkpoint("substitute")
         try:
             n = replace_all(self.sheet, pat, repl, opts, on_set=self.recorder.record_set)
         except SearchError as exc:
@@ -472,6 +622,7 @@ class TuiEditor:
             self.message = "nothing to paste (use :copy first)"
             return
         dest = args[0] if args else self.cursor_a1()
+        self.doc.checkpoint(f"paste {dest}")
         paste_clip(self.sheet, self.clip, dest, on_set=self.recorder.record_set)
         self.doc.mark_dirty()
         self.message = f"pasted at {dest}"
@@ -487,6 +638,7 @@ class TuiEditor:
         if fn is None:
             self.message = "fill: down | right | series"
             return
+        self.doc.checkpoint(f"fill {kind} {rng}")
         try:
             fn(self.sheet, rng, on_set=self.recorder.record_set)
         except Exception as exc:
@@ -510,6 +662,7 @@ class TuiEditor:
                 descending = True
             elif a.isalpha():
                 key_col = col_to_index(a)
+        self.doc.checkpoint(f"sort {rng}")
         try:
             sort_region(self.sheet, rng, key_col, descending=descending,
                         on_set=self.recorder.record_set)
@@ -598,9 +751,16 @@ class TuiEditor:
         elif ch == ":":
             self.begin_command()
         elif ch == "x":
+            self.doc.checkpoint(f"clear {self.cursor_a1()}")
             self.sheet.set_cell(self.row, self.col, "")
             self.recorder.record_clear(self.cursor_a1())
             self.doc.mark_dirty()
+        elif ch == "u":  # undo
+            self.do_undo()
+        elif ch == "\x12":  # Ctrl-R — redo
+            self.do_redo()
+        elif ch == "?":  # help overlay
+            self._open_help()
         elif ch == "y":  # yank current cell
             from ..core.fill import copy_region, region_to_tsv
 
@@ -611,6 +771,7 @@ class TuiEditor:
             if self.clip is not None:
                 from ..core.fill import paste_clip
 
+                self.doc.checkpoint(f"paste {self.cursor_a1()}")
                 paste_clip(self.sheet, self.clip, self.cursor_a1(),
                            on_set=self.recorder.record_set)
                 self.doc.mark_dirty()

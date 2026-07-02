@@ -32,6 +32,8 @@ def _handle_key(editor: TuiEditor, ch) -> None:
     # Normalize curses key to a string where possible.
     if editor.mode == "browser":
         _handle_browser(editor, ch)
+    elif editor.mode == "help":
+        _handle_help(editor, ch)
     elif editor.mode == "plot":
         _handle_plot(editor, ch)
     elif editor.mode == "rpn":
@@ -78,6 +80,20 @@ def _handle_browser(editor: TuiEditor, ch) -> None:
         editor.browser_idx = 0
     elif isinstance(ch, str) and ch in ("G",):
         editor.browser_idx = len(editor.browser) - 1
+
+
+def _handle_help(editor: TuiEditor, ch) -> None:
+    ch = _arrow_vi(ch) or ch   # arrows scroll the list like j/k
+    if ch == "\x1b" or ch == "q":
+        editor.mode = "normal"
+    elif ch == "j":
+        editor.help_move(1)
+    elif ch == "k":
+        editor.help_move(-1)
+    elif isinstance(ch, str) and ch == "g":
+        editor.help_idx = 0
+    elif isinstance(ch, str) and ch == "G":
+        editor.help_move(1 << 30)  # clamps to the last entry
 
 
 def _handle_insert(editor: TuiEditor, ch) -> None:

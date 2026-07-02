@@ -339,6 +339,119 @@ def test_function_browser_mode():
     assert ed.edit_buf == "=VLOOKUP("
 
 
+def test_undo_restores_cleared_cell():
+    ed = TuiEditor(Document())
+    ed.sheet.set("A1", "hello")
+    ed.row, ed.col = 0, 0
+    ed.dispatch_normal("x")  # clear A1 (checkpoints first)
+    assert ed.sheet.get("A1") in (None, "")
+    ed.dispatch_normal("u")  # undo
+    assert ed.sheet.get("A1") == "hello"
+    assert ed.message == "undone"
+
+
+def test_redo_reapplies_change():
+    ed = TuiEditor(Document())
+    ed.sheet.set("A1", "hello")
+    ed.dispatch_normal("x")   # clear
+    ed.dispatch_normal("u")   # undo -> restored
+    assert ed.sheet.get("A1") == "hello"
+    ed.dispatch_normal("\x12")  # Ctrl-R redo -> cleared again
+    assert ed.sheet.get("A1") in (None, "")
+    assert ed.message == "redone"
+
+
+def test_undo_command_and_nothing_to_undo():
+    ed = TuiEditor(Document())
+    ed.command_buf = ":undo"
+    ed.run_command()
+    assert ed.message == "nothing to undo"
+    ed.begin_insert()
+    ed.edit_buf = "=1+1"
+    ed.commit_insert()  # A1 = 2, checkpointed
+    ed.command_buf = ":undo"
+    ed.run_command()
+    assert ed.sheet.get("A1") in (None, "")
+    ed.command_buf = ":redo"
+    ed.run_command()
+    assert ed.sheet.get("A1") == 2
+
+
+def test_help_command_enters_help_mode():
+    ed = TuiEditor(Document())
+    ed.command_buf = ":help"
+    ed.run_command()
+    assert ed.mode == "help"
+
+
+def test_help_key_enters_and_lists_commands():
+    from abax.tui.editor import HELP_ENTRIES
+
+    ed = TuiEditor(Document())
+    ed.dispatch_normal("?")
+    assert ed.mode == "help"
+    # every normal-mode key + ':' command is represented
+    keys = " ".join(k for k, _ in HELP_ENTRIES)
+    assert ":help" in keys
+    assert ":plot" in keys
+    assert "u" in keys
+    assert "?" in keys
+
+
+def test_help_mode_scroll_and_exit():
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    ed.dispatch_normal("?")
+    _handle_key(ed, "j")
+    assert ed.help_idx == 1
+    _handle_key(ed, "G")  # jump to bottom (clamped)
+    from abax.tui.editor import HELP_ENTRIES
+
+    assert ed.help_idx == len(HELP_ENTRIES) - 1
+    _handle_key(ed, "q")  # exit
+    assert ed.mode == "normal"
+
+
+def test_plot_range_single_column():
+    ed = TuiEditor(Document())
+    for i, v in enumerate([1, 4, 9], start=1):
+        ed.sheet.set(f"A{i}", str(v))
+    ed.command_buf = ":plot A1:A3"
+    ed.run_command()
+    assert ed.mode == "plot"
+    assert ed.plot_bounds is not None
+    # bounds y-range covers the data
+    _, _, ymin, ymax = ed.plot_bounds
+    assert ymin == 1.0 and ymax == 9.0
+    from abax.core.graphing import braille_plot
+
+    out = braille_plot(ed.plot_pts, width=20, height=6,
+                       xmin=ed.plot_bounds[0], xmax=ed.plot_bounds[1],
+                       ymin=ymin, ymax=ymax)
+    assert isinstance(out, str) and out
+
+
+def test_plot_range_xy_pairs():
+    ed = TuiEditor(Document())
+    for i, (x, y) in enumerate([(0, 0), (1, 2), (2, 4)], start=1):
+        ed.sheet.set(f"A{i}", str(x))
+        ed.sheet.set(f"B{i}", str(y))
+    ed.command_buf = ":plot A1:A3 B1:B3"
+    ed.run_command()
+    assert ed.mode == "plot"
+    assert ed.plot_pts == [(0.0, 0.0), (1.0, 2.0), (2.0, 4.0)]
+
+
+def test_plot_expression_still_works():
+    ed = TuiEditor(Document())
+    ed.command_buf = ":plot sin(x) -3 3"
+    ed.run_command()
+    assert ed.mode == "plot"
+    assert ed.plot_expr == "sin(x)"
+    assert ed.plot_bounds is None  # expression form uses auto-ranging
+
+
 def test_relative_record_and_replay_at_cursor():
     ed = TuiEditor(Document())
     # start relative recording at B2

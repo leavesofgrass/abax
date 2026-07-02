@@ -81,6 +81,9 @@ def _render(stdscr, curses, editor, attr, cap, colors, cond_attr) -> None:
     if editor.mode == "browser":
         _render_browser(stdscr, curses, editor, attr, max_y, max_x)
         return
+    if editor.mode == "help":
+        _render_help(stdscr, curses, editor, attr, max_y, max_x)
+        return
     if editor.mode == "rpn":
         _render_rpn(stdscr, curses, editor, attr, max_y, max_x)
         return
@@ -143,7 +146,7 @@ def _render(stdscr, curses, editor, attr, cap, colors, cond_attr) -> None:
             line += "   " + editor.arg_hint
         _addstr(stdscr, max_y - 1, 0, line[: max_x - 1], attr("accent"))
     else:
-        hint = "i edit  :find  :rpn  :plot  :eq  :fmt  :py  :!cmd  :func  :w :q"
+        hint = "i edit  u undo  ? help  :find  :rpn  :plot  :eq  :fmt  :py  :func  :w :q"
         _addstr(stdscr, max_y - 1, 0, hint[: max_x - 1], attr("dim"))
 
 
@@ -182,6 +185,27 @@ def _render_browser(stdscr, curses, editor, attr, max_y, max_x) -> None:
         _addstr(stdscr, max_y - 2, 0, sig[: max_x - 1], attr("label"))
 
 
+def _render_help(stdscr, curses, editor, attr, max_y, max_x) -> None:
+    from .editor import HELP_ENTRIES
+
+    title = "Help — j/k scroll · g/G top/bottom · Esc/q close"
+    _addstr(stdscr, 0, 0, title.ljust(max_x)[: max_x - 1], attr("banner"))
+    visible = max(1, max_y - 3)
+    entries = HELP_ENTRIES
+    start = max(0, min(editor.help_idx - visible // 2, len(entries) - visible))
+    start = max(0, start)
+    for i, (key, desc) in enumerate(entries[start : start + visible]):
+        idx = start + i
+        selected = idx == editor.help_idx
+        if desc == "":  # section header row
+            a = attr("label")
+            line = key
+        else:
+            a = (attr("accent") | curses.A_REVERSE) if selected else attr("lcd")
+            line = f"{key:<28} {desc}"
+        _addstr(stdscr, i + 1, 2, line.ljust(max_x - 3)[: max_x - 3], a)
+
+
 def _render_rpn(stdscr, curses, editor, attr, max_y, max_x) -> None:
     rpn = editor._ensure_rpn()
     title = "RPN calculator — tokens + Enter · '<' pull cell · '>' store X · Esc exit"
@@ -200,8 +224,12 @@ def _render_plot(stdscr, curses, editor, attr, max_y, max_x) -> None:
 
     _addstr(stdscr, 0, 0, f"y = {editor.plot_expr}   (Esc to close)".ljust(max_x)[: max_x - 1],
             attr("banner"))
+    bounds = getattr(editor, "plot_bounds", None) or (None, None, None, None)
+    xmin, xmax, ymin, ymax = bounds
     try:
-        canvas = braille_plot(editor.plot_pts, width=max(10, max_x - 2), height=max(4, max_y - 3))
+        canvas = braille_plot(
+            editor.plot_pts, width=max(10, max_x - 2), height=max(4, max_y - 3),
+            xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
     except Exception as exc:  # pragma: no cover - defensive
         _addstr(stdscr, 2, 0, f"plot error: {exc}"[: max_x - 1], attr("dim"))
         return
