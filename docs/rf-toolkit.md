@@ -154,6 +154,30 @@ C2: =GRIDBEARING("JN58td", "IO91wm") → ~300    (degrees, WNW)
 | `NEARESTCTCSS(freq_hz)` | the standard CTCSS tone nearest a measured frequency |
 | `DXCC(callsign)` | DXCC entity for a callsign (`=DXCC("W1AW")` → `United States`); handles portable prefixes and operational suffixes |
 
+`DXCC` is backed by a 378-prefix table (`abax/core/science/dxcc.py`); it strips
+trailing operational suffixes (`/P`, `/M`, `/QRP`, …) and honours a leading
+re-location prefix (`DL/W1AW` → `Germany`), matching on the longest prefix in the
+table.
+
+## ADIF logbook (.adi / .adif)
+
+abax reads and writes **ADIF** (Amateur Data Interchange Format) logbooks, backed by
+[`abax/core/io/adif_io.py`](../abax/core/io/adif_io.py) (pure standard library):
+
+- **Open** a `.adi`/`.adif` file (*File → Open*) and abax loads it into a sheet named
+  **Log** — the header row is the union of ADIF field names (in first-seen order) and
+  each QSO record becomes a row.
+- **Save As** a `.adi`/`.adif` file (*File → Save As*) writes the sheet back out as a
+  valid ADIF document (header row = field names, one `<…:len>value…<EOR>` record per
+  data row).
+- The parser skips an optional header (through `<EOH>`), is case-insensitive, and
+  measures field lengths in **UTF-8 bytes** so values with non-ASCII characters survive
+  a round-trip. `abax.core.io.adif_io` is also exposed in the Python console as `adif`
+  (`parse_adif` / `to_adif` / `records_to_grid` / `grid_to_records`).
+
+Combine it with `DXCC` in the grid — e.g. `=DXCC(A2)` in a column next to your logged
+callsigns — to annotate the entities you've worked.
+
 ## GUI tools (the *Radio* menu)
 
 All of the RF/amateur-radio tools live under the **Tools → Radio** submenu (general
