@@ -110,3 +110,121 @@ def test_voyager_programming_key_message() -> None:
     kp = VoyagerKeypad()
     kp._apply("SOLVE")
     assert "program" in kp.message.lower() or "solver" in kp.message.lower()
+
+
+# --- HP-15C statistics registers -----------------------------------------
+
+# A small dataset with tidy hand-computed summary statistics.
+_STAT_POINTS = [(1.0, 2.0), (2.0, 4.0), (3.0, 5.0), (4.0, 4.0), (5.0, 5.0)]
+_EXPECT = {
+    "xbar": 3.0, "ybar": 4.0,
+    "sx": 1.5811388300841898, "sy": 1.224744871391589,
+    "slope": 0.6, "intercept": 2.2, "r": 0.7745966692414834,
+}
+
+
+def _enter_number(kp: VoyagerKeypad, value: float) -> None:
+    """Key a (small, non-negative) number one character at a time."""
+    for ch in _fmt(value):
+        kp._apply(ch)
+
+
+def _fmt(value: float) -> str:
+    return str(int(value)) if float(value).is_integer() else str(value)
+
+
+def _accumulate(kp: VoyagerKeypad, points) -> None:
+    """Key each (x, y): y ENTER x Σ+ (the 15C data-point convention)."""
+    for x, y in points:
+        _enter_number(kp, y)
+        kp._apply("ENTER")
+        _enter_number(kp, x)
+        kp._apply("Sigma+")
+
+
+def test_voyager_sigma_plus_counts() -> None:
+    kp = VoyagerKeypad()
+    _accumulate(kp, _STAT_POINTS)
+    # Σ+ leaves the running count n in X.
+    assert kp.rpn.x == float(len(_STAT_POINTS))
+    assert kp.stats.n == len(_STAT_POINTS)
+
+
+def test_voyager_mean() -> None:
+    import math
+
+    kp = VoyagerKeypad()
+    _accumulate(kp, _STAT_POINTS)
+    kp._apply("mean")
+    assert math.isclose(kp.rpn.x, _EXPECT["xbar"], abs_tol=1e-6)   # x̄ in X
+    assert math.isclose(kp.rpn.y, _EXPECT["ybar"], abs_tol=1e-6)   # ȳ in Y
+
+
+def test_voyager_std_dev() -> None:
+    import math
+
+    kp = VoyagerKeypad()
+    _accumulate(kp, _STAT_POINTS)
+    kp._apply("std dev")
+    assert math.isclose(kp.rpn.x, _EXPECT["sx"], abs_tol=1e-6)     # sₓ in X
+    assert math.isclose(kp.rpn.y, _EXPECT["sy"], abs_tol=1e-6)     # s_y in Y
+
+
+def test_voyager_linear_regression() -> None:
+    import math
+
+    kp = VoyagerKeypad()
+    _accumulate(kp, _STAT_POINTS)
+    kp._apply("L.R.")
+    assert math.isclose(kp.rpn.x, _EXPECT["intercept"], abs_tol=1e-6)  # b in X
+    assert math.isclose(kp.rpn.y, _EXPECT["slope"], abs_tol=1e-6)      # m in Y
+
+
+def test_voyager_lin_est_r() -> None:
+    import math
+
+    kp = VoyagerKeypad()
+    _accumulate(kp, _STAT_POINTS)
+    kp._apply("6")            # forecast at x = 6
+    kp._apply("lin est,r")
+    expected_yhat = _EXPECT["slope"] * 6.0 + _EXPECT["intercept"]
+    assert math.isclose(kp.rpn.x, expected_yhat, abs_tol=1e-6)     # ŷ in X
+    assert math.isclose(kp.rpn.y, _EXPECT["r"], abs_tol=1e-6)      # r in Y
+
+
+def test_voyager_sigma_minus_removes_point() -> None:
+    import math
+
+    kp = VoyagerKeypad()
+    _accumulate(kp, _STAT_POINTS)
+    # Remove the last point (5, 5): y ENTER x Σ-.
+    kp._apply("5")
+    kp._apply("ENTER")
+    kp._apply("5")
+    kp._apply("Sigma-")
+    assert kp.rpn.x == 4.0
+    assert kp.stats.n == 4
+    # The mean of the remaining four points {(1,2),(2,4),(3,5),(4,4)}.
+    kp._apply("mean")
+    assert math.isclose(kp.rpn.x, 2.5, abs_tol=1e-6)   # x̄ = (1+2+3+4)/4
+    assert math.isclose(kp.rpn.y, 3.75, abs_tol=1e-6)  # ȳ = (2+4+5+4)/4
+
+
+def test_voyager_stat_keys_via_full_keypress() -> None:
+    import math
+
+    # Exercise the real f/g shift mapping: mean is the blue (g) legend of key 47.
+    kp = VoyagerKeypad()
+    _accumulate(kp, _STAT_POINTS)
+    press(kp, B["g"], 47)     # g + button 47 -> "mean"
+    assert math.isclose(kp.rpn.x, _EXPECT["xbar"], abs_tol=1e-6)
+    assert math.isclose(kp.rpn.y, _EXPECT["ybar"], abs_tol=1e-6)
+
+
+def test_voyager_stat_keys_no_longer_program_keys() -> None:
+    from abax.core.calc.voyager import _PROGRAM_KEYS
+
+    for label in ("Sigma+", "Sigma-", "mean", "std dev", "L.R.", "lin est,r"):
+        assert label not in _PROGRAM_KEYS
+    # Genuine program keys remain rejected.
+    assert "GTO" in _PROGRAM_KEYS and "SOLVE" in _PROGRAM_KEYS

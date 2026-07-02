@@ -526,6 +526,14 @@ class Stats:
         slope, intercept = self._slope_intercept()
         return slope * x + intercept
 
+    def linear_regression(self) -> tuple[float, float]:
+        """The least-squares line as ``(slope, intercept)``.
+
+        Raises :class:`FinanceError` with fewer than two points or when the x
+        values have no spread (the HP-15C ``L.R.`` function).
+        """
+        return self._slope_intercept()
+
     def correlation(self) -> float:
         """Pearson correlation coefficient ``r``.
 

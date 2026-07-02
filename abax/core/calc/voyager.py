@@ -64,7 +64,13 @@ _HYP: dict[str, dict[str, str]] = {
 _PROGRAM_KEYS: frozenset = frozenset({
     "SOLVE", "INTEGRATE", "MATRIX", "DIM", "RESULT", "GTO", "GSB", "LBL", "RTN",
     "SST", "BST", "R/S", "P/R", "PSE", "DSE", "ISG", "TEST", "SF", "CF",
-    "F?", "USER", "MEM", "(i)", "I", "L.R.", "lin est,r",
+    "F?", "USER", "MEM", "(i)", "I",
+})
+
+# HP-15C statistics keys (Σ+/Σ-/mean/std dev/L.R./lin est,r). These accumulate
+# the same running sums as the 12C and delegate to :class:`science.financial.Stats`.
+_STAT_LABELS: frozenset = frozenset({
+    "Sigma+", "Sigma-", "mean", "std dev", "L.R.", "lin est,r",
 })
 
 
@@ -161,6 +167,10 @@ class VoyagerKeypad:
             return
         self.hyp = ""
 
+        if label in _STAT_LABELS:
+            self._handle_stats(label)
+            return
+
         token = _TOKEN.get(label)
         if token is None:
             if label in _PROGRAM_KEYS:
@@ -172,4 +182,47 @@ class VoyagerKeypad:
         try:
             self.rpn.feed(token)
         except RPNError as exc:
+            self.message = str(exc)
+
+    # --- statistics registers (via science.financial.Stats) ---------------
+
+    def _handle_stats(self, label: str) -> None:
+        """HP-15C Σ/statistics keys, delegating to the shared ``Stats`` sums.
+
+        The 15C keeps the running sums n, Σx, Σy, Σx², Σy², Σxy (its R2–R7). A
+        data point is (x = X register, y = Y register); ``Σ+`` accumulates it and
+        ``Σ-`` removes it, both leaving n in X. ``mean`` returns x̄ (X) / ȳ (Y);
+        ``std dev`` the sample sₓ (X) / s_y (Y); ``L.R.`` the y-intercept (X) and
+        slope (Y); ``lin est,r`` the forecast ŷ (X) for the x in X and the
+        correlation r (Y).
+        """
+        from ..science import financial as F
+
+        if not hasattr(self, "stats"):
+            self.stats = F.Stats()
+        self._commit_entry()
+        st = self.rpn.stack    # bind AFTER committing (push may rebind the list)
+        try:
+            if label == "Sigma+":
+                self.rpn.push(float(self.stats.add(st[0], st[1])))
+            elif label == "Sigma-":
+                self.rpn.push(float(self.stats.remove(st[0], st[1])))
+            elif label == "mean":
+                xbar, ybar = self.stats.mean()
+                self.rpn.push(ybar)
+                self.rpn.push(xbar)
+            elif label == "std dev":
+                sx, sy = self.stats.stdev()
+                self.rpn.push(sy)
+                self.rpn.push(sx)
+            elif label == "L.R.":
+                slope, intercept = self.stats.linear_regression()
+                self.rpn.push(slope)
+                self.rpn.push(intercept)
+            elif label == "lin est,r":
+                yhat = self.stats.linear_estimate(st[0])  # forecast from x in X
+                r = self.stats.correlation()
+                self.rpn.push(r)     # r -> X, ŷ (old x) drops to Y
+                self.rpn.push(yhat)  # ŷ -> X, r -> Y
+        except F.FinanceError as exc:
             self.message = str(exc)
