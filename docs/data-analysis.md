@@ -29,22 +29,25 @@ See also: [index](index.md) · [data science](data-science.md) ·
 
 | Tool | Menu | Backed by |
 | --- | --- | --- |
+| Descriptive Statistics | Data → Analyze → Descriptive Statistics… | [`gui/dialogs/describe_dialog.py`](../abax/gui/dialogs/describe_dialog.py), [`core/science/descriptive.py`](../abax/core/science/descriptive.py) |
 | Statistics / analysis | Data → Analyze → Statistics / analysis… | [`engine/analysis.py`](../abax/engine/analysis.py), [`core/science/stats.py`](../abax/core/science/stats.py) |
 | SQL query | Data → Analyze → SQL query… | [`core/sqlsheets.py`](../abax/core/sqlsheets.py) |
 | Profile columns | Data → Analyze → Profile columns | [`core/profile.py`](../abax/core/profile.py) |
 | Open selection in pandas | Data → Analyze → Open selection in pandas… | [`gui/dialogs/dataframe_dialog.py`](../abax/gui/dialogs/dataframe_dialog.py) |
 | Recode / clean column | Data → Analyze → Recode / clean column… | [`core/recode.py`](../abax/core/recode.py) |
 | Pivot / group-by | Data → Analyze → Pivot / group-by… | [`core/pivot.py`](../abax/core/pivot.py) |
-| Goal seek | Data → Analyze → Goal seek… | [`core/goalseek.py`](../abax/core/goalseek.py) |
+| Curve fit | Data → Analyze → Curve fit… | [`gui/dialogs/curvefit_dialog.py`](../abax/gui/dialogs/curvefit_dialog.py), [`core/science/curvefit.py`](../abax/core/science/curvefit.py) |
+| Goal seek | Data → Analyze → Goal seek… | [`gui/dialogs/goalseek_dialog.py`](../abax/gui/dialogs/goalseek_dialog.py), [`core/goalseek.py`](../abax/core/goalseek.py) |
 | Compare workbook | Data → Compare workbook… | [`core/wbdiff.py`](../abax/core/wbdiff.py) |
 | Export as HTML report | File → Export as HTML report… | [`core/io/html_report.py`](../abax/core/io/html_report.py) |
 | Graph / chart | Data → Analyze → Graph / chart… (also Insert) | [`core/graphing.py`](../abax/core/graphing.py), [`core/science/chartsvg.py`](../abax/core/science/chartsvg.py) |
 | ML tool | Tools → Scientific → ML tool… | see [data science](data-science.md) |
 | Matrix / solver / signal / ODE tools | Tools → Scientific → … | see [data science](data-science.md) |
 
-Every path above is also on the palette. Two tools write to a **new sheet**
-rather than into the current selection: *Compare workbook* (a `Diff` sheet) and
-*Profile columns* (a `Profile` sheet).
+Every path above is also on the palette. A few tools write to a **new sheet**
+rather than into the current selection: *Compare workbook* (a `Diff` sheet),
+*Profile columns* (a `Profile` sheet), and *Descriptive Statistics* (a `Describe`
+sheet, on demand).
 
 ## Importing data
 
@@ -58,6 +61,23 @@ converts headlessly. See [file formats](file-formats.md) and the
 
 Once a range is on the grid, the tools below take over. Most read the **first
 row as column names** and the rest as data; blank cells are treated as missing.
+
+## Descriptive Statistics
+
+A one-click summary of a range (**Data → Analyze → Descriptive Statistics…**),
+backed by [`gui/dialogs/describe_dialog.py`](../abax/gui/dialogs/describe_dialog.py)
+and the pure-stdlib [`core/science/descriptive.py`](../abax/core/science/descriptive.py).
+It reads the selected range (any shape — cells are pooled row-major), drops blank
+and non-numeric cells, and fills a read-only two-column *statistic / value* table
+with the full spread of measures: **count, sum, mean, median, mode, min, Q1, Q3,
+max, range, sample & population variance/stdev, skewness, and kurtosis** (sixteen
+in all). The summary recomputes live when you edit the range and press *Compute*,
+and **Write summary to new sheet** drops the same table into a fresh `Describe`
+sheet. Statistics that are undefined for the sample size degrade to a blank rather
+than erroring — sample variance/stdev need n ≥ 2, skewness n ≥ 3, kurtosis n ≥ 4.
+This is the fastest first look at a single column or block; for a per-column
+*describe* of the whole sheet use [Profile columns](#profile-columns), and for
+inferential tests use [Statistics / analysis](#statistics--analysis) below.
 
 ## Statistics / analysis
 
@@ -92,6 +112,17 @@ column names) and choose a mode:
   a value column (blank where a combination has no data).
 - **Cross-tab** (`pivot.crosstab`) — a frequency cross-tabulation (counts of
   co-occurrences); the same shape as a pivot table with `count`.
+
+The *Pivot table* mode adds two extras in the dialog. **Show grand totals
+(margins)** appends a grand-total row and column (labelled `Total`) recomputed
+from the pooled raw cells — so a `mean`/`median` total is the true aggregate of
+all rows, not an average of the cell aggregates. **Display as** re-expresses each
+body cell as a **percent of the grand total, of its row, or of its column**
+(`pct_of="grand"|"row"|"col"`); combined with margins, the margin cells show
+`100`. The core [`pivot.pivot_table`](../abax/core/pivot.py) also supports
+**multiple value fields** at once (`value_cols=` with an optional matching `aggs=`
+list — one sub-column per value field per column key); this is scriptable from
+the console today rather than exposed in the dialog.
 
 Aggregations (`pivot.AGGREGATIONS`) are `sum`, `mean`, `count`, `min`, `max`,
 `median`, `std` (**sample**, n−1), `nunique` (distinct count), and `first`.
@@ -177,18 +208,43 @@ Any SQLite error — including a reference to an unknown table — surfaces as a
 clear `SqlError` message rather than a crash. In the console, `sql("…")` returns
 `(columns, rows)` directly.
 
+## Curve fit
+
+Fit a model to XY data (**Data → Analyze → Curve fit…**), powered by
+[`gui/dialogs/curvefit_dialog.py`](../abax/gui/dialogs/curvefit_dialog.py) and the
+pure-stdlib [`core/science/curvefit.py`](../abax/core/science/curvefit.py). Point
+it at an **X range** and a **Y range** (the dialog guesses the first two selected
+columns) and pick one of four models:
+
+- **Linear** — `y = a + b·x`.
+- **Polynomial** (degree n) — least-squares fit of the chosen degree.
+- **Exponential** — `y = a·e^(b·x)` (log-linear fit on `ln(y)`; needs `y > 0`).
+- **Power** — `y = a·x^b` (log-log fit; needs `x > 0` and `y > 0`).
+
+It reports the fitted equation and the **R²** (always computed on the original
+`y` values, so it is comparable across models) and — with *Write fitted-values
+column next to Y* ticked — writes the model's fitted `ŷ` down a column from the
+cell you name. Bad input (mismatched X/Y counts, a non-positive value for the log
+models, a degree ≥ the number of points) is reported rather than crashing. For
+the underlying `polyfit`/`expfit`/`powerfit` and the closed-form linear helpers,
+see [data science](data-science.md#regression-forecasting--curve-fitting).
+
 ## Goal seek
 
 **Data → Analyze → Goal seek…** answers "what input makes this cell hit this
-target?", powered by [`abax/core/goalseek.py`](../abax/core/goalseek.py). You
-pick a cell to vary and a target value for a formula cell; the solver finds the
-input. It tries the **secant** method first (fast, no bracket needed) and falls
-back to **bisection** when a sign-changing bracket exists or an expanding search
-finds one — so it is robust on awkward or poorly-seeded problems. Convergence is
-to `tol` (default `1e-9`) within `max_iter` (default 100); failure to converge, a
-non-finite result, or an error in the evaluated formula raises `GoalSeekError`.
-In the console, `goalseek.goal_seek(f, target, x0)` solves an arbitrary
-`f(x) → float`.
+target?", powered by [`gui/dialogs/goalseek_dialog.py`](../abax/gui/dialogs/goalseek_dialog.py)
+and [`core/goalseek.py`](../abax/core/goalseek.py). You name a **Set cell** (a
+formula cell), a **To value** target, and a **By changing cell** to vary; the
+solver finds the input that drives the target to the goal. It hands the problem
+to the self-bracketing hybrid secant/bisection root-finder in
+[`core/science/numeric.py`](../abax/core/science/numeric.py) (`solve_root`), so it
+is robust on awkward or poorly-seeded problems. On success the changing cell keeps
+the solution and the sheet recomputes; on failure — no bracketable root, no
+convergence, or a target cell that never evaluates to a number — the changing cell
+is **restored to its original text** (the sheet is left untouched) and
+`GoalSeekError` is raised. In the console,
+`goalseek.goal_seek(sheet, target_ref, target_value, changing_ref)` runs the same
+solver over A1 cell references.
 
 ## Compare workbook
 
@@ -247,6 +303,14 @@ Reach it from the [console](#the-console-namespace) as `chartsvg`:
 - `chartsvg.scatter_svg(points, title=…)` — points as circles.
 - `chartsvg.histogram_svg(values, bins=10, title=…)` — equal-width bins.
 
+It also renders a family of **distribution / diagnostic charts** over named
+series `[(name, values), …]` — box-and-whisker (`box_svg`), violin
+(`violin_svg`, a stdlib Gaussian-KDE silhouette), empirical-CDF step curves
+(`ecdf_svg`), a normal **Q-Q** plot (`qq_svg`), and a value **heatmap**
+(`heatmap_svg`, viridis colormap, ideal for a labelled correlation matrix). These
+are documented with the statistical detail in
+[data science](data-science.md#distribution--diagnostic-charts).
+
 Because the output is a plain SVG string you can drop it into an HTML report,
 save it to a file, or embed it anywhere — no rendering backend required.
 
@@ -284,9 +348,10 @@ engine on this page is exposed by name, so anything a dialog does you can script
 | `sheet_to_df("A1:C9")` / `df_to_sheet(df, "E1")` | range ↔ pandas DataFrame |
 | `np` / `pd` / `scipy` / `sm` / `sklearn` / `pingouin` | the optional packages, or `None` if absent |
 
-The science engines (`stats`, `ml`, `cluster`, `trees`, `bayes`, `metrics`,
-`gmm`, `matrix`, `eigen`, `numeric`, `units`, `fft`, `signal`, `spectral`,
-`filters`, `ode`, `interp`, …) are also all in scope — see
+The science engines (`stats`, `nonparam`, `ml`, `cluster`, `trees`, `bayes`,
+`metrics`, `gmm`, `matrix`, `eigen`, `numeric`, `units`, `fft`, `signal`,
+`spectral`, `filters`, `ode`, `interp`, …) are also all in scope — including the
+rank/nonparametric tests and the `chartsvg` distribution charts — see
 [data science](data-science.md). *(The console runs untrusted code; only run
 scripts you trust — see [macros & scripting](macros-and-scripting.md).)*
 

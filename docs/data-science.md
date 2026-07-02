@@ -53,19 +53,28 @@ straight in the GUI.
 
 - **Selection statistics** — select a range and the status bar shows Sum,
   Average, Min, Max, and Count instantly (see the [GUI guide](gui-guide.md)).
-- **Formula functions** — 600+ of them, including the full aggregate and
-  statistics families (`AVERAGE`, `MEDIAN`, `STDEV`, `VAR`, `PERCENTILE`,
-  `QUARTILE`, `CORREL`, `COVAR`, `SKEW`, `KURT`, `RANK`, …) and statistical
-  distributions (`NORMDIST`, `TDIST`, `FDIST`, `CHIDIST` and their inverses,
-  `CONFIDENCE`). See the [formula reference](formula-reference.md).
-- **Profile columns** (Data → Analyze) gives a one-click *describe* of every
-  column — see [data & analysis](data-analysis.md#profile-columns).
+- **Formula functions** — nearly 600 of them (the eager registry holds 591),
+  including the full aggregate and statistics families (`AVERAGE`, `MEDIAN`,
+  `STDEV`, `VAR`, `PERCENTILE`, `QUARTILE`, `CORREL`, `COVAR`, `SKEW`, `KURT`,
+  `RANK`, …) and statistical distributions (`NORMDIST`, `TDIST`, `FDIST`,
+  `CHIDIST` and their inverses, `CONFIDENCE`). See the
+  [formula reference](formula-reference.md).
+- **Descriptive Statistics** and **Profile columns** (both Data → Analyze) give a
+  one-click summary — the former a full 16-measure describe of one range, the
+  latter a per-column describe of the whole sheet — see
+  [data & analysis](data-analysis.md#descriptive-statistics).
 
 ### 3. Analyze
 
 - The **Statistics / analysis tool** (Data → Analyze) runs descriptive
   statistics, linear regression, t-tests, one-way ANOVA, correlation, normality,
   and Kaplan–Meier survival on the selected columns — see below.
+- **Nonparametric / rank tests** — when normality is in doubt, the `nonparam`
+  console engine adds Mann-Whitney, Wilcoxon signed-rank, Kruskal-Wallis,
+  Spearman, and Kendall (pure stdlib, real p-values) — see below.
+- **Curve fit** and **Goal seek** (Data → Analyze) fit a model to XY data or solve
+  for the input that hits a target — see
+  [data & analysis](data-analysis.md#curve-fit).
 - **Distribution formulas** give you critical values and p-values directly in
   cells — e.g. `=TINV(0.05,10)` for a t critical value, `=CHIDIST(x,df)` for a
   chi-square tail probability.
@@ -110,8 +119,10 @@ Save to any supported format (computed values or formulas), export an
 | `mean`, `sd`, `median`, `quantile` | `AVERAGE`, `STDEV`, `MEDIAN`, `PERCENTILE`/`QUARTILE` |
 | `lm()` / trendline | Analysis tool → regression, or `SLOPE`/`INTERCEPT`/`RSQ`/`FORECAST` |
 | `t.test`, `aov`, `cor.test` | Analysis tool (t-tests, ANOVA, correlation), or `TTEST` |
+| `wilcox.test`, `kruskal.test`, `cor.test(method=…)` | `nonparam` (Mann-Whitney, Wilcoxon, Kruskal-Wallis, Spearman, Kendall) |
 | `pnorm`/`qnorm`, `pt`/`qt`, `pf`, `pchisq` | `NORMDIST`/`NORMINV`, `TDIST`/`TINV`, `FDIST`, `CHIDIST` |
 | `chisq.test` | `stats.chi_square` (console), or `CHIDIST` for the tail |
+| `nls()` / `lm(y ~ poly(x))` / curve fitting | Curve fit tool, or `curvefit` (poly / exp / power) |
 | `prcomp` / `kmeans` | ML tool → PCA / k-means, or `ml.pca` / `cluster.kmeans` |
 | `randomForest` / `rpart` / `naiveBayes` | ML tool, or `trees` / `bayes` (console) |
 | `solve()` / `eigen()` / `qr()` / `chol()` | Matrix tool, or `matrix` / `eigen` |
@@ -198,7 +209,39 @@ f, p = stats.anova_oneway(g1, g2, g3)            # one-way ANOVA
 chi2, p = stats.chi_square([[12, 5], [3, 20]])   # 2x2 independence test
 ```
 
-## Regression & forecasting (pure stdlib)
+## Nonparametric & rank statistics (pure stdlib)
+
+[`abax/core/science/nonparam.py`](../abax/core/science/nonparam.py) (`nonparam`
+in the console) is a dependency-free companion to `stats.py` that fills the
+rank-based gap — the distribution-free tests you reach for when normality is in
+doubt. Everything is computed in IEEE doubles via `math` only (no scipy), reusing
+the `stats` CDFs (`normal_cdf`, `t_cdf`, `chi_square_cdf`) for the p-values. Ties
+are resolved with average (fractional) ranks throughout, and each test returns a
+small namedtuple with the statistic plus a **two-sided** p-value:
+
+- `mann_whitney_u(a, b)` → `(U, p)` — the Mann-Whitney U (Wilcoxon rank-sum) test
+  for two independent samples; the tie correction is applied to the variance and
+  a continuity correction to the z-score. `U` is the smaller of the two group U's.
+- `wilcoxon_signed_rank(a, b)` → `(W, p)` — the paired signed-rank test on the
+  nonzero differences (zeros dropped), tie- and continuity-corrected.
+- `kruskal_wallis(*groups)` → `(H, df, p)` — the nonparametric one-way ANOVA
+  across ≥ 2 groups, tie-corrected, with a chi-square p-value on `k − 1` df.
+- `spearman_rho(a, b)` → `(rho, p)` — Spearman's rank correlation, with a
+  Student-t approximation on `n − 2` df.
+- `kendall_tau(a, b)` → `(tau, p)` — Kendall's tie-adjusted **tau-b**, with a
+  normal-approximation p-value.
+
+Degenerate inputs — empty or mismatched samples, or all-tied data where a
+statistic is undefined — raise `StatsError` rather than returning a bogus number.
+
+```python
+# console
+u, p = nonparam.mann_whitney_u(control, treatment)   # rank-sum, two-sided
+h, df, p = nonparam.kruskal_wallis(g1, g2, g3)       # nonparametric ANOVA
+rho, p = nonparam.spearman_rho(x, y)                 # rank correlation
+```
+
+## Regression, forecasting & curve fitting (pure stdlib)
 
 [`abax/core/science/regression.py`](../abax/core/science/regression.py) mirrors
 the familiar spreadsheet trend/forecast/linest family, hand-solved with the
@@ -216,16 +259,39 @@ or the OLS analysis tool. These functions back `SLOPE`, `INTERCEPT`, `RSQ`,
 `CORREL`, `FORECAST`, `TREND`, and the polynomial helpers in the
 [formula reference](formula-reference.md).
 
+**Curve fitting** — [`abax/core/science/curvefit.py`](../abax/core/science/curvefit.py)
+builds on the same least-squares machinery to fit named models and report their
+goodness-of-fit, and is what the [Curve fit tool](data-analysis.md#curve-fit)
+calls:
+
+- `polyfit(xs, ys, degree)` → `(coeffs, r2)` — a polynomial of any degree
+  (degree 1 agrees exactly with `linregress`); solved by Gaussian elimination
+  with partial pivoting. `polyval(coeffs, x)` evaluates it (Horner).
+- `expfit(xs, ys)` → `(a, b, r2)` — `y = a·e^(b·x)` by log-linear regression on
+  `ln(y)` (requires every `y > 0`).
+- `powerfit(xs, ys)` → `(a, b, r2)` — `y = a·x^b` by log-log regression
+  (requires every `x > 0` and `y > 0`).
+
+Crucially, `r_squared` (and every fit's reported `r2`) is computed on the
+**original** `y` values, not the transformed logs, so the goodness-of-fit is
+directly comparable across the linear, polynomial, exponential, and power models.
+Bad input (mismatched lengths, `degree < 0`, `n ≤ degree`, a non-positive value
+for a log model, or a singular system) raises `RegressionError`.
+
 ## The machine-learning stack
 
 The **ML tool** at **Tools → Scientific → ML tool…**
 ([`gui/dialogs/ml_dialog.py`](../abax/gui/dialogs/ml_dialog.py)) works over a
 numeric samples × features matrix and writes scores/labels/coefficients back to
 the grid. Its operations are: **PCA** (param = #components), **K-means**
-(param = k), **GMM cluster**, **Linear regression** (last column = `y`),
-**Standardize** (z-score), and **Decision tree / Random forest / Naive Bayes**
-classification (last column = the label `y`). All of it is pure-Python — **no
-numpy or scikit-learn required**. The same engines are in the console:
+(param = k), **Suggest #clusters** (param = max k), **GMM cluster**
+(param = #components), **Linear regression** (last column = `y`), **Standardize**
+(z-score), and **Decision tree / Random forest / Naive Bayes** classification
+(last column = the label `y`). All of it is pure-Python — **no numpy or
+scikit-learn required**. *Suggest #clusters* sweeps `k = 2…max_k` and writes a
+per-*k* table of inertia, mean silhouette, and (when the GMM fits) BIC/AIC, then
+reports the recommended *k* — see [choosing the cluster count](#choosing-the-cluster-count)
+below. The same engines are in the console:
 
 **`ml`** ([`ml.py`](../abax/core/science/ml.py)) — `standardize` (column z-score),
 `pca` (covariance eigendecomposition via the in-house symmetric eigensolver,
@@ -240,13 +306,19 @@ gradient descent, features standardised internally then mapped back).
 inertia; empty clusters re-seeded), `kmeans_predict`, `agglomerative`
 (bottom-up hierarchical with single/complete/average linkage), `dbscan`
 (density-based, noise labelled `-1`), and `silhouette_score` for cluster quality.
-Randomness flows through a seeded `random.Random`, so results are reproducible.
+Two helpers pick the cluster count: `elbow(points, k_range)` returns the
+`(k, inertia)` curve (the drop flattens at a good `k`), and
+`best_k_silhouette(points, k_range)` returns `(best_k, scores)`, the `k` that
+maximises the mean silhouette (each `k ≥ 2`). Randomness flows through a seeded
+`random.Random`, so results are reproducible.
 
 **`gmm`** ([`gmm.py`](../abax/core/science/gmm.py)) — `GaussianMixture`, a
 diagonal-covariance mixture fitted by **Expectation-Maximization** (E-step in log
 space with per-row max subtraction for stability, k-means++-style init). Exposes
 `means_`, `covariances_`, `weights_`, `converged_`, `predict[_proba]`, `score`,
 and `bic`/`aic` for model selection (choosing the number of components).
+`gmm_model_selection(points, k_range)` fits a mixture at every `k` and returns the
+per-`k` BIC/AIC scores together with the `k` each criterion prefers.
 
 **`trees`** ([`trees.py`](../abax/core/science/trees.py)) —
 `DecisionTreeClassifier` (CART greedy binary splits on `x[f] <= threshold`,
@@ -266,6 +338,27 @@ model = trees.RandomForestClassifier(n_trees=50, seed=0).fit(X_train, y_train)
 preds = model.predict(X_test)
 ```
 
+### Choosing the cluster count
+
+k-means and GMM both need you to *pick* the number of clusters, so abax ships
+three helpers to guide that choice — the same ones the ML tool's
+**Suggest #clusters** operation drives:
+
+- `cluster.elbow(points, k_range)` — the `(k, inertia)` **elbow curve**. Inertia
+  (within-cluster sum of squared distances) always falls as `k` grows; the
+  "elbow", where the drop flattens, is the visual cue for a good `k`.
+- `cluster.best_k_silhouette(points, k_range)` — `(best_k, scores)`, where each
+  candidate `k ≥ 2` is scored by its **mean silhouette** and `best_k` is the
+  maximiser (higher is better; the first wins on ties).
+- `gmm.gmm_model_selection(points, k_range)` — fits a Gaussian mixture at every
+  `k` and returns each `k`'s **BIC** and **AIC** plus `best_bic` / `best_aic`
+  (both criteria trade fit against complexity, so the *smallest* is best).
+
+The GUI operation sweeps `k = 2…max_k` (from the Param box, capped at n−1), writes
+a per-`k` table of inertia, silhouette, and — when the mixtures fit — GMM BIC/AIC,
+and reports the recommended `k` in the status bar. Together, an elbow, the
+silhouette peak, and the information criteria usually agree on a sensible count.
+
 ## Model evaluation (pure stdlib)
 
 [`abax/core/science/metrics.py`](../abax/core/science/metrics.py) (`metrics` in
@@ -280,6 +373,36 @@ or sklearn — and seedable for reproducible splits:
 - `accuracy`, and `precision_recall_f1(…, average="binary"|"macro")`.
 - `roc_curve(y_true, scores)` → `(fpr, tpr, thresholds)` and `auc(fpr, tpr)`
   (trapezoidal). The grapher's **ROC curve** plot uses this.
+
+## Distribution & diagnostic charts
+
+Beyond the line/bar/scatter/histogram charts, the pure-stdlib SVG generator
+[`abax/core/science/chartsvg.py`](../abax/core/science/chartsvg.py) (`chartsvg`
+in the console) renders the diagnostic plots a statistician reaches for — each a
+complete, self-contained `<svg>…</svg>` string with no rendering backend:
+
+- `box_svg(series)` — a **box-and-whisker** plot per named series
+  (`[(name, values), …]`): the box spans Q1–Q3 with a median line, whiskers reach
+  the extremes within 1.5·IQR, and points beyond are drawn as outlier dots.
+- `violin_svg(series)` — a **violin** plot: a mirrored density silhouette per
+  series from a small stdlib Gaussian **KDE** (Silverman-rule bandwidth), with the
+  median marked.
+- `ecdf_svg(series)` — the **empirical CDF** as a right-continuous step curve per
+  series (rising 0 → 1), each in its own colour with a legend.
+- `qq_svg(values)` — a **normal Q-Q** plot of sample vs theoretical quantiles
+  (Blom plotting positions through `stats.normal_ppf`) with a reference line — a
+  quick visual normality check to pair with the Shapiro–Wilk test above.
+- `heatmap_svg(matrix, labels=…)` — a **heatmap** of a 2-D matrix on the viridis
+  colormap with a value scale; pass a square matrix plus `labels` to render a
+  **correlation heatmap** (e.g. from `stats.correlation_matrix`).
+
+```python
+# console: a correlation heatmap from the stats engine
+rows = read_matrix("A2:C100")             # list of [x, y, z] rows
+cols = list(map(list, zip(*rows)))        # -> three columns
+svg = chartsvg.heatmap_svg(stats.correlation_matrix(cols),
+                           labels=["x", "y", "z"], title="correlation")
+```
 
 ## Linear algebra & the engineering toolkit
 
