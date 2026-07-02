@@ -81,6 +81,12 @@ class Sheet:
         # Data-validation rules over ranges: list of (r1, c1, r2, c2, ValidationRule).
         self.validations: list = []
         self._cells: dict[tuple[int, int], Cell] = {}
+        # Incremental extent of ``_cells`` (excludes spills): adds bump the maxes
+        # in O(1); a delete of a boundary cell marks it dirty for a lazy rescan.
+        # Keeps used_bounds() — called on every render/export — off the full scan.
+        self._cells_max_row = -1
+        self._cells_max_col = -1
+        self._bounds_dirty = True
         self._ast_cache: dict[tuple[int, int], Any] = {}
         # Name-resolved AST cache: key -> (names_version, resolved_ast). Resolving
         # defined names rewrites the whole tree, so we memoize the result and only
@@ -111,9 +117,15 @@ class Sheet:
     def set_cell(self, row: int, col: int, raw: str) -> None:
         key = (row, col)
         if raw == "":
-            self._cells.pop(key, None)
+            if self._cells.pop(key, None) is not None and (
+                row == self._cells_max_row or col == self._cells_max_col):
+                self._bounds_dirty = True  # a boundary cell went away — rescan
         else:
             self._cells[key] = Cell(raw)
+            if row > self._cells_max_row:
+                self._cells_max_row = row
+            if col > self._cells_max_col:
+                self._cells_max_col = col
         self._ast_cache.pop(key, None)
         self._rast_cache.pop(key, None)
         # Track whether this cell is a dynamic-array anchor candidate.
@@ -180,6 +192,7 @@ class Sheet:
         self._ast_cache.clear()
         self._rast_cache.clear()
         self._spill_dirty = True
+        self._bounds_dirty = True  # many cells added/removed — rescan the extent
         if self.workbook is not None:
             self.workbook.invalidate_caches()
             self.workbook._reset_depgraph()  # formulas changed wholesale
@@ -284,6 +297,7 @@ class Sheet:
             sh._rast_cache.clear()
             sh._value_cache.clear()
             sh._rebuild_anchor_cells()
+            sh._bounds_dirty = True  # rows/cols shifted — extent may have changed
         if self.workbook is not None:
             self.workbook._reset_depgraph()  # formulas rewritten by the shift
 
@@ -624,15 +638,18 @@ class Sheet:
             self._sync_spills()
         if not self._cells:
             return 0, 0
-        # Single pass over the keys: two `max()` generators were walking the whole
-        # cell dict twice on every call (and this is called on every grid refresh,
-        # export, and TUI render).
-        max_row = max_col = 0
-        for r, c in self._cells:
-            if r > max_row:
-                max_row = r
-            if c > max_col:
-                max_col = c
+        # The ``_cells`` extent is tracked incrementally (adds bump the maxes);
+        # only a boundary delete / bulk load / restructure forces a full rescan.
+        if self._bounds_dirty:
+            mr = mc = 0
+            for r, c in self._cells:
+                if r > mr:
+                    mr = r
+                if c > mc:
+                    mc = c
+            self._cells_max_row, self._cells_max_col = mr, mc
+            self._bounds_dirty = False
+        max_row, max_col = self._cells_max_row, self._cells_max_col
         for (ar, ac), grid in self._spill_grid.items():
             er = ar + len(grid) - 1
             ec = ac + (len(grid[0]) if grid else 1) - 1
