@@ -14,7 +14,8 @@ class ViewMixin:
         app = QApplication.instance()
         if app is not None:
             apply_theme(app, name, theme.tokens(),
-                        self._base_font_qss() + self._ui_font_qss() + self._zoom_qss())
+                        self._base_font_qss() + self._ui_font_qss() + self._zoom_qss()
+                        + self._menu_qss())
         self._theme = theme  # custom-painted surfaces read this
         self._update_status_cluster()
 
@@ -53,6 +54,26 @@ class ViewMixin:
         return ("\nQAbstractItemView, QHeaderView, QTableView, QTableWidget, "
                 "QListView, QTreeView, QPlainTextEdit, QTextEdit "
                 f'{{ font-family: "{fam}"; }}\n')
+
+    def _menu_qss(self) -> str:
+        """Give ``QMenu`` items explicit padding so labels and their right-aligned
+        shortcuts both fit — **on Windows only**.
+
+        Styling ``QMenu`` / ``QMenu::item:selected`` in the theme ``.qss`` routes
+        menu rendering through Qt's stylesheet style, whose item metrics differ by
+        base style. On the **windows11** style that under-sizes the item by a few
+        px, clipping the shortcut on items with wide ones (e.g. *Sheet* →
+        ``Ctrl+PgDown``, ``Shift+F11``; *Help* → ``F1``); explicit horizontal
+        padding restores comfortable width. On the **Fusion** style (Linux/macOS)
+        menus already size correctly *and* item padding there drops the shortcut
+        column — so the rule is scoped to Windows to avoid regressing them.
+        """
+        import sys
+
+        if sys.platform != "win32":
+            return ""
+        return ("\nQMenu::item { padding: 4px 18px; }\n"
+                "QMenu::separator { height: 1px; margin: 4px 8px; }\n")
 
     def _zoom_qss(self) -> str:
         """Stylesheet layer scaling the base font size by ``settings.zoom``. The
