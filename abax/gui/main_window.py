@@ -437,6 +437,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         m_radio.addSeparator()
         self._act(m_radio, "RF re&ference (bands / CTCSS)...", self.show_rf_reference)
         self._act(m_radio, "&I/Q constellation -> SVG", self.export_iq_svg)
+        self._act(m_radio, "Smith chart -> S&VG...", self.export_smith_svg)
         self._act(m_radio, "Solve &NEC deck (PyNEC)...", self.solve_nec_pynec)
 
         m_tools.addSeparator()

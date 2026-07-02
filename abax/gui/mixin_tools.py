@@ -140,6 +140,37 @@ class ToolsMixin:
         self._set_status(f"{len(samples)} symbols, {iq.power_dbfs(samples):.1f} dBFS "
                          f"-> {Path(path).name}")
 
+    def export_smith_svg(self) -> None:
+        """Prompt for a load Z and Z0, then export a Smith chart as a standalone SVG."""
+        from pathlib import Path
+
+        from ._qtcompat import QFileDialog, QInputDialog
+        from ..core.science import rf, smithsvg
+
+        zt, ok = QInputDialog.getText(self, "Smith chart", "Load Z = R+jX (Ω):",
+                                      text="75+25j")
+        if not ok:
+            return
+        z0t, ok2 = QInputDialog.getText(self, "Smith chart", "System Z0 (Ω):",
+                                        text="50")
+        if not ok2:
+            return
+        try:
+            zl = complex(zt.replace(" ", "").replace("i", "j"))
+            z0 = float(z0t)
+        except (ValueError, TypeError):
+            self._set_status("enter Z as R+jX (e.g. 75+25j) and a numeric Z0")
+            return
+        svg = smithsvg.smith_svg([zl], z0=z0, show_vswr=True,
+                                 title=f"Z = {zl.real:g}{zl.imag:+g}j on {z0:g}Ω")
+        path, _ = QFileDialog.getSaveFileName(self, "Export Smith chart SVG",
+                                              "smith.svg", "SVG image (*.svg)")
+        if not path:
+            return
+        Path(path).write_text(svg, encoding="utf-8")
+        vswr = rf.vswr_from_gamma(abs(rf.reflection_coefficient(zl, z0)))
+        self._set_status(f"VSWR {vswr:.2f}:1 -> {Path(path).name}")
+
     def compare_workbook(self) -> None:
         """Diff the current workbook against another file into a new 'Diff' sheet."""
         from ._qtcompat import QFileDialog
