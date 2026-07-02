@@ -641,6 +641,11 @@ untaken branches never run (no spurious errors or side effects).
 | `TEXTSPLIT` | Split text into a spilled array (row and/or column delimiters, each a string or array of strings) | `TEXTSPLIT(text, col_delim, [row_delim], [ignore_empty], [match_mode], [pad_with])` | `=TEXTSPLIT("a,b;c,d",",",";")` | 2×2 spill |
 | `ARRAYTOTEXT` | Render an array as text (`format` 1 = strict `{…}`) | `ARRAYTOTEXT(array, [format])` | `=ARRAYTOTEXT({1,2;3,4})` | `1, 2, 3, 4` |
 | `VALUETOTEXT` | Render a value as text (`format` 1 quotes strings) | `VALUETOTEXT(value, [format])` | `=VALUETOTEXT("hi",1)` | `"hi"` |
+| `REGEXTEST` | Does the regex match anywhere? (`case_sensitivity` 0 sensitive, 1 insensitive) | `REGEXTEST(text, pattern, [case_sensitivity])` | `=REGEXTEST("abc123","\d+")` | `TRUE` |
+| `REGEXEXTRACT` | Extract matches (`return_mode` 0 first, 1 all → spills, 2 capture groups) | `REGEXEXTRACT(text, pattern, [return_mode], [case_sensitivity])` | `=REGEXEXTRACT("a1b2c3","\d",1)` | `1,2,3` spill |
+| `REGEXREPLACE` | Replace every match globally | `REGEXREPLACE(text, pattern, replacement, [case_sensitivity])` | `=REGEXREPLACE("a1b2","\d","#")` | `a#b#` |
+
+Regex functions use Python (PCRE-style) syntax. A bad pattern gives `#VALUE!`; `REGEXEXTRACT` mode 0 with no match gives `#N/A`.
 
 ### Date and time
 

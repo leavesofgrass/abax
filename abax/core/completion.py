@@ -185,7 +185,7 @@ SIGNATURES = {
 # so the browser and completion show argument hints. A missing/broken pack is
 # skipped (same policy as the registry).
 for _pack in ("math_fns", "stats_dist", "text_datetime_fns", "finance_fns",
-              "engineering_fns", "reffuncs", "lambda_fns"):
+              "engineering_fns", "reffuncs", "lambda_fns", "regex_fns"):
     try:
         _mod = __import__(f"abax.core.{_pack}", fromlist=["SIGNATURES"])
         SIGNATURES.update(getattr(_mod, "SIGNATURES", {}))

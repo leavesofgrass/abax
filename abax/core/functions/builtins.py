@@ -1355,19 +1355,73 @@ def _lazy_if(nodes, ev):
     return ev(nodes[2]) if len(nodes) > 2 else False
 
 
+def _broadcast_catch(val, fallback, catch):
+    """Element-wise IFERROR/IFNA over an array ``val``.
+
+    ``catch(cell)`` decides whether a cell is caught (any error for IFERROR,
+    only ``#N/A`` for IFNA). A caught cell is replaced by the matching element
+    of ``fallback`` when the fallback is an array of compatible shape, else by
+    the scalar fallback. A caught cell whose fallback element is itself an error
+    keeps that error (mirrors Excel)."""
+    from ..spill import as_grid
+
+    vg = as_grid(val)
+    nr = len(vg)
+    nc = len(vg[0]) if vg else 0
+    fb_array = isinstance(fallback, (list, RangeValue))
+    fg = as_grid(fallback) if fb_array else None
+    if fg is not None:
+        fr = len(fg)
+        fc = len(fg[0]) if fg else 0
+        # A same-shape (or broadcastable single row/col) fallback maps element-wise;
+        # any other shape falls back to treating the whole fallback as a scalar.
+        if not (fr in (1, nr) and fc in (1, nc)):
+            fg = None
+
+    def pick_fb(i, j):
+        if fg is None:
+            return fallback
+        return fg[i if len(fg) != 1 else 0][j if len(fg[0]) != 1 else 0]
+
+    out = []
+    for i in range(nr):
+        row = []
+        for j in range(nc):
+            cell = vg[i][j]
+            row.append(pick_fb(i, j) if catch(cell) else cell)
+        out.append(row)
+    return out
+
+
 def _lazy_iferror(nodes, ev):
     if not nodes:
         return CellError(CellError.VALUE)
     val = ev(nodes[0])
+    if isinstance(val, (list, RangeValue)):
+        # Any per-cell error inside a spilled array is caught element-wise.
+        if not any(is_error(c) for c in _flatten([val])):
+            return val
+        fallback = ev(nodes[1]) if len(nodes) > 1 else ""
+        return _broadcast_catch(val, fallback, is_error)
     if is_error(val):
         return ev(nodes[1]) if len(nodes) > 1 else ""
     return val
+
+
+def _is_na(cell):
+    return is_error(cell) and cell.code == CellError.NA
 
 
 def _lazy_ifna(nodes, ev):
     if not nodes:
         return CellError(CellError.VALUE)
     val = ev(nodes[0])
+    if isinstance(val, (list, RangeValue)):
+        # Only per-cell #N/A inside a spilled array is caught element-wise.
+        if not any(_is_na(c) for c in _flatten([val])):
+            return val
+        fallback = ev(nodes[1]) if len(nodes) > 1 else ""
+        return _broadcast_catch(val, fallback, _is_na)
     if is_error(val) and val.code == CellError.NA:
         return ev(nodes[1]) if len(nodes) > 1 else ""
     return val
