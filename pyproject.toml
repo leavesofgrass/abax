@@ -40,11 +40,15 @@ bayes    = ["pymc"]
 # the built-in method-of-moments solver works without it. In `all`, not `thin`;
 # wheels aren't published for every platform, so it may need a build toolchain.
 nec      = ["PyNEC"]
+# Statistical file formats — Stata (.dta) and SPSS (.sav) import via pyreadstat
+# (a small compiled ReadStat binding). Needs pandas from `science` at runtime.
+# In `all`, not `thin`.
+stats-io = ["pyreadstat"]
 # Lean install — the GUI plus every lightweight convenience (TUI, Excel, fast-io,
 # terminal), but NONE of the heavy optional data-science libraries. ~0.22 GB.
 thin     = ["abax[gui,tui,excel,fast-io,terminal,sevenzip]"]
 # Everything abax can use, in one shot (the default full-fat set). ~0.84 GB.
-all      = ["abax[thin,parquet,science,jupyter,bayes,nec]"]
+all      = ["abax[thin,parquet,science,jupyter,bayes,nec,stats-io]"]
 
 [project.scripts]
 abax = "abax.app:main"

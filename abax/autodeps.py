@@ -45,6 +45,10 @@ _BAYES = [("pymc", "pymc")]
 # (notably Windows), in which case the best-effort install just fails silently and
 # abax keeps using its built-in method-of-moments solver.
 _NEC = [("PyNEC", "PyNEC")]
+# Stata (.dta) / SPSS (.sav) readers. pyreadstat is a small compiled binding
+# (ReadStat); pandas provides the DataFrame it returns (already in `science`).
+# Part of the default full-fat `ALL` set; NOT in `thin`.
+_STATS_IO = [("pyreadstat", "pyreadstat")]
 _TERMINAL = [("pyte", "pyte")]
 if sys.platform == "win32":
     _TERMINAL.append(("pywinpty", "winpty"))   # ConPTY backend on Windows
@@ -61,6 +65,7 @@ FEATURES: dict[str, list[tuple[str, str]]] = {
     "science": _SCIENCE,
     "bayes": _BAYES,
     "nec": _NEC,
+    "stats-io": _STATS_IO,
 }
 
 # The full-fat set (the `all` extra), ordered light -> heavy so the quick wins
@@ -75,6 +80,7 @@ ALL: list[tuple[str, str]] = [
     ("pyarrow", "pyarrow"),
     *_SCIENCE,
     ("ipykernel", "ipykernel"),
+    *_STATS_IO,
     *_BAYES,
     *_NEC,          # compiled; last so a build failure can't block the rest
 ]
@@ -101,6 +107,8 @@ FEATURE_INFO: dict[str, tuple[str, str, int]] = {
               "pymc + pytensor + arviz + numba/llvmlite", 150),
     "nec": ("Reference-grade NEC antenna solver",
             "PyNEC (compiled; may need a build toolchain on some platforms)", 5),
+    "stats-io": ("Stata / SPSS data files (.dta / .sav)",
+                 "pyreadstat", 10),
 }
 
 # The two common presets offered by the chooser. "thin" = the lean conveniences

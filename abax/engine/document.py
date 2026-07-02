@@ -112,6 +112,10 @@ class Document:
             from . import ods_io
 
             wb = ods_io.load_ods(path)
+        elif ext in (".dta", ".sav", ".zsav", ".por"):
+            from . import statfiles
+
+            wb = statfiles.load_statfile(path)
         else:
             raise ValueError(f"unsupported file type: {ext!r}")
         return cls(wb, path)

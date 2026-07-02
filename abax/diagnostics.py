@@ -101,6 +101,11 @@ OPTIONAL_DEPENDENCIES = {
         "fallback": "built-in method-of-moments antenna solver",
         "purpose": "reference-grade NEC antenna field solving",
     },
+    "pyreadstat": {
+        "available": _has("pyreadstat"),
+        "fallback": "no Stata (.dta) / SPSS (.sav) import",
+        "purpose": "read Stata / SPSS statistical data files",
+    },
 }
 
 
