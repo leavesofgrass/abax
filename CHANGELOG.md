@@ -8,10 +8,11 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
-## [Unreleased]
+## [0.1.4] — 2026-07-02
 
-_The first waves of the 0.1.4 roadmap (see `dev/roadmap.md`), built by
-parallel agents:_
+_A large feature release: incremental recalculation, deeper formula & `LAMBDA`
+support, a broad data-science / RF / calculator / TUI wave, new import formats,
+and quality tooling (CI matrix, benchmark + coverage gates)._
 
 ### Added
 - **Nonparametric & rank statistics** (`core/science/nonparam.py`, pure stdlib):
@@ -97,6 +98,14 @@ parallel agents:_
   (`pip install abax[hdf5]`, in the full-fat set): each tabular dataset loads
   into its own sheet. Graceful fallback when the package is absent — the same
   engine-adapter pattern as the Stata/SPSS and Parquet readers.
+- **7-Zip (`.7z`) archives in the file manager** — a **7z** button compresses the
+  selection, **Extract** handles `.7z`, and **Open in archive** lists a
+  `.zip`/`.tar`/`.7z`'s contents and opens a supported member (CSV, Excel,
+  Parquet, ODS, `.abax`, …) straight into the grid. Needs the optional **`py7zr`**
+  package (`pip install abax[sevenzip]`, in the `thin`/`all` sets); without it
+  `.zip`/`.tar` still work and the 7z actions show an install hint. Engine-layer
+  adapter (`engine/archive7z.py`) behind a unified facade; extraction keeps the
+  zip-slip guard.
 
 ### Changed
 - **Faster `used_bounds()`** — the sheet extent (used on every grid refresh,
@@ -141,19 +150,6 @@ parallel agents:_
   aggregators, and **percent-of-total** (grand / row / column). The pivot dialog
   exposes margins and % of total; all new parameters are optional, so existing
   calls are unchanged.
-
-### Added (earlier in this cycle)
-- **7-Zip (`.7z`) archives in the file manager.** A new **7z** button compresses
-  the selection to `.7z`, **Extract** handles `.7z`, and a new **Open in archive**
-  action lists a `.zip`/`.tar`/`.7z`'s contents and opens a supported file (CSV,
-  Excel, Parquet, ODS, JSON/`.abax`, …) straight into the grid — extracting just
-  that member to a temp file, no full unpack. `.7z` needs the optional **`py7zr`**
-  package (`pip install abax[sevenzip]`; included in the `thin`/`all` sets and the
-  background auto-installer); without it the `.zip`/`.tar` actions still work and
-  the 7z actions show a clear "install `abax[sevenzip]`" message. Implemented as an
-  engine-layer adapter (`engine/archive7z.py`) behind a unified archive facade
-  (`engine/archives.py`) that routes `.zip`/`.tar` to the stdlib core and `.7z`
-  to `py7zr`; extraction keeps the path-traversal (zip-slip) guard.
 
 ## [0.1.3] — 2026-07-01
 
