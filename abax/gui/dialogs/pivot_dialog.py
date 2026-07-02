@@ -8,6 +8,7 @@ cross-tabulates two columns. The result block is written back into the sheet.
 from __future__ import annotations
 
 from .._qtcompat import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QFormLayout,
@@ -45,6 +46,18 @@ class PivotDialog(QDialog):
         self._agg = QComboBox(self)
         for key, label in P.AGGREGATIONS.items():
             self._agg.addItem(label, key)
+        # Pivot-table extras (margins + percent-of-total). Multi-value fields
+        # are supported by core.pivot.pivot_table (value_cols=/aggs=); to expose
+        # them here, swap self._value for a multi-select list and pass the two
+        # parallel lists through in _apply — the wiring below already routes a
+        # single field, so that is the only change needed.
+        self._totals = QCheckBox("Show grand totals (margins)", self)
+        self._pct = QComboBox(self)
+        for key, label in (
+            (None, "Off"), ("grand", "% of grand total"),
+            ("row", "% of row"), ("col", "% of column"),
+        ):
+            self._pct.addItem(label, key)
         self._out = QLineEdit(to_a1(r1, max(0, c2 + 2)), self)
         form.addRow("Data (range):", self._range)
         form.addRow("Mode:", self._mode)
@@ -55,6 +68,10 @@ class PivotDialog(QDialog):
         for label, widget in (self._index_row, self._column_row,
                               self._value_row, self._agg_row):
             form.addRow(label, widget)
+        self._totals_row = ("Totals:", self._totals)
+        self._pct_row = ("Display as:", self._pct)
+        form.addRow(*self._totals_row)
+        form.addRow(*self._pct_row)
         form.addRow("Output top-left:", self._out)
         layout.addLayout(form)
         btn = QPushButton("Build", self)
@@ -90,6 +107,9 @@ class PivotDialog(QDialog):
         self._set_row_visible(self._column, mode in ("Pivot table", "Cross-tab"))
         self._set_row_visible(self._value, mode in ("Group by", "Pivot table"))
         self._set_row_visible(self._agg, mode in ("Group by", "Pivot table"))
+        # margins + percent-of-total apply only to the pivot table.
+        self._set_row_visible(self._totals, mode == "Pivot table")
+        self._set_row_visible(self._pct, mode == "Pivot table")
 
     def _set_row_visible(self, widget, visible: bool) -> None:
         widget.setVisible(visible)
@@ -107,7 +127,9 @@ class PivotDialog(QDialog):
             elif mode == "Pivot table":
                 out = P.pivot_table(rows, self._index.currentText(),
                                     self._column.currentText(),
-                                    self._value.currentText(), self._agg.currentData())
+                                    self._value.currentText(), self._agg.currentData(),
+                                    margins=self._totals.isChecked(),
+                                    pct_of=self._pct.currentData())
             else:
                 out = P.crosstab(rows, self._index.currentText(),
                                  self._column.currentText())

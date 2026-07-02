@@ -12,7 +12,10 @@ Three operations, all returning a NEW 2-D ``list[list[str]]`` block:
   ``group_cols`` and aggregate ``value_col`` with one of :data:`AGGREGATIONS`.
 * :func:`pivot_table` — a spreadsheet pivot: ``index_col`` down the left,
   distinct ``column_col`` values across the top, each cell the aggregate of
-  ``value_col`` for that ``(index, column)`` pair.
+  ``value_col`` for that ``(index, column)`` pair. Optionally adds grand-total
+  **margins** (a totals row and/or column), aggregates **multiple value
+  fields** at once (each with its own aggregator), and renders cells as a
+  **percent-of-total** (of the grand total, or each cell's row/column).
 * :func:`crosstab` — a frequency cross-tabulation (counts of co-occurrences),
   the same shape as a ``pivot_table`` with ``agg="count"``.
 
@@ -149,6 +152,28 @@ def _aggregate(texts: list[str], agg: str) -> str:
     raise PivotError(f"unknown aggregation: {agg!r}")
 
 
+def _as_number(text: str) -> float | None:
+    """Parse an *already-aggregated* cell back into a float, or ``None``.
+
+    Used when re-expressing a pivot as a percent-of-total: only numeric cells
+    participate; blanks and non-numeric aggregates (e.g. a ``first`` of text)
+    stay untouched.
+    """
+    return _to_number(text)
+
+
+def _fmt_fraction(part: float, whole: float, *, as_percent: bool) -> str:
+    """Render ``part / whole`` as a fraction (or percent) cell.
+
+    A zero (or non-finite) ``whole`` yields ``""`` — there is nothing to take a
+    share of. ``as_percent`` scales by 100; the raw ratio is used otherwise.
+    """
+    if whole == 0 or whole != whole or whole in (float("inf"), float("-inf")):
+        return ""
+    ratio = part / whole
+    return _fmt_number(ratio * 100 if as_percent else ratio)
+
+
 # --------------------------------------------------------------------------- #
 # operations                                                                   #
 # --------------------------------------------------------------------------- #
@@ -194,12 +219,23 @@ def group_by(
     return out
 
 
+# Percent-of-total display modes accepted by :func:`pivot_table`.
+_PCT_MODES = frozenset({"grand", "row", "col", "column"})
+
+
 def pivot_table(
     rows: list[list[str]],
     index_col: str,
     column_col: str,
-    value_col: str,
+    value_col: str | None = None,
     agg: str = "sum",
+    *,
+    margins: bool = False,
+    margins_name: str = "Total",
+    value_cols: list[str] | None = None,
+    aggs: list[str] | None = None,
+    pct_of: str | None = None,
+    as_percent: bool = True,
 ) -> list[list[str]]:
     """Spreadsheet pivot of ``rows``.
 
@@ -210,16 +246,53 @@ def pivot_table(
     Returns a NEW 2-D block: header ``[index_col, *sorted distinct column_col]``,
     one row per distinct ``index_col`` value (sorted), then the aggregated cells.
 
-    Raises :class:`PivotError` on an unknown column or aggregation.
+    Optional extensions (all backward-compatible — omit them for the classic
+    single-value pivot):
+
+    * **margins** — when ``True``, append a grand-total column on the right and a
+      grand-total row at the bottom, both labelled ``margins_name``. Margins are
+      recomputed from the pooled raw ``value_col`` cells, so a ``mean``/``median``
+      total is the true aggregate of all rows/columns (not a sum of cell means).
+    * **multiple value fields** — pass ``value_cols`` (a list of column names) and
+      optionally ``aggs`` (a matching list of aggregators; defaults to ``agg``
+      for every field). Each ``column_col`` value then yields one sub-column per
+      value field, headed ``"<colkey> - <agg>(<value_col>)"``. ``value_col`` +
+      ``agg`` remain the single-field shorthand.
+    * **pct_of** — ``"grand"``, ``"row"``, or ``"col"`` re-expresses each numeric
+      body cell as a share of the grand total / its row total / its column total.
+      ``as_percent`` (default ``True``) scales the share by 100; pass ``False``
+      for a raw fraction. Percent-of works per value field independently. When
+      combined with ``margins``, the margin cells hold ``100`` (the whole).
+
+    Raises :class:`PivotError` on an unknown column, aggregation, or ``pct_of``.
     """
-    if agg not in AGGREGATIONS:
-        raise PivotError(f"unknown aggregation: {agg!r}")
+    # Resolve the value-field spec: (value_cols, aggs) win; else single field.
+    if value_cols is None:
+        if value_col is None:
+            raise PivotError("pivot_table needs value_col or value_cols")
+        fields = [value_col]
+        field_aggs = [agg]
+    else:
+        if not value_cols:
+            raise PivotError("value_cols must be non-empty")
+        fields = list(value_cols)
+        field_aggs = list(aggs) if aggs is not None else [agg] * len(fields)
+        if len(field_aggs) != len(fields):
+            raise PivotError("aggs must match value_cols in length")
+    for a in field_aggs:
+        if a not in AGGREGATIONS:
+            raise PivotError(f"unknown aggregation: {a!r}")
+    if pct_of is not None and pct_of not in _PCT_MODES:
+        raise PivotError(f"unknown pct_of mode: {pct_of!r}")
+    pct_row = pct_of == "row"
+    pct_grand = pct_of == "grand"
 
     iidx = _header_index(rows, index_col)
     cidx = _header_index(rows, column_col)
-    vidx = _header_index(rows, value_col)
+    vidxs = [_header_index(rows, f) for f in fields]
 
-    cells: dict[tuple[str, str], list[str]] = {}
+    # Per field: bucket the raw value cells by (index, column).
+    cells: list[dict[tuple[str, str], list[str]]] = [{} for _ in fields]
     index_keys: set[str] = set()
     column_keys: set[str] = set()
     for row in rows[1:]:
@@ -227,18 +300,98 @@ def pivot_table(
         ckey = _cell(row, cidx)
         index_keys.add(ikey)
         column_keys.add(ckey)
-        cells.setdefault((ikey, ckey), []).append(_cell(row, vidx))
+        for f, vidx in enumerate(vidxs):
+            cells[f].setdefault((ikey, ckey), []).append(_cell(row, vidx))
 
     index_order = _sort_keys(list(index_keys))
     column_order = _sort_keys(list(column_keys))
+    multi = value_cols is not None
 
-    out = [[index_col, *column_order]]
+    def _agg_cell(field: int, ikeys: list[str], ckeys: list[str]) -> str:
+        """Aggregate the pooled raw cells over the given index/column keys."""
+        pooled: list[str] = []
+        for ik in ikeys:
+            for ck in ckeys:
+                pooled.extend(cells[field].get((ik, ck), []))
+        return _aggregate(pooled, field_aggs[field])
+
+    # --- header -----------------------------------------------------------
+    header: list[str] = [index_col]
+    for ckey in column_order:
+        for f in range(len(fields)):
+            header.append(f"{ckey} - {field_aggs[f]}({fields[f]})" if multi else ckey)
+    if margins:
+        for f in range(len(fields)):
+            header.append(
+                f"{margins_name} - {field_aggs[f]}({fields[f]})" if multi
+                else margins_name)
+    out = [header]
+
+    # --- body (raw aggregates, kept for margins/percent math) -------------
+    body: list[list[str]] = []
     for ikey in index_order:
-        row_out = [ikey]
+        cell_row: list[str] = []
         for ckey in column_order:
-            bucket = cells.get((ikey, ckey))
-            row_out.append(_aggregate(bucket, agg) if bucket is not None else "")
-        out.append(row_out)
+            for f in range(len(fields)):
+                bucket = cells[f].get((ikey, ckey))
+                cell_row.append(_aggregate(bucket, field_aggs[f])
+                                if bucket is not None else "")
+        if margins:
+            for f in range(len(fields)):
+                cell_row.append(_agg_cell(f, [ikey], column_order))
+        body.append(cell_row)
+    if margins:
+        total_row: list[str] = []
+        for ckey in column_order:
+            for f in range(len(fields)):
+                total_row.append(_agg_cell(f, index_order, [ckey]))
+        for f in range(len(fields)):
+            total_row.append(_agg_cell(f, index_order, column_order))
+        body.append(total_row)
+
+    if pct_of is None:
+        for ridx, ikey in enumerate(index_order):
+            out.append([ikey, *body[ridx]])
+        if margins:
+            out.append([margins_name, *body[-1]])
+        return out
+
+    # --- percent-of-total re-expression -----------------------------------
+    # Column layout: fields cycle fastest, then column_order, then margins.
+    n_fields = len(fields)
+    n_body_cols = len(column_order) * n_fields
+    data_index = index_order + ([margins_name] if margins else [])
+
+    def _grand(field: int) -> float | None:
+        return _as_number(_agg_cell(field, index_order, column_order))
+
+    for ridx, ikey in enumerate(data_index):
+        src = body[ridx]
+        out_row = [ikey]
+        for col in range(len(src)):
+            field = col % n_fields
+            text = src[col]
+            part = _as_number(text)
+            if part is None:
+                out_row.append(text)
+                continue
+            in_margin_col = col >= n_body_cols
+            in_margin_row = margins and ridx == len(data_index) - 1
+            if pct_grand:
+                whole = _grand(field)
+            elif pct_row:
+                # Share within this row: its own body cells (the row total).
+                # A margin *row* cell is measured against the grand total.
+                rkeys = index_order if in_margin_row else [ikey]
+                whole = _as_number(_agg_cell(field, rkeys, column_order))
+            else:  # pct_col
+                # Share within this column: its body cells (the column total).
+                # A margin *column* cell is measured against the grand total.
+                ckeys = column_order if in_margin_col else [column_order[col // n_fields]]
+                whole = _as_number(_agg_cell(field, index_order, ckeys))
+            out_row.append(_fmt_fraction(part, whole, as_percent=as_percent)
+                           if whole is not None else "")
+        out.append(out_row)
     return out
 
 
