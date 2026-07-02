@@ -90,6 +90,78 @@ def test_lambda_wrong_arity():
     assert "VALUE" in str(s.get("A1")).upper()
 
 
+# --- direct LAMBDA-call syntax: LAMBDA(args...)(call_args...) -----------------
+
+
+def test_lambda_direct_call_one_arg():
+    s = Sheet()
+    s.set("A1", "=LAMBDA(x, x*x)(5)")
+    assert s.get("A1") == 25
+
+
+def test_lambda_direct_call_two_args():
+    s = Sheet()
+    s.set("A1", "=LAMBDA(a, b, a+b)(3, 4)")
+    assert s.get("A1") == 7
+
+
+def test_lambda_direct_call_with_cell_ref():
+    s = Sheet()
+    s.set("A1", "10")
+    s.set("B1", "=LAMBDA(x, x+1)(A1)")
+    assert s.get("B1") == 11
+
+
+def test_lambda_direct_call_wrong_arity():
+    s = Sheet()
+    s.set("A1", "=LAMBDA(x, x*x)(1, 2)")   # two args for a one-param lambda
+    assert "VALUE" in str(s.get("A1")).upper()
+
+
+def test_lambda_direct_call_in_expression():
+    s = Sheet()
+    s.set("A1", "=LAMBDA(x, x*x)(3) + LAMBDA(y, y+1)(9)")   # 9 + 10
+    assert s.get("A1") == 19
+
+
+def test_lambda_direct_call_still_named_via_let():
+    # The LET-bound path (F(5)) must keep working alongside the new seam.
+    s = Sheet()
+    s.set("A1", "=LET(f, LAMBDA(x, x*x), f(5))")
+    assert s.get("A1") == 25
+
+
+def test_lambda_direct_call_chaining():
+    # A lambda that returns a lambda, applied twice: (LAMBDA(a, LAMBDA(b, a+b)))
+    s = Sheet()
+    s.set("A1", "=LAMBDA(a, LAMBDA(b, a+b))(3)(4)")
+    assert s.get("A1") == 7
+
+
+def test_calling_a_non_lambda_is_value_error():
+    # A parenthesized number applied like a function -> #VALUE!.
+    s = Sheet()
+    s.set("A1", "=(1+2)(3)")
+    assert "VALUE" in str(s.get("A1")).upper()
+
+
+def test_ordinary_function_call_unaffected():
+    # SUM(A1:A3) must remain a plain function call (a Func, not a Call).
+    from abax.core import ast_nodes as A
+    from abax.core.parser import parse
+
+    node = parse("SUM(A1:A3)")
+    assert isinstance(node, A.Func)
+    node2 = parse("LAMBDA(x, x)(5)")
+    assert isinstance(node2, A.Call)
+
+
+def test_lambda_direct_call_propagates_arg_error():
+    s = Sheet()
+    s.set("A1", "=LAMBDA(x, x+1)(1/0)")
+    assert "DIV" in str(s.get("A1")).upper()
+
+
 # --- MAP / REDUCE / SCAN ----------------------------------------------------------
 
 

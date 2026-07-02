@@ -8,6 +8,7 @@ Grammar (lowest to highest precedence)::
     term       := factor ( (* / %) factor )*
     factor     := unary ( ^ factor )?            # ^ is right-associative
     unary      := (+ -) unary | primary
+    postfix    := primary ( '(' args ')' )*      # direct application -> Call
     primary    := NUMBER | STRING | REF | RANGE
                 | NAME '(' args ')' | '(' comparison ')'
 
@@ -105,7 +106,22 @@ class _Parser:
         if t and t.kind == "OP" and t.value in ("+", "-", "@"):
             op = self.next().value
             return A.Unary(op, self.unary())
-        return self.primary()
+        return self.postfix()
+
+    def postfix(self):
+        """A primary expression followed by zero or more ``(`` args ``)``
+        *applications* — the direct-call seam, e.g. ``LAMBDA(x, x*x)(5)`` or the
+        chain ``f(a)(b)``. Each trailing ``(`` wraps the value produced so far in
+        a :class:`~abax.core.ast_nodes.Call`. Note ``SUM(A1:A3)`` never reaches
+        here as a call: a bare NAME directly followed by ``(`` is consumed inside
+        :meth:`primary` as a ``Func``, so only a ``(`` after a *value* applies."""
+        node = self.primary()
+        while (t := self.peek()) and t.kind == "LPAREN":
+            self.expect("LPAREN")
+            args = self.arglist()
+            self.expect("RPAREN")
+            node = A.Call(node, tuple(args))
+        return node
 
     def primary(self):
         t = self.peek()

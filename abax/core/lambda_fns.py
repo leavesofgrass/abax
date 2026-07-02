@@ -9,11 +9,12 @@ evaluator's ``Name`` branch before it gives up with ``#NAME?``), so nested
 LET/LAMBDA scopes are just chained child contexts.
 
 ``LAMBDA`` evaluates to a first-class :class:`LambdaValue` that closes over
-its defining context. abax does not support Excel's direct-call syntax
-(``=LAMBDA(x,x+1)(5)``) — a lambda is *used* by passing it to one of the
-functional helpers (or naming it via LET), which is how LAMBDA is idiomatically
-used anyway. A lambda that ends up as a cell's final value shows ``#CALC!``,
-matching Excel.
+its defining context. It can be *called* directly with Excel's postfix-call
+syntax (``=LAMBDA(x,x+1)(5)`` -> 6; the parser produces an
+:class:`~abax.core.ast_nodes.Call` node that the evaluator applies), passed to
+one of the functional helpers, or named via LET and called by name. A lambda
+that ends up as a cell's final value (uncalled) shows ``#CALC!``, matching
+Excel.
 
 Binding names share the identifier lexer, so a LET/LAMBDA name cannot look
 like a cell reference (``x`` is fine, ``x1`` lexes as the reference X1) —

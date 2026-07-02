@@ -121,6 +121,8 @@ def evaluate(node: Any, resolver: Resolver, ctx: "EvalContext | None" = None) ->
         return _eval_binary(node, resolver, ctx)
     if isinstance(node, A.Func):
         return _eval_func(node, resolver, ctx)
+    if isinstance(node, A.Call):
+        return _eval_call(node, resolver, ctx)
     if isinstance(node, A.String):
         return node.value
     if isinstance(node, A.Range):
@@ -309,3 +311,21 @@ def _eval_func(node: A.Func, resolver: Resolver, ctx: "EvalContext | None" = Non
         return fn(args)
     except (ValueError, TypeError, ZeroDivisionError, IndexError, OverflowError):
         return CellError(CellError.VALUE)
+
+
+def _eval_call(node: A.Call, resolver: Resolver, ctx: "EvalContext | None" = None) -> Any:
+    """Direct application ``callee(args...)`` — the LAMBDA-call seam. The callee
+    must evaluate to a :class:`~abax.core.lambda_fns.LambdaValue`; anything else
+    is #VALUE! (a propagated error passes through unchanged). Arity checking and
+    parameter binding are delegated to ``LambdaValue.call`` — the same path used
+    by MAP/REDUCE and LET-bound lambda calls — so an arity mismatch yields the
+    existing LAMBDA arity error and no logic is duplicated here."""
+    from .lambda_fns import LambdaValue
+
+    callee = evaluate(node.callee, resolver, ctx)
+    if is_error(callee):
+        return callee
+    if not isinstance(callee, LambdaValue):
+        return CellError(CellError.VALUE)
+    args = [evaluate(a, resolver, ctx) for a in node.args]
+    return callee.call(args)

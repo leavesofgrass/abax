@@ -84,3 +84,18 @@ class Binary:
 class Func:
     name: str  # upper-cased
     args: tuple
+
+
+@dataclass(frozen=True, slots=True)
+class Call:
+    """A postfix *application* of an already-evaluated value, e.g. the direct
+    LAMBDA call ``LAMBDA(x, x*x)(5)``. ``callee`` is any expression that yields
+    a value (a ``Func`` like ``LAMBDA(...)``, a parenthesized expression, a
+    ``Name``, or another ``Call`` for chaining ``f(a)(b)``); ``args`` are the
+    call arguments. Distinct from ``Func``: an ordinary ``SUM(A1:A3)`` is a
+    ``Func`` because a bare name directly followed by ``(`` is a function call;
+    only a ``(`` following a *value* produces a ``Call``.
+    """
+
+    callee: Any
+    args: tuple
