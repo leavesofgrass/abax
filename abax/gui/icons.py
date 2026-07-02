@@ -137,13 +137,14 @@ def _equation(p):
 
 
 def _python(p):
-    for i, x in enumerate((6, 9.5)):
-        path = QPainterPath()
-        path.moveTo(x, 7)
-        path.lineTo(x + 3, 11)
-        path.lineTo(x, 15)
-        p.drawPath(path)
-    p.drawLine(QPointF(13.5, 15), QPointF(17, 15))
+    # a frameless code prompt (chevron + input caret) — distinct from the
+    # windowed `terminal` glyph, which reads as a shell.
+    path = QPainterPath()
+    path.moveTo(5, 6)
+    path.lineTo(10, 11)
+    path.lineTo(5, 16)
+    p.drawPath(path)
+    p.drawLine(QPointF(12, 16.5), QPointF(17, 16.5))
 
 
 def _palette(p):
@@ -345,7 +346,7 @@ def make_icon(name: str, size: int = _SIZE) -> QIcon:
     p = QPainter(pm)
     p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
     pen = QPen(color)
-    pen.setWidthF(1.6)
+    pen.setWidthF(1.8)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     p.setPen(pen)
