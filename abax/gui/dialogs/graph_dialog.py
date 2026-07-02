@@ -302,6 +302,30 @@ class GraphDialog(QDialog):
         row2.addWidget(self._k)
         row2.addStretch(1)
         layout.addLayout(row2)
+        row3 = QHBoxLayout()
+        b_box = QPushButton("Box", self)
+        b_box.setToolTip("Box-and-whisker per selected column -> SVG")
+        b_box.clicked.connect(self._plot_box)
+        b_violin = QPushButton("Violin", self)
+        b_violin.setToolTip("Violin (KDE density) per selected column -> SVG")
+        b_violin.clicked.connect(self._plot_violin)
+        b_qq = QPushButton("Q-Q", self)
+        b_qq.setToolTip("Normal Q-Q plot of the selected column -> SVG")
+        b_qq.clicked.connect(self._plot_qq)
+        b_ecdf = QPushButton("ECDF", self)
+        b_ecdf.setToolTip("Empirical CDF per selected column -> SVG")
+        b_ecdf.clicked.connect(self._plot_ecdf)
+        b_heat = QPushButton("Heatmap", self)
+        b_heat.setToolTip("Correlation heatmap of the selected columns -> SVG")
+        b_heat.clicked.connect(self._plot_heatmap)
+        row3.addWidget(QLabel("Distribution:", self))
+        row3.addWidget(b_box)
+        row3.addWidget(b_violin)
+        row3.addWidget(b_qq)
+        row3.addWidget(b_ecdf)
+        row3.addWidget(b_heat)
+        row3.addStretch(1)
+        layout.addLayout(row3)
         self._canvas = _Canvas(self)
         layout.addWidget(self._canvas)
         self._status = QLabel("", self)
@@ -520,3 +544,93 @@ class GraphDialog(QDialog):
             return
         self._canvas.set_points(pts)
         self._status.setText(f"plotted {len(pts)} values from column {c1}")
+
+    # --- distribution charts (pure-stdlib SVG, saved to disk) ---------------
+
+    def _read_column_series(self) -> list[tuple[str, list[float]]]:
+        """Selected columns as ``[(name, values)]`` (one series per column)."""
+        r1, c1, r2, c2 = self._win._selected_bounds()
+        sheet = self._win._doc.workbook.sheet
+        series: list[tuple[str, list[float]]] = []
+        for c in range(c1, c2 + 1):
+            col: list[float] = []
+            for r in range(r1, r2 + 1):
+                v = sheet.get_value(r, c)
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    col.append(float(v))
+            if col:
+                series.append((f"col {c + 1}", col))
+        return series
+
+    def _save_svg(self, svg: str, default_name: str) -> str | None:
+        """Prompt for a path and write ``svg``; return the saved path or ``None``."""
+        from pathlib import Path
+
+        from .._qtcompat import QFileDialog
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export chart as SVG", default_name, "SVG image (*.svg)")
+        if not path:
+            return None
+        Path(path).write_text(svg, encoding="utf-8")
+        return Path(path).name
+
+    def _plot_box(self) -> None:
+        from ...core.science import chartsvg
+
+        series = self._read_column_series()
+        if not series:
+            self._status.setText("select one or more numeric columns")
+            return
+        svg = chartsvg.box_svg(series, title="Box-and-whisker")
+        name = self._save_svg(svg, "box.svg")
+        if name:
+            self._status.setText(f"box plot ({len(series)} series) -> {name}")
+
+    def _plot_violin(self) -> None:
+        from ...core.science import chartsvg
+
+        series = self._read_column_series()
+        if not series:
+            self._status.setText("select one or more numeric columns")
+            return
+        svg = chartsvg.violin_svg(series, title="Violin (KDE)")
+        name = self._save_svg(svg, "violin.svg")
+        if name:
+            self._status.setText(f"violin plot ({len(series)} series) -> {name}")
+
+    def _plot_qq(self) -> None:
+        from ...core.science import chartsvg
+
+        data = self._read_selection_series()
+        if len(data) < 2:
+            self._status.setText("select at least 2 numeric cells")
+            return
+        svg = chartsvg.qq_svg(data, title="Normal Q-Q")
+        name = self._save_svg(svg, "qq.svg")
+        if name:
+            self._status.setText(f"Q-Q plot ({len(data)} values) -> {name}")
+
+    def _plot_ecdf(self) -> None:
+        from ...core.science import chartsvg
+
+        series = self._read_column_series()
+        if not series:
+            self._status.setText("select one or more numeric columns")
+            return
+        svg = chartsvg.ecdf_svg(series, title="Empirical CDF")
+        name = self._save_svg(svg, "ecdf.svg")
+        if name:
+            self._status.setText(f"ECDF ({len(series)} series) -> {name}")
+
+    def _plot_heatmap(self) -> None:
+        from ...core.science import chartsvg
+
+        m = self._read_matrix()
+        if len(m) < 1 or len(m[0]) < 1:
+            self._status.setText("select a numeric matrix")
+            return
+        svg = chartsvg.heatmap_svg(m, title="Heatmap")
+        name = self._save_svg(svg, "heatmap.svg")
+        if name:
+            self._status.setText(f"heatmap ({len(m)}x{len(m[0])}) -> {name}")
