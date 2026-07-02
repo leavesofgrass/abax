@@ -52,6 +52,21 @@ parallel agents:_
   Σx², sample/population sd, five-number summary), **2-Var Stats**, and
   **LinReg(ax+b)** (slope, intercept, r, r²), reusing the `core/science` stats
   and regression helpers.
+- **Preferences dialog** (*Edit → Preferences…*, `Ctrl+,`) — a tabbed panel for
+  theme, dyslexic font, default zoom, autosave (now on/off + interval, no longer
+  hardcoded at 30 s), and the code-isolation level. Persists to `settings.json`
+  via the existing loader (schema bumped to v3; older files take the defaults);
+  appearance applies live.
+- **Cell comments / notes** — attach a note to any cell (right-click →
+  *Insert/Edit/Delete comment*). Commented cells show a small marker and expose
+  the note as a tooltip; comments are metadata (not formula inputs), shift with
+  row/column insert-delete, and round-trip in the `.abax` envelope. Undo/redo
+  covers them.
+- **Stata / SPSS import** — open `.dta`, `.sav` (plus `.zsav`/`.por`) straight
+  into the grid via the optional **`pyreadstat`** package (`pip install
+  abax[stats-io]`, in the full-fat set). Variable names become the header row;
+  without the package the rest of the app is unaffected and the reader shows a
+  clear install hint — the engine-layer adapter pattern used for `.7z`/Parquet.
 
 ### Changed
 - **Recalculation is now incremental.** Editing a cell used to clear *every*
@@ -73,6 +88,10 @@ parallel agents:_
   now checkpoint, so `u` / `Ctrl-R` (and `:undo`/`:redo`) work; `?` / `:help`
   opens a scrollable list of every key and command; and `:plot A1:A50 [B1:B50]`
   graphs a sheet range (the expression form still works).
+- **TUI visual selection mode.** `v` selects a cell range (`V` whole rows),
+  movement keys / arrows extend it from the anchor, and the status line shows a
+  live **sum / count / average** of the selection; `y` yanks it, `d`/`x` clear it
+  under an undo checkpoint, `Esc` cancels.
 - **Pivot tables go deeper.** `pivot_table` gained **grand-total margins**
   (recomputed from the pooled raw cells, so a mean/median margin is the true
   aggregate — not a mean of means), **multiple value fields** with per-field

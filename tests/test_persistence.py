@@ -5,7 +5,13 @@ from __future__ import annotations
 import json
 
 from abax.core.workbook import Workbook
-from abax.settings import Settings, _migrate_settings, load_settings, save_settings
+from abax.settings import (
+    SCHEMA_VERSION,
+    Settings,
+    _migrate_settings,
+    load_settings,
+    save_settings,
+)
 from abax.state import StateManager
 
 
@@ -24,7 +30,7 @@ def test_settings_migration_v0_to_v1():
     data = {"color_scheme": "nord"}  # v0 shape, no schema_version
     migrated = _migrate_settings(data)
     assert migrated["theme"] == "nord"          # v0 -> v1 theme rename still applies
-    assert migrated["schema_version"] == 2      # then chains through v1 -> v2
+    assert migrated["schema_version"] == SCHEMA_VERSION  # chains through to current
 
 
 def test_save_json_is_atomic_and_roundtrips(tmp_path):
