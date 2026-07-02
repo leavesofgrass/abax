@@ -10,7 +10,7 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
-_The first waves of the 0.1.20 roadmap (see `dev/roadmap.md`), built by
+_The first waves of the 0.1.4 roadmap (see `dev/roadmap.md`), built by
 parallel agents:_
 
 ### Added
