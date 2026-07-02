@@ -13,6 +13,10 @@ means, and floored variances). Initial means are chosen by a k-means++-style
 seeding pass. Bad input (empty/ragged ``X``, too few samples, ``n_components``
 out of range) raises :class:`GMMError`.
 
+The module-level :func:`gmm_model_selection` sweeps a range of component counts
+and reports the BIC/AIC per ``k`` plus the argmin of each — a "how many
+components?" helper mirroring the k-means elbow/silhouette tools.
+
 Pure stdlib -> core.
 """
 
@@ -324,3 +328,43 @@ class GaussianMixture:
         n, _ = _validate_X(X)
         loglik_total = self.score(X) * n
         return -2.0 * loglik_total + 2.0 * self._n_params()
+
+
+# ---------------------------------------------------------------------- #
+# "How many components?" model selection.
+# ---------------------------------------------------------------------- #
+
+
+def gmm_model_selection(
+    X: Matrix,
+    k_range,
+    max_iter: int = 100,
+    seed: int = 0,
+) -> dict:
+    """Fit a GMM at each ``k`` in ``k_range`` and score it by BIC and AIC.
+
+    For every candidate ``k`` (the number of mixture components) a fresh
+    :class:`GaussianMixture` is fitted to ``X`` and its Bayesian / Akaike
+    information criteria recorded. Both criteria trade fit against complexity, so
+    the ``k`` that *minimises* them is the suggested component count.
+
+    Returns a dict with keys:
+
+    * ``"scores"`` — list of ``(k, bic, aic)`` triples, in ``k_range`` order;
+    * ``"best_bic"`` — the ``k`` with the smallest BIC;
+    * ``"best_aic"`` — the ``k`` with the smallest AIC.
+
+    Raises :class:`GMMError` if ``k_range`` is empty (bad ``X`` or ``k`` values
+    propagate from :meth:`GaussianMixture.fit`).
+    """
+    ks = [int(k) for k in k_range]
+    if not ks:
+        raise GMMError("k_range must be non-empty")
+    scores: list[tuple[int, float, float]] = []
+    for k in ks:
+        model = GaussianMixture(n_components=k, max_iter=max_iter, seed=seed)
+        model.fit(X)
+        scores.append((k, model.bic(X), model.aic(X)))
+    best_bic = min(scores, key=lambda t: t[1])[0]
+    best_aic = min(scores, key=lambda t: t[2])[0]
+    return {"scores": scores, "best_bic": best_bic, "best_aic": best_aic}

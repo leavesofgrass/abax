@@ -22,6 +22,7 @@ from ...core.science import ml as ML
 _OPS = [
     "PCA (param = #components)",
     "K-means (param = k)",
+    "Suggest #clusters (param = max k)",
     "GMM cluster (param = #components)",
     "Linear regression (last col = y)",
     "Standardize (z-score)",
@@ -102,6 +103,52 @@ class MLDialog(QDialog):
         self._write([[str(p)] for p in preds], self._out.text())
         self._win._set_status(f"{op.split('(')[0].strip()}: train accuracy={acc:.3f}")
 
+    def _suggest_k(self, X) -> None:
+        """Suggest a cluster count from k-means elbow/silhouette (+ GMM BIC/AIC).
+
+        Sweeps k = 2..max_k (from the Param box, default 6, capped at n-1), writes
+        a per-k table (k, inertia, silhouette[, GMM BIC/AIC]) to the output range,
+        and reports the recommended k in the status bar.
+        """
+        from ...core.science.gmm import GMMError, gmm_model_selection
+
+        try:
+            max_k = int(float(self._param.text()))
+        except ValueError:
+            max_k = 6
+        max_k = max(2, min(max_k, len(X) - 1))
+        k_range = range(2, max_k + 1)
+
+        best_k, sil_scores = CL.best_k_silhouette(X, k_range, seed=0)
+        inertias = dict(CL.elbow(X, k_range, seed=0))
+        sil = dict(sil_scores)
+
+        header = ["k", "inertia", "silhouette"]
+        gmm_res = None
+        try:
+            gmm_res = gmm_model_selection(X, k_range, seed=0)
+            header += ["gmm_bic", "gmm_aic"]
+        except GMMError:
+            gmm_res = None
+
+        rows: list[list] = [header]
+        gmm_by_k = {t[0]: (t[1], t[2]) for t in gmm_res["scores"]} if gmm_res else {}
+        for k in k_range:
+            row = [k, inertias[k], sil[k]]
+            if gmm_res is not None:
+                bic, aic = gmm_by_k[k]
+                row += [bic, aic]
+            rows.append(row)
+        self._write(rows, self._out.text())
+
+        msg = f"suggested k={best_k} (max silhouette)"
+        if gmm_res is not None:
+            msg += f"; GMM BIC prefers k={gmm_res['best_bic']}"
+        self._win._set_status(msg)
+        self._win._doc.mark_dirty()
+        self._win.refresh_table()
+        self.accept()
+
     def _apply(self) -> None:
         X = self._read_matrix(self._in.text())
         if len(X) < 2 or not X[0]:
@@ -122,6 +169,9 @@ class MLDialog(QDialog):
                 self._write([[lab] for lab in labels], self._out.text())
                 self._win._set_status(
                     f"k-means: k={k}, inertia={inertia:.4g} (labels written)")
+            elif op.startswith("Suggest"):
+                self._suggest_k(X)
+                return
             elif op.startswith("GMM"):
                 from ...core.science.gmm import GaussianMixture
 

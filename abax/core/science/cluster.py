@@ -9,8 +9,10 @@ Algorithms: :func:`kmeans` (Lloyd's iteration with k-means++ seeding) plus
 :func:`kmeans_predict` for assigning new points; :func:`agglomerative` (bottom-up
 hierarchical clustering with single/complete/average linkage); :func:`dbscan`
 (density-based, with noise labelled ``-1``). Quality is measured by
-:func:`silhouette_score`. Bad arguments raise :class:`ClusterError` rather than
-returning a bogus result.
+:func:`silhouette_score`, and the "how many clusters?" helpers
+:func:`elbow` (inertia per ``k``) and :func:`best_k_silhouette` (the ``k`` with
+the highest mean silhouette) wrap k-means to suggest a cluster count. Bad
+arguments raise :class:`ClusterError` rather than returning a bogus result.
 """
 
 from __future__ import annotations
@@ -256,6 +258,59 @@ def silhouette_score(points: list[list[float]], labels: list[int]) -> float:
         denom = max(a, b)
         total += 0.0 if denom == 0.0 else (b - a) / denom
     return total / len(points)
+
+
+def elbow(
+    points: list[list[float]],
+    k_range,
+    seed: int = 0,
+) -> list[tuple[int, float]]:
+    """Return ``(k, inertia)`` for each ``k`` in ``k_range`` (the elbow curve).
+
+    Runs :func:`kmeans` at every ``k`` and records its within-cluster inertia
+    (sum of squared distances to the assigned centroid). Inertia decreases as
+    ``k`` grows; the "elbow" — where the drop flattens — is a common visual cue
+    for a good ``k``. Pairs come back in the order ``k_range`` is iterated.
+    Raises :class:`ClusterError` if ``k_range`` is empty or any ``k`` is invalid
+    (via :func:`kmeans`).
+    """
+    _check_points(points)
+    ks = [int(k) for k in k_range]
+    if not ks:
+        raise ClusterError("k_range must be non-empty")
+    out: list[tuple[int, float]] = []
+    for k in ks:
+        _labels, _centroids, inertia = kmeans(points, k, seed=seed)
+        out.append((k, inertia))
+    return out
+
+
+def best_k_silhouette(
+    points: list[list[float]],
+    k_range,
+    seed: int = 0,
+) -> tuple[int, list[tuple[int, float]]]:
+    """Choose the ``k`` maximising the mean silhouette over ``k_range``.
+
+    For each ``k`` in ``k_range`` (each must be ``>= 2``, since the silhouette
+    needs at least two clusters) this runs :func:`kmeans` and scores the labels
+    with :func:`silhouette_score`. Returns ``(best_k, scores)`` where ``scores``
+    is the list of ``(k, mean_silhouette)`` pairs and ``best_k`` is the ``k`` of
+    the highest-scoring entry (first one wins on ties). Raises
+    :class:`ClusterError` if ``k_range`` is empty or contains a ``k < 2``.
+    """
+    _check_points(points)
+    ks = [int(k) for k in k_range]
+    if not ks:
+        raise ClusterError("k_range must be non-empty")
+    if any(k < 2 for k in ks):
+        raise ClusterError("silhouette needs k >= 2")
+    scores: list[tuple[int, float]] = []
+    for k in ks:
+        labels, _centroids, _inertia = kmeans(points, k, seed=seed)
+        scores.append((k, silhouette_score(points, labels)))
+    best_k = max(scores, key=lambda pair: pair[1])[0]
+    return best_k, scores
 
 
 def dbscan(points: list[list[float]], eps: float, min_samples: int) -> list[int]:
