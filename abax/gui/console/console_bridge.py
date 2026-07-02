@@ -226,3 +226,60 @@ class ConsoleBridge:
         finally:
             self._close_job()
             self._cleanup_confinement(proc)
+
+
+class InProcessBridge:
+    """The 'off' isolation level: run code in *this* process, no worker.
+
+    Presents the same surface as :class:`ConsoleBridge` (so callers don't
+    branch), but calls the pure :class:`~abax.console_worker.Worker` directly —
+    no subprocess, no resource limits, no OS confinement, and no interrupt (a
+    runaway can't be killed in-process). This is the fast, full-access,
+    *no-isolation* mode; a crash in a C extension will take the GUI down with
+    it. The workbook still crosses as an envelope, so the calling code applies
+    the result exactly as it does for the out-of-process bridge.
+    """
+
+    def __init__(self) -> None:
+        from ...console_worker import Worker
+
+        self._worker = Worker()
+
+    def strict_unavailable(self) -> bool:
+        return False
+
+    def execute(self, source: str, envelope: dict,
+                timeout: "float | None" = None) -> dict:
+        return self._worker.dispatch({"op": "exec", "code": source,
+                                      "envelope": envelope})
+
+    def execute_script(self, source: str, path: str, envelope: dict,
+                       timeout: "float | None" = None) -> dict:
+        return self._worker.dispatch({"op": "script", "code": source, "path": path,
+                                      "envelope": envelope})
+
+    def execute_macro(self, name: str, files: list, cursor, envelope: dict,
+                      timeout: "float | None" = None) -> dict:
+        return self._worker.dispatch({"op": "macro", "macro": name,
+                                      "files": list(files),
+                                      "cursor": list(cursor) if cursor else None,
+                                      "envelope": envelope})
+
+    def interrupt(self) -> None:
+        # No way to interrupt in-process code — the price of the "off" level.
+        pass
+
+    def close(self) -> None:
+        pass
+
+
+def make_exec_bridge(isolation: str):
+    """Pick the execution transport for a ``code_isolation`` level:
+
+    * ``"off"`` — :class:`InProcessBridge` (in-process, no isolation).
+    * ``"isolated"`` — :class:`ConsoleBridge` (out-of-process + resource limits).
+    * ``"strict"`` — :class:`ConsoleBridge` with OS confinement (Phase 3).
+    """
+    if isolation == "off":
+        return InProcessBridge()
+    return ConsoleBridge(strict=(isolation == "strict"))

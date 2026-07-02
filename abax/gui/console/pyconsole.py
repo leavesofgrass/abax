@@ -109,16 +109,24 @@ class _ConsoleInput(QLineEdit):
             return True
         return super().event(e)
 
-_BANNER = (
-    "abax Python console (sandboxed — runs in a separate process, off the UI thread).\n"
-    "Namespace: doc, wb, sheet(), cell(ref), put(ref, val), refresh(), rpn; "
+# Per-isolation-level first line of the banner (and the window-title suffix).
+_MODE_LINES = {
+    "off": ("in-process", "abax Python console (in-process — no isolation; a "
+            "crash here can take down abax)."),
+    "isolated": ("isolated", "abax Python console (isolated — runs in a separate, "
+                 "resource-limited process, off the UI thread)."),
+    "strict": ("strict sandbox", "abax Python console (strict sandbox — a separate "
+               "process, OS-confined: no network, writes to a scratch dir only)."),
+}
+
+_BANNER_BODY = (
+    "\nNamespace: doc, wb, sheet(), cell(ref), put(ref, val), refresh(), rpn; "
     "engineering: matrix, eigen, units, numeric, complexnum, fft, interp, signal, "
     "spectral, filters, ode, ode_implicit, resynth, stats, cluster, ml, trees, "
     "bayes, metrics, gmm, compile_expr, read_matrix(rng), write_matrix(cell, mat), "
     "sheet_to_df(rng), df_to_sheet(df, cell); data science (if installed): "
     "np/numpy, pd/pandas, scipy, sm/statsmodels, sklearn, pg/pingouin, pm/pymc, "
-    "sksurv.\n(The first command starts the sandbox; later commands reuse it. "
-    "Use Interrupt to stop a runaway command.)\n>>> "
+    "sksurv.\n>>> "
 )
 
 
@@ -126,13 +134,14 @@ class PyConsole(QDialog):
     def __init__(self, window) -> None:
         super().__init__(window)
         self._win = window
-        self.setWindowTitle("Python console (sandboxed)")
+        self._isolation = getattr(window._settings, "code_isolation", "isolated")
+        title, _banner = _MODE_LINES.get(self._isolation, _MODE_LINES["isolated"])
+        self.setWindowTitle(f"Python console ({title})")
         self.resize(620, 420)
         self.setModal(False)
-        from .console_bridge import ConsoleBridge
+        from .console_bridge import make_exec_bridge
 
-        self._bridge = ConsoleBridge(
-            strict=getattr(window._settings, "sandbox_strict", False))
+        self._bridge = make_exec_bridge(self._isolation)
         self._thread = None
         self._worker = None
         self._closing = False
@@ -145,7 +154,8 @@ class PyConsole(QDialog):
         self._out = QPlainTextEdit(self)
         self._out.setReadOnly(True)
         self._out.setFont(mono)
-        self._out.setPlainText(_BANNER)
+        _title, banner_head = _MODE_LINES.get(self._isolation, _MODE_LINES["isolated"])
+        self._out.setPlainText(banner_head + _BANNER_BODY)
         layout.addWidget(self._out)
         row = QHBoxLayout()
         self._in = _ConsoleInput(self, _console_words())

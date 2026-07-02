@@ -26,28 +26,35 @@ See also: [index](index.md) · [architecture](architecture.md) · [licensing](li
 > `ABAX_WORKER_MEM_MB` / `ABAX_WORKER_CPU_S` / `ABAX_WORKER_PROCS` environment
 > variables (the defaults are generous — big enough for real data-science work).
 >
-> By default that is **crash and resource isolation, not a security sandbox** —
-> the worker still runs with your full user privileges, so it can read and write
-> your files and reach the network. Loading a macro/UDF *file* still executes it
-> in-process, because a UDF must be callable by the formula engine; that is what
-> the consent gate covers. The CLI (`abax macro run`) and TUI (`:macro`) run
-> macros in-process too — there you are running code you invoked on yourself.
+> **Code isolation is a setting with three levels** (`code_isolation`, or the
+> command palette's **"Cycle code isolation (off / isolated / strict)"**):
 >
-> **Strict sandbox mode (a real OS boundary).** Turn on *strict sandbox* — the
-> command palette's **"Toggle strict sandbox (OS confinement)"**, the
-> `sandbox_strict` setting, or the `ABAX_SANDBOX_STRICT=1` environment variable —
-> to run the console / scripts / macros inside the platform's OS sandbox: a
-> **Windows AppContainer**, **Linux bubblewrap**, or **macOS sandbox-exec**. In
-> strict mode the worker has **no network access** and can write only to a
-> private scratch directory (everything else is read-only or denied). Crucially,
-> strict mode is **fail-closed**: after the sandbox is applied the worker runs a
-> live escape self-test (it tries to write outside the scratch dir and open a
-> socket) and **refuses to run your code** if either succeeds — and if no OS
-> confinement is available on your platform (e.g. Linux without `bwrap`
-> installed), it refuses rather than run unconfined. So strict mode is either a
-> genuine boundary or nothing; it never pretends. For untrusted code this is the
-> mode to use; when you can't use it, run abax inside a throwaway VM or container.
-> See `dev/sandbox-design.md` for the full design.
+> - **off** — code runs **in this process**, with no worker and no limits:
+>   fastest and most direct, but a crash (e.g. in a C extension) can take down
+>   abax and a runaway can't be interrupted. Choose this only for code you wrote
+>   and trust.
+> - **isolated** *(default)* — code runs in a separate, **resource-limited**
+>   worker process (memory / CPU / process caps), so a crash, hang, or runaway
+>   allocation there can't take down abax. This is **crash and resource
+>   isolation, not a security sandbox** — the worker still runs with your full
+>   privileges, so it can read/write your files and reach the network.
+> - **strict** — a real **OS boundary**: the worker runs inside the platform's
+>   OS sandbox (a **Windows AppContainer**, **Linux bubblewrap**, or **macOS
+>   sandbox-exec**) with **no network access** and writes confined to a private
+>   scratch directory. Strict mode is **fail-closed**: after the sandbox is
+>   applied the worker runs a live escape self-test (it tries to write outside
+>   the scratch dir and open a socket) and **refuses to run your code** if either
+>   succeeds — and if no OS confinement is available on your platform (e.g. Linux
+>   without `bwrap`), it refuses rather than run unconfined. So strict mode is
+>   either a genuine boundary or nothing; it never pretends. Set it with
+>   `ABAX_SANDBOX_STRICT=1` too. For untrusted code this is the mode to use; when
+>   you can't, run abax in a throwaway VM or container.
+>
+> Regardless of level, loading a macro/UDF *file* executes it in-process (a UDF
+> must be callable by the formula engine — that is what the consent gate covers),
+> and the CLI (`abax macro run`) / TUI (`:macro`) run macros in-process — there
+> you are running code you invoked on yourself. See `dev/sandbox-design.md` for
+> the full design.
 >
 > The GUI gates all of these behind a one-time **consent prompt**: the first time
 > you open the console/terminal or run a script/macro, abax warns you and asks you

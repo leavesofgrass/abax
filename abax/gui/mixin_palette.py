@@ -131,7 +131,7 @@ class PaletteMixin:
             "RF reference (bands / CTCSS)...": self.show_rf_reference,
             "Antenna pattern...": self.show_antenna_pattern,
             "Python console...": self.show_pyconsole,
-            "Toggle strict sandbox (OS confinement)": self.toggle_strict_sandbox,
+            "Cycle code isolation (off / isolated / strict)": self.cycle_code_isolation,
             "Graph...": self.show_graph,
             "Equation editor...": self.show_equation,
             "Clipboard history...": self.show_clipboard,

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ._runtime import _HAS_MSGSPEC
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _migrate_settings(data: dict) -> dict:
@@ -20,6 +20,13 @@ def _migrate_settings(data: dict) -> dict:
         if "color_scheme" in data and "theme" not in data:
             data["theme"] = data.pop("color_scheme")
         data["schema_version"] = 1
+    if v < 2:
+        # v1 -> v2: the boolean 'sandbox_strict' became the tri-state
+        # 'code_isolation' (off / isolated / strict).
+        if "sandbox_strict" in data and "code_isolation" not in data:
+            data["code_isolation"] = "strict" if data.get("sandbox_strict") else "isolated"
+        data.pop("sandbox_strict", None)
+        data["schema_version"] = 2
     return data
 
 
@@ -39,7 +46,11 @@ if _HAS_MSGSPEC:
         last_sheet: int = 0
         last_cell: str = ""
         code_consent: bool = False
-        sandbox_strict: bool = False
+        # How code execution (console / scripts / macros) is isolated:
+        # "off" = in-process, no worker, no limits (fastest, full access, no
+        # crash isolation); "isolated" = out-of-process worker + resource limits
+        # (default); "strict" = also OS-confine filesystem + network (Phase 3).
+        code_isolation: str = "isolated"
         faceplate_assets_dir: str = ""
         faceplate_repo: str = ""
         show_toolbar: bool = True
@@ -80,7 +91,8 @@ else:
         last_sheet: int = 0
         last_cell: str = ""
         code_consent: bool = False
-        sandbox_strict: bool = False
+        # See the msgspec branch above for the meaning of code_isolation.
+        code_isolation: str = "isolated"
         faceplate_assets_dir: str = ""
         faceplate_repo: str = ""
         show_toolbar: bool = True

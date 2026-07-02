@@ -102,6 +102,73 @@ def test_bridge_non_strict_runs_normally():
         b.close()
 
 
+# --- optional isolation: the in-process bridge + the factory ------------------
+
+
+def test_factory_picks_transport_by_level():
+    from abax.gui.console.console_bridge import (
+        ConsoleBridge,
+        InProcessBridge,
+        make_exec_bridge,
+    )
+
+    off = make_exec_bridge("off")
+    iso = make_exec_bridge("isolated")
+    strict = make_exec_bridge("strict")
+    try:
+        assert isinstance(off, InProcessBridge)
+        assert isinstance(iso, ConsoleBridge) and iso._strict is False
+        assert isinstance(strict, ConsoleBridge) and strict._strict is True
+    finally:
+        off.close(); iso.close(); strict.close()
+
+
+def test_inprocess_bridge_runs_in_this_process():
+    from abax.gui.console.console_bridge import InProcessBridge
+
+    b = InProcessBridge()
+    assert b.strict_unavailable() is False
+    env = Workbook().to_envelope()
+    r = b.execute("import os; put('A1', str(os.getpid())); print('hi')", env)
+    assert "hi" in r["output"]
+    # It ran in *this* process — the pid it wrote (coerced to a number by the
+    # sheet) is our own.
+    assert Workbook.from_envelope(r["envelope"]).sheet.get("A1") == os.getpid()
+    # Variables persist across commands like the out-of-process console.
+    b.execute("x = 21", env)
+    r2 = b.execute("print(x * 2)", env)
+    assert "42" in r2["output"]
+    b.interrupt()  # no-op, must not raise
+    b.close()
+
+
+def test_inprocess_bridge_script_and_macro(tmp_path):
+    from abax.gui.console.console_bridge import InProcessBridge
+
+    b = InProcessBridge()
+    env = Workbook().to_envelope()
+    r = b.execute_script("put('B2', '7')\nprint('script')", "s.py", env)
+    assert r["error"] is None and "script" in r["output"]
+    assert Workbook.from_envelope(r["envelope"]).sheet.get("B2") == 7
+
+    f = tmp_path / "m.py"
+    f.write_text("@macro\ndef fill(ctx):\n    ctx.set('A1', 9)\n", encoding="utf-8")
+    r2 = b.execute_macro("fill", [str(f)], (0, 0), env)
+    assert r2["error"] is None
+    assert Workbook.from_envelope(r2["envelope"]).sheet.get("A1") == 9
+    b.close()
+
+
+def test_settings_migration_sandbox_strict_to_code_isolation():
+    from abax.settings import _migrate_settings
+
+    assert _migrate_settings({"sandbox_strict": True})["code_isolation"] == "strict"
+    assert _migrate_settings({"sandbox_strict": False})["code_isolation"] == "isolated"
+    # A fresh v2 settings dict is untouched.
+    assert _migrate_settings({"code_isolation": "off", "schema_version": 2})[
+        "code_isolation"] == "off"
+
+
 # --- Windows AppContainer: real confinement (verified on this platform) --------
 
 _win = sys.platform == "win32"

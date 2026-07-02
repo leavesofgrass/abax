@@ -23,8 +23,8 @@ def test_settings_roundtrip(tmp_path):
 def test_settings_migration_v0_to_v1():
     data = {"color_scheme": "nord"}  # v0 shape, no schema_version
     migrated = _migrate_settings(data)
-    assert migrated["theme"] == "nord"
-    assert migrated["schema_version"] == 1
+    assert migrated["theme"] == "nord"          # v0 -> v1 theme rename still applies
+    assert migrated["schema_version"] == 2      # then chains through v1 -> v2
 
 
 def test_save_json_is_atomic_and_roundtrips(tmp_path):

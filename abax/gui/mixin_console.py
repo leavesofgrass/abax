@@ -21,14 +21,26 @@ class ConsoleMixin:
         box.setWindowTitle("Run untrusted code?")
         box.setText(f"{what} runs code with your full user privileges — it can "
                     "read and write your files, network, and system.")
+        isolation = getattr(self._settings, "code_isolation", "isolated")
+        if isolation == "off":
+            detail = ("Your code-isolation setting is OFF: code runs in this "
+                      "process with no isolation or limits — a crash can take "
+                      "down abax. ")
+        elif isolation == "strict":
+            detail = ("Your code-isolation setting is STRICT: code runs in an "
+                      "OS-confined worker (no network; writes to a scratch dir "
+                      "only) and refuses to run if that can't be established. ")
+        else:
+            detail = ("Your code-isolation setting is ISOLATED: code runs in a "
+                      "separate, resource-limited worker, so a crash or runaway "
+                      "there can't take down abax — but it is not a security "
+                      "sandbox unless you switch to strict mode. ")
         box.setInformativeText(
-            "The console, script runner, and macros run in a separate, "
-            "resource-limited worker process, so a crash, hang, or runaway "
-            "allocation there can't take down abax — but this is not a security "
-            "sandbox: the code still runs with your privileges. For untrusted "
-            "code, run abax inside a throwaway VM or container. Only continue if "
-            "you trust the code you'll run; enabling this is remembered for future "
-            "sessions.")
+            detail + "The code still runs with your privileges. For untrusted "
+            "code, use strict mode or run abax inside a throwaway VM or container. "
+            "Only continue if you trust the code you'll run; enabling this is "
+            "remembered for future sessions. (Change the level from the command "
+            "palette: 'Cycle code isolation'.)")
         enable = box.addButton("Enable code execution", QMessageBox.ButtonRole.AcceptRole)
         cancel = box.addButton("Cancel", QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(cancel)
@@ -41,18 +53,26 @@ class ConsoleMixin:
         self._set_status("code execution stays disabled")
         return False
 
-    def toggle_strict_sandbox(self) -> None:
-        """Flip strict OS-confinement (Phase 3) for the console / scripts / macros.
+    _ISOLATION_ORDER = ("off", "isolated", "strict")
 
-        When on, the worker runs inside an OS sandbox (Windows AppContainer,
-        Linux bubblewrap, macOS sandbox-exec) that denies network and confines
-        filesystem writes to a private scratch dir — and refuses to run at all
-        if that confinement can't be established on this platform. Takes effect
-        for the next console you open and the next macro/script you run."""
+    def cycle_code_isolation(self) -> None:
+        """Cycle how the console / scripts / macros are isolated:
+        **off** → **isolated** → **strict** → off.
+
+        * *off* — run in this process: fastest, full access, no crash isolation.
+        * *isolated* — out-of-process worker + memory/CPU/process limits (default).
+        * *strict* — also OS-confine filesystem + network (Windows AppContainer,
+          Linux bubblewrap, macOS sandbox-exec); refuses to run if that
+          confinement can't be established here (fail-closed).
+
+        Takes effect for the next console you open and the next macro/script
+        you run."""
         from .. import sandbox as _sandbox
 
-        new = not getattr(self._settings, "sandbox_strict", False)
-        self._settings.sandbox_strict = new
+        cur = getattr(self._settings, "code_isolation", "isolated")
+        order = self._ISOLATION_ORDER
+        new = order[(order.index(cur) + 1) % len(order)] if cur in order else "isolated"
+        self._settings.code_isolation = new
         # Reset the macro/script worker so the change applies immediately.
         bridge = getattr(self, "_macro_bridge", None)
         if bridge is not None:
@@ -61,17 +81,20 @@ class ConsoleMixin:
             except Exception:
                 pass
             self._macro_bridge = None
-        if new:
+        if new == "off":
+            self._set_status("code isolation: OFF — code runs in-process, no "
+                             "worker or limits (not a security boundary)")
+        elif new == "isolated":
+            self._set_status("code isolation: ISOLATED — out-of-process worker + "
+                             "resource limits (crash isolation, not a boundary)")
+        else:  # strict
             strat = _sandbox.select_confinement()
             if strat.available():
-                self._set_status(f"strict sandbox ON — {strat.describe()}")
+                self._set_status(f"code isolation: STRICT — {strat.describe()}")
             else:
-                self._set_status("strict sandbox ON — but no OS confinement is "
-                                 "available here, so code execution will refuse "
-                                 "to run (fail-closed). Disable to run code.")
-        else:
-            self._set_status("strict sandbox OFF — code runs with crash/resource "
-                             "isolation only (not a security boundary)")
+                self._set_status("code isolation: STRICT — but no OS confinement "
+                                 "is available here, so code execution will "
+                                 "refuse to run (fail-closed).")
 
     def show_terminal(self) -> None:
         if not self._require_code_consent("The system terminal"):

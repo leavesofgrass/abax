@@ -18,10 +18,10 @@ class MacroMixin:
         (lazily created; independent of the console panel's own bridge)."""
         bridge = getattr(self, "_macro_bridge", None)
         if bridge is None:
-            from .console.console_bridge import ConsoleBridge
+            from .console.console_bridge import make_exec_bridge
 
-            bridge = self._macro_bridge = ConsoleBridge(
-                strict=getattr(self._settings, "sandbox_strict", False))
+            bridge = self._macro_bridge = make_exec_bridge(
+                getattr(self._settings, "code_isolation", "isolated"))
         return bridge
 
     def _apply_exec_response(self, resp: dict, what: str) -> bool:
