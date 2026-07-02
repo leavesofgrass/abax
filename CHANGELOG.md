@@ -54,6 +54,17 @@ parallel agents:_
   and regression helpers.
 
 ### Changed
+- **Recalculation is now incremental.** Editing a cell used to clear *every*
+  sheet's value cache, so the next repaint re-evaluated the whole workbook. A new
+  reverse-dependents index (`core/depgraph.py`) inverts a formula's precedents,
+  so an edit invalidates only the cells that can actually be affected — the
+  edited cell and the transitive closure that reaches it (cross-sheet edges
+  included). On a 3,000-cell sheet, an edit-plus-repaint drops from ~340 ms to
+  ~18 ms (~19×). Soundness is by over-approximation: volatiles (`NOW`/`RAND`…),
+  dynamic refs (`INDIRECT`/`OFFSET`), defined-name references, unknown macros,
+  and any workbook that currently spills fall back to the exact previous
+  blanket-clear, so no stale value is ever served (proved by a differential
+  fuzz test vs. full recalc). Set `ABAX_INCREMENTAL=0` to restore the old path.
 - **`IFERROR` / `IFNA` are now array-aware.** They catch errors **element-wise**
   over a spilled array (like the array-aware `IF`), so
   `=IFERROR(A1:A100/B1:B100, 0)` guards a whole column — previously per-cell

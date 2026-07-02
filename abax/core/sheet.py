@@ -119,13 +119,30 @@ class Sheet:
         else:
             self._anchor_cells.discard(key)
         self._spill_dirty = True
-        # An edit can change any dependent's value. Within a workbook, dependents
-        # may live on *other* sheets (cross-sheet refs), so clear every sheet's
-        # cache; standalone sheets just clear their own.
-        if self.workbook is not None:
-            self.workbook.invalidate_caches()
-        else:
+        self._invalidate_after_edit(row, col)
+
+    def _invalidate_after_edit(self, row: int, col: int) -> None:
+        """Clear the value caches an edit at ``(row, col)`` can affect.
+
+        An edit can change any dependent's value, and within a workbook a
+        dependent may live on another sheet (cross-sheet refs). The workbook's
+        incremental dependency index (:mod:`abax.core.depgraph`) narrows that to
+        just the reachable cells; standalone sheets, a disabled flag, or any path
+        the index can't prove sound all degrade to the blanket clear.
+        """
+        wb = self.workbook
+        if wb is None:
             self._value_cache.clear()
+            return
+        from .depgraph import ABAX_INCREMENTAL
+
+        if not ABAX_INCREMENTAL:
+            wb.invalidate_caches()
+            return
+        try:
+            wb.invalidate_dependents(self, row, col)
+        except Exception:
+            wb.invalidate_caches()
 
     def set_cells_bulk(self, items) -> None:
         """Set many ``(row, col, raw)`` cells, invalidating caches ONCE at the end.
@@ -155,6 +172,7 @@ class Sheet:
         self._spill_dirty = True
         if self.workbook is not None:
             self.workbook.invalidate_caches()
+            self.workbook._reset_depgraph()  # formulas changed wholesale
         else:
             self._value_cache.clear()
 
@@ -254,6 +272,8 @@ class Sheet:
             sh._rast_cache.clear()
             sh._value_cache.clear()
             sh._rebuild_anchor_cells()
+        if self.workbook is not None:
+            self.workbook._reset_depgraph()  # formulas rewritten by the shift
 
     # --- reading ----------------------------------------------------------
 

@@ -45,6 +45,72 @@ class Workbook:
             s._value_cache.clear()
             s._spill_dirty = True
 
+    # --- incremental invalidation (WS1 — see core/depgraph.py) ------------
+
+    @property
+    def _dep_graph(self):
+        """Lazily-built reverse-dependents index. Stored in ``__dict__`` so the
+        ``__new__``-based constructors (from_sheets/from_envelope) need no edit."""
+        dg = self.__dict__.get("_depgraph_obj")
+        if dg is None:
+            from .depgraph import DepGraph
+
+            dg = DepGraph()
+            self.__dict__["_depgraph_obj"] = dg
+        return dg
+
+    def _reset_depgraph(self) -> None:
+        """Drop the index so it rebuilds lazily — for structural changes that
+        rewrite formulas or the sheet set (bulk load, insert/delete, envelope
+        swap, add/remove sheet)."""
+        dg = self.__dict__.get("_depgraph_obj")
+        if dg is not None:
+            dg.clear()
+
+    def _full_clear_and_reset(self) -> None:
+        """The sound fallback: blanket-clear every value cache and drop the
+        index so the next incremental edit rebuilds from the current formulas."""
+        self.invalidate_caches()
+        self._reset_depgraph()
+
+    def invalidate_dependents(self, sheet, row: int, col: int) -> None:
+        """Incremental replacement for :meth:`invalidate_caches`: clear only the
+        value caches an edit at ``(sheet, row, col)`` can affect.
+
+        Falls back to the blanket clear whenever soundness isn't cheap to prove:
+        the flag is off, the workbook currently spills (a spilled-into cell's
+        dependency on its anchor is not a static edge — Phase A), or the edited
+        formula can't be analysed. Name-referencing formulas are always-dirty,
+        so a defined-name change needs no special handling here.
+        """
+        from .depgraph import ABAX_INCREMENTAL
+
+        if not ABAX_INCREMENTAL:
+            self.invalidate_caches()
+            return
+        # Phase A: only fully spill-free workbooks get the precise path. Any
+        # array-formula anchor OR an active spill map => the verbatim full clear.
+        if any(s._anchor_cells or s._spill_anchor for s in self.sheets):
+            self._full_clear_and_reset()
+            return
+        dg = self._dep_graph
+        if not dg.is_built:
+            dg.build(self.sheets)
+        raw = sheet.get_raw(row, col)
+        if not dg.on_cell_changed(self.sheets, sheet.name, row, col, raw):
+            self._full_clear_and_reset()
+            return
+        seeds = {(sheet.name, row, col)}
+        seeds |= dg.always_dirty
+        by_name = {s.name: s for s in self.sheets}
+        for (sname, r, c) in dg.closure(seeds):
+            tgt = by_name.get(sname)
+            if tgt is not None:
+                tgt._value_cache.pop((r, c), None)
+        # Keep the spill flag workbook-wide, exactly as invalidate_caches does.
+        for s in self.sheets:
+            s._spill_dirty = True
+
     def load_envelope(self, env: dict) -> None:
         """Replace this workbook's contents IN PLACE from an envelope.
 
@@ -56,6 +122,7 @@ class Workbook:
         self.active = other.active
         self.names = other.names
         self._link_sheets()
+        self._reset_depgraph()  # sheet set replaced — rebuild the index lazily
 
     @classmethod
     def from_sheets(cls, sheets, active: int = 0) -> "Workbook":
@@ -82,6 +149,7 @@ class Workbook:
         sheet = Sheet(name)
         sheet.workbook = self
         self.sheets.append(sheet)
+        self._reset_depgraph()  # sheet set changed — rebuild the index lazily
         return sheet
 
     def get_sheet(self, name: str) -> Sheet | None:
@@ -91,6 +159,7 @@ class Workbook:
         self.sheets = [s for s in self.sheets if s.name != name]
         self._add_default_if_empty()
         self.active = min(self.active, len(self.sheets) - 1)
+        self._reset_depgraph()  # sheet set changed — rebuild the index lazily
 
     def recalculate(self) -> None:
         for sheet in self.sheets:
