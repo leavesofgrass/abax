@@ -82,8 +82,22 @@ parallel agents:_
 - **Smith chart** (*Tools → Radio → Smith chart → SVG…*) — a pure-stdlib SVG
   Smith chart (`core/science/smithsvg.py`): constant-R/X circles, each load
   plotted at its reflection coefficient Γ, and an optional constant-VSWR circle.
+- **Direct `LAMBDA` calls** — `=LAMBDA(x, x*x)(5)` → 25 now works: a `LAMBDA(...)`
+  (or any expression that yields a lambda) can be applied inline, and calls
+  chain (`=LAMBDA(a,LAMBDA(b,a+b))(3)(4)` → 7). A new `Call` AST node + a parser
+  postfix layer; ordinary `SUM(A1:A3)` calls are unchanged.
+- **Cluster-count selection** — for the clustering tools, an **elbow** curve and
+  **silhouette** sweep (k-means) plus **BIC/AIC** model selection (GMM) suggest
+  how many clusters to use; surfaced in the ML dialog and the console.
 
 ### Changed
+- **Manual / automatic calculation mode** (*Data → Calculation: auto/manual*).
+  In manual mode an edit updates only the edited cell and defers all dependent
+  recalculation until **F9** (`Shift+F9` for the active sheet) — the escape hatch
+  for very large sheets. Switching back to auto flushes the pending edits.
+- **Grid screen-reader accessibility** — the grid now exposes accessible
+  text/description for every cell (its A1 address + value, and the formula when
+  present) and for row/column headers, so a screen reader can drive it.
 - **Recalculation is now incremental.** Editing a cell used to clear *every*
   sheet's value cache, so the next repaint re-evaluated the whole workbook. A new
   reverse-dependents index (`core/depgraph.py`) inverts a formula's precedents,
