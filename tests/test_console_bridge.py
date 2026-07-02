@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from abax.core.workbook import Workbook
@@ -88,6 +90,8 @@ def test_timeout_watchdog_kills_a_hung_worker(bridge):
     assert "ok after timeout" in r2["output"]
 
 
+@pytest.mark.skipif(sys.platform == "darwin",
+                    reason="macOS doesn't enforce the worker memory cap (no RLIMIT_AS)")
 def test_memory_bomb_is_contained(monkeypatch):
     """An unbounded allocation hits the OS cap (Job Object / RLIMIT_AS) instead
     of swapping the machine: either Python gets a MemoryError (reported as

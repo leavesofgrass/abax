@@ -19,6 +19,10 @@ permissions:
 
 env:
   PYTHONUTF8: "1"
+  # Make `just` use the exact setup-python interpreter (its `python` is on PATH on
+  # every runner). The justfile's Windows default is the `py` launcher, which on a
+  # runner can select a newer Python that lacks the installed dev deps.
+  JUST_PYTHON: python
 
 jobs:
   # ── Lint + test + pyz across OS x Python (the `just check` matrix) ──────────

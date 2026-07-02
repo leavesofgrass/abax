@@ -33,7 +33,8 @@ def test_apply_posix_limits_returns_bool():
     assert result is (sys.platform != "win32")
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="POSIX rlimits only")
+@pytest.mark.skipif(sys.platform != "linux",
+                    reason="RLIMIT_AS is only actually enforced on Linux (macOS ignores it)")
 def test_posix_limits_actually_lower_address_space(monkeypatch):
     import resource
 

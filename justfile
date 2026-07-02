@@ -1,4 +1,7 @@
-python := if os_family() == "windows" { "py" } else { "python3" }
+# Interpreter: the `py` launcher locally on Windows, `python3` elsewhere. CI sets
+# JUST_PYTHON=python so `just` uses the exact setup-python interpreter (the `py`
+# launcher on a runner can otherwise pick a newer Python that lacks the deps).
+python := env_var_or_default("JUST_PYTHON", if os_family() == "windows" { "py" } else { "python3" })
 pkg    := "abax"
 
 default:

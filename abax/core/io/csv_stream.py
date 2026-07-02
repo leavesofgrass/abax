@@ -117,7 +117,10 @@ def sniff_csv(path: str | Path, sample_size: int = 200) -> CsvProfile:
     """
     path = Path(path)
     try:
-        text = path.read_text(newline="", encoding="utf-8")
+        # NB: Path.open(newline=...) works on all supported Pythons; the
+        # `newline=` kwarg on Path.read_text() only exists on 3.13+.
+        with path.open(newline="", encoding="utf-8") as fh:
+            text = fh.read()
     except OSError as exc:
         raise CsvStreamError(f"cannot read CSV file: {path}") from exc
     if not text.strip():
