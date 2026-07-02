@@ -1,6 +1,6 @@
 """ADIF import/export — stdlib only, so it lives in core.
 
-ADIF (Amateur Data Interchange Format) is the ham-radio logbook interchange
+ADIF (Amateur Data Interchange Format) is the amateur-radio logbook interchange
 format. A logbook is text with fields written as ``<FIELDNAME:LENGTH>value`` or
 ``<FIELDNAME:LENGTH:TYPE>value``, where ``LENGTH`` is the byte length of
 ``value``. An optional header ends at ``<EOH>``; each QSO record ends at

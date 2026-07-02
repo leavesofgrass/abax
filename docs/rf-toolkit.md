@@ -1,4 +1,4 @@
-# RF / ham-radio toolkit
+# RF / amateur-radio toolkit
 
 abax ships a set of **radio-frequency engineering functions** — power/level
 conversions, transmission-line and matching math, link-budget and propagation
@@ -135,7 +135,7 @@ C1: =GRIDDIST("JN58td", "IO91wm")    → ~920    (km)
 C2: =GRIDBEARING("JN58td", "IO91wm") → ~300    (degrees, WNW)
 ```
 
-## Ham reference data
+## Amateur-radio reference data
 
 | Function | Returns |
 | --- | --- |
@@ -146,7 +146,7 @@ C2: =GRIDBEARING("JN58td", "IO91wm") → ~300    (degrees, WNW)
 
 ## GUI tools (the *Radio* menu)
 
-All of the RF/ham tools live under the **Tools → Radio** submenu (general
+All of the RF/amateur-radio tools live under the **Tools → Radio** submenu (general
 math tools stay under *Tools → Scientific*):
 
 - **RF toolkit** — a mode-switching dialog for **link budget**, **coax line**,

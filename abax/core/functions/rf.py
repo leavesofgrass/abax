@@ -1,4 +1,4 @@
-"""RF / ham-radio spreadsheet functions (backed by abax.core.science.rf).
+"""RF / amateur-radio spreadsheet functions (backed by abax.core.science.rf).
 
 SI base units (Hz, m, W, H, F). Registered into FUNCTIONS by the package
 __init__ via RF_NAMES-style update kept in the registry.
@@ -10,7 +10,7 @@ from __future__ import annotations
 from .helpers import *  # noqa: F403
 from ..errors import CellError
 
-# --- RF / ham-radio functions (backed by core.science.rf) ------------------
+# --- RF / amateur-radio functions (backed by core.science.rf) --------------
 # SI base units (Hz, m, W, H, F); see docs/rf-toolkit.md. The GUI presents
 # metric + imperial, but the formula layer stays unit-neutral.
 

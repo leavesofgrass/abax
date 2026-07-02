@@ -3,7 +3,7 @@
 A keyboard-first **statistics and data-science workstation** — an integrated
 environment for data work, built on a fast, scriptable spreadsheet. Load a
 dataset, explore it with **600+ formula functions** (statistics and distributions,
-financial, engineering, database, and **RF/ham-radio**), run built-in analyses
+financial, engineering, database, and **RF/amateur-radio**), run built-in analyses
 (regression, t-tests, ANOVA, correlation),
 reshape it with pivot/group-by and recode, visualize with the grapher, hand a
 selection off to pandas, and script the whole thing with Python macros — across
@@ -95,7 +95,7 @@ python -m abax view qrpn-save.json --sheet stack   # read a qrpn calculator save
 ## Formulas
 
 600+ functions across aggregate, conditional, math, lookup, logical, text, date,
-statistics, financial (incl. bonds), engineering, **RF/ham-radio & antenna**,
+statistics, financial (incl. bonds), engineering, **RF/amateur-radio & antenna**,
 info, and the LET/LAMBDA functional families:
 
 ```
@@ -186,7 +186,7 @@ be fetched on demand. Widgets are screen-reader labelled.
 
 ## RF, antenna & signal engineering
 
-For hams and RF engineers (the *Radio* menu), plus **60+ RF formula functions**:
+For amateur-radio operators and RF engineers (the *Radio* menu), plus **60+ RF formula functions**:
 
 - **RF math** — `DBM2W`, `W2DBM`, `VSWR`, `FSPL`, `FRIIS`, `EIRP`, `WAVELENGTH`,
   `XL`/`XC`, `RESFREQ`, `Z0COAX`, `SKINDEPTH`, the **Maidenhead grid locator**

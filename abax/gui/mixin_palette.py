@@ -51,7 +51,7 @@ class PaletteMixin:
             self,
             "About abax",
             f"<b>abax {__version__}</b><br>"
-            "A keyboard-first statistics, data-science, and RF/ham-radio "
+            "A keyboard-first statistics, data-science, and RF/amateur-radio "
             "workstation.<br><br>"
             "A scriptable spreadsheet with 600+ formula functions (incl. dynamic "
             "arrays with true spill and LET/LAMBDA), built-in statistics, "

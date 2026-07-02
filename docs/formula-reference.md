@@ -99,7 +99,7 @@ Coverage spans the everyday Excel / Gnumeric set: math and trigonometry
 (including hyperbolic and reciprocal), combinatorics, a full statistical
 distribution family, financial (time-value-of-money, cashflow, depreciation),
 text, date/time, engineering (base conversions, bitwise, Bessel), database
-(`D*`) functions, reference functions, and a large RF / ham-radio set. Modern
+(`D*`) functions, reference functions, and a large RF / amateur-radio set. Modern
 dotted names (`STDEV.S`, `NORM.DIST`, `PERCENTILE.INC`, …) are accepted as
 aliases of their legacy names.
 
@@ -831,7 +831,7 @@ small range whose first row names columns and whose following rows hold criteria
 Example: with a `Tree`/`Height` table in `A1:B4` and a criteria range `D1:D2`
 of `Tree` / `Apple`, `=DSUM(A1:B4,"Height",D1:D2)` sums the heights of apples.
 
-## RF / ham radio
+## RF / amateur radio
 
 SI base units (frequency in Hz, length in m, power in W; levels in dB). Full guide,
 units note, and worked examples in [RF toolkit](rf-toolkit.md).

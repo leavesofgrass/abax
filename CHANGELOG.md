@@ -187,7 +187,7 @@ All notable changes to abax are documented here. The format follows
   offers **Off / Isolated / Strict** as checkable options (reflecting the
   current `code_isolation` setting), so the sandbox level is set from the UI
   rather than by editing settings or only via the command palette.
-- **The Radio (RF/ham) menu moved under *Tools*** as a submenu, alongside
+- **The Radio (RF/amateur-radio) menu moved under *Tools*** as a submenu, alongside
   *Scientific*, rather than a top-level menu.
 - **The Help → About dialog is more concise** — a short capability summary
   instead of the previous multi-paragraph blurb.

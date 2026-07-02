@@ -129,7 +129,7 @@ SIGNATURES = {
     "DATE": "DATE(year, month, day)",
     "DATEDIF": "DATEDIF(start, end, unit)",
     "TEXT": "TEXT(value, format)",
-    # RF / ham radio — SI base units (Hz, m, W, H, F); see docs/rf-toolkit.md
+    # RF / amateur radio — SI base units (Hz, m, W, H, F); see docs/rf-toolkit.md
     "DBM2W": "DBM2W(dbm)", "W2DBM": "W2DBM(watts)",
     "DBW2W": "DBW2W(dbw)", "W2DBW": "W2DBW(watts)",
     "DB2RATIO": "DB2RATIO(db)", "RATIO2DB": "RATIO2DB(power_ratio)",

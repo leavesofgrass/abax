@@ -424,7 +424,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._build_isolation_menu(m_iso)
         m_tools.addSeparator()
 
-        # Radio (ham / RF suite) — a Tools submenu.
+        # Radio (amateur / RF suite) — a Tools submenu.
         m_radio = m_tools.addMenu("&Radio")
         self._act(m_radio, "&RF toolkit...", self.show_rf_tool)
         self._act(m_radio, "Smith &chart...", self.show_smith_chart)

@@ -1,4 +1,4 @@
-"""RF / ham-radio engineering math — pure stdlib.
+"""RF / amateur-radio engineering math — pure stdlib.
 
 SI base units throughout (Hz, metre, watt, henry, farad, siemens/m), so the
 functions stay unit-neutral; callers (the GUI RF tool, the formula layer) convert
