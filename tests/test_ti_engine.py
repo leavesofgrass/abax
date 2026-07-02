@@ -7,6 +7,7 @@ import pytest
 from abax.core.calc.ti_engine import (
     SCREEN_H,
     SCREEN_W,
+    STAT_LISTS,
     TIEngine,
     TIError,
     Window,
@@ -257,3 +258,134 @@ def test_variables_do_not_break_function_tokens():
     # lowercase function tokens are untouched by variable substitution
     assert e.home_eval("abs(0-A)") == "3"
     assert e.home_eval("9^0.5") == "3"
+
+
+# --- STAT list editor — were stubbed/missing ------------------------------
+
+
+def test_stat_lists_start_empty():
+    e = TIEngine()
+    assert STAT_LISTS == ("L1", "L2", "L3", "L4", "L5", "L6")
+    for name in STAT_LISTS:
+        assert e.get_list(name) == []
+
+
+def test_set_get_list_and_case_insensitive():
+    e = TIEngine()
+    e.set_list("L1", [1, 2, 3])
+    assert e.get_list("L1") == [1.0, 2.0, 3.0]
+    # lowercase names normalise to the canonical list
+    assert e.get_list("l1") == [1.0, 2.0, 3.0]
+    # get_list returns a copy — mutating it must not touch the store
+    got = e.get_list("L1")
+    got.append(99.0)
+    assert e.get_list("L1") == [1.0, 2.0, 3.0]
+
+
+def test_append_and_clear_list():
+    e = TIEngine()
+    e.append_list("L1", 5)
+    e.append_list("L1", 6)
+    assert e.get_list("L1") == [5.0, 6.0]
+    e.clear_list("L1")
+    assert e.get_list("L1") == []
+
+
+def test_clear_all_lists():
+    e = TIEngine()
+    e.set_list("L1", [1, 2])
+    e.set_list("L2", [3, 4])
+    e.clear_all_lists()
+    assert e.get_list("L1") == []
+    assert e.get_list("L2") == []
+
+
+def test_unknown_list_raises():
+    e = TIEngine()
+    with pytest.raises(TIError):
+        e.set_list("L9", [1, 2])
+    with pytest.raises(TIError):
+        e.get_list("XYZ")
+
+
+# --- STAT CALC: 1-Var Stats -----------------------------------------------
+
+
+def test_one_var_stats_known_values():
+    e = TIEngine()
+    e.set_list("L1", [1, 2, 3, 4, 5])
+    v = e.one_var_stats("L1")
+    assert v["n"] == 5
+    assert v["mean"] == pytest.approx(3.0)
+    assert v["sum"] == pytest.approx(15.0)
+    assert v["sum_sq"] == pytest.approx(55.0)
+    assert v["Sx"] == pytest.approx(1.5811388, abs=1e-6)      # sample sd
+    assert v["sigma_x"] == pytest.approx(1.4142136, abs=1e-6)  # population sd
+    assert v["min"] == pytest.approx(1.0)
+    assert v["Q1"] == pytest.approx(2.0)
+    assert v["median"] == pytest.approx(3.0)
+    assert v["Q3"] == pytest.approx(4.0)
+    assert v["max"] == pytest.approx(5.0)
+
+
+def test_one_var_stats_single_point_population_sd_zero():
+    e = TIEngine()
+    e.set_list("L1", [7])
+    v = e.one_var_stats("L1")
+    assert v["n"] == 1
+    assert v["mean"] == pytest.approx(7.0)
+    assert v["Sx"] == pytest.approx(0.0)       # sample sd undefined -> 0
+    assert v["sigma_x"] == pytest.approx(0.0)  # population sd of one point is 0
+    assert v["median"] == pytest.approx(7.0)
+
+
+def test_one_var_stats_empty_raises():
+    e = TIEngine()
+    with pytest.raises(TIError):
+        e.one_var_stats("L1")
+
+
+# --- STAT CALC: 2-Var Stats & LinReg --------------------------------------
+
+
+def test_lin_reg_perfectly_linear():
+    e = TIEngine()
+    e.set_list("L1", [1, 2, 3])
+    e.set_list("L2", [2, 4, 6])
+    fit = e.lin_reg("L1", "L2")
+    assert fit["a"] == pytest.approx(2.0)   # slope
+    assert fit["b"] == pytest.approx(0.0)   # intercept
+    assert fit["r"] == pytest.approx(1.0)
+    assert fit["r2"] == pytest.approx(1.0)
+    assert fit["n"] == 3
+
+
+def test_two_var_stats_known_values():
+    e = TIEngine()
+    e.set_list("L1", [1, 2, 3])
+    e.set_list("L2", [2, 4, 6])
+    v = e.two_var_stats("L1", "L2")
+    assert v["n"] == 3
+    assert v["mean_x"] == pytest.approx(2.0)
+    assert v["mean_y"] == pytest.approx(4.0)
+    assert v["sum_x"] == pytest.approx(6.0)
+    assert v["sum_y"] == pytest.approx(12.0)
+    assert v["sum_xy"] == pytest.approx(28.0)   # 1*2 + 2*4 + 3*6
+    assert v["sum_x_sq"] == pytest.approx(14.0)
+    assert v["sum_y_sq"] == pytest.approx(56.0)
+
+
+def test_two_var_stats_length_mismatch_raises():
+    e = TIEngine()
+    e.set_list("L1", [1, 2, 3])
+    e.set_list("L2", [1, 2])
+    with pytest.raises(TIError):
+        e.two_var_stats("L1", "L2")
+    with pytest.raises(TIError):
+        e.lin_reg("L1", "L2")
+
+
+def test_lin_reg_empty_raises():
+    e = TIEngine()
+    with pytest.raises(TIError):
+        e.lin_reg("L1", "L2")

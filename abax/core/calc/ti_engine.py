@@ -19,6 +19,8 @@ import re
 from typing import Callable
 
 from abax.core import graphing
+from abax.core.science import regression as _reg
+from abax.core.science import stats as _stats
 
 # A stored letter variable used as a whole token (A-Z, not part of a longer
 # name). Faceplate function tokens are lower-case, so an upper-case single letter
@@ -29,6 +31,9 @@ _STORE_RE = re.compile(r"^(.*?)(?:->|→)\s*([A-Z])\s*$", re.DOTALL)
 
 SCREEN_W = 94  # usable plot pixels (96 minus a 1px border each side)
 SCREEN_H = 62
+
+# The six named stat lists a TI ships with (STAT EDIT / 2nd L1..L6).
+STAT_LISTS = ("L1", "L2", "L3", "L4", "L5", "L6")
 
 
 class TIError(Exception):
@@ -89,6 +94,8 @@ class TIEngine:
         self._ans: float = 0.0
         # A-Z letter variables (STO>). An unset variable reads as 0, like a TI.
         self._vars: dict[str, float] = {}
+        # STAT list editor store. L1..L6 exist as empty lists, like a TI.
+        self._lists: dict[str, list[float]] = {name: [] for name in STAT_LISTS}
 
     # --- letter variables (STO>) ----------------------------------------
     def get_var(self, name: str) -> float:
@@ -104,6 +111,126 @@ class TIEngine:
         """Replace ``Ans`` and stored letter variables with their values."""
         text = text.replace("Ans", f"({_format_number(self._ans)})")
         return _VAR_RE.sub(lambda m: f"({_format_number(self.get_var(m.group(1)))})", text)
+
+    # --- STAT list editor ------------------------------------------------
+    def _list_key(self, name: str) -> str:
+        """Normalise and validate a stat-list name (``L1``..``L6``)."""
+        key = str(name).upper()
+        if key not in self._lists:
+            raise TIError(f"unknown stat list: {name!r} (expected one of {STAT_LISTS})")
+        return key
+
+    def set_list(self, name: str, values: list[float]) -> None:
+        """Replace stat list ``name`` (``L1``..``L6``) with ``values``."""
+        key = self._list_key(name)
+        self._lists[key] = [float(v) for v in values]
+
+    def get_list(self, name: str) -> list[float]:
+        """Return a copy of stat list ``name`` (``L1``..``L6``)."""
+        return list(self._lists[self._list_key(name)])
+
+    def append_list(self, name: str, value: float) -> None:
+        """Append a single value to stat list ``name`` (entry-by-entry input)."""
+        self._lists[self._list_key(name)].append(float(value))
+
+    def clear_list(self, name: str) -> None:
+        """Empty stat list ``name`` (TI ``ClrList``)."""
+        self._lists[self._list_key(name)] = []
+
+    def clear_all_lists(self) -> None:
+        """Empty every stat list (TI ``ClrAllLists``)."""
+        for key in self._lists:
+            self._lists[key] = []
+
+    # --- STAT CALC -------------------------------------------------------
+    def one_var_stats(self, name: str = "L1") -> dict:
+        """1-Var Stats over list ``name``: n, mean, sums, sd, min/Q1/med/Q3/max.
+
+        Mirrors the TI ``1-Var Stats`` screen. Reuses
+        :mod:`abax.core.science.stats` for the mean, variance-based standard
+        deviations and quartiles. Raises :class:`TIError` on an empty list.
+        """
+        data = self._lists[self._list_key(name)]
+        if not data:
+            raise TIError(f"1-Var Stats: {name} is empty")
+        n = len(data)
+        sx = math.fsum(data)
+        sx2 = math.fsum(x * x for x in data)
+        mean = _stats.mean(data)
+        # Sample sd needs >= 2 points; population sd is defined for >= 1.
+        sample_sd = _stats.stdev(data, sample=True) if n >= 2 else 0.0
+        pop_sd = _stats.stdev(data, sample=False)
+        return {
+            "n": n,
+            "mean": mean,
+            "sum": sx,
+            "sum_sq": sx2,
+            "Sx": sample_sd,
+            "sigma_x": pop_sd,
+            "min": min(data),
+            "Q1": _stats.quantile(data, 0.25),
+            "median": _stats.median(data),
+            "Q3": _stats.quantile(data, 0.75),
+            "max": max(data),
+        }
+
+    def _paired(self, x_name: str, y_name: str) -> tuple[list[float], list[float]]:
+        """Fetch two equal-length, non-empty stat lists for two-variable work."""
+        xs = self._lists[self._list_key(x_name)]
+        ys = self._lists[self._list_key(y_name)]
+        if not xs or not ys:
+            raise TIError(f"2-Var Stats: {x_name}/{y_name} must be non-empty")
+        if len(xs) != len(ys):
+            raise TIError(f"2-Var Stats: {x_name} and {y_name} differ in length")
+        return xs, ys
+
+    def two_var_stats(self, x_name: str = "L1", y_name: str = "L2") -> dict:
+        """2-Var Stats over (``x_name``, ``y_name``): per-list stats plus Σxy.
+
+        Returns ``n``, the mean/sum/sum-of-squares and both standard deviations
+        for each variable (``mean_x``/``Sx``/... and ``mean_y``/``Sy``/...), and
+        the cross term ``sum_xy``. Reuses :mod:`abax.core.science.stats`.
+        """
+        xs, ys = self._paired(x_name, y_name)
+        vx = self.one_var_stats(x_name)
+        vy = self.one_var_stats(y_name)
+        return {
+            "n": vx["n"],
+            "mean_x": vx["mean"],
+            "sum_x": vx["sum"],
+            "sum_x_sq": vx["sum_sq"],
+            "Sx": vx["Sx"],
+            "sigma_x": vx["sigma_x"],
+            "min_x": vx["min"],
+            "max_x": vx["max"],
+            "mean_y": vy["mean"],
+            "sum_y": vy["sum"],
+            "sum_y_sq": vy["sum_sq"],
+            "Sy": vy["Sx"],
+            "sigma_y": vy["sigma_x"],
+            "min_y": vy["min"],
+            "max_y": vy["max"],
+            "sum_xy": math.fsum(a * b for a, b in zip(xs, ys)),
+        }
+
+    def lin_reg(self, x_name: str = "L1", y_name: str = "L2") -> dict:
+        """LinReg(ax+b) over (``x_name``, ``y_name``): slope a, intercept b, r, r2.
+
+        Reuses :func:`abax.core.science.regression.linregress`; the TI names the
+        slope ``a`` and the intercept ``b`` for the ``ax+b`` model.
+        """
+        xs, ys = self._paired(x_name, y_name)
+        try:
+            fit = _reg.linregress(xs, ys)
+        except _reg.RegressionError as exc:
+            raise TIError(f"LinReg: {exc}") from exc
+        return {
+            "a": fit["slope"],
+            "b": fit["intercept"],
+            "r": fit["r"],
+            "r2": fit["r2"],
+            "n": fit["n"],
+        }
 
     # --- home screen -----------------------------------------------------
     def home_eval(self, expr: str) -> str:
