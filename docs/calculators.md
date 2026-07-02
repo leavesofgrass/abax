@@ -93,13 +93,19 @@ engine in `core/calc/rpn.py`:
 - **Angle mode**: `DEG` / `RAD` / `GRD` (gradians, where 400 grad = 2π). The
   mode affects `SIN`/`COS`/`TAN` and their inverses; the default is DEG.
 
-The 15C keypad also prints legends for a solver, integrator, and matrix
-subsystem (`SOLVE`, `INTEGRATE`, `MATRIX`, `DIM`, `RESULT`) and the programming
-keys (`GTO`, `GSB`, `LBL`, `RTN`, `SST`, `BST`, `R/S`, `P/R`, `PSE`, `DSE`,
-`ISG`, `TEST`, `SF`, `CF`, `F?`, `USER`, `MEM`, `(i)`, `I`, `L.R.`,
-`lin est,r`). abax's keypad is immediate-mode only with no program/solver memory,
-so pressing one of those reports a short note ("*needs program/solver memory (use
-the console)*") rather than acting.
+The 15C's **statistics registers** work like the 12C's: `Σ+` / `Σ−` accumulate
+(or remove) paired points, and the gold-shifted keys return the mean, sample
+standard deviation, the linear-regression fit (`L.R.`) and a linear estimate with
+the correlation coefficient (`lin est,r`). The engine also gained a
+single-expression **`SOLVE`** (robust root finder) and **`∫`** (adaptive-Simpson
+integration) — the same primitives that power [Goal Seek](data-analysis.md).
+
+The keypad still prints legends for the full solver/matrix subsystem and the
+programming keys (`GTO`, `GSB`, `LBL`, `RTN`, `SST`, `BST`, `R/S`, `P/R`, `PSE`,
+`DSE`, `ISG`, `TEST`, `SF`, `CF`, `F?`, `USER`, `MEM`, `(i)`, `I`, `MATRIX`,
+`DIM`, `RESULT`). abax's keypad is immediate-mode only with no program/solver
+*memory*, so pressing one of those reports a short note ("*needs program/solver
+memory (use the console)*") rather than acting.
 
 ### HP-16C — programmer
 

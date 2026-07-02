@@ -90,9 +90,9 @@ trapped by `IFERROR` / `IFNA` / `ISERROR`.
 Function names are case-insensitive. Below, every built-in is grouped by
 family with its signature, a one-line description, and an example. Optional
 arguments are shown in `[brackets]`. There are **over 600 built-in functions** —
-**584 eager** (counting aliases and modern dotted names), **6 lazy** control-flow
+**591 eager** (counting aliases and modern dotted names), **6 lazy** control-flow
 functions, and **21 reference/context** functions (`ROW`, `OFFSET`, `INDIRECT`,
-`CELL`, `LET`, `LAMBDA`, …) — **611 names** in all; user macros can add more
+`CELL`, `LET`, `LAMBDA`, …) — **618 names** in all; user macros can add more
 (see the [UDFs](#user-defined-functions-udfs) note).
 
 Coverage spans the everyday Excel / Gnumeric set: math and trigonometry
@@ -563,12 +563,16 @@ classic array-formula pattern, no Ctrl+Shift+Enter needed.
 
 `LET` names intermediate results so a formula computes them once and reads
 clearly; `LAMBDA` builds a reusable function value. A lambda is *used* by
-passing it to one of the functional helpers below, or by naming it with `LET`
-and calling the name — `=LET(f, LAMBDA(x, x*x), f(5))` → `25`. (The
-direct-call form `=LAMBDA(x,x+1)(5)` is not supported, and an un-applied
-lambda in a cell shows `#CALC!`.) Binding names may not look like cell
-references (`x` works, `x1` is the reference X1) — the same restriction Excel
-imposes — and a workbook-defined name takes precedence over a LET name.
+passing it to one of the functional helpers below, by naming it with `LET`
+and calling the name — `=LET(f, LAMBDA(x, x*x), f(5))` → `25` — or by
+**calling it directly**: `=LAMBDA(x, x+1)(5)` → `6`, and calls chain
+(`=LAMBDA(a, LAMBDA(b, a+b))(3)(4)` → `7`). A lambda may be called with **fewer
+arguments than it declares**; the trailing parameters are then *omitted*, and
+`ISOMITTED(param)` tests for that — the idiom for default arguments:
+`=LAMBDA(a, b, IF(ISOMITTED(b), a, a+b))`. An un-applied lambda in a cell shows
+`#CALC!`. Binding names may not look like cell references (`x` works, `x1` is the
+reference X1) — the same restriction Excel imposes — and a workbook-defined name
+takes precedence over a LET name.
 
 | Function | Description | Signature | Example | Result |
 |---|---|---|---|---|
@@ -580,12 +584,17 @@ imposes — and a workbook-defined name takes precedence over a LET name.
 | `BYROW` | One lambda result per row (spills a column) | `BYROW(array, lambda(row))` | `=BYROW(A1:B3, LAMBDA(r, SUM(r)))` | row sums |
 | `BYCOL` | One lambda result per column (spills a row) | `BYCOL(array, lambda(column))` | `=BYCOL(A1:B3, LAMBDA(c, MAX(c)))` | column maxima |
 | `MAKEARRAY` | Build an array from a lambda of (row, col) | `MAKEARRAY(rows, cols, lambda(r, c))` | `=MAKEARRAY(2, 3, LAMBDA(r, c, r*c))` | 2×3 times table |
+| `ISOMITTED` | True if a LAMBDA parameter was omitted in the call | `ISOMITTED(param)` | `=LAMBDA(a,b,IF(ISOMITTED(b),a,a+b))(5)` | `5` |
 
 ### Logical and control flow
 
 `AND`, `OR`, `XOR`, `NOT`, `TRUE`, `FALSE` are eager. `IF`, `IFERROR`, `IFNA`,
 `IFS`, `SWITCH`, `CHOOSE` are **lazy** — they receive unevaluated branches, so
 untaken branches never run (no spurious errors or side effects).
+
+`IFERROR` and `IFNA` are **array-aware**: applied to a spilled array they catch
+errors **element-wise**, so `=IFERROR(A1:A100/B1:B100, 0)` guards a whole column
+and only the cells that actually error take the fallback.
 
 | Function | Description | Signature | Example | Result |
 |---|---|---|---|---|
