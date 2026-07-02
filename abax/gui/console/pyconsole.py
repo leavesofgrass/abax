@@ -36,6 +36,7 @@ _NS_NAMES = (
     "read_matrix", "write_matrix", "sheet_to_df", "df_to_sheet",
     "matrix", "eigen", "units", "numeric", "complexnum", "fft", "interp", "signal",
     "spectral", "filters", "ode", "ode_implicit", "resynth", "stats", "cluster",
+    "nonparam",
     "ml", "trees", "bayes", "metrics", "gmm", "financial", "algebraic", "ti_engine",
     "rf", "rf_bands", "antenna", "antenna_impedance", "mom", "wire_mom", "nec",
     "sql", "sqlsheets", "profile", "describe", "chartsvg", "dxcc", "adif",
