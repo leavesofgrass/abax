@@ -24,6 +24,11 @@ class Workbook:
         self.sheets: list[Sheet] = []
         self.active: int = 0
         self.names = NameRegistry()
+        # Calculation mode: "auto" recomputes dependents on every edit (via the
+        # incremental dependency graph); "manual" defers all dependent recalc
+        # until recalculate() (the GUI's F9), for very large/slow sheets.
+        self.calc_mode = "auto"
+        self._calc_dirty = False  # edits pending a manual recalc
         self._add_default_if_empty()
 
     def _add_default_if_empty(self) -> None:
@@ -161,9 +166,22 @@ class Workbook:
         self.active = min(self.active, len(self.sheets) - 1)
         self._reset_depgraph()  # sheet set changed — rebuild the index lazily
 
+    def set_calc_mode(self, mode: str) -> None:
+        """Switch between ``"auto"`` and ``"manual"`` calculation.
+
+        Switching back to ``"auto"`` forces a full recompute so any edits made
+        while manual take effect immediately.
+        """
+        if mode not in ("auto", "manual"):
+            raise ValueError(f"calc_mode must be 'auto' or 'manual', got {mode!r}")
+        self.calc_mode = mode
+        if mode == "auto" and self._calc_dirty:
+            self.recalculate()
+
     def recalculate(self) -> None:
         for sheet in self.sheets:
             sheet.recalculate()
+        self._calc_dirty = False
 
     # --- JSON persistence (native format) --------------------------------
 

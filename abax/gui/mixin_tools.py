@@ -14,6 +14,21 @@ class ToolsMixin:
         self.refresh_table()
         self._set_status("recalculated")
 
+    def _recalculate_sheet(self) -> None:
+        self._doc.workbook.sheet.recalculate()
+        self.refresh_table()
+        self._set_status("recalculated sheet")
+
+    def _toggle_calc_mode(self) -> None:
+        wb = self._doc.workbook
+        new = "auto" if getattr(wb, "calc_mode", "auto") == "manual" else "manual"
+        wb.set_calc_mode(new)
+        self.refresh_table()  # switching to auto flushes deferred edits
+        if new == "manual":
+            self._set_status("calculation: MANUAL — press F9 to recalculate")
+        else:
+            self._set_status("calculation: automatic")
+
     def show_find_replace(self) -> None:
         from .dialogs.find_dialog import FindReplaceDialog
 

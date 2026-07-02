@@ -137,6 +137,13 @@ class Sheet:
         if wb is None:
             self._value_cache.clear()
             return
+        if getattr(wb, "calc_mode", "auto") == "manual":
+            # Manual calc: defer dependent recalculation until recalculate() (F9).
+            # Drop only the edited cell's own memo so it reflects its new content;
+            # dependents keep their last-calculated values and the book is dirty.
+            self._value_cache.pop((row, col), None)
+            wb._calc_dirty = True
+            return
         from .depgraph import ABAX_INCREMENTAL
 
         if not ABAX_INCREMENTAL:

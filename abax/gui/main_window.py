@@ -378,6 +378,8 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._act(m_data, "&Compare workbook...", self.compare_workbook)
         m_data.addSeparator()
         self._act(m_data, "&Recalculate", self._recalculate, "F9")
+        self._act(m_data, "Recalculate &sheet", self._recalculate_sheet, "Shift+F9")
+        self._act(m_data, "Calculation: auto / &manual", self._toggle_calc_mode)
         m_data.addSeparator()
         m_analyze = m_data.addMenu("&Analyze")
         self._act(m_analyze, "&Descriptive Statistics...", self.show_describe)

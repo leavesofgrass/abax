@@ -85,6 +85,8 @@ class PaletteMixin:
             "Preferences...": self.show_preferences,
             "Toggle vim mode": self.toggle_vim_mode,
             "Recalculate": self._recalculate,
+            "Recalculate sheet": self._recalculate_sheet,
+            "Toggle calculation mode (auto / manual)": self._toggle_calc_mode,
             "Find / Replace...": self.show_find_replace,
             "Show formula precedents": self.show_precedents,
             "Descriptive Statistics...": self.show_describe,
