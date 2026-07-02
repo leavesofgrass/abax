@@ -36,6 +36,11 @@ OPTIONAL_DEPENDENCIES = {
         "fallback": "CSV / native JSON only (no .xlsx import/export)",
         "purpose": "Excel import and export",
     },
+    "py7zr": {
+        "available": _has("py7zr"),
+        "fallback": "zip / tar archives only (no .7z create/extract/open)",
+        "purpose": "7-Zip (.7z) archives in the file manager",
+    },
     "Qt (PySide6/PyQt6)": {
         "available": rt._HAS_QT,
         "fallback": "TUI / CLI only",

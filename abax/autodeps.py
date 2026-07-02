@@ -52,6 +52,7 @@ if sys.platform == "win32":
 FEATURES: dict[str, list[tuple[str, str]]] = {
     "fast-io": [("platformdirs", "platformdirs"), ("msgspec", "msgspec")],
     "excel": [("openpyxl", "openpyxl")],
+    "sevenzip": [("py7zr", "py7zr")],
     "parquet": [("pyarrow", "pyarrow")],
     "terminal": _TERMINAL,
     "tui": [("rich", "rich"), ("textual", "textual")],
@@ -67,6 +68,7 @@ FEATURES: dict[str, list[tuple[str, str]]] = {
 ALL: list[tuple[str, str]] = [
     ("platformdirs", "platformdirs"), ("msgspec", "msgspec"),
     ("openpyxl", "openpyxl"),
+    ("py7zr", "py7zr"),
     *_TERMINAL,
     ("rich", "rich"), ("textual", "textual"),
     ("nbformat", "nbformat"), ("anywidget", "anywidget"),
@@ -84,6 +86,7 @@ FEATURE_INFO: dict[str, tuple[str, str, int]] = {
     "fast-io": ("Faster settings & correct folders",
                 "msgspec + platformdirs", 8),
     "excel": ("Excel spreadsheets (.xlsx)", "openpyxl", 4),
+    "sevenzip": ("7-Zip (.7z) archives in the file manager", "py7zr", 6),
     "terminal": ("A true terminal panel",
                  "pyte" + (" + pywinpty" if sys.platform == "win32" else ""), 3),
     "tui": ("A richer terminal UI", "textual + rich", 12),
@@ -103,7 +106,7 @@ FEATURE_INFO: dict[str, tuple[str, str, int]] = {
 # The two common presets offered by the chooser. "thin" = the lean conveniences
 # (matching the pip `thin` extra minus the Qt binding); "all" = everything.
 PRESETS: dict[str, list[str]] = {
-    "thin": ["fast-io", "excel", "terminal", "tui"],
+    "thin": ["fast-io", "excel", "sevenzip", "terminal", "tui"],
     "all": list(FEATURES),
 }
 

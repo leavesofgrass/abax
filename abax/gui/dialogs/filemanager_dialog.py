@@ -34,6 +34,15 @@ from .._qtcompat import (
 )
 from ...core import archive, filesearch, fmbuttons
 from ...core import fileops as F
+from ...engine import archives as _archives
+
+# File extensions abax can open as a spreadsheet (mirrors the Open dialog filter);
+# used to offer the openable members when opening a file from inside an archive.
+_OPENABLE_EXTS = frozenset({
+    ".csv", ".tsv", ".tab", ".xlsx", ".xlsm", ".ods", ".xml", ".json", ".abax",
+    ".md", ".markdown", ".ipynb", ".r", ".rdata", ".parquet", ".pq", ".feather",
+    ".ft",
+})
 
 
 class _Pane(QWidget):
@@ -212,7 +221,9 @@ class FileManagerDialog(QDialog):
             ("Rename", self._rename, None),
             ("Zip", lambda: self._archive(".zip"), None),
             ("Tar.gz", lambda: self._archive(".tar.gz"), None),
+            ("7z", lambda: self._archive(".7z"), None),
             ("Extract", self._extract, None),
+            ("Open in archive", self._open_in_archive, None),
         )))
         return col
 
@@ -469,7 +480,7 @@ class FileManagerDialog(QDialog):
         if not dest:
             return
         try:
-            archive.create_archive(sel, dest)
+            _archives.create_archive(sel, dest)
         except (OSError, archive.ArchiveError) as exc:
             QMessageBox.warning(self, "Archive", str(exc))
             return
@@ -482,12 +493,52 @@ class FileManagerDialog(QDialog):
             return
         dest = self._other(self._active).current_dir()
         try:
-            names = archive.extract_archive(sel[0], dest)
+            names = _archives.extract_archive(sel[0], dest)
         except (OSError, archive.ArchiveError) as exc:
             QMessageBox.warning(self, "Extract", str(exc))
             return
         self.refresh_both()
         self._set_status(f"extracted {len(names)} item(s) -> {dest}")
+
+    def _open_in_archive(self) -> None:
+        """List the members of the selected archive and open a supported one
+        (extracted to a temp file) as a spreadsheet in the main window."""
+        sel = self._active.selected_paths()
+        if not sel or os.path.isdir(sel[0]):
+            self._set_status("select an archive (.zip / .tar.gz / .7z)")
+            return
+        path = sel[0]
+        try:
+            if not _archives.is_archive(path):
+                self._set_status("not a readable archive (.7z needs abax[7z])")
+                return
+            names = _archives.list_archive(path)
+        except (OSError, archive.ArchiveError) as exc:
+            QMessageBox.warning(self, "Open in archive", str(exc))
+            return
+        openable = [n for n in names if os.path.splitext(n)[1].lower() in _OPENABLE_EXTS]
+        if not openable:
+            QMessageBox.information(
+                self, "Open in archive",
+                "This archive has no files abax can open as a spreadsheet "
+                "(CSV, Excel, Parquet, ODS, JSON/.abax, …).")
+            return
+        member, ok = QInputDialog.getItem(
+            self, "Open in archive", f"File inside {os.path.basename(path)}:",
+            openable, 0, False)
+        if not ok or not member:
+            return
+        try:
+            tmp = _archives.extract_member_to_temp(path, member)
+        except (OSError, archive.ArchiveError) as exc:
+            QMessageBox.warning(self, "Open in archive", str(exc))
+            return
+        opener = getattr(self._win, "open_document", None)
+        if opener is None:
+            self._set_status(f"extracted {member} -> {tmp}")
+            return
+        opener(tmp)
+        self._set_status(f"opened {member} from {os.path.basename(path)}")
 
     def _find(self) -> None:
         pattern, ok = QInputDialog.getText(

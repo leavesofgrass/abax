@@ -25,13 +25,21 @@ pane into the other).
 | **Rename** | rename the selected item |
 | **Copy →** / **Move →** | copy or move the selection into the other pane (auto-renames on name clash) |
 | **Delete** | delete the selection (files and folders; confirms first) |
-| **Zip** / **Tar.gz** | compress the selection to a `.zip` or `.tar.gz` archive |
+| **Zip** / **Tar.gz** / **7z** | compress the selection to a `.zip`, `.tar.gz`, or `.7z` archive |
 | **Extract** | extract the selected archive into the other pane (path-traversal safe) |
+| **Open in archive** | list a `.zip`/`.tar`/`.7z`'s contents and open a supported file (CSV, Excel, Parquet, ODS, JSON/`.abax`, …) straight into the grid |
 | **Find** | recursive search from the active folder |
 
-Archive creation supports `.zip`, `.tar`, `.tar.gz`/`.tgz`, `.tar.bz2`, and
-`.tar.xz`. Extraction rejects any member that would escape the destination
-directory (the "zip-slip" / "tar-slip" guard).
+Archive creation supports `.zip`, `.tar`, `.tar.gz`/`.tgz`, `.tar.bz2`,
+`.tar.xz`, and **`.7z`**. Extraction rejects any member that would escape the
+destination directory (the "zip-slip" / "tar-slip" guard).
+
+**`.7z` support** needs the optional **`py7zr`** package (`pip install abax[7z]`;
+it's in the `thin` and `all` sets and the background auto-installer). Without it,
+`.zip`/`.tar` still work and the 7z actions report a clear "install `abax[7z]`"
+message. **Open in archive** extracts the chosen member to a temporary file and
+loads it like any other spreadsheet — so you can open a CSV or workbook from
+inside a `.zip`/`.tar`/`.7z` without unpacking the whole archive first.
 
 ## Find
 

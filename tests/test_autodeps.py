@@ -89,7 +89,7 @@ def test_registry_is_well_formed():
 
 
 def test_presets_and_feature_info():
-    assert set(autodeps.preset("thin")) == {"fast-io", "excel", "terminal", "tui"}
+    assert set(autodeps.preset("thin")) == {"fast-io", "excel", "sevenzip", "terminal", "tui"}
     assert set(autodeps.preset("all")) == set(autodeps.FEATURES)
     assert autodeps.preset("nonsense") == []
     # every feature has a chooser description (label, detail, size_mb)

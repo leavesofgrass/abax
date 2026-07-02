@@ -22,6 +22,7 @@ excel    = ["openpyxl"]
 fast-io  = ["msgspec", "platformdirs"]
 terminal = ["pyte"]                # true PTY terminal (with pywinpty on Windows)
 parquet  = ["pyarrow"]             # Parquet/Feather I/O (via pandas)
+sevenzip = ["py7zr"]               # 7-Zip (.7z) create/extract in the file manager
 # Jupyter integration (all optional, each with a graceful fallback): notebook
 # schema validation, the abax Jupyter kernel, and the editable-sheet widget.
 jupyter  = ["nbformat", "ipykernel", "anywidget"]
@@ -41,7 +42,7 @@ bayes    = ["pymc"]
 nec      = ["PyNEC"]
 # Lean install — the GUI plus every lightweight convenience (TUI, Excel, fast-io,
 # terminal), but NONE of the heavy optional data-science libraries. ~0.22 GB.
-thin     = ["abax[gui,tui,excel,fast-io,terminal]"]
+thin     = ["abax[gui,tui,excel,fast-io,terminal,sevenzip]"]
 # Everything abax can use, in one shot (the default full-fat set). ~0.84 GB.
 all      = ["abax[thin,parquet,science,jupyter,bayes,nec]"]
 

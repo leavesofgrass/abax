@@ -10,6 +10,19 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **7-Zip (`.7z`) archives in the file manager.** A new **7z** button compresses
+  the selection to `.7z`, **Extract** handles `.7z`, and a new **Open in archive**
+  action lists a `.zip`/`.tar`/`.7z`'s contents and opens a supported file (CSV,
+  Excel, Parquet, ODS, JSON/`.abax`, …) straight into the grid — extracting just
+  that member to a temp file, no full unpack. `.7z` needs the optional **`py7zr`**
+  package (`pip install abax[7z]`; included in the `thin`/`all` sets and the
+  background auto-installer); without it the `.zip`/`.tar` actions still work and
+  the 7z actions show a clear "install `abax[7z]`" message. Implemented as an
+  engine-layer adapter (`engine/archive7z.py`) behind a unified archive facade
+  (`engine/archives.py`) that routes `.zip`/`.tar` to the stdlib core and `.7z`
+  to `py7zr`; extraction keeps the path-traversal (zip-slip) guard.
+
 ## [0.1.3] — 2026-07-01
 
 ### Added
