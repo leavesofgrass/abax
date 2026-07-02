@@ -67,6 +67,21 @@ parallel agents:_
   abax[stats-io]`, in the full-fat set). Variable names become the header row;
   without the package the rest of the app is unaffected and the reader shows a
   clear install hint — the engine-layer adapter pattern used for `.7z`/Parquet.
+- **Goal Seek** (*Data → Analyze → Goal seek…*) — find the input value that drives
+  a formula cell to a target, by root-finding on `core/science/numeric.solve_root`
+  (the same solver behind the HP-15C `SOLVE`). Restores the cell unchanged if no
+  solution is found.
+- **Descriptive Statistics** (*Data → Analyze → Descriptive Statistics…*) — a
+  one-click summary of a range (count, sum, mean, median, mode, min, Q1, Q3, max,
+  range, sample/population variance & sd, skewness, kurtosis), shown in a table or
+  written to a new sheet. Pure-stdlib `core/science/descriptive.py`.
+- **Curve fitting** (*Data → Analyze → Curve fit…*) — least-squares **linear /
+  polynomial(n) / exponential / power** fits over an X/Y selection, reporting the
+  coefficients and R² and optionally writing a fitted-values column. Pure stdlib
+  (own Gaussian elimination, no numpy) in `core/science/curvefit.py`.
+- **Smith chart** (*Tools → Radio → Smith chart → SVG…*) — a pure-stdlib SVG
+  Smith chart (`core/science/smithsvg.py`): constant-R/X circles, each load
+  plotted at its reflection coefficient Γ, and an optional constant-VSWR circle.
 
 ### Changed
 - **Recalculation is now incremental.** Editing a cell used to clear *every*
