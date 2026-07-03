@@ -8,6 +8,16 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
+## [Unreleased]
+
+### Added
+- **Drag fill-handle:** the small square at the bottom-right of the selection can
+  be dragged to extend a series into the swept cells (fills blanks from the seed
+  without overwriting it), matching the Excel/gnumeric gesture.
+- **Name Box:** the reference box to the left of the formula bar shows the active
+  cell's A1 reference and lets you jump to any cell or range — type e.g. `B12` or
+  `A1:C9` and press Enter.
+
 ## [0.1.5] — 2026-07-02
 
 _A UI refinement release: a centralized Preferences hub, a fully theme-aware and

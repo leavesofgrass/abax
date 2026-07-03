@@ -16,6 +16,7 @@ from ._qtcompat import (
     QStatusBar,
     Qt,
     QTabBar,
+    QTableWidgetSelectionRange,
     QTimer,
     QVBoxLayout,
     QWidget,
@@ -98,6 +99,22 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         layout = QVBoxLayout(central)
         layout.setContentsMargins(4, 4, 4, 4)
 
+        from ._qtcompat import QHBoxLayout as _QHBoxLayout
+
+        formula_row = _QHBoxLayout()
+        formula_row.setContentsMargins(0, 0, 0, 0)
+        formula_row.setSpacing(4)
+
+        # Name Box — shows the active cell's A1 reference; type a reference (or a
+        # range like ``B2:D9``) and press Enter to jump there, as in Excel/gnumeric.
+        self._name_box = QLineEdit(self)
+        self._name_box.setAccessibleName("Name box")
+        self._name_box.setToolTip("Cell reference — type e.g. B12 and press Enter to go there")
+        self._name_box.setFixedWidth(84)
+        self._name_box.setPlaceholderText("A1")
+        self._name_box.returnPressed.connect(self._goto_name_box)
+        formula_row.addWidget(self._name_box)
+
         self._formula_bar = QLineEdit(self)
         self._formula_bar.setAccessibleName("Formula bar")
         self._formula_bar.setPlaceholderText("Enter value or =formula, press Enter")
@@ -107,7 +124,8 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         from .completion import FormulaCompleter
 
         self._completer = FormulaCompleter(self._formula_bar, context=self._completion_context)
-        layout.addWidget(self._formula_bar)
+        formula_row.addWidget(self._formula_bar, 1)
+        layout.addLayout(formula_row)
 
         from .grid.grid_model import AbaxTableModel
         from .grid.grid_view import CellTableView
@@ -671,9 +689,46 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         if row < 0 or col < 0:
             return
         self._formula_bar.setText(self._doc.workbook.sheet.get_raw(row, col))
+        self._sync_name_box(row, col)
         # Both currentChanged and selectionChanged route here so the status line
         # is consistent regardless of which Qt signal fires last.
         self._update_selection_status()
+
+    def _sync_name_box(self, row: int | None = None, col: int | None = None) -> None:
+        """Reflect the active cell's A1 reference in the Name Box."""
+        box = getattr(self, "_name_box", None)
+        if box is None:
+            return
+        if row is None:
+            row = max(0, self._table.currentRow())
+        if col is None:
+            col = max(0, self._table.currentColumn())
+        # Don't fight the user while they're typing a target into the box.
+        if not box.hasFocus():
+            box.setText(to_a1(row, col))
+
+    def _goto_name_box(self) -> None:
+        """Navigate to the reference typed in the Name Box (cell or range)."""
+        from ..core.reference import parse_range
+
+        text = self._name_box.text().strip()
+        if not text:
+            self._sync_name_box()
+            return
+        try:
+            r1, c1, r2, c2 = parse_range(text)
+        except Exception:
+            # Invalid reference — restore the current cell's ref, don't navigate.
+            self._sync_name_box()
+            return
+        self._table.setCurrentCell(r1, c1)
+        if (r1, c1) != (r2, c2):
+            self._table.clearSelection()
+            self._table.setRangeSelected(
+                QTableWidgetSelectionRange(r1, c1, r2, c2), True)
+        self._table.scrollTo(self._table.currentIndex())
+        self._table.setFocus()
+        self._sync_name_box(r1, c1)
 
     def _update_selection_status(self) -> None:
         """Show the active cell's A1 ref, or Sum/Avg/Count/Min/Max for a range.
