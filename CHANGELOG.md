@@ -25,6 +25,11 @@ All notable changes to abax are documented here. The format follows
   (dropping formulas), **transpose** rows ↔ columns, and/or **skip blanks** so
   empty source cells don't overwrite the destination.
 
+### Changed
+- **Discoverability:** menu items now show a status-bar hint (with the shortcut)
+  on hover, and the icon-only toolbar's tooltips spell out each button's keyboard
+  shortcut.
+
 ## [0.1.5] — 2026-07-02
 
 _A UI refinement release: a centralized Preferences hub, a fully theme-aware and

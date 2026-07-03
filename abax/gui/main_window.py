@@ -275,6 +275,9 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
             act.setShortcut(QKeySequence(shortcut))
         act.triggered.connect(slot)
         act.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+        # Status-bar hint on hover (the '&' mnemonic marker is stripped).
+        tip = label.replace("&", "")
+        act.setStatusTip(f"{tip}  ({shortcut})" if shortcut else tip)
         menu.addAction(act)
         return act
 
@@ -537,31 +540,34 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         if not getattr(self._settings, "show_toolbar", True):
             tb.setVisible(False)
 
-        def add(label, slot, icon):
+        def add(label, slot, icon, shortcut=None):
             act = QAction(make_icon(icon), label, self)
-            act.setToolTip(label)
+            # Tooltip + status hint advertise the keyboard shortcut, so the
+            # icon-only toolbar stays discoverable.
+            act.setToolTip(f"{label}  ({shortcut})" if shortcut else label)
+            act.setStatusTip(act.toolTip())
             act.triggered.connect(slot)
             tb.addAction(act)
             self._icon_actions.append((act, icon))
 
-        add("New", self.new_document, "new")
-        add("Open", lambda: self.open_document(None), "open")
-        add("Save", lambda: self.save_document(None), "save")
+        add("New", self.new_document, "new", "Ctrl+N")
+        add("Open", lambda: self.open_document(None), "open", "Ctrl+O")
+        add("Save", lambda: self.save_document(None), "save", "Ctrl+S")
         tb.addSeparator()
-        add("Undo", self.undo_edit, "undo")
-        add("Redo", self.redo_edit, "redo")
+        add("Undo", self.undo_edit, "undo", "Ctrl+Z")
+        add("Redo", self.redo_edit, "redo", "Ctrl+Y")
         tb.addSeparator()
-        add("Copy", self.copy_selection, "copy")
-        add("Paste", self.paste_at_cursor, "paste")
-        add("Fill down", self.fill_down_selection, "fill_down")
+        add("Copy", self.copy_selection, "copy", "Ctrl+C")
+        add("Paste", self.paste_at_cursor, "paste", "Ctrl+V")
+        add("Fill down", self.fill_down_selection, "fill_down", "Ctrl+D")
         tb.addSeparator()
         add("Insert row above", lambda: self.insert_row(above=True), "insert_row")
         add("Insert column left", lambda: self.insert_column(left=True), "insert_col")
         add("Delete row", self.delete_row, "delete_row")
         add("Delete column", self.delete_column, "delete_col")
         tb.addSeparator()
-        add("Bold", lambda: self.toggle_style("bold"), "bold")
-        add("Italic", lambda: self.toggle_style("italic"), "italic")
+        add("Bold", lambda: self.toggle_style("bold"), "bold", "Ctrl+B")
+        add("Italic", lambda: self.toggle_style("italic"), "italic", "Ctrl+I")
         add("Align left", lambda: self.set_alignment("left"), "align_left")
         add("Align center", lambda: self.set_alignment("center"), "align_center")
         add("Align right", lambda: self.set_alignment("right"), "align_right")
@@ -573,14 +579,14 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         add("Statistics / analysis", self.show_stats_tool, "stats")
         add("Pivot / group-by", self.show_pivot, "pivot")
         tb.addSeparator()
-        add("Find / replace", self.show_find_replace, "find")
-        add("Calculator", self.toggle_calculator, "hp16c")
+        add("Find / replace", self.show_find_replace, "find", "Ctrl+F")
+        add("Calculator", self.toggle_calculator, "hp16c", "Ctrl+K")
         add("Graph", self.show_graph, "graph")
         add("Equation editor", self.show_equation, "equation")
         add("Terminal", self.show_terminal, "terminal")
         add("Python console", self.show_pyconsole, "python")
         tb.addSeparator()
-        add("Command palette", self.show_command_palette, "palette")
+        add("Command palette", self.show_command_palette, "palette", "Ctrl+Shift+P")
 
     def _rebuild_macros_menu(self) -> None:
         self._macros_menu.clear()
