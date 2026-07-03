@@ -12,6 +12,28 @@ import sys
 log = logging.getLogger("abax.gui")
 
 
+def _enable_crash_dump() -> None:
+    """Dump the C/Python stack of every thread to a persistent ``crash.log`` on a
+    fatal signal (segfault, access violation, abort…). The ``sys.excepthook`` below
+    only catches *Python* exceptions; a native Qt/driver crash would otherwise leave
+    nothing to diagnose. Best-effort — never blocks startup.
+    """
+    import faulthandler
+
+    from .. import _runtime as rt
+
+    try:
+        rt.DATA_DIR.mkdir(parents=True, exist_ok=True)
+        fh = open(rt.DATA_DIR / "crash.log", "a", buffering=1, encoding="utf-8")
+        faulthandler.enable(file=fh)
+        globals()["_CRASH_LOG"] = fh   # keep the handle alive for the process lifetime
+    except Exception:
+        try:
+            faulthandler.enable()      # fall back to stderr when a console is attached
+        except Exception:
+            pass
+
+
 def run_gui(file: str | None = None, registry=None) -> int:
     from .. import _runtime as rt
 
@@ -22,6 +44,8 @@ def run_gui(file: str | None = None, registry=None) -> int:
             file=sys.stderr,
         )
         return 1
+
+    _enable_crash_dump()
 
     from ._qtcompat import QApplication
     from .main_window import MainWindow
