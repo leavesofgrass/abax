@@ -297,16 +297,21 @@ the QPainter calculator faceplates, so the LCD/keypad keep their display fonts.
 
 ## Preferences
 
-*Edit → Preferences…* (`Ctrl+,`) opens a tabbed settings dialog so you don't have
-to hand-edit `settings.json`:
+*Edit → Preferences…* (`Ctrl+,`) opens a tabbed dialog that is the one place to
+manage every persistent setting, so you rarely need to hand-edit `settings.json`:
 
-- **Appearance** — theme, the OpenDyslexic font toggle, and the default zoom.
-- **Behaviour** — autosave on/off and its interval (seconds), and the **code
-  isolation** level (off / isolated / strict) used for the Python console,
-  macros, and scripts.
+- **Appearance** — the GUI theme, the TUI theme, the OpenDyslexic font toggle, the
+  default zoom, and the interface toggles (show toolbar, vim-style modal keys).
+- **Calculator** — the default calculator model, faceplate style, angle mode
+  (degrees / radians), and the optional faceplate-art folder.
+- **System** — autosave (on/off + interval); **code execution** (an *allow code
+  execution* consent switch you can grant **or revoke** here, plus the isolation
+  level: off / isolated / strict); and **optional dependencies** (the auto-install
+  toggle and a *Manage optional features…* button that opens the feature chooser).
 
-Appearance changes apply live; **OK** / **Apply** persist to `settings.json` and
-**Cancel** reverts.
+Appearance and interface changes apply live; **OK** / **Apply** persist to
+`settings.json` and **Cancel** reverts the live appearance. Calculator and TUI
+settings take effect the next time you open the calculator / launch the TUI.
 
 ## Formula precedents
 
@@ -447,7 +452,7 @@ Save takes an independent snapshot of the workbook (rebuilt from its raw-text
 envelope) so the saver thread never races the UI thread's compute caches. The UI
 is restored automatically when the operation finishes, and errors are reported in
 a dialog. Only one open/save runs at a time. Settings autosave on by default every
-30 seconds — the on/off and interval are configurable (Preferences → Behaviour →
+30 seconds — the on/off and interval are configurable (Preferences → System →
 Autosave) — and window state is flushed on close (and on any uncaught error).
 
 Import paths:

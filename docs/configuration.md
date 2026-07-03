@@ -36,7 +36,7 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `deps_prompted` | bool | `false` | Whether the first-run optional-feature chooser has been shown. Set back to `false` to be asked again. |
 | `schema_version` | int | `3` | Settings schema version (managed by abax). |
 
-You can edit `settings.json` by hand while abax is closed, but most fields are also exposed through the GUI — the **Preferences** dialog (Edit → Preferences…, `Ctrl+,`) covers theme, font, default zoom, autosave, and code isolation, and individual menus/palette entries cover the toolbar and faceplate folder — and through the TUI, which is the recommended way to change them.
+You can edit `settings.json` by hand while abax is closed, but you rarely need to: the **Preferences** dialog (Edit → Preferences…, `Ctrl+,`) is the central place to manage every field, grouped into **Appearance** (GUI + TUI theme, font, zoom, toolbar, vim keys), **Calculator** (default model, faceplate style, angle mode, faceplate folder), and **System** (autosave, code-execution consent + isolation, optional-dependency install). Changing settings from the app is the recommended way — it persists and applies without a manual edit.
 
 ## Runtime directories
 
@@ -45,7 +45,7 @@ abax never hardcodes paths. It resolves four OS-appropriate directories at start
 | Directory | Holds |
 |-----------|-------|
 | **CONFIG** | `settings.json`, the `macros/` folder for auto-discovered macros. |
-| **DATA** | Persistent application data, including an `exchange/` subfolder for the generic JSON interchange format. |
+| **DATA** | Persistent application data — an `exchange/` subfolder for the generic JSON interchange format, and `crash.log` (a stack dump written on a native / Qt crash). |
 | **CACHE** | Downloaded assets — the OpenDyslexic font (`fonts/`). |
 | **LOG** | Log files. |
 
