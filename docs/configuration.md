@@ -16,7 +16,6 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `vim_mode` | bool | `true` | Vim-style key bindings, on by default. |
 | `tui_theme` | string | `"obsidian"` | TUI color theme. |
 | `zoom` | float | `1.0` | GUI zoom factor. |
-| `column_width` | int | `10` | Default column width. |
 | `dyslexic_font` | bool | `false` | Use the OpenDyslexic font across the GUI (see [OpenDyslexic font](#opendyslexic-font)). |
 | `calc_model` | string | `""` | Last-used calculator model key (e.g. `16c`, `15c`, `ti83`, `alg`); restored on launch. Empty = default (HP-16C). |
 | `calc_style` | string | `"image"` | Last-used HP faceplate style (`image` or `vector`). |
@@ -34,7 +33,7 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `fm_buttons` | list | `[]` | Your custom file-manager command buttons (`{label, command}`); see [File manager](file-manager.md). |
 | `auto_install` | bool | `true` | Auto-install optional dependencies (and show the first-run chooser); see [Auto-install](#auto-install). Set `false` to opt out. |
 | `deps_prompted` | bool | `false` | Whether the first-run optional-feature chooser has been shown. Set back to `false` to be asked again. |
-| `schema_version` | int | `3` | Settings schema version (managed by abax). |
+| `schema_version` | int | `4` | Settings schema version (managed by abax). |
 
 You can edit `settings.json` by hand while abax is closed, but you rarely need to: the **Preferences** dialog (Edit → Preferences…, `Ctrl+,`) is the central place to manage every field, grouped into **Appearance** (GUI + TUI theme, font, zoom, toolbar, vim keys), **Calculator** (default model, faceplate style, angle mode, faceplate folder), and **System** (autosave, code-execution consent + isolation, optional-dependency install). Changing settings from the app is the recommended way — it persists and applies without a manual edit.
 

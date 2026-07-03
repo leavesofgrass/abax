@@ -30,6 +30,11 @@ All notable changes to abax are documented here. The format follows
   on hover, and the icon-only toolbar's tooltips spell out each button's keyboard
   shortcut.
 
+### Removed
+- Dropped two settings fields that were never read (`column_width` and the
+  obsolete `faceplate_repo`); a schema migration (v3 → v4) strips them from
+  existing `settings.json` files on next load. No user-facing change.
+
 ## [0.1.5] — 2026-07-02
 
 _A UI refinement release: a centralized Preferences hub, a fully theme-aware and

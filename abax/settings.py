@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ._runtime import _HAS_MSGSPEC
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def _migrate_settings(data: dict) -> dict:
@@ -32,6 +32,12 @@ def _migrate_settings(data: dict) -> dict:
         # ('autosave_enabled' + 'autosave_interval' seconds). Older files simply
         # take the defaults (on, 30s).
         data["schema_version"] = 3
+    if v < 4:
+        # v3 -> v4: dropped two never-read fields ('column_width' and the
+        # obsolete 'faceplate_repo'). Strip them so they don't linger on re-save.
+        data.pop("column_width", None)
+        data.pop("faceplate_repo", None)
+        data["schema_version"] = 4
     return data
 
 
@@ -43,7 +49,6 @@ if _HAS_MSGSPEC:
         vim_mode: bool = True
         tui_theme: str = "obsidian"
         zoom: float = 1.0
-        column_width: int = 10
         dyslexic_font: bool = False
         calc_model: str = ""
         calc_style: str = "image"
@@ -57,7 +62,6 @@ if _HAS_MSGSPEC:
         # (default); "strict" = also OS-confine filesystem + network (Phase 3).
         code_isolation: str = "isolated"
         faceplate_assets_dir: str = ""
-        faceplate_repo: str = ""
         show_toolbar: bool = True
         # Periodic autosave of settings.json: whether it runs, and how often.
         autosave_enabled: bool = True
@@ -91,7 +95,6 @@ else:
         vim_mode: bool = True
         tui_theme: str = "obsidian"
         zoom: float = 1.0
-        column_width: int = 10
         dyslexic_font: bool = False
         calc_model: str = ""
         calc_style: str = "image"
@@ -102,7 +105,6 @@ else:
         # See the msgspec branch above for the meaning of code_isolation.
         code_isolation: str = "isolated"
         faceplate_assets_dir: str = ""
-        faceplate_repo: str = ""
         show_toolbar: bool = True
         # Periodic autosave of settings.json: whether it runs, and how often.
         autosave_enabled: bool = True
