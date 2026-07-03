@@ -17,6 +17,13 @@ class ViewMixin:
                         self._base_font_qss() + self._ui_font_qss() + self._zoom_qss()
                         + self._menu_qss())
         self._theme = theme  # custom-painted surfaces read this
+        # Re-tint the hand-drawn icons to the theme fg. They're QPainter glyphs
+        # baked into each QAction at build time, so a stylesheet can't recolour
+        # them — regenerate every registered icon (see gui/icons.py).
+        from . import icons as _icons
+        _icons.set_icon_color(theme.q_color("fg_primary"))
+        for _iact, _iname in getattr(self, "_icon_actions", ()):
+            _iact.setIcon(_icons.make_icon(_iname))
         self._update_status_cluster()
 
     def _base_font_qss(self) -> str:
@@ -115,19 +122,28 @@ class ViewMixin:
         self.apply_current_theme()
         self._set_status(f"theme: {name}")
 
-    def toggle_vim_mode(self) -> None:
-        self._settings.vim_mode = not getattr(self._settings, "vim_mode", True)
-        self._set_status(f"vim mode: {'on' if self._settings.vim_mode else 'off'}")
+    def set_vim_mode(self, on: bool) -> None:
+        self._settings.vim_mode = bool(on)
+        self._set_status(f"vim mode: {'on' if on else 'off'}")
         self._update_status_cluster()
 
-    def toggle_toolbar(self) -> None:
+    def toggle_vim_mode(self) -> None:
+        self.set_vim_mode(not getattr(self._settings, "vim_mode", True))
+
+    def set_toolbar_visible(self, on: bool) -> None:
         tb = getattr(self, "_toolbar", None)
         if tb is None:
             return
-        visible = not tb.isVisible()
-        tb.setVisible(visible)
-        self._settings.show_toolbar = visible
-        self._set_status(f"toolbar {'shown' if visible else 'hidden'}")
+        tb.setVisible(bool(on))
+        self._settings.show_toolbar = bool(on)
+        act = getattr(self, "_act_toolbar", None)   # keep the View-menu check in sync
+        if act is not None and act.isChecked() != bool(on):
+            act.setChecked(bool(on))
+        self._set_status(f"toolbar {'shown' if on else 'hidden'}")
+
+    def toggle_toolbar(self) -> None:
+        tb = getattr(self, "_toolbar", None)
+        self.set_toolbar_visible(not tb.isVisible() if tb is not None else True)
 
     def apply_dyslexic_font(self, on: bool, fetch: bool = True) -> None:
         from ._qtcompat import QApplication, QFont, QFontDatabase
