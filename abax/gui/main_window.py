@@ -86,6 +86,8 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._start_autosave()
         self._update_status_cluster()
         self._restore_window_state()
+        self.statusBar().showMessage(
+            "Ctrl+Shift+P: all commands   ·   F1: shortcuts   ·   Ctrl+K: calculator")
         # The calculator is NOT auto-opened on launch — open it on demand (Ctrl+K).
         # Its model/style are still remembered for when it is opened.
 
@@ -133,6 +135,13 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         ):
             header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             header.customContextMenuRequested.connect(handler)
+        # Double-click a header border to autofit that column/row (spreadsheet norm),
+        # and advertise the rich right-click menus via header tooltips.
+        hh, vh = self._table.horizontalHeader(), self._table.verticalHeader()
+        hh.sectionHandleDoubleClicked.connect(self._table.resizeColumnToContents)
+        vh.sectionHandleDoubleClicked.connect(self._table.resizeRowToContents)
+        hh.setToolTip("Right-click for sort · filter · insert · delete · autofit")
+        vh.setToolTip("Right-click to insert / delete rows · autofit")
         # Right-click on the cells -> the sheet context menu (clipboard / structure /
         # formatting / data tools), wired to the same actions as the menu bar.
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -259,6 +268,28 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._icon_actions.append((action, name))
         return action
 
+    def _rebuild_recent_menu(self) -> None:
+        """(Re)populate File → Open Recent from settings.recent_files (kept live)."""
+        menu = getattr(self, "_recent_menu", None)
+        if menu is None:
+            return
+        from pathlib import Path
+
+        menu.clear()
+        recent = list(getattr(self._settings, "recent_files", []))
+        if not recent:
+            menu.addAction("(no recent files)").setEnabled(False)
+            return
+        for p in recent:
+            menu.addAction(Path(p).name,
+                           lambda checked=False, path=p: self.open_document(path))
+        menu.addSeparator()
+        menu.addAction("Clear list", self._clear_recent_files)
+
+    def _clear_recent_files(self) -> None:
+        self._settings.recent_files = []
+        self._rebuild_recent_menu()
+
     def _setup_menus(self) -> None:
         """Menu bar organised by the standard desktop convention (File - Edit - View -
         Insert - Format - Data - Sheet - Tools - Help), grouped into short logical
@@ -271,6 +302,8 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         m_file = mb.addMenu("&File")
         self._reg_icon(self._act(m_file, "&New", self.new_document, "Ctrl+N"), "new")
         self._reg_icon(self._act(m_file, "&Open...", lambda: self.open_document(None), "Ctrl+O"), "open")
+        self._recent_menu = m_file.addMenu("Open &Recent")
+        self._rebuild_recent_menu()
         self._act(m_file, "Import &large CSV...", self.import_large_csv)
         self._act(m_file, "Import from &URL...", lambda: self.import_from_url(None))
         m_file.addSeparator()
@@ -290,6 +323,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._reg_icon(self._act(m_edit, "&Copy", self.copy_selection, "Ctrl+C"), "copy")
         self._reg_icon(self._act(m_edit, "&Paste", self.paste_at_cursor, "Ctrl+V"), "paste")
         self._act(m_edit, "Clea&r (Del)", self._clear_selection)
+        self._act(m_edit, "Select &all", self._table.selectAll, "Ctrl+A")
         m_edit.addSeparator()
         self._reg_icon(self._act(m_edit, "Fill &Down", self.fill_down_selection, "Ctrl+D"), "fill_down")
         self._act(m_edit, "Fill &Right", self.fill_right_selection, "Ctrl+R")
@@ -467,6 +501,8 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         # --- Help ---------------------------------------------------------
         m_help = mb.addMenu("&Help")
         self._act(m_help, "&Keyboard shortcuts", self.show_shortcuts, "F1")
+        self._reg_icon(self._act(m_help, "&Command palette — all commands...",
+                                 self.show_command_palette), "palette")
         self._act(m_help, "&About abax", self.show_about)
 
     def _setup_toolbar(self) -> None:
@@ -705,6 +741,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         idx = header.logicalIndexAt(pos)
         if idx < 0:
             return
+        self._table.selectRow(idx)           # target the clicked row (Excel behaviour)
         menu = QMenu(self)
         menu.addAction(make_icon("insert_row_above"), f"Insert row above {idx + 1}",
                        lambda: self.insert_row(at=idx))
@@ -713,6 +750,8 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         menu.addSeparator()
         menu.addAction(make_icon("delete_row"), f"Delete row {idx + 1}",
                        lambda: self.delete_row(at=idx))
+        menu.addSeparator()
+        menu.addAction("Autofit height", lambda: self._table.resizeRowToContents(idx))
         menu.exec(header.mapToGlobal(pos))
 
     def _build_cell_context_menu(self):
@@ -813,6 +852,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         if idx < 0:
             return
         name = index_to_col(idx)
+        self._table.selectColumn(idx)        # target the clicked column (Excel behaviour)
         menu = QMenu(self)
         menu.addAction(make_icon("sort_asc"), f"Sort asc by column {name}",
                        lambda: self._sort_region_by(idx, False))
@@ -827,6 +867,8 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         menu.addSeparator()
         menu.addAction(make_icon("delete_col"), f"Delete column {name}",
                        lambda: self.delete_column(at=idx))
+        menu.addSeparator()
+        menu.addAction("Autofit width", lambda: self._table.resizeColumnToContents(idx))
         menu.exec(header.mapToGlobal(pos))
 
     def _sort_region_by(self, col: int, descending: bool) -> None:

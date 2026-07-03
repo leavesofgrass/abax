@@ -251,6 +251,8 @@ class DocumentIOMixin:
             recent.remove(path)
         recent.insert(0, path)
         self._settings.recent_files = recent[:10]
+        if hasattr(self, "_rebuild_recent_menu"):
+            self._rebuild_recent_menu()
 
     def _update_title(self) -> None:
         name = self._doc.title
