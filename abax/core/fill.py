@@ -149,6 +149,50 @@ def fill_series(sheet, rng: str | tuple, *, on_set: OnSet | None = None) -> None
                 _emit(on_set, r, cc, v)
 
 
+def fill_series_from(
+    sheet, src: tuple, full: tuple, *, on_set: OnSet | None = None
+) -> None:
+    """Extend the seed block ``src`` to cover the larger ``full`` region.
+
+    ``src`` is the original selection (all seeds); ``full`` the selection after
+    a fill-handle drag — a superset of ``src`` grown along exactly one edge.
+    The cells of ``full`` outside ``src`` are filled by continuing the series in
+    the drag direction, so this works in all four directions (down/up/right/left).
+    Dragging up or left extends the series *backwards* (the seeds are read in
+    reverse before extrapolating).
+    """
+    sr1, sc1, sr2, sc2 = src
+    fr1, fc1, fr2, fc2 = full
+    if fr2 > sr2:                                   # grew downward
+        for c in range(sc1, sc2 + 1):
+            seeds = [sheet.get_raw(r, c) for r in range(sr1, sr2 + 1)]
+            for k, v in enumerate(extend_series(seeds, fr2 - sr2)):
+                rr = sr2 + 1 + k
+                sheet.set_cell(rr, c, v)
+                _emit(on_set, rr, c, v)
+    elif fr1 < sr1:                                 # grew upward (backwards)
+        for c in range(sc1, sc2 + 1):
+            seeds = [sheet.get_raw(r, c) for r in range(sr1, sr2 + 1)]
+            for k, v in enumerate(extend_series(seeds[::-1], sr1 - fr1)):
+                rr = sr1 - 1 - k
+                sheet.set_cell(rr, c, v)
+                _emit(on_set, rr, c, v)
+    elif fc2 > sc2:                                 # grew rightward
+        for r in range(sr1, sr2 + 1):
+            seeds = [sheet.get_raw(r, c) for c in range(sc1, sc2 + 1)]
+            for k, v in enumerate(extend_series(seeds, fc2 - sc2)):
+                cc = sc2 + 1 + k
+                sheet.set_cell(r, cc, v)
+                _emit(on_set, r, cc, v)
+    elif fc1 < sc1:                                 # grew leftward (backwards)
+        for r in range(sr1, sr2 + 1):
+            seeds = [sheet.get_raw(r, c) for c in range(sc1, sc2 + 1)]
+            for k, v in enumerate(extend_series(seeds[::-1], sc1 - fc1)):
+                cc = sc1 - 1 - k
+                sheet.set_cell(r, cc, v)
+                _emit(on_set, r, cc, v)
+
+
 # --- sort ------------------------------------------------------------------
 
 

@@ -10,6 +10,7 @@ from abax.core.fill import (
     fill_down,
     fill_right,
     fill_series,
+    fill_series_from,
     paste_clip,
     region_to_tsv,
     sort_region,
@@ -73,6 +74,45 @@ def test_fill_series_weekday_row():
     s.set("A1", "Mon")
     fill_series(s, "A1:E1")
     assert [s.get_raw(0, c) for c in range(5)] == ["Mon", "Tue", "Wed", "Thu", "Fri"]
+
+
+def test_fill_series_from_down_and_right():
+    s = Sheet()
+    s.set("A1", "1")
+    s.set("A2", "2")
+    fill_series_from(s, (0, 0, 1, 0), (0, 0, 4, 0))  # drag handle down A2 -> A5
+    assert [s.get(f"A{i}") for i in range(1, 6)] == [1, 2, 3, 4, 5]
+
+    s = Sheet()
+    s.set("A1", "10")
+    s.set("B1", "20")
+    fill_series_from(s, (0, 0, 0, 1), (0, 0, 0, 4))  # drag right B1 -> E1
+    assert [s.get_raw(0, c) for c in range(5)] == ["10", "20", "30", "40", "50"]
+
+
+def test_fill_series_from_up_and_left():
+    # Drag the handle UP: seeds at the bottom extend the series backwards.
+    s = Sheet()
+    s.set("A4", "4")
+    s.set("A5", "5")
+    fill_series_from(s, (3, 0, 4, 0), (0, 0, 4, 0))
+    assert [s.get_raw(r, 0) for r in range(5)] == ["1", "2", "3", "4", "5"]
+
+    # Drag the handle LEFT.
+    s = Sheet()
+    s.set("D1", "40")
+    s.set("E1", "50")
+    fill_series_from(s, (0, 3, 0, 4), (0, 0, 0, 4))
+    assert [s.get_raw(0, c) for c in range(5)] == ["10", "20", "30", "40", "50"]
+
+
+def test_fill_series_from_backward_dates():
+    s = Sheet()
+    s.set("A4", "2020-01-04")
+    s.set("A5", "2020-01-05")
+    fill_series_from(s, (3, 0, 4, 0), (0, 0, 4, 0))
+    assert s.get_raw(0, 0) == "2020-01-01"
+    assert s.get_raw(2, 0) == "2020-01-03"
 
 
 def test_sort_region_ascending_and_descending():

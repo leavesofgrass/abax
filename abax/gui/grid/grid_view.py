@@ -343,16 +343,25 @@ class CellTableView(QTableView):
             idx = self.indexAt(pt)
             if idx.isValid():
                 top, left, bottom, right = self._fill_src
-                dr, dc = idx.row() - bottom, idx.column() - right
+                r, c = idx.row(), idx.column()
+                # Grow along whichever edge the pointer has moved furthest past;
+                # the fill handle drags in any of the four directions (Excel-like).
+                down, up = max(0, r - bottom), max(0, top - r)
+                rgt, lft = max(0, c - right), max(0, left - c)
+                m = max(down, up, rgt, lft)
+                if m == 0:                        # back within the source
+                    r1, c1, r2, c2 = top, left, bottom, right
+                elif m == down:
+                    r1, c1, r2, c2 = top, left, r, right
+                elif m == up:
+                    r1, c1, r2, c2 = r, left, bottom, right
+                elif m == rgt:
+                    r1, c1, r2, c2 = top, left, bottom, c
+                else:                             # left
+                    r1, c1, r2, c2 = top, c, bottom, right
                 model = self.model()
-                if dr >= dc and dr > 0:                      # extend down
-                    end = model.index(idx.row(), right)
-                elif dc > 0:                                 # extend right
-                    end = model.index(bottom, idx.column())
-                else:                                        # back within the source
-                    end = model.index(bottom, right)
                 self.selectionModel().select(
-                    QItemSelection(model.index(top, left), end),
+                    QItemSelection(model.index(r1, c1), model.index(r2, c2)),
                     QItemSelectionModel.SelectionFlag.ClearAndSelect)
             event.accept()
             return
@@ -370,9 +379,9 @@ class CellTableView(QTableView):
             self.unsetCursor()
             src, self._fill_src = self._fill_src, None
             cur = self._selection_bounds()
-            if src is not None and cur is not None and (cur[2] > src[2] or cur[3] > src[3]):
+            if src is not None and cur is not None and cur != src:
                 # the selection grew past the source — extend the series into it
-                self._win._fill_series_selection()
+                self._win._fill_from_handle(src, cur)
             event.accept()
             return
         super().mouseReleaseEvent(event)

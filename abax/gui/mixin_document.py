@@ -460,6 +460,20 @@ class DocumentMixin:
         self.refresh_table()
         self._set_status("pasted special")
 
+    def _fill_from_handle(self, src, full) -> None:
+        """Fill-handle drag: extend the seed block ``src`` to cover ``full``.
+
+        Works in any direction (down/up/right/left); ``full`` is ``src`` grown
+        along one edge by the drag. One undo step.
+        """
+        from ..core.fill import fill_series_from
+
+        self._doc.checkpoint("fill series")
+        fill_series_from(self._doc.workbook.sheet, src, full, on_set=self._record)
+        self._doc.mark_dirty()
+        self.refresh_table()
+        self._set_status("filled series")
+
     def fill_down_selection(self) -> None:
         from ..core.fill import fill_down
 
