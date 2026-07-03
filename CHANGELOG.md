@@ -17,6 +17,9 @@ All notable changes to abax are documented here. The format follows
 - **Name Box:** the reference box to the left of the formula bar shows the active
   cell's A1 reference and lets you jump to any cell or range — type e.g. `B12` or
   `A1:C9` and press Enter.
+- **Blank-sheet hint:** an unobtrusive, theme-aware overlay on an empty sheet
+  points to the key gestures (type to enter data, `=` for a formula,
+  `Ctrl+Shift+P` / `F1` / `Ctrl+K`); it disappears the moment a cell is filled.
 
 ## [0.1.5] — 2026-07-02
 

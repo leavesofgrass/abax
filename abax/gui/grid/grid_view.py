@@ -23,9 +23,11 @@ from .._qtcompat import (
     QColor,
     QComboBox,
     QEvent,
+    QFont,
     QItemSelection,
     QItemSelectionModel,
     QLineEdit,
+    QPainter,
     QPainterPath,
     QPen,
     QPointF,
@@ -249,6 +251,59 @@ class CellTableView(QTableView):
         text = cur.data(Qt.ItemDataRole.AccessibleTextRole)
         if text:
             self.setAccessibleDescription(str(text))
+
+    # -- empty-sheet onboarding hint --------------------------------------
+
+    def paintEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        super().paintEvent(event)
+        # A subtle getting-started hint over a blank sheet. It disappears the
+        # instant any cell is populated (every edit triggers a full-extent
+        # repaint) or the user starts typing (an editor is open) — so it never
+        # sits behind real content.
+        try:
+            if self.state() == QAbstractItemView.State.EditingState:
+                return
+            if self._win._model.populated_cells():
+                return
+        except Exception:
+            return
+        vp = self.viewport()
+        rect = vp.rect()
+        if rect.width() < 300 or rect.height() < 170:
+            return  # too cramped to read; skip rather than clutter
+
+        painter = QPainter(vp)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        base = self.palette().text().color()
+        strong = QColor(base)
+        strong.setAlpha(140)
+        faint = QColor(base)
+        faint.setAlpha(105)
+
+        title_font = QFont(self.font())
+        title_font.setPointSizeF(max(12.0, title_font.pointSizeF() + 4))
+        title_font.setBold(True)
+        hint_font = QFont(self.font())
+
+        top = rect.center().y() - 28
+        painter.setFont(title_font)
+        painter.setPen(strong)
+        th = painter.fontMetrics().height()
+        painter.drawText(QRect(rect.left(), top, rect.width(), th),
+                         Qt.AlignmentFlag.AlignHCenter, "Blank sheet")
+
+        painter.setFont(hint_font)
+        painter.setPen(faint)
+        hh = painter.fontMetrics().height()
+        y1 = top + th + 10
+        painter.drawText(QRect(rect.left(), y1, rect.width(), hh),
+                         Qt.AlignmentFlag.AlignHCenter,
+                         "Type to enter data — start a formula with  =")
+        y2 = y1 + hh + 4
+        painter.drawText(QRect(rect.left(), y2, rect.width(), hh),
+                         Qt.AlignmentFlag.AlignHCenter,
+                         "Ctrl+Shift+P  commands       F1  shortcuts       Ctrl+K  calculator")
+        painter.end()
 
     # -- drag fill handle -------------------------------------------------
 
