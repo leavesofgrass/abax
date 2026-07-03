@@ -8,6 +8,59 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
+## [0.1.5] — 2026-07-02
+
+_A UI refinement release: a centralized Preferences hub, a fully theme-aware and
+HiDPI-crisp icon set, mouse/discoverability improvements, and — importantly —
+optional features are now truly opt-in._
+
+### Added
+- **Centralized Preferences** (Edit → Preferences, `Ctrl+,`): every persistent
+  setting in one tabbed dialog — **Appearance** (GUI + TUI theme, OpenDyslexic
+  font, zoom, toolbar, vim keys), **Calculator** (default model, faceplate style,
+  angle mode, faceplate folder), **System** (autosave, code isolation, optional
+  dependencies). Includes a **code-execution consent** control — grant or **revoke**
+  the permission that gates the console / terminal / scripts / macros (enabling it
+  confirms first), previously only settable by hand-editing `settings.json` — and a
+  **Manage optional features…** button.
+- **Mouse & discoverability:** File → **Open Recent** (the tracked recent-files list
+  was never surfaced); **double-click a column/row border to autofit**; **Autofit**
+  entries and click-to-select in the header right-click menus; **Select All**
+  (`Ctrl+A`); a **Command palette** entry in Help; header tooltips advertising the
+  right-click menus; and a startup status-bar hint (`Ctrl+Shift+P` / `F1` / `Ctrl+K`).
+- **Icons:** directional structure glyphs (insert row above/below, column
+  left/right), the previously-blank **cut** and **conditional-format** icons, and
+  distinct ascending/descending **sort** icons.
+- **Native-crash logging:** on a fatal signal (segfault, access violation) that
+  bypasses the Python excepthook, `faulthandler` now dumps a stack to
+  `DATA_DIR/crash.log`.
+
+### Changed
+- **Optional features are now opt-in.** The first-run chooser selects **nothing** by
+  default (it used to default to "All"); the presets (Thin / All) are one click and
+  neither is nudged as "recommended"; the base is complete on its own. Reachable any
+  time from Tools → Install optional features or Preferences → System. Docs updated
+  throughout — abax never installs anything unprompted.
+- **Icons are theme-aware and HiDPI-crisp.** Glyphs tint from the active abax theme
+  (not the OS palette) and **re-tint live** when the theme changes; rendering is
+  device-pixel-ratio aware and painter-scaled to size. Plus a redraw/polish pass
+  (grid → 2×2 lattice, bolder insert/delete marks, redrawn pivot / stats / histogram
+  / command-palette glyphs, a consolidated accent vocabulary, box-fit and crispness
+  cleanups).
+- **About dialog** now notes the name's origin — Ancient Greek _ábax_ (ἄβαξ), a
+  reckoning tablet and the root of _abacus_.
+
+### Fixed
+- **Theme / number-format / macros menus crashed when chosen by mouse.** Loop-built
+  menu actions bound `QAction.triggered`'s `checked` bool into their captured
+  variable (e.g. `set_theme(False)`), which then crashed. The bool is now absorbed.
+- Right-clicking a column/row header targeted the previous selection instead of the
+  clicked header.
+- The toolbar's View-menu checkmark could go stale when the toolbar was toggled from
+  Preferences; a dyslexic-font **Cancel** could revert against a state that never
+  applied (e.g. offline).
+- Changelog release links point at the renamed GitHub repository (`/abax`).
+
 ## [0.1.4.1] — 2026-07-02
 
 _Patch: a crash in CSV **streaming** on Python 3.11/3.12, caught by the new CI
@@ -803,7 +856,7 @@ Initial public release.
 - Tag-driven CI builds and publishes the wheel, sdist, and `qcell.pyz` to GitHub
   Releases.
 
-[0.1.3]: https://github.com/leavesofgrass/qcell/compare/v0.1.2...v0.1.3
-[0.1.2]: https://github.com/leavesofgrass/qcell/compare/v0.1.1...v0.1.2
-[0.1.1]: https://github.com/leavesofgrass/qcell/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/leavesofgrass/qcell/releases/tag/v0.1.0
+[0.1.3]: https://github.com/leavesofgrass/abax/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/leavesofgrass/abax/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/leavesofgrass/abax/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/leavesofgrass/abax/releases/tag/v0.1.0
