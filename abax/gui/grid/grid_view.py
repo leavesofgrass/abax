@@ -29,6 +29,7 @@ from .._qtcompat import (
     QPainterPath,
     QPen,
     QPointF,
+    QRect,
     QStyledItemDelegate,
     Qt,
     QTableView,
@@ -38,6 +39,9 @@ from .._qtcompat import (
 
 # Excel-style dynamic-array spill outline colour (a calm blue).
 _SPILL_COLOR = "#3b82f6"
+
+# Drag fill-handle: the little square at the bottom-right of the selection.
+_FILL_HANDLE_SIZE = 6
 
 # Comment marker: a small red triangle tucked into the cell's top-right corner.
 _COMMENT_COLOR = "#dc2626"
@@ -69,6 +73,7 @@ class GridDelegate(QStyledItemDelegate):
         sheet = self._win._doc.workbook.sheet
         if sheet.get_comment(index.row(), index.column()) is not None:
             self._paint_comment_marker(painter, option)
+        self._maybe_paint_fill_handle(painter, option, index)
         edges = sheet.spill_edges(index.row(), index.column())
         if not edges:
             return
@@ -101,6 +106,21 @@ class GridDelegate(QStyledItemDelegate):
         painter.setRenderHint(painter.RenderHint.Antialiasing, True)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.fillPath(path, QBrush(QColor(_COMMENT_COLOR)))
+        painter.restore()
+
+    def _maybe_paint_fill_handle(self, painter, option, index) -> None:
+        """Draw the drag fill-handle on the bottom-right cell of the selection."""
+        table = self._win._table
+        br = table._selection_bounds()
+        if (br is None or index.row() != br[2] or index.column() != br[3]
+                or table.state() == QAbstractItemView.State.EditingState):
+            return
+        r = option.rect
+        s = _FILL_HANDLE_SIZE
+        painter.save()
+        painter.setPen(QPen(QColor("#ffffff")))
+        painter.setBrush(QBrush(QColor(_SPILL_COLOR)))
+        painter.drawRect(r.right() - s, r.bottom() - s, s, s)
         painter.restore()
 
     def _list_rule(self, index):
@@ -184,7 +204,10 @@ class CellTableView(QTableView):
         super().__init__(window)
         self._win = window
         self._pending_move: tuple[int, int] | None = None
+        self._filling = False
+        self._fill_src: tuple[int, int, int, int] | None = None
         self.setModel(model)
+        self.setMouseTracking(True)   # for the fill-handle hover cursor
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         # Typing a printable char starts a replace-mode edit; F2 / double-click
@@ -226,6 +249,78 @@ class CellTableView(QTableView):
         text = cur.data(Qt.ItemDataRole.AccessibleTextRole)
         if text:
             self.setAccessibleDescription(str(text))
+
+    # -- drag fill handle -------------------------------------------------
+
+    def _selection_bounds(self):
+        """(top, left, bottom, right) spanning the whole selection, or None."""
+        sel = self.selectionModel().selection()
+        if not sel:
+            return None
+        return (min(r.top() for r in sel), min(r.left() for r in sel),
+                max(r.bottom() for r in sel), max(r.right() for r in sel))
+
+    def _fill_handle_rect(self):
+        """Grab rect (viewport coords) for the fill handle, or None."""
+        br = self._selection_bounds()
+        if br is None or self.state() == QAbstractItemView.State.EditingState:
+            return None
+        cell = self.visualRect(self.model().index(br[2], br[3]))
+        if cell.width() <= 0 or cell.height() <= 0:
+            return None
+        g = _FILL_HANDLE_SIZE + 3
+        return QRect(cell.right() - g, cell.bottom() - g, g + 3, g + 3)
+
+    def mousePressEvent(self, event):  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            hr = self._fill_handle_rect()
+            if hr is not None and hr.contains(event.position().toPoint()):
+                self._fill_src = self._selection_bounds()
+                self._filling = True
+                self.setCursor(Qt.CursorShape.CrossCursor)
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):  # noqa: N802
+        pt = event.position().toPoint()
+        if self._filling and self._fill_src is not None:
+            idx = self.indexAt(pt)
+            if idx.isValid():
+                top, left, bottom, right = self._fill_src
+                dr, dc = idx.row() - bottom, idx.column() - right
+                model = self.model()
+                if dr >= dc and dr > 0:                      # extend down
+                    end = model.index(idx.row(), right)
+                elif dc > 0:                                 # extend right
+                    end = model.index(bottom, idx.column())
+                else:                                        # back within the source
+                    end = model.index(bottom, right)
+                self.selectionModel().select(
+                    QItemSelection(model.index(top, left), end),
+                    QItemSelectionModel.SelectionFlag.ClearAndSelect)
+            event.accept()
+            return
+        # hover: show the cross cursor when over the handle
+        hr = self._fill_handle_rect()
+        if hr is not None and hr.contains(pt):
+            self.setCursor(Qt.CursorShape.CrossCursor)
+        elif self.cursor().shape() == Qt.CursorShape.CrossCursor:
+            self.unsetCursor()
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):  # noqa: N802
+        if self._filling:
+            self._filling = False
+            self.unsetCursor()
+            src, self._fill_src = self._fill_src, None
+            cur = self._selection_bounds()
+            if src is not None and cur is not None and (cur[2] > src[2] or cur[3] > src[3]):
+                # the selection grew past the source — extend the series into it
+                self._win._fill_series_selection()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     # -- QTableWidget-compatible API --------------------------------------
 
