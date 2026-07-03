@@ -35,7 +35,7 @@ Archive creation supports `.zip`, `.tar`, `.tar.gz`/`.tgz`, `.tar.bz2`,
 destination directory (the "zip-slip" / "tar-slip" guard).
 
 **`.7z` support** needs the optional **`py7zr`** package (`pip install abax[sevenzip]`;
-it's in the `thin` and `all` sets and the background auto-installer). Without it,
+it's in the `thin` and `all` feature sets). Without it,
 `.zip`/`.tar` still work and the 7z actions report a clear "install `abax[sevenzip]`"
 message. **Open in archive** extracts the chosen member to a temporary file and
 loads it like any other spreadsheet — so you can open a CSV or workbook from

@@ -35,13 +35,17 @@ class DependencyChooser(QDialog):
         root = QVBoxLayout(self)
 
         intro = QLabel(
-            "<b>abax works right now with nothing extra.</b> These optional "
-            "features add capabilities by fetching a few Python packages. Pick what "
-            "you'd like — you can change this any time from "
-            "<i>Tools → Install optional features</i>.<br><br>"
-            "Two common choices:&nbsp; <b>Thin</b> — lean, just the everyday "
-            "conveniences.&nbsp; <b>All</b> — everything (recommended if you have "
-            "the disk space).", self)
+            "<b>abax is already complete.</b> The keyboard-first spreadsheet, 600+ "
+            "formula functions, statistics, calculators, and the RF tools all work "
+            "right now with no extra packages.<br><br>"
+            "The features below are <b>optional</b> add-ons — each fetches a few "
+            "Python packages to unlock a capability (Excel files, the data-science "
+            "stack, Jupyter…). <b>Nothing is selected by default</b>; pick only what "
+            "you want. You can reopen this any time from "
+            "<i>Tools → Install optional features</i> or <i>Preferences → System</i>, "
+            "so adding more later is easy.<br><br>"
+            "Shortcuts:&nbsp; <b>Thin</b> — the lightweight everyday conveniences."
+            "&nbsp; <b>All</b> — everything abax can use.", self)
         intro.setWordWrap(True)
         root.addWidget(intro)
 
@@ -50,7 +54,7 @@ class DependencyChooser(QDialog):
         thin.setToolTip("Everyday conveniences only — Excel, terminal, richer TUI, "
                         "fast settings. No data-science or Jupyter stack.")
         thin.clicked.connect(lambda: self._apply_preset("thin"))
-        allb = QPushButton("All  (~0.6 GB)   — recommended", self)
+        allb = QPushButton("All  (~0.6 GB)", self)
         allb.setToolTip("Everything abax can use: the full data-science / ML "
                         "stack, Parquet, Jupyter, and Bayesian modeling.")
         allb.clicked.connect(lambda: self._apply_preset("all"))
@@ -94,7 +98,8 @@ class DependencyChooser(QDialog):
         actions.addWidget(install)
         root.addLayout(actions)
 
-        self._apply_preset("all")                    # default to the recommended set
+        # Nothing is pre-selected: the base is complete and features are opt-in.
+        # The Thin / All buttons make choosing a whole set a single click.
 
     # --- behaviour ------------------------------------------------------
     def _apply_preset(self, name: str) -> None:

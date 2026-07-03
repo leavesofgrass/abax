@@ -95,18 +95,18 @@ Points at a pandoc executable for rich equation rendering. See [Pandoc](#pandoc-
 
 ### `ABAX_NO_AUTOINSTALL`
 
-Set to any non-empty value to disable the background auto-installation of optional dependencies (equivalent to `auto_install: false` in settings). See [Auto-install](#auto-install).
+Set to any non-empty value to disable optional-dependency installs entirely — the first-run chooser won't appear and abax won't run `pip` (equivalent to `auto_install: false` in settings). See [Auto-install](#auto-install).
 
 ## Auto-install
 
-abax's core is pure stdlib and every heavier capability is an *optional* package with a graceful fallback. On **first GUI launch** abax shows a **chooser** that explains each optional feature group and offers two presets — **Thin** (lean everyday conveniences) and **All** (everything, recommended) — plus a checkbox per feature. Your selection is fetched in a background daemon thread (best-effort, non-blocking) and the choice is remembered (`deps_prompted`). In the TUI/headless there's no dialog: a one-time notice points you at `abax deps` (install everything) or `pip install abax[…]` (specific extras).
+abax's core is pure stdlib and every heavier capability is an *optional* package with a graceful fallback — **abax installs nothing on its own.** On **first GUI launch** it shows a **chooser** that explains each optional feature group; **nothing is selected by default** — you pick only what you want. Two presets make choosing a whole set one click: **Thin** (the lean everyday conveniences) and **All** (everything abax can use). Your selection is fetched in a background daemon thread (best-effort, non-blocking) and the fact that you were asked is remembered (`deps_prompted`), so the chooser doesn't reappear on its own. In the TUI/headless there's no dialog: a one-time notice points you at `abax deps` (install everything) or `pip install abax[…]` (specific extras).
 
 - **Best-effort and non-blocking.** Startup and the UI never wait on `pip`. If pip is unavailable, you're offline, or a build fails, abax silently keeps using its pure-Python fallbacks.
 - **Once per machine.** A marker file per package (under the cache directory's `autodeps/` folder) means a slow or failing install is not retried on every launch.
-- **Opt out** with `auto_install: false` in settings or `ABAX_NO_AUTOINSTALL=1`.
+- **Opt in, and revocable.** Nothing installs unless you choose it. `auto_install: false` in settings (Preferences → System) or `ABAX_NO_AUTOINSTALL=1` disables installs entirely.
 - The **Qt GUI binding** (PySide6/PyQt6) is *not* auto-installed — you need it to launch the GUI in the first place, so install it explicitly with `pip install abax[gui]`.
 
-Controls: **Tools → Install optional features** re-opens the chooser (Thin / All / custom) any time; `abax deps` installs everything from the command line, synchronously; and `abax --deps` reports the auto-install state and how many optional packages are present.
+Add more any time: **Tools → Install optional features** or **Preferences → System → Manage optional features…** re-open the chooser; `abax deps` installs everything from the command line, synchronously; and `abax --deps` reports the install state and how many optional packages are present.
 
 ## Themes
 

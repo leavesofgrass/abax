@@ -506,17 +506,19 @@ GUI tool**, `pandas` enables the DataFrame hand-off and Parquet, and `openpyxl`
 enables Excel — but each is optional, and abax tells you (and falls back) when
 one is missing. Run `abax --deps` to see what's available.
 
-By default abax installs **full-fat**: it **auto-installs these packages in the
-background** on first launch, so the analysis stack is there when you need it (opt
-out with `auto_install: false` or `ABAX_NO_AUTOINSTALL=1`; force it now with
-`abax deps`). When `numpy` is present it also **accelerates large aggregate
-reductions** ~3–4× — automatically and with the exact same results as the
+abax installs **nothing on its own**: on first launch it shows a chooser where you
+pick the optional features you want — **nothing is selected by default.** Choose the
+**All** preset (or tick *Data science*) to get this analysis stack, add it later from
+**Tools → Install optional features** / **Preferences → System**, or install it up
+front with `abax deps` (disable installs entirely with `auto_install: false` or
+`ABAX_NO_AUTOINSTALL=1`). When `numpy` is present abax also **accelerates large
+aggregate reductions** ~3–4× — automatically and with the exact same results as the
 pure-Python path.
 
 The heaviest optional piece — **`pymc`** (Bayesian / probabilistic programming,
 which pulls pytensor + arviz + numba/llvmlite, ~150 MB; exposed lazily as `pymc`
 in the console) — is a separate **`bayes`** extra. It's included in `all` (and
-the default full-fat auto-install), but you can install everything *except* it
+the **All** chooser preset), but you can install everything *except* it
 with `pip install ".[thin,parquet,science,jupyter]"` to save ~0.15 GB. *(Not to
 be confused with the stdlib-only naive-Bayes `bayes` engine above.)*
 

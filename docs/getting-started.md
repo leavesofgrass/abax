@@ -53,7 +53,7 @@ If you have `just` installed, `just install` runs the full developer setup for y
 | `hdf5` | `h5py` | Reading HDF5 `.h5` / `.hdf5` files |
 | `nec` | `PyNEC` | Reference NEC-2 antenna solver (cross-checks the built-in MoM) |
 | **`thin`** | `gui` + `tui` + `excel` + `fast-io` + `terminal` + `sevenzip` | A lean desktop install — every lightweight convenience, none of the heavy data libraries |
-| **`all`** | `thin` + `parquet` + `science` + `jupyter` + `bayes` + `stats-io` + `hdf5` + `nec` | One-shot install of everything abax can use (the default full-fat set) |
+| **`all`** | `thin` + `parquet` + `science` + `jupyter` + `bayes` + `stats-io` + `hdf5` + `nec` | One-shot install of everything abax can use (the full-fat set) |
 
 > **You choose on first launch.** You don't have to pick extras at install time:
 > install just `gui`, and the first time you open abax it shows a short **chooser**

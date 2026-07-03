@@ -1,10 +1,11 @@
 """On-demand auto-installation of abax's optional dependencies.
 
 abax's core is stdlib-only and every heavier capability is an *optional* package
-with a graceful fallback. By default abax fetches those packages **automatically**
-in the background, so a plain install grows into a "full-fat" one on its own — the
-data-science stack, Excel/Parquet I/O, the PTY terminal, and Jupyter integration
-all appear without the user running a single `pip install … [extra]`.
+with a graceful fallback. abax installs **nothing on its own**: on first launch it
+shows a chooser (also reachable from Tools → Install optional features and
+Preferences → System) where the user picks which optional features to fetch —
+**nothing is selected by default**. This module performs the best-effort background
+pip installs the user opts into.
 
 Design points:
 - **Best-effort & non-blocking.** Installs run in a daemon thread; startup and the
@@ -13,8 +14,9 @@ Design points:
 - **Attempted once per machine.** A marker file per package (under the cache dir)
   means a slow or failing install isn't retried on every launch. A *forced* install
   (the explicit "install optional features now" action) ignores the markers.
-- **Opt-out.** ``settings.auto_install = False`` or the ``ABAX_NO_AUTOINSTALL``
-  environment variable disables it entirely.
+- **Opt-in, and revocable.** ``settings.auto_install = False`` (Preferences → System)
+  or the ``ABAX_NO_AUTOINSTALL`` environment variable disables installs entirely — the
+  first-run chooser won't appear and ``enabled()`` returns False.
 
 The GUI binding itself (PySide6/PyQt6) is **not** auto-installed — you need a Qt
 binding to launch the GUI in the first place, and it's the one heavyweight a user

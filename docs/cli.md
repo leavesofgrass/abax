@@ -167,7 +167,7 @@ $ abax get budget.abax C10
 Install every optional dependency (the "full-fat" set: the data-science stack,
 Excel/Parquet I/O, the PTY terminal, and Jupyter integration), blocking with
 progress. Useful for headless setups where you want everything up front instead of
-waiting for the background auto-installer.
+picking features in the first-run chooser.
 
 ```bash
 $ abax deps
@@ -175,9 +175,10 @@ Attempted 5 package(s): msgspec, textual, nbformat, anywidget, pyte
 Optional dependencies present: 24/24
 ```
 
-abax already auto-installs these in the background on first GUI/TUI launch (see
-[configuration.md](configuration.md#auto-install)); `abax deps` just does it now
-and synchronously. The Qt GUI binding is *not* installed this way — you choose it
+On first GUI launch abax offers these through a feature chooser — **nothing is
+installed unless you choose it** (see
+[configuration.md](configuration.md#auto-install)); `abax deps` installs the whole
+set at once and synchronously. The Qt GUI binding is *not* installed this way — you choose it
 with `pip install abax[gui]`. Set `ABAX_NO_AUTOINSTALL=1` (or `auto_install:
 false` in settings) to disable automatic installation entirely.
 

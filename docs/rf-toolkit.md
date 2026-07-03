@@ -241,8 +241,8 @@ reports whether PyNEC is present.
 
 **Platform note (why it may be absent).** PyNEC is a compiled C++/SWIG
 extension and does **not** publish wheels for every platform — notably there are
-no Windows wheels. It is included in the `nec` extra and in `all` (so the
-background auto-installer *attempts* it on a default install), but on a machine
+no Windows wheels. It is included in the `nec` extra and in `all` (so picking the
+**All** feature preset *attempts* it), but on a machine
 without a matching wheel that best-effort build can fail quietly; abax then just
 keeps using the built-in solver. This is deliberate — PyNEC is a
 nice-to-have accelerator, not a requirement.

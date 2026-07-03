@@ -27,11 +27,13 @@ pip install abax[gui]         # the Qt GUI (PySide6) — the usual choice
 python -m abax                # launch it
 ```
 
-abax installs *full-fat by default*: on first launch it **auto-installs the
-remaining optional dependencies in the background** (the data-science stack,
-Excel/Parquet I/O, the PTY terminal, Jupyter integration) so everything just
-works. It's best-effort and non-blocking — abax keeps using its pure-Python
-fallbacks meanwhile — and attempted only once per machine.
+abax stays lean by default and **installs nothing on its own**: on first launch it
+shows a **chooser** where you pick which optional features you want (the data-science
+stack, Excel/Parquet I/O, the PTY terminal, Jupyter integration, …) — **nothing is
+selected by default**. Presets make it one click: **Thin** (light conveniences) or
+**All** (everything). Add more any time from *Tools → Install optional features* or
+*Preferences → System*. Installs are best-effort, non-blocking, and attempted only
+once per machine; abax always keeps working with its pure-Python fallbacks.
 
 ```sh
 python -m abax deps           # install every optional dependency now (blocking)
@@ -41,7 +43,7 @@ ABAX_NO_AUTOINSTALL=1 …        # opt out (or set auto_install=false in setting
 pip install -e ".[dev]"        # a development checkout
 # extras: .[gui] PySide6 · .[gui-pyqt] PyQt6 · .[tui] textual · .[excel] openpyxl
 #         .[parquet] pyarrow · .[science] numpy/pandas/scipy/… · .[bayes] pymc (heavy)
-#         .[jupyter] nbformat/ipykernel/anywidget · .[all] everything (default full-fat)
+#         .[jupyter] nbformat/ipykernel/anywidget · .[all] everything (full-fat)
 #         .[thin] GUI + light conveniences, no heavy science
 ```
 

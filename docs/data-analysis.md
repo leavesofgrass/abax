@@ -322,8 +322,8 @@ that loads the selected range as a **typed** pandas DataFrame — each column is
 coerced to its inferred type (int / float / bool / date / text) via
 `abax.core.typeinfer`. It displays the shape, dtypes, `describe()`, and a head
 preview, and can write `describe()` back into the sheet. Requires `pandas`
-(auto-installs on first GUI run under the default full-fat install); reports
-cleanly if it isn't ready yet. Use this when you want a quick, read-only
+(from the *Data science* feature — pick it in the first-run chooser or **Tools →
+Install optional features**); reports cleanly if it isn't ready yet. Use this when you want a quick, read-only
 pandas-eye view of a block without leaving the app — and the
 [console](#the-console-namespace) when you want the full library.
 

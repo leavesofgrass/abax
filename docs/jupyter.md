@@ -8,8 +8,8 @@ display, a kernel, and an editable widget. The pieces that need extra packages
 pip install abax[jupyter]
 ```
 
-(abax also auto-installs these in the background on first launch — see
-[Configuration](configuration.md).)
+(pick *Jupyter integration* in the first-run chooser — or **Tools → Install optional
+features** — to fetch these; see [Configuration](configuration.md).)
 
 ## Notebook I/O (`.ipynb`) — lossless round-trip
 

@@ -7,8 +7,8 @@ distributions, financial, engineering, database, and RF/amateur-radio), run buil
 analyses, reshape and visualize it, hand a
 selection to pandas, and script everything with Python — over CSV, Excel, Parquet,
 SQLite, JSON, R, and more. It runs as a Qt desktop GUI (the default), a vim-style
-terminal UI, or a headless CLI, and installs *full-fat by default* (optional
-dependencies auto-install in the background).
+terminal UI, or a headless CLI. The core is dependency-free; optional features are
+opt-in from a first-run chooser (nothing is installed until you choose it).
 
 - License: **GPL-3.0-or-later** — see [LICENSE](../LICENSE) and
   [licensing.md](licensing.md).

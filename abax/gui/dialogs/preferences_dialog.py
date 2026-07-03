@@ -226,11 +226,16 @@ class PreferencesDialog(QDialog):
 
         dep_box = QGroupBox("Optional dependencies", page)
         dep_form = QFormLayout(dep_box)
-        self._auto_install = QCheckBox("Auto-install optional features in the background", dep_box)
+        manage = QPushButton("Manage optional features…", dep_box)
+        manage.clicked.connect(self._manage_features)
+        dep_form.addRow(manage)
+        self._auto_install = QCheckBox("Let abax install the optional features I choose", dep_box)
         dep_form.addRow(self._auto_install)
         dep_hint = QLabel(
-            "When on, abax fetches optional packages (Excel, Parquet, science…) on "
-            "demand. Turn off to keep installs fully manual.", dep_box)
+            "abax is complete on its own and never installs anything unprompted. Use "
+            "“Manage optional features…” to pick add-ons (Excel, data science, "
+            "Jupyter…). Unchecking this keeps every install fully manual "
+            "(pip install abax[…]).", dep_box)
         dep_hint.setWordWrap(True)
         dep_form.addRow(dep_hint)
         outer.addWidget(dep_box)
@@ -272,6 +277,11 @@ class PreferencesDialog(QDialog):
         chosen = QFileDialog.getExistingDirectory(self, "Faceplate assets folder", start)
         if chosen:
             self._faceplate_dir.setText(chosen)
+
+    def _manage_features(self) -> None:
+        """Open the optional-feature chooser (also on Tools → Install optional features)."""
+        if hasattr(self._win, "install_optional_features"):
+            self._win.install_optional_features()
 
     def _apply(self) -> None:
         """Write every widget value back through the window's live-apply methods
