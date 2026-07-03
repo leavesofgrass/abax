@@ -70,6 +70,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._doc = Document()
         self._recorder = MacroRecorder()
         self._clip = None  # last copied region (core.fill.Clip)
+        self._clip_values = None  # same region as displayed values, for Paste Special
         self._clipboard = ClipboardManager()  # text/copy history
         self._setup_ui()
         from .grid.frozen_panes import FrozenPanes
@@ -340,6 +341,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._reg_icon(self._act(m_edit, "Cu&t", self.cut_selection, "Ctrl+X"), "cut")
         self._reg_icon(self._act(m_edit, "&Copy", self.copy_selection, "Ctrl+C"), "copy")
         self._reg_icon(self._act(m_edit, "&Paste", self.paste_at_cursor, "Ctrl+V"), "paste")
+        self._act(m_edit, "Paste &special...", self.paste_special, "Ctrl+Alt+V")
         self._act(m_edit, "Clea&r (Del)", self._clear_selection)
         self._act(m_edit, "Select &all", self._table.selectAll, "Ctrl+A")
         m_edit.addSeparator()

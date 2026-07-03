@@ -373,11 +373,12 @@ class DocumentMixin:
 
     def copy_selection(self) -> None:
         from ._qtcompat import QApplication
-        from ..core.fill import copy_region, region_to_tsv
+        from ..core.fill import copy_region, copy_region_values, region_to_tsv
 
         bounds = self._selected_bounds()
         sheet = self._doc.workbook.sheet
         self._clip = copy_region(sheet, bounds)
+        self._clip_values = copy_region_values(sheet, bounds)  # snapshot for Paste Special
         tsv = region_to_tsv(sheet, bounds)  # values, for other apps
         cb = QApplication.clipboard()
         if cb is not None:
@@ -416,6 +417,48 @@ class DocumentMixin:
         self._doc.mark_dirty()
         self.refresh_table()
         self._set_status("pasted")
+
+    def paste_special(self) -> None:
+        """Paste with options: values-only, transpose, and/or skip-blanks."""
+        from ._qtcompat import QApplication
+        from .dialogs.paste_special_dialog import PasteSpecialDialog
+        from ..core.fill import clip_from_tsv, paste_clip, transpose_clip
+
+        row = max(0, self._table.currentRow())
+        col = max(0, self._table.currentColumn())
+        have_internal = self._clip is not None
+        ext_text = ""
+        if not have_internal:
+            cb = QApplication.clipboard()
+            ext_text = cb.text() if cb is not None else ""
+            if not ext_text:
+                self._set_status("clipboard empty")
+                return
+
+        opts = PasteSpecialDialog.get_options(self, formulas_available=have_internal)
+        if opts is None:
+            return
+
+        want_values = opts["values"]
+        if have_internal:
+            base = self._clip_values if want_values else self._clip
+        else:
+            base = clip_from_tsv(ext_text, (row, col))  # external text is values only
+        if base is None:
+            self._set_status("nothing to paste")
+            return
+        if opts["transpose"]:
+            base = transpose_clip(base)
+        # Values (and any external/transposed block) paste verbatim; only an
+        # internal formula paste shifts relative references by the drop offset.
+        mode = "relative" if (have_internal and not want_values) else "absolute"
+
+        self._doc.checkpoint("paste special")
+        paste_clip(self._doc.workbook.sheet, base, (row, col),
+                   mode=mode, skip_blanks=opts["skip_blanks"], on_set=self._record)
+        self._doc.mark_dirty()
+        self.refresh_table()
+        self._set_status("pasted special")
 
     def fill_down_selection(self) -> None:
         from ..core.fill import fill_down

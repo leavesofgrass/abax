@@ -56,13 +56,38 @@ def copy_region(sheet, rng: str | tuple) -> Clip:
     return Clip((r1, c1), grid)
 
 
+def copy_region_values(sheet, rng: str | tuple) -> Clip:
+    """Like :func:`copy_region` but captures each cell's *displayed value*.
+
+    Used by Paste Special "values only": the clip holds computed results as
+    literal strings, so pasting drops the formulas that produced them.
+    """
+    r1, c1, r2, c2 = _bounds(rng)
+    grid = [[sheet.display(r, c) for c in range(c1, c2 + 1)] for r in range(r1, r2 + 1)]
+    return Clip((r1, c1), grid)
+
+
+def transpose_clip(clip: Clip) -> Clip:
+    """Return ``clip`` with rows and columns swapped (origin preserved)."""
+    grid = [list(col) for col in zip(*clip.grid)] if clip.grid else []
+    return Clip(clip.origin, grid)
+
+
 def paste_clip(
-    sheet, clip: Clip, dest: str | tuple, *, mode: str = "relative", on_set: OnSet | None = None
+    sheet,
+    clip: Clip,
+    dest: str | tuple,
+    *,
+    mode: str = "relative",
+    skip_blanks: bool = False,
+    on_set: OnSet | None = None,
 ) -> None:
     dr0, dc0 = _coord(dest)
     dr, dc = dr0 - clip.origin[0], dc0 - clip.origin[1]
     for i, row in enumerate(clip.grid):
         for j, raw in enumerate(row):
+            if skip_blanks and raw == "":
+                continue  # leave the destination cell untouched
             r, c = dr0 + i, dc0 + j
             new = shift_formula(raw, dr, dc) if mode == "relative" else raw
             sheet.set_cell(r, c, new)

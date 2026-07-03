@@ -20,6 +20,9 @@ All notable changes to abax are documented here. The format follows
 - **Blank-sheet hint:** an unobtrusive, theme-aware overlay on an empty sheet
   points to the key gestures (type to enter data, `=` for a formula,
   `Ctrl+Shift+P` / `F1` / `Ctrl+K`); it disappears the moment a cell is filled.
+- **Paste Special** (Edit → Paste special…, `Ctrl+Alt+V`): paste **values only**
+  (dropping formulas), **transpose** rows ↔ columns, and/or **skip blanks** so
+  empty source cells don't overwrite the destination.
 
 ## [0.1.5] — 2026-07-02
 

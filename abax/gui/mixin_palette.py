@@ -134,6 +134,7 @@ class PaletteMixin:
             "Cycle code isolation (off / isolated / strict)": self.cycle_code_isolation,
             "Graph...": self.show_graph,
             "Equation editor...": self.show_equation,
+            "Paste special (values / transpose)...": self.paste_special,
             "Clipboard history...": self.show_clipboard,
             "Manage clipboard...": self.manage_clipboard,
             "Toggle OpenDyslexic font": self.toggle_dyslexic_font,
