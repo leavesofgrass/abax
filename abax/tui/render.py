@@ -106,6 +106,9 @@ def _render(stdscr, curses, editor, attr, cap, colors, cond_attr) -> None:
     if editor.mode == "help":
         _render_help(stdscr, curses, editor, attr, max_y, max_x)
         return
+    if editor.mode == "describe":
+        _render_describe(stdscr, curses, editor, attr, max_y, max_x)
+        return
     if editor.mode == "rpn":
         _render_rpn(stdscr, curses, editor, attr, max_y, max_x)
         return
@@ -123,9 +126,17 @@ def _render(stdscr, curses, editor, attr, cap, colors, cond_attr) -> None:
     top, left = editor.scroll_row, editor.scroll_col
     # Active visual selection (r1, c1, r2, c2), or None when not in visual mode.
     vsel = editor.visual_bounds() if editor.mode in ("visual", "visual-line") else None
-    # Formula bar (row 0, read-only): A1 ref + the active cell's raw content.
-    _addstr(stdscr, 0, 0, ("  " + editor.formula_bar_text()).ljust(max_x)[: max_x - 1],
-            attr("label"))
+    # Row 0: in screen-reader mode, a single reader-friendly line describing the
+    # active cell (ref + value + edit/selection state) — a superset of the
+    # formula bar, tinted with the accent role so it stands out as the primary
+    # readout. Otherwise the ordinary read-only formula bar (A1 ref + raw
+    # content). Prefix marks which is showing: "» " reader, "  " formula bar.
+    if getattr(editor, "screen_reader", False):
+        _addstr(stdscr, 0, 0, ("» " + editor.reader_line()).ljust(max_x)[: max_x - 1],
+                attr("accent"))
+    else:
+        _addstr(stdscr, 0, 0, ("  " + editor.formula_bar_text()).ljust(max_x)[: max_x - 1],
+                attr("label"))
     # Column header (row 1).
     _addstr(stdscr, 1, 0, " " * 5, attr("label"))
     x = 5
@@ -244,6 +255,32 @@ def _render_help(stdscr, curses, editor, attr, max_y, max_x) -> None:
         else:
             a = (attr("accent") | curses.A_REVERSE) if selected else attr("lcd")
             line = f"{key:<28} {desc}"
+        _addstr(stdscr, i + 1, 2, line.ljust(max_x - 3)[: max_x - 3], a)
+
+
+def _render_describe(stdscr, curses, editor, attr, max_y, max_x) -> None:
+    """Scrollable descriptive-statistics panel (``:describe full <range>``).
+
+    Same overlay idiom as help/browser: a banner title, a body of ``(label,
+    value)`` rows that scrolls to keep the selected row centred, and a footer
+    hint. Blank spacer rows (both cells empty) render as gaps.
+    """
+    n = getattr(editor, "describe_summary", None)
+    count = n["count"] if isinstance(n, dict) else 0
+    title = (f"Describe {editor.describe_range}  (n={count})  ·  "
+             "j/k scroll · g/G top/bottom · Esc/q close")
+    _addstr(stdscr, 0, 0, title.ljust(max_x)[: max_x - 1], attr("banner"))
+    rows = editor.describe_lines
+    visible = max(1, max_y - 3)
+    start = max(0, min(editor.describe_idx - visible // 2, len(rows) - visible))
+    start = max(0, start)
+    for i, (label, value) in enumerate(rows[start : start + visible]):
+        idx = start + i
+        if not label and not value:  # spacer row
+            continue
+        selected = idx == editor.describe_idx
+        line = f"{label:<20} {value}"
+        a = (attr("accent") | curses.A_REVERSE) if selected else attr("lcd")
         _addstr(stdscr, i + 1, 2, line.ljust(max_x - 3)[: max_x - 3], a)
 
 

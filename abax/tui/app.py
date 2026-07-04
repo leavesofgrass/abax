@@ -39,7 +39,10 @@ def run_tui(file: str | None = None, registry=None) -> int:
             pass
 
     doc = Document.open(file) if file else Document()
-    editor = TuiEditor(doc, registry)
+    # Pass settings so the editor can honour the Wave-1 accessibility flags
+    # (tui_screen_reader / speak_on_move); it reads them defensively, so an older
+    # settings struct without those fields simply leaves the features off.
+    editor = TuiEditor(doc, registry, settings)
     theme_name = getattr(settings, "tui_theme", "obsidian")
 
     editor.theme_name = theme_name if theme_name in THEMES else "obsidian"

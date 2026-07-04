@@ -45,7 +45,9 @@ HELP_ENTRIES: list[tuple[str, str]] = [
     (":paste [dest]", "paste the copied range"),
     (":fill down|right|series <range>", "fill a range"),
     (":sort <range> [col] [desc]", "sort a range"),
-    (":describe <range>", "descriptive stats over a range"),
+    (":describe <range>", "descriptive stats over a range (status line)"),
+    (":describe full <range>", "full scrollable descriptive-stats overlay"),
+    (":pivot <rng> <idx> <col> <val> [agg]", "pivot/group-by a table into the sheet"),
     (":fmt <spec> [range]", "apply a number format"),
     (":convert <v> <from> <to>", "unit conversion"),
     (":sheet <name|index>", "switch to a sheet (gt/gT for next/prev)"),
@@ -69,11 +71,19 @@ class TuiEditor:
     The curses front-end drives this; tests can drive it directly.
     """
 
-    def __init__(self, document, registry=None) -> None:
+    def __init__(self, document, registry=None, settings=None) -> None:
         from ..recorder import MacroRecorder
 
         self.doc = document
         self.registry = registry
+        self.settings = settings
+        # Accessibility knobs, read defensively off the Wave-1 settings contract
+        # (older settings.json / structs simply lack them -> the features stay
+        # off). ``screen_reader`` swaps the grid header for a single-line,
+        # reader-friendly view of the active cell; ``speak_on_move`` additionally
+        # voices that line through the optional TTS engine on every cursor move.
+        self.screen_reader = bool(getattr(settings, "tui_screen_reader", False))
+        self.speak_on_move = bool(getattr(settings, "speak_on_move", False))
         self.recorder = MacroRecorder()
         self.row = 0
         self.col = 0
@@ -84,7 +94,8 @@ class TuiEditor:
         self.scroll_col = 0
         self.viewport_rows = 0  # data rows the grid can show (0 => unknown yet)
         self.viewport_cols = 0  # data cols the grid can show (0 => unknown yet)
-        self.mode = "normal"  # normal|insert|command|browser|visual|visual-line|help
+        # normal|insert|command|browser|visual|visual-line|help|rpn|plot|describe
+        self.mode = "normal"
         self.anchor_row = 0  # visual-mode selection anchor (fixed corner)
         self.anchor_col = 0
         self.pending_g = False  # a bare 'g' was pressed; awaiting the second key
@@ -108,6 +119,10 @@ class TuiEditor:
         self.plot_expr = ""
         self.plot_bounds = None  # (xmin, xmax, ymin, ymax) for range plots, else None
         self.describe_summary: dict | None = None  # last :describe result, for tests
+        self.describe_lines: list[tuple[str, str]] = []  # full-overlay rows (label, value)
+        self.describe_range = ""  # range shown by the :describe full overlay
+        self.describe_idx = 0  # scroll offset when mode == describe
+        self.spoken: list[str] = []  # last lines handed to TTS (drives tests/replay)
         self.message = ""
         self.running = True
 
@@ -119,6 +134,7 @@ class TuiEditor:
         self.row = max(0, self.row + dr)
         self.col = max(0, self.col + dc)
         self._reclamp()
+        self.announce()
 
     def _reclamp(self) -> None:
         """Keep the cursor non-negative and inside the visible window.
@@ -282,6 +298,8 @@ class TuiEditor:
             self._handle_plot(args)
         elif cmd in ("describe", "desc", "stats"):
             self._handle_describe(args)
+        elif cmd in ("pivot", "pt"):
+            self._handle_pivot(args)
         elif cmd == "eq":
             self._handle_eq(raw[2:].strip() if raw.startswith("eq") else "")
         elif cmd == "convert":
@@ -322,6 +340,68 @@ class TuiEditor:
         active cell, so what you'd edit with ``i`` is always visible.
         """
         return f"{self.cursor_a1()}  {self.sheet.get_raw(self.row, self.col)}"
+
+    # --- screen-reader mode ----------------------------------------------
+
+    def reader_line(self) -> str:
+        """A single-line, reader-friendly description of the active cell.
+
+        Speaks the cell *reference*, its *displayed value* (or an explicit
+        "blank"), the underlying *formula* when the raw content differs from the
+        value, and the current *edit state* — so a screen-reader user gets the
+        whole context of one cell on one line without scanning a 2-D grid.
+
+        Examples::
+
+            A1: 3 (formula =1+2)
+            B2: blank
+            C3: hello — editing: hel      (while typing in insert mode)
+        """
+        ref = self.cursor_a1()
+        raw = self.sheet.get_raw(self.row, self.col)
+        shown = self.sheet.display(self.row, self.col)
+        value = shown if shown != "" else "blank"
+        line = f"{ref}: {value}"
+        # Surface the formula behind a computed value (raw starts with '=' and
+        # differs from what's shown). A plain literal already appears as `value`.
+        if raw.startswith("=") and raw != shown:
+            line += f" (formula {raw})"
+        if self.mode == "insert":
+            line += f" — editing: {self.edit_buf}"
+        elif self.mode in ("visual", "visual-line"):
+            r1, c1, r2, c2 = self.visual_bounds()
+            line += f" — selecting {to_a1(r1, c1)}:{to_a1(r2, c2)}"
+        return line
+
+    def announce(self) -> None:
+        """Voice the active cell after a cursor move, if speak-on-move is on.
+
+        A no-op unless :attr:`speak_on_move` is set. Kept separate from
+        :meth:`reader_line` (which the renderer always calls in screen-reader
+        mode) so movement — not every repaint — drives the speech.
+        """
+        if self.speak_on_move:
+            self.speak(self.reader_line())
+
+    def speak(self, text: str) -> None:
+        """Hand ``text`` to the optional TTS engine, guarded and non-fatal.
+
+        The ``engine.tts`` adapter (and its ``pyttsx3`` backend) is optional: if
+        it is absent or fails, we swallow the error — speech is a courtesy, never
+        a hard dependency of the TUI. Every attempt is recorded in
+        :attr:`spoken` so headless tests can assert *what* would be spoken
+        without a real audio device.
+        """
+        if not text:
+            return
+        self.spoken.append(text)
+        try:  # optional dep: abax.engine.tts -> pyttsx3
+            from ..engine import tts
+
+            if getattr(tts, "available", lambda: False)():
+                tts.speak(text)
+        except Exception:
+            pass  # no TTS engine / backend -> silently skip the audio
 
     # --- sheet switching --------------------------------------------------
 
@@ -467,6 +547,80 @@ class TuiEditor:
                     out.append(float(v))
         return out
 
+    def _range_block(self, rng: str) -> list[list[str]]:
+        """Read a range as a 2-D block of *raw string* cells (row-major).
+
+        The shape :mod:`abax.core.pivot` expects: ``rows[0]`` is the header and
+        the remaining rows are data. Cells are the raw text (a formula stays a
+        formula string); use :meth:`_range_numbers` when you need computed
+        numbers instead.
+        """
+        from ..core.reference import parse_range
+
+        r1, c1, r2, c2 = parse_range(rng)
+        return [[self.sheet.get_raw(r, c) for c in range(c1, c2 + 1)]
+                for r in range(r1, r2 + 1)]
+
+    def _handle_pivot(self, args: list[str]) -> None:
+        """``:pivot <range> <index> <column> <value> [agg] [dest]`` — group/pivot.
+
+        Treats ``range`` as a table whose first row is the header, then reuses
+        :func:`abax.core.pivot.pivot_table` (columns are addressed by header
+        *name*, per that contract). ``index`` runs down the left, distinct
+        ``column`` values across the top, each body cell the ``agg`` (default
+        ``sum``) of ``value``. The result block is written into the sheet at
+        ``dest`` (default: two rows below the source range), under an undo
+        checkpoint, and the cursor jumps there.
+        """
+        from ..core.pivot import AGGREGATIONS, PivotError, pivot_table
+        from ..core.reference import parse_a1, parse_range
+
+        if len(args) < 4:
+            self.message = ("usage: :pivot <range> <index> <column> <value> "
+                            "[agg] [dest]   (aggs: " + " ".join(AGGREGATIONS) + ")")
+            return
+        rng, index_col, column_col, value_col = args[0], args[1], args[2], args[3]
+        agg = "sum"
+        dest = None
+        for a in args[4:]:
+            if a in AGGREGATIONS:
+                agg = a
+            elif self._is_range_arg(a):
+                dest = a
+            else:
+                self.message = f"pivot: unknown aggregation or dest {a!r}"
+                return
+        try:
+            block = self._range_block(rng)
+            result = pivot_table(block, index_col, column_col, value_col, agg=agg)
+        except PivotError as exc:
+            self.message = f"pivot: {exc}"
+            return
+        except Exception as exc:  # bad range, etc.
+            self.message = f"pivot: {exc}"
+            return
+        # Default destination: two blank rows below the source block.
+        try:
+            if dest is not None:
+                dr, dc = parse_a1(dest)
+            else:
+                _, c1, r2, _ = parse_range(rng)
+                dr, dc = r2 + 2, c1
+        except Exception as exc:
+            self.message = f"pivot: bad dest: {exc}"
+            return
+        self.doc.checkpoint(f"pivot {rng}")
+        for i, row in enumerate(result):
+            for j, text in enumerate(row):
+                self.sheet.set_cell(dr + i, dc + j, text)
+                self.recorder.record_set(to_a1(dr + i, dc + j), text)
+        self.doc.mark_dirty()
+        self.row, self.col = dr, dc
+        self._reclamp()
+        self.announce()
+        self.message = (f"pivot {agg}({value_col}) of {index_col} x {column_col} "
+                        f"-> {to_a1(dr, dc)} ({len(result)}x{len(result[0])})")
+
     def _plot_ranges(self, args: list[str]) -> None:
         try:
             first = self._range_numbers(args[0])
@@ -498,8 +652,16 @@ class TuiEditor:
         Reuses :func:`abax.core.science.descriptive.describe` for the math and
         renders a compact summary on the status line. A bad or empty range is
         reported gracefully rather than raising.
+
+        ``:describe full <range>`` (also ``:desc full …``) opens a scrollable
+        overlay with the *complete* spread of measures instead of the one-line
+        headline — see :meth:`_open_describe`.
         """
         from ..core.science.descriptive import describe
+
+        if args and args[0] in ("full", "all", "+"):
+            self._open_describe(args[1] if len(args) > 1 else self.cursor_a1())
+            return
 
         rng = args[0] if args else self.cursor_a1()
         try:
@@ -536,6 +698,89 @@ class TuiEditor:
             parts.append(f"Q3={_fmt_num(summary['Q3'])}")
         parts.append(f"max={_fmt_num(summary['max'])}")
         return f"{rng}  " + "  ".join(parts)
+
+    # --- descriptive-stats overlay (:describe full) -----------------------
+
+    # Order + human labels for the full overlay. Mirrors the keys returned by
+    # core.science.descriptive.describe (whose FIELDS is the source of truth);
+    # split into two groups with a blank spacer for readability.
+    _DESCRIBE_ROWS: tuple[tuple[str, str], ...] = (
+        ("count", "Count"),
+        ("sum", "Sum"),
+        ("mean", "Mean"),
+        ("median", "Median"),
+        ("mode", "Mode"),
+        ("", ""),
+        ("min", "Minimum"),
+        ("Q1", "Q1 (25%)"),
+        ("Q3", "Q3 (75%)"),
+        ("max", "Maximum"),
+        ("range", "Range"),
+        ("", ""),
+        ("variance", "Variance (sample)"),
+        ("stdev", "Std dev (sample)"),
+        ("variance_pop", "Variance (pop.)"),
+        ("stdev_pop", "Std dev (pop.)"),
+        ("", ""),
+        ("skewness", "Skewness"),
+        ("kurtosis", "Kurtosis (excess)"),
+    )
+
+    def _open_describe(self, rng: str) -> None:
+        """Build and show the scrollable full descriptive-stats overlay.
+
+        Computes :func:`~abax.core.science.descriptive.describe` over ``rng`` and
+        stores every measure as ``(label, value)`` rows for the renderer. A bad
+        range, or one with no numeric data, reports on the status line and does
+        *not* enter the overlay.
+        """
+        from ..core.science.descriptive import describe
+
+        try:
+            values = self._range_numbers(rng)
+        except Exception as exc:
+            self.describe_summary = None
+            self.message = f"describe: {exc}"
+            return
+        summary = describe(values)
+        self.describe_summary = summary
+        if not summary["count"]:
+            self.message = f"describe {rng}: no numeric data"
+            return
+        self.describe_range = rng
+        self.describe_lines = self._describe_full_lines(summary)
+        self.describe_idx = 0
+        self.mode = "describe"
+        if self.speak_on_move:
+            self.speak(f"Descriptive statistics for {rng}, "
+                       f"{summary['count']} values")
+
+    def _describe_full_lines(self, summary: dict) -> list[tuple[str, str]]:
+        """Render a describe() summary as ordered ``(label, value)`` overlay rows.
+
+        Undefined measures (``None`` for small samples) show an em dash rather
+        than being dropped, so the panel layout is stable across sample sizes.
+        Blank spacer rows in :data:`_DESCRIBE_ROWS` pass through as ``("", "")``.
+        """
+        rows: list[tuple[str, str]] = []
+        for key, label in self._DESCRIBE_ROWS:
+            if not key:
+                rows.append(("", ""))
+                continue
+            val = summary.get(key)
+            if key == "count":
+                rows.append((label, str(val)))
+            elif val is None:
+                rows.append((label, "—"))
+            else:
+                rows.append((label, _fmt_num(val)))
+        return rows
+
+    def describe_move(self, step: int) -> None:
+        """Scroll the describe overlay, clamped to its row range."""
+        n = len(self.describe_lines)
+        if n:
+            self.describe_idx = max(0, min(self.describe_idx + step, n - 1))
 
     def _handle_eq(self, latex: str) -> None:
         if not latex:
@@ -888,13 +1133,16 @@ class TuiEditor:
         elif ch == "g":
             self.row = 0
             self._reclamp()
+            self.announce()
         elif ch == "G":
             n_rows, _ = self.sheet.used_bounds()
             self.row = max(0, n_rows - 1)
             self._reclamp()
+            self.announce()
         elif ch == "0":
             self.col = 0
             self._reclamp()
+            self.announce()
         elif ch == "n":  # next search match
             self.next_match(1)
         elif ch == "N":  # previous search match

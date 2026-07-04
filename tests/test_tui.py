@@ -939,3 +939,336 @@ def test_switch_sheet_shows_the_other_sheets_cells():
     ed.goto_sheet("Data")
     assert ed.sheet.display(0, 0) == "on-second"
     assert ed.formula_bar_text() == "A1  on-second"
+
+
+# --- (A-tui) screen-reader mode ------------------------------------------
+
+class _Settings:
+    """Minimal stand-in for the Wave-1 settings struct (only the a11y flags)."""
+
+    def __init__(self, **kw):
+        self.tui_screen_reader = kw.get("tui_screen_reader", False)
+        self.speak_on_move = kw.get("speak_on_move", False)
+
+
+def test_screen_reader_flags_read_from_settings_defensively():
+    """The editor honours the Wave-1 a11y flags, and is fine when they're absent."""
+    ed = TuiEditor(Document(), settings=_Settings(tui_screen_reader=True,
+                                                  speak_on_move=True))
+    assert ed.screen_reader is True
+    assert ed.speak_on_move is True
+    # No settings at all -> both features simply off (older struct / no file).
+    plain = TuiEditor(Document())
+    assert plain.screen_reader is False
+    assert plain.speak_on_move is False
+
+
+def test_reader_line_reports_ref_value_and_formula():
+    ed = TuiEditor(Document())
+    ed.sheet.set("A1", "=1+2")   # value 3, formula visible
+    ed.sheet.set("B2", "hello")  # plain literal
+    ed.row, ed.col = 0, 0
+    line = ed.reader_line()
+    assert line.startswith("A1: 3")
+    assert "formula =1+2" in line
+    ed.row, ed.col = 1, 1
+    assert ed.reader_line() == "B2: hello"
+    ed.row, ed.col = 2, 2  # empty cell reads as "blank"
+    assert ed.reader_line() == "C3: blank"
+
+
+def test_reader_line_includes_edit_state():
+    ed = TuiEditor(Document())
+    ed.row, ed.col = 0, 0
+    ed.begin_insert()
+    ed.edit_buf = "=SUM("
+    assert "editing: =SUM(" in ed.reader_line()
+
+
+def test_reader_line_includes_visual_selection_state():
+    ed = TuiEditor(Document())
+    ed.row, ed.col = 0, 0
+    ed.dispatch_normal("v")
+    ed.dispatch_normal("j")
+    ed.dispatch_normal("l")  # A1:B2
+    assert "selecting A1:B2" in ed.reader_line()
+
+
+def test_speak_on_move_records_spoken_lines():
+    """With speak_on_move set, moving voices the active cell (recorded headless)."""
+    ed = TuiEditor(Document(), settings=_Settings(speak_on_move=True))
+    ed.sheet.set("A2", "42")
+    ed.dispatch_normal("j")  # A1 -> A2
+    assert ed.spoken[-1].startswith("A2: 42")
+    ed.dispatch_normal("l")  # A2 -> B2 (blank)
+    assert ed.spoken[-1] == "B2: blank"
+
+
+def test_no_speech_when_speak_on_move_off():
+    ed = TuiEditor(Document(), settings=_Settings(speak_on_move=False))
+    ed.dispatch_normal("j")
+    ed.dispatch_normal("l")
+    assert ed.spoken == []
+
+
+def test_speak_guarded_when_tts_engine_absent(monkeypatch):
+    """speak() never raises even if the optional engine.tts import blows up."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def boom(name, *a, **k):
+        if name.endswith("engine.tts") or name == "abax.engine.tts":
+            raise ImportError("no tts")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", boom)
+    ed = TuiEditor(Document(), settings=_Settings(speak_on_move=True))
+    ed.dispatch_normal("j")  # would import engine.tts -> ImportError, swallowed
+    assert ed.spoken  # still recorded what it would have said
+
+
+def test_render_swaps_formula_bar_for_reader_line():
+    """In screen-reader mode row 0 shows the reader line (prefixed »), not the bar."""
+    from abax.tui import render as render_mod
+
+    ed = TuiEditor(Document(), settings=_Settings(tui_screen_reader=True))
+    ed.sheet.set("A1", "=6*7")
+    ed.row, ed.col = 0, 0
+
+    painted: dict[tuple[int, int], str] = {}
+
+    class FakeScr:
+        def getmaxyx(self):
+            return 24, 80
+
+        def addstr(self, y, x, text, attr_val):
+            painted[(y, x)] = text
+
+    class FakeCurses:
+        A_REVERSE = 0
+        A_BOLD = 0
+        A_NORMAL = 0
+
+        def color_pair(self, n):
+            return 0
+
+    ed.viewport_rows = render_mod.visible_rows(24)
+    ed.viewport_cols = render_mod.visible_cols(80)
+    ed._reclamp()
+    render_mod._render(FakeScr(), FakeCurses(), ed, lambda role: 0, "mono", {},
+                       lambda hexc: None)
+    row0 = painted[(0, 0)]
+    assert row0.lstrip().startswith("»")
+    assert "A1: 42" in row0
+    assert "formula =6*7" in row0
+
+
+# --- (A-tui) :pivot -------------------------------------------------------
+
+def _load_sales_table(ed):
+    """A tiny region×product sales table in A1:C5 (header + 4 data rows)."""
+    rows = [
+        ("A1", "region"), ("B1", "product"), ("C1", "sales"),
+        ("A2", "East"), ("B2", "A"), ("C2", "10"),
+        ("A3", "East"), ("B3", "B"), ("C3", "20"),
+        ("A4", "West"), ("B4", "A"), ("C4", "30"),
+        ("A5", "West"), ("B5", "A"), ("C5", "5"),
+    ]
+    for ref, v in rows:
+        ed.sheet.set(ref, v)
+
+
+def test_pivot_command_writes_table_into_sheet():
+    """:pivot reuses core.pivot.pivot_table; result lands below the source range.
+
+    Oracle (computed directly by abax.core.pivot.pivot_table on the same block):
+    header [region, A, B]; East -> (A=10, B=20); West -> (A=30+5=35, B=blank).
+    Default destination is two rows below the source (source ends row 5 -> A7).
+    """
+    ed = TuiEditor(Document())
+    _load_sales_table(ed)
+    ed.command_buf = ":pivot A1:C5 region product sales sum"
+    ed.run_command()
+    assert ed.mode == "normal"
+    # Destination A7 (row index 6): header then two data rows.
+    assert ed.sheet.get_raw(6, 0) == "region"
+    assert ed.sheet.get_raw(6, 1) == "A"
+    assert ed.sheet.get_raw(6, 2) == "B"
+    assert ed.sheet.get_raw(7, 0) == "East"
+    assert ed.sheet.get_raw(7, 1) == "10"
+    assert ed.sheet.get_raw(7, 2) == "20"
+    assert ed.sheet.get_raw(8, 0) == "West"
+    assert ed.sheet.get_raw(8, 1) == "35"
+    assert ed.sheet.get_raw(8, 2) == ""   # West/B never occurs
+    # Cursor jumped to the pivot's top-left.
+    assert (ed.row, ed.col) == (6, 0)
+
+
+def test_pivot_command_explicit_dest_and_agg():
+    """A trailing dest range and a named agg both parse regardless of order."""
+    ed = TuiEditor(Document())
+    _load_sales_table(ed)
+    ed.command_buf = ":pivot A1:C5 region product sales E1 mean"
+    ed.run_command()
+    # mean over East/A = 10 (single value); West/A = (30+5)/2 = 17.5.
+    assert ed.sheet.get_raw(0, 4) == "region"      # E1
+    assert ed.sheet.get_raw(1, 4) == "East"
+    assert ed.sheet.get_raw(1, 5) == "10"          # F2
+    assert ed.sheet.get_raw(2, 5) == "17.5"        # F3  West/A mean
+
+
+def test_pivot_command_undo_restores_sheet():
+    ed = TuiEditor(Document())
+    _load_sales_table(ed)
+    ed.command_buf = ":pivot A1:C5 region product sales"
+    ed.run_command()
+    assert ed.sheet.get_raw(6, 0) == "region"  # pivot written
+    ed.doc.undo()
+    assert ed.sheet.get_raw(6, 0) == ""        # and rolled back
+
+
+def test_pivot_command_unknown_column_is_graceful():
+    ed = TuiEditor(Document())
+    _load_sales_table(ed)
+    ed.command_buf = ":pivot A1:C5 region nope sales"
+    ed.run_command()
+    assert ed.mode == "normal"
+    assert "pivot:" in ed.message
+    assert ed.sheet.get_raw(6, 0) == ""  # nothing written
+
+
+def test_pivot_command_usage_when_underspecified():
+    ed = TuiEditor(Document())
+    ed.command_buf = ":pivot A1:C5 region"
+    ed.run_command()
+    assert "usage:" in ed.message
+
+
+# --- (A-tui) :describe full overlay --------------------------------------
+
+def test_describe_full_opens_scrollable_overlay():
+    """:describe full enters a describe overlay with the complete stat spread.
+
+    Dataset [2,4,4,4,5,5,7,9] is the Wikipedia 'Standard deviation' worked
+    example: population stdev = 2 exactly (variance 4). Sample stdev is
+    sqrt(32/7) ≈ 2.13808993…; mean 5, median 4.5, mode 4, Q1 4, Q3 5.5. All
+    values come from core.science.descriptive.describe, not the TUI.
+    """
+    ed = TuiEditor(Document())
+    for i, v in enumerate([2, 4, 4, 4, 5, 5, 7, 9], start=1):
+        ed.sheet.set(f"A{i}", str(v))
+    ed.command_buf = ":describe full A1:A8"
+    ed.run_command()
+    assert ed.mode == "describe"
+    assert ed.describe_range == "A1:A8"
+    assert ed.describe_idx == 0
+    rows = dict(r for r in ed.describe_lines if r[0])
+    assert rows["Count"] == "8"
+    assert rows["Mean"] == "5"
+    assert rows["Median"] == "4.5"
+    assert rows["Mode"] == "4"
+    assert rows["Q1 (25%)"] == "4"
+    assert rows["Q3 (75%)"] == "5.5"
+    assert rows["Std dev (pop.)"] == "2"          # exact
+    assert rows["Variance (pop.)"] == "4"
+    assert rows["Std dev (sample)"].startswith("2.138")
+    assert rows["Range"] == "7"
+
+
+def test_describe_full_scroll_and_exit():
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    for i, v in enumerate([1, 2, 3, 4, 5], start=1):
+        ed.sheet.set(f"A{i}", str(v))
+    ed.command_buf = ":describe full A1:A5"
+    ed.run_command()
+    assert ed.mode == "describe"
+    _handle_key(ed, "j")
+    assert ed.describe_idx == 1
+    _handle_key(ed, "G")  # jump to bottom, clamped
+    assert ed.describe_idx == len(ed.describe_lines) - 1
+    _handle_key(ed, "g")  # back to top
+    assert ed.describe_idx == 0
+    _handle_key(ed, "q")  # exit
+    assert ed.mode == "normal"
+
+
+def test_describe_full_small_sample_shows_dashes():
+    """Undefined measures (sample stdev/skew/kurtosis for tiny n) render as em dash."""
+    ed = TuiEditor(Document())
+    ed.sheet.set("A1", "7")  # n = 1
+    ed.command_buf = ":describe full A1:A1"
+    ed.run_command()
+    assert ed.mode == "describe"
+    rows = dict(r for r in ed.describe_lines if r[0])
+    assert rows["Count"] == "1"
+    assert rows["Std dev (sample)"] == "—"   # undefined for n < 2
+    assert rows["Skewness"] == "—"
+    assert rows["Kurtosis (excess)"] == "—"
+
+
+def test_describe_full_empty_range_stays_normal():
+    """No numeric data -> a status message, and the overlay is NOT entered."""
+    ed = TuiEditor(Document())
+    ed.sheet.set("A1", "text")
+    ed.command_buf = ":describe full A1:A5"
+    ed.run_command()
+    assert ed.mode == "normal"
+    assert "no numeric data" in ed.message
+
+
+def test_describe_full_bad_range_is_graceful():
+    ed = TuiEditor(Document())
+    ed.command_buf = ":describe full not-a-range"
+    ed.run_command()
+    assert ed.mode == "normal"
+    assert "describe:" in ed.message
+
+
+def test_bare_describe_still_status_line_only():
+    """Regression: plain :describe keeps its one-line status-bar behaviour."""
+    ed = TuiEditor(Document())
+    for i, v in enumerate([2, 4, 4, 4, 5, 5, 7, 9], start=1):
+        ed.sheet.set(f"A{i}", str(v))
+    ed.command_buf = ":describe A1:A8"
+    ed.run_command()
+    assert ed.mode == "normal"  # no overlay
+    assert "n=8" in ed.message
+
+
+def test_describe_overlay_renders_rows():
+    """The describe overlay paints its (label, value) rows via the curses stub."""
+    from abax.tui import render as render_mod
+
+    ed = TuiEditor(Document())
+    for i, v in enumerate([2, 4, 4, 4, 5, 5, 7, 9], start=1):
+        ed.sheet.set(f"A{i}", str(v))
+    ed.command_buf = ":describe full A1:A8"
+    ed.run_command()
+
+    painted: dict[tuple[int, int], str] = {}
+
+    class FakeScr:
+        def getmaxyx(self):
+            return 24, 80
+
+        def addstr(self, y, x, text, attr_val):
+            painted[(y, x)] = text
+
+    class FakeCurses:
+        A_REVERSE = 0
+        A_BOLD = 0
+        A_NORMAL = 0
+
+        def color_pair(self, n):
+            return 0
+
+    render_mod._render(FakeScr(), FakeCurses(), ed, lambda role: 0, "mono", {},
+                       lambda hexc: None)
+    # Banner names the range and the count.
+    assert "Describe A1:A8" in painted[(0, 0)]
+    assert "n=8" in painted[(0, 0)]
+    body = " ".join(v for (y, _), v in painted.items() if y >= 1)
+    assert "Count" in body and "Mean" in body

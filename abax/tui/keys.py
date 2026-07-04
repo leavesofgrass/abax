@@ -34,6 +34,8 @@ def _handle_key(editor: TuiEditor, ch) -> None:
         _handle_browser(editor, ch)
     elif editor.mode == "help":
         _handle_help(editor, ch)
+    elif editor.mode == "describe":
+        _handle_describe(editor, ch)
     elif editor.mode == "plot":
         _handle_plot(editor, ch)
     elif editor.mode == "rpn":
@@ -142,6 +144,20 @@ def _handle_help(editor: TuiEditor, ch) -> None:
         editor.help_idx = 0
     elif isinstance(ch, str) and ch == "G":
         editor.help_move(1 << 30)  # clamps to the last entry
+
+
+def _handle_describe(editor: TuiEditor, ch) -> None:
+    ch = _arrow_vi(ch) or ch   # arrows scroll the panel like j/k
+    if ch == "\x1b" or ch == "q":
+        editor.mode = "normal"
+    elif ch == "j":
+        editor.describe_move(1)
+    elif ch == "k":
+        editor.describe_move(-1)
+    elif isinstance(ch, str) and ch == "g":
+        editor.describe_idx = 0
+    elif isinstance(ch, str) and ch == "G":
+        editor.describe_move(1 << 30)  # clamps to the last row
 
 
 def _handle_insert(editor: TuiEditor, ch) -> None:
