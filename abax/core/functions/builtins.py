@@ -18,29 +18,41 @@ from ..errors import CellError, is_error
 from ..values import RangeValue
 from ..._runtime import aggregate_accelerator
 
-# A single large numeric range is the case the optional numpy accelerator
-# helps; below this many cells the stdlib single-pass reducer suffices.
+# A large numeric range is the case the optional numpy accelerator helps; below
+# this many cells (summed across all range arguments) the stdlib single-pass
+# reducer suffices and the numpy round-trip is not worth it.
 _ACCEL_MIN_CELLS = 4096
 
 # --- math / aggregate ------------------------------------------------------
 
 
 def _try_accel(args, op: str):
-    """Optional numpy fast path for a single large all-numeric range.
+    """Optional numpy fast path for large all-numeric range reductions.
 
     Returns a one-tuple ``(value,)`` when the engine's accelerator handled it, or
-    ``None`` to mean "use the stdlib reducer". The accelerator only succeeds for a
-    wholly finite-numeric block, where the result is identical to the stdlib one,
-    so semantics never change -- this is pure speed."""
-    if len(args) != 1 or not isinstance(args[0], RangeValue):
+    ``None`` to mean "use the stdlib reducer". The accelerator only succeeds when
+    every argument is a ``RangeValue`` and every block is wholly finite-numeric
+    (no blanks/text/errors/NaN), where the numpy result is identical to the stdlib
+    one -- so semantics never change, this is pure speed. A single non-range
+    argument (a scalar, an inline array, or anything else the stdlib pools in a
+    different order) or one dirty block bails the whole call to stdlib.
+
+    Both the single-range and multi-range shapes ride the one accelerator object
+    fetched through the ``abax._runtime`` seam; core never imports numpy."""
+    if not args or not all(isinstance(a, RangeValue) for a in args):
         return None
-    rv = args[0]
-    if rv.nrows * rv.ncols < _ACCEL_MIN_CELLS:
+    if sum(a.nrows * a.ncols for a in args) < _ACCEL_MIN_CELLS:
         return None
     accel = aggregate_accelerator()
     if accel is None:
         return None
-    handled, value = accel(rv, op)
+    if len(args) == 1:
+        handled, value = accel(args[0], op)
+        return (value,) if handled else None
+    multi = getattr(accel, "multi", None)
+    if multi is None:
+        return None
+    handled, value = multi(args, op)
     return (value,) if handled else None
 
 
@@ -765,6 +777,26 @@ def _pi(args):
     return math.pi
 
 
+def _sumproduct_accel(ranges):
+    """Optional numpy fast path for SUMPRODUCT of equal-shaped clean ranges.
+
+    Returns ``(value,)`` when the engine kernel vectorized it, else ``None`` for
+    the stdlib loop. Only fires when every range is wholly finite-numeric and the
+    shapes already agree, so the product-then-sum result is identical to the
+    stdlib one; any text/blank/error cell or shape mismatch bails so the stdlib
+    ``_try_num``-coercion and ``#VALUE!`` semantics are preserved exactly."""
+    if sum(len(r) for r in ranges) < _ACCEL_MIN_CELLS:
+        return None
+    accel = aggregate_accelerator()
+    if accel is None:
+        return None
+    kernel = getattr(accel, "sumproduct", None)
+    if kernel is None:
+        return None
+    handled, value = kernel(ranges)
+    return (value,) if handled else None
+
+
 def _sumproduct(args):
     ranges = [a for a in args if isinstance(a, RangeValue)]
     if not ranges:
@@ -772,6 +804,10 @@ def _sumproduct(args):
     length = len(ranges[0])
     if any(len(r) != length for r in ranges):
         return CellError(CellError.VALUE)
+    if len(ranges) == len(args):
+        hit = _sumproduct_accel(ranges)
+        if hit is not None:
+            return hit[0]
     # Coerce every range to numbers once, then multiply position-wise (was
     # re-running _try_num on every element inside the O(length x n) loop).
     numeric = [[_try_num(v) or 0.0 for v in r.flat()] for r in ranges]
@@ -1556,6 +1592,7 @@ __all__ = [
     "_lcm",
     "_fact",
     "_pi",
+    "_sumproduct_accel",
     "_sumproduct",
     "_large",
     "_small",
