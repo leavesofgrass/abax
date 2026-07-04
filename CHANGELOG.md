@@ -8,7 +8,14 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
-## [Unreleased]
+## [0.1.6] — 2026-07-04
+
+_The "Connected Data" release: abax reaches out to external data sources (SQL
+databases, web tables, REST/JSON) and headless workflows (notebook runner, `abax
+doctor`), while the recalc engine finally **stays fast even when a sheet uses
+dynamic arrays**. Plus a formula-library-in-the-name-manager (named LAMBDA),
+Print/PDF, RF radiation-pattern read-back, and a broad polish pass — **626 formula
+functions (97.9% of the curated Excel/Gnumeric target)**._
 
 ### Added
 - **Drag fill-handle:** the small square at the bottom-right of the selection can
