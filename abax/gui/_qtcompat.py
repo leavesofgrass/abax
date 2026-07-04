@@ -51,11 +51,15 @@ try:
         QKeyEvent,
         QKeySequence,
         QLinearGradient,
+        QPageSize,
         QPainter,
         QPainterPath,
+        QPdfWriter,
         QPen,
         QPixmap,
+        QTextDocument,
     )
+    from PySide6.QtPrintSupport import QPrintDialog, QPrinter
     from PySide6.QtWidgets import (
         QAbstractItemDelegate,
         QAbstractItemView,
@@ -131,11 +135,15 @@ except ImportError:  # pragma: no cover - depends on which binding is installed
         QKeyEvent,
         QKeySequence,
         QLinearGradient,
+        QPageSize,
         QPainter,
         QPainterPath,
+        QPdfWriter,
         QPen,
         QPixmap,
+        QTextDocument,
     )
+    from PyQt6.QtPrintSupport import QPrintDialog, QPrinter
     from PyQt6.QtWidgets import (
         QAbstractItemDelegate,
         QAbstractItemView,
@@ -210,10 +218,15 @@ __all__ = [
     "QKeyEvent",
     "QKeySequence",
     "QLinearGradient",
+    "QPageSize",
     "QPainter",
     "QPainterPath",
+    "QPdfWriter",
     "QPen",
     "QPixmap",
+    "QPrintDialog",
+    "QPrinter",
+    "QTextDocument",
     "QAbstractItemDelegate",
     "QAbstractItemView",
     "QSplitter",
