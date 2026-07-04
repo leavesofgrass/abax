@@ -52,11 +52,14 @@ stats-io = ["pyreadstat"]
 # psycopg[binary] wheel bundles libpq (no compiler needed); PyMySQL is pure
 # Python. In `all`, not `thin`.
 database = ["psycopg[binary]", "PyMySQL"]
+satellite = ["sgp4"]                 # SGP4/TLE satellite pass prediction
+tts = ["pyttsx3"]                    # offline text-to-speech (accessibility)
+restricted = ["RestrictedPython"]    # the "restricted" in-process isolation tier
 # Lean install — the GUI plus every lightweight convenience (TUI, Excel, fast-io,
 # terminal), but NONE of the heavy optional data-science libraries. ~0.22 GB.
 thin     = ["abax[gui,tui,excel,fast-io,terminal,sevenzip]"]
 # Everything abax can use, in one shot (the default full-fat set). ~0.84 GB.
-all      = ["abax[thin,parquet,science,jupyter,bayes,stats-io,database,hdf5,nec]"]
+all      = ["abax[thin,parquet,science,jupyter,bayes,stats-io,database,hdf5,nec,satellite,tts,restricted]"]
 
 [project.scripts]
 abax = "abax.app:main"

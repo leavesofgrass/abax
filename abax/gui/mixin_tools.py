@@ -10,7 +10,19 @@ class ToolsMixin:
         return row, col
 
     def _recalculate(self) -> None:
-        self._doc.workbook.recalculate()
+        wb = self._doc.workbook
+        if getattr(self._settings, "calc_iterative", False):
+            # Iterative mode: resolve circular references by capped fixed-point.
+            wb.calc_iterative = True
+            wb.calc_max_iterations = int(getattr(self._settings, "calc_max_iterations", 100))
+            wb.calc_max_change = float(getattr(self._settings, "calc_max_change", 0.001))
+            iters, converged = wb.recalculate_iterative()
+            self.refresh_table()
+            self._set_status(
+                f"iterative recalc: {iters} pass(es), "
+                + ("converged" if converged else "did NOT converge (hit the cap)"))
+            return
+        wb.recalculate()
         self.refresh_table()
         self._set_status("recalculated")
 
@@ -352,6 +364,18 @@ class ToolsMixin:
         from .dialogs.antenna_modeler_dialog import AntennaModelerDialog
 
         AntennaModelerDialog(self).exec()
+
+    def show_satellite(self) -> None:
+        """Predict satellite passes from a TLE over an observer (SGP4)."""
+        from .dialogs.satellite_dialog import SatelliteDialog
+
+        SatelliteDialog(self).exec()
+
+    def show_hamlog(self) -> None:
+        """POTA/SOTA/contest activation log — dupe check, points, write to sheet."""
+        from .dialogs.hamlog_dialog import HamLogDialog
+
+        HamLogDialog(self).exec()
 
     def show_adif_logbook(self) -> None:
         """Open an amateur-radio logbook (ADIF ``.adi``/``.adif``) as a sheet.

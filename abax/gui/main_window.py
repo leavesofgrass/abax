@@ -142,6 +142,9 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._grid_min_rows = 200
         self._grid_min_cols = 26
         self._table.currentCellChanged.connect(self._on_current_cell_changed)
+        # Accessibility: speak the active cell on move when settings.speak_on_move
+        # is on (a guarded no-op unless the optional TTS backend is installed).
+        self._table.currentCellChanged.connect(self.speak_active_cell)
         # Excel-style status-bar readout (Sum/Avg/Count/...) for the live selection.
         self._table.selectionModel().selectionChanged.connect(
             lambda *_: self._update_selection_status())
@@ -427,6 +430,9 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._act(m_format, "Clear cell st&yles", self.clear_styles)
         self._act(m_format, "Cop&y format", self.copy_format)
         self._act(m_format, "Paste for&mat", self.paste_format)
+        self._act(m_format, "&Borders...", self.edit_borders)
+        self._act(m_format, "&Merge cells", self.merge_selection)
+        self._act(m_format, "&Unmerge cells", self.unmerge_selection)
         m_format.addSeparator()
         m_num = m_format.addMenu("&Number")
         for spec, label in FORMATS:
@@ -517,6 +523,8 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._act(m_radio, "&Antenna pattern...", self.show_antenna_pattern)
         self._act(m_radio, "Antenna &modeler...", self.show_antenna_modeler)
         self._act(m_radio, "Open &logbook (ADIF)...", self.show_adif_logbook)
+        self._act(m_radio, "&Activation log (POTA/SOTA)...", self.show_hamlog)
+        self._act(m_radio, "&Satellite passes (SGP4)...", self.show_satellite)
         m_radio.addSeparator()
         self._act(m_radio, "RF re&ference (bands / CTCSS)...", self.show_rf_reference)
         self._act(m_radio, "&I/Q constellation -> SVG", self.export_iq_svg)

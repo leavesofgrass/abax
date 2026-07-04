@@ -75,6 +75,9 @@ FEATURES: dict[str, list[tuple[str, str]]] = {
     "nec": _NEC,
     "stats-io": _STATS_IO,
     "database": _DATABASE,
+    "satellite": [("sgp4", "sgp4")],
+    "tts": [("pyttsx3", "pyttsx3")],
+    "restricted": [("RestrictedPython", "RestrictedPython")],
 }
 
 # The full-fat set (the `all` extra), ordered light -> heavy so the quick wins
@@ -91,6 +94,9 @@ ALL: list[tuple[str, str]] = [
     ("ipykernel", "ipykernel"),
     *_STATS_IO,
     *_DATABASE,
+    ("sgp4", "sgp4"),
+    ("pyttsx3", "pyttsx3"),
+    ("RestrictedPython", "RestrictedPython"),
     *_BAYES,
     ("h5py", "h5py"),
     *_NEC,          # compiled; last so a build failure can't block the rest
@@ -117,6 +123,10 @@ FEATURE_INFO: dict[str, tuple[str, str, int]] = {
     "bayes": ("Bayesian / probabilistic modeling (large)",
               "pymc + pytensor + arviz + numba/llvmlite", 150),
     "hdf5": ("HDF5 data files (.h5 / .hdf5)", "h5py", 15),
+    "satellite": ("Satellite pass prediction (SGP4/TLE)", "sgp4", 3),
+    "tts": ("Spoken feedback (accessibility)", "pyttsx3", 3),
+    "restricted": ("The 'restricted' in-process code-isolation tier",
+                   "RestrictedPython", 2),
     "nec": ("Reference-grade NEC antenna solver",
             "PyNEC (compiled; may need a build toolchain on some platforms)", 5),
     "stats-io": ("Stata / SPSS data files (.dta / .sav)",

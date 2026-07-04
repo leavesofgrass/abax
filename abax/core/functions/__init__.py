@@ -198,6 +198,13 @@ for _pack in ("math_fns", "stats_dist", "text_datetime_fns", "finance_fns",
     except Exception:  # noqa: BLE001 — a broken/absent pack must not kill the engine
         pass
 
+# The amateur-radio logging pack lives under core.science (ISDUPE / QSOPOINTS).
+try:
+    from ..science import hamlog as _hamlog  # noqa: E402
+    _hamlog.register(FUNCTIONS)
+except Exception:  # noqa: BLE001
+    pass
+
 # Modern dotted aliases (Excel 2010+) for functions that already exist under their
 # legacy name with an identical signature — point both names at the same callable.
 for _dotted, _canon in {

@@ -53,9 +53,10 @@ class ConsoleMixin:
         self._set_status("code execution stays disabled")
         return False
 
-    _ISOLATION_ORDER = ("off", "isolated", "strict")
+    _ISOLATION_ORDER = ("off", "restricted", "isolated", "strict")
     _ISOLATION_LABELS = {
         "off": "&Off — in-process (no isolation)",
+        "restricted": "&Restricted — AST-allowlisted worker (blocks OS access)",
         "isolated": "&Isolated — worker + resource limits (default)",
         "strict": "&Strict — OS sandbox (no network, scratch-only writes)",
     }

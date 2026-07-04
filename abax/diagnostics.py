@@ -121,6 +121,21 @@ OPTIONAL_DEPENDENCIES = {
         "fallback": "no MySQL database import (psycopg still covers PostgreSQL)",
         "purpose": "read tables from a live MySQL database (DB-API 2.0)",
     },
+    "sgp4": {
+        "available": _has("sgp4"),
+        "fallback": "no satellite pass prediction",
+        "purpose": "SGP4/TLE satellite orbit propagation for pass prediction",
+    },
+    "pyttsx3": {
+        "available": _has("pyttsx3"),
+        "fallback": "no spoken feedback (accessibility)",
+        "purpose": "offline text-to-speech for the speak-on-move accessibility option",
+    },
+    "RestrictedPython": {
+        "available": _has("RestrictedPython"),
+        "fallback": "the 'restricted' isolation tier falls back to a plain in-process run",
+        "purpose": "AST-allowlisted execution for the 'restricted' code-isolation tier",
+    },
 }
 
 

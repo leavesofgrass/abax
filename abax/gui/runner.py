@@ -62,6 +62,15 @@ def run_gui(file: str | None = None, registry=None) -> int:
     from .. import autodeps
     autodeps.set_enabled(settings.auto_install)
 
+    # Load third-party UDF/format plugins — ONLY when the user has consented
+    # (settings.plugins_enabled); a no-op otherwise, so no untrusted code runs.
+    try:
+        from .. import plugins
+
+        plugins.load_plugins(enabled=getattr(settings, "plugins_enabled", False))
+    except Exception:  # noqa: BLE001 — a bad plugin must never block startup
+        pass
+
     def _excepthook(exc_type, exc_value, exc_tb):
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc_value, exc_tb)

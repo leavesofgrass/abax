@@ -88,13 +88,13 @@ def test_scientific_is_general_math_only(win):
 
 
 def test_code_isolation_submenu(win):
-    # A checkable Tools submenu offers the three isolation levels, with the
-    # current setting (default 'isolated') checked.
+    # A checkable Tools submenu offers the isolation levels, with the current
+    # setting (default 'isolated') checked.
     iso = _submenu_items(win, "Tools", "Code isolation (sandbox)")
     assert iso is not None, "Code isolation submenu missing from Tools"
-    assert len(iso) == 3
+    assert len(iso) == 4
     acts = win._isolation_actions
-    assert set(acts) == {"off", "isolated", "strict"}
+    assert set(acts) == {"off", "restricted", "isolated", "strict"}
     assert all(a.isCheckable() for a in acts.values())
     assert acts["isolated"].isChecked()
     assert not acts["off"].isChecked()
