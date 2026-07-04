@@ -119,6 +119,65 @@ def azimuth_pattern(wires, result, count: int = 361):
 #: cut is symmetric about the horizon and is NOT an installed-height take-off
 #: pattern — the label keeps that from being mistaken for a real ground pattern.
 FREE_SPACE = "(free space)"
+#: Companion caveat for the image-plane ground model: the elevation cut is a real
+#: take-off pattern (asymmetric about the horizon, zero below it).
+OVER_GROUND = "(over ground)"
+
+#: The Ground combobox choices, in order. "Free space" leaves the classic
+#: behaviour untouched; the others fold in the image-plane reflection.
+GROUND_CHOICES = ("Free space", "Perfect ground", "Perfect ground + height")
+
+
+def raise_to_height(wires, height: float):
+    """Offset every wire in +z so the structure stands ``height`` wavelengths above
+    the ``z = 0`` ground plane. The dialog's elements are z-directed (vertical), so
+    this lifts a vertical radiator's base to the requested height."""
+    if height == 0.0:
+        return wires
+    return [[(x, y, z + height) for (x, y, z) in pts] for pts in wires]
+
+
+def ground_from_choice(choice: str, height: float = 0.0):
+    """Map a Ground-combobox ``choice`` to ``(ground, height)``.
+
+    Returns ``(None, 0.0)`` for free space (the classic path), a perfect
+    :class:`~abax.core.science.wire_mom.Ground` with the structure sitting on the
+    plane for "Perfect ground", and the same ground raised to ``height`` for
+    "Perfect ground + height"."""
+    from ...core.science import wire_mom
+
+    if choice == GROUND_CHOICES[0]:
+        return None, 0.0
+    if choice == GROUND_CHOICES[1]:
+        return wire_mom.Ground("perfect"), 0.0
+    if choice == GROUND_CHOICES[2]:
+        return wire_mom.Ground("perfect"), float(height)
+    raise ValueError(f"unknown ground choice {choice!r}")
+
+
+def pattern_cut_ground(kind: str, params: dict, choice: str, height: float = 0.0,
+                       plane: str = "elevation", count: int = 361,
+                       decibels: bool = True, segments: int = _SEGMENTS):
+    """A radiation cut that honours the ground option, as ``(samples, source)``.
+
+    For "Free space" this defers to :func:`pattern_cut` (unchanged, PyNEC-preferred
+    where present). For a ground choice it always uses the built-in MoM image model
+    (:func:`abax.core.science.wire_mom.pattern_cut` with a ``Ground``) — PyNEC's
+    free-space read-back cannot express the take-off pattern — lifting the geometry
+    to ``height`` first. The elevation cut then shows a real take-off angle and is
+    zero below the horizon; the azimuth cut over ground is taken at the horizon."""
+    from ...core.science import wire_mom
+
+    ground, h = ground_from_choice(choice, height)
+    if ground is None:
+        return pattern_cut(kind, params, plane=plane, count=count,
+                           decibels=decibels, segments=segments)
+    wires, feed = build_geometry(kind, params, segments)
+    wires = raise_to_height(wires, h)
+    result = wire_mom.solve(wires, [(0, feed, 1.0)])
+    samples = wire_mom.pattern_cut(wires, result, plane=plane, count=count,
+                                   decibels=decibels, ground=ground)
+    return samples, "mom-ground"
 
 
 def pattern_cut(kind: str, params: dict, plane: str = "azimuth",
@@ -202,6 +261,22 @@ class AntennaModelerDialog(QDialog):
         self._plane.addItems(["Azimuth", "Elevation"])
         self._plane.currentIndexChanged.connect(self._plot_pattern)
         form.addRow("Pattern plane:", self._plane)
+
+        self._ground = QComboBox(self)
+        self._ground.addItems(list(GROUND_CHOICES))
+        self._ground.setToolTip(
+            "Free space keeps the classic symmetric pattern; a ground option folds "
+            "in an image-plane reflection so the elevation cut shows a real "
+            "take-off angle.")
+        self._ground.currentIndexChanged.connect(self._on_ground_changed)
+        form.addRow("Ground:", self._ground)
+
+        self._height = QLineEdit("0.5", self)
+        self._height.setToolTip("Height of the antenna base above ground (λ).")
+        self._height.editingFinished.connect(self._plot_pattern)
+        self._height.returnPressed.connect(self._plot_pattern)
+        self._height_row = ("Height above ground (λ):", self._height)
+        form.addRow(*self._height_row)
         side.addLayout(form)
 
         run_btn = QPushButton("Run model", self)
@@ -209,7 +284,9 @@ class AntennaModelerDialog(QDialog):
         side.addWidget(run_btn)
 
         pat_btn = QPushButton("Radiation pattern", self)
-        pat_btn.setToolTip("Compute a free-space azimuth/elevation cut and plot it")
+        pat_btn.setToolTip(
+            "Compute an azimuth/elevation cut and plot it (free space or over "
+            "ground per the Ground option)")
         pat_btn.clicked.connect(self._plot_pattern)
         side.addWidget(pat_btn)
 
@@ -232,6 +309,7 @@ class AntennaModelerDialog(QDialog):
         outer.addLayout(side)
 
         self._on_kind_changed()
+        self._on_ground_changed()
 
     def _is_yagi(self) -> bool:
         return self._kind.currentIndex() == 1
@@ -242,6 +320,23 @@ class AntennaModelerDialog(QDialog):
                         self._refl_sp_row, self._dir_sp_row):
             edit.setEnabled(yagi)
         self._run()
+
+    def _ground_choice(self) -> str:
+        return self._ground.currentText()
+
+    def _ground_height(self) -> float:
+        try:
+            return float(self._height.text())
+        except ValueError:
+            return 0.0
+
+    def _over_ground(self) -> bool:
+        return self._ground_choice() != GROUND_CHOICES[0]
+
+    def _on_ground_changed(self) -> None:
+        # The height field only applies to the "+ height" choice.
+        self._height.setEnabled(self._ground_choice() == GROUND_CHOICES[2])
+        self._plot_pattern()
 
     def _params(self) -> tuple[str, dict]:
         """Read the form into ``(kind, params)`` for :func:`build_geometry`."""
@@ -299,23 +394,44 @@ class AntennaModelerDialog(QDialog):
     def compute_pattern(self, count: int = 361):
         """Compute the current model's radiation cut (UI-free; testable).
 
-        Returns ``(samples, source)`` for the selected plane, preferring PyNEC when
-        installed and otherwise the built-in MoM, and **caches** the samples on the
-        dialog for the sheet / SVG writers. Samples are 0..1 dB-mapped and free
-        space (the elevation cut is symmetric about the horizon, not a real
-        over-ground take-off pattern)."""
+        Returns ``(samples, source)`` for the selected plane and Ground option, and
+        **caches** the samples on the dialog for the sheet / SVG writers. In free
+        space this prefers PyNEC when installed and otherwise the built-in MoM (and
+        the elevation cut is symmetric about the horizon). Over ground it uses the
+        built-in image model (``source`` ``"mom-ground"``), so the elevation cut is
+        a real take-off pattern, zero below the horizon."""
         kind, params = self._params()
-        samples, source = pattern_cut(kind, params, plane=self._selected_plane(),
-                                      count=count, decibels=True)
+        plane = self._selected_plane()
+        if self._over_ground():
+            samples, source = pattern_cut_ground(
+                kind, params, self._ground_choice(), self._ground_height(),
+                plane=plane, count=count, decibels=True)
+        else:
+            samples, source = pattern_cut(kind, params, plane=plane,
+                                          count=count, decibels=True)
         self._pattern = samples
         self._pattern_source = source
         return samples, source
 
+    def _ground_caveat(self) -> str:
+        """The ``(free space)`` / ``(over ground)`` tag for titles and headers."""
+        return OVER_GROUND if self._over_ground() else FREE_SPACE
+
+    def _source_label(self) -> str:
+        return {
+            "pynec": "PyNEC",
+            "mom": "MoM",
+            "mom-ground": "MoM + ground image",
+        }.get(self._pattern_source, "MoM")
+
     def _pattern_title(self) -> str:
         kind, _ = self._params()
         plane = self._selected_plane().capitalize()
-        src = "PyNEC" if self._pattern_source == "pynec" else "MoM"
-        return f"{kind.capitalize()} {plane} pattern {FREE_SPACE} — {src}"
+        src = self._source_label()
+        tag = self._ground_caveat()
+        if self._over_ground() and self._ground_choice() == GROUND_CHOICES[2]:
+            tag = f"(over ground, h={self._ground_height():g}λ)"
+        return f"{kind.capitalize()} {plane} pattern {tag} — {src}"
 
     def _plot_pattern(self) -> None:
         try:
@@ -324,12 +440,19 @@ class AntennaModelerDialog(QDialog):
             self._readout.setText("Dimensions must be positive numbers (in wavelengths).")
             return
         self._plotw.set_samples(samples)
-        src = "PyNEC" if source == "pynec" else "built-in MoM"
+        plane = self._selected_plane().capitalize()
+        src = self._source_label()
+        if self._over_ground():
+            note = (
+                "Over ground: the elevation cut is a real take-off pattern "
+                "(asymmetric about the horizon, zero below it).")
+        else:
+            note = (
+                "Free space: the elevation cut is symmetric about the horizon and "
+                "is not a real over-ground take-off pattern.")
         self._readout.setText(
-            f"{self._selected_plane().capitalize()} pattern {FREE_SPACE}\n"
-            f"Source: {src}\n"
-            "Free space: the elevation cut is symmetric about the horizon and is "
-            "not a real over-ground take-off pattern.")
+            f"{plane} pattern {self._ground_caveat()}\n"
+            f"Source: {src}\n{note}")
 
     def _pattern_to_sheet(self) -> None:
         from ...core.science import wire_mom
@@ -344,8 +467,8 @@ class AntennaModelerDialog(QDialog):
         headers, rows = wire_mom.pattern_to_rows(self._pattern, decibels=True)
         confirm = QMessageBox.question(
             self, "Radiation pattern",
-            f"Write {len(rows)} {self._selected_plane()} samples {FREE_SPACE} "
-            "to a new sheet?")
+            f"Write {len(rows)} {self._selected_plane()} samples "
+            f"{self._ground_caveat()} to a new sheet?")
         if confirm != QMessageBox.StandardButton.Yes:
             return
         wb = self._win._doc.workbook
@@ -361,7 +484,8 @@ class AntennaModelerDialog(QDialog):
         wb.active = len(wb.sheets) - 1
         self._win._doc.mark_dirty()
         self._win.refresh_table()
-        self._win._set_status(f"Radiation pattern -> sheet '{name}' {FREE_SPACE}")
+        self._win._set_status(
+            f"Radiation pattern -> sheet '{name}' {self._ground_caveat()}")
 
     def _export_pattern_svg(self) -> None:
         from pathlib import Path
