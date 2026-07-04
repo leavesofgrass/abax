@@ -722,6 +722,50 @@ def _fn_rri(args):
         return CellError(CellError.NUM)
 
 
+def _fn_fvschedule(args):
+    """FVSCHEDULE(principal, schedule) — future value of ``principal`` after a
+    series of compound interest rates. FV = principal * PROD(1 + rate_i). The
+    schedule is a range/array of rates; each is compounded once in order.
+    Non-numeric schedule cells make it #VALUE! (Excel), overflow #NUM!."""
+    try:
+        principal = _num(args, 0)
+        if principal is None:
+            return CellError(CellError.VALUE)
+        raw = _flatten([_arg(args, 1)])
+        rates = []
+        for r in raw:
+            rv = _try_num(r)
+            if rv is None:
+                return CellError(CellError.VALUE)
+            rates.append(rv)
+        value = principal
+        for r in rates:
+            value *= 1.0 + r
+        return value
+    except (ValueError, TypeError, OverflowError, ZeroDivisionError):
+        return CellError(CellError.NUM)
+
+
+def _fn_ispmt(args):
+    """ISPMT(rate, per, nper, pv) — interest paid in period ``per`` of a loan
+    repaid in *level principal* instalments (unlike IPMT's level total payment).
+    The principal outstanding falls linearly, so the interest is
+    ``pv * rate * (per/nper - 1)`` (negative when pv is positive, per Excel's
+    sign convention). ``per`` may run 0..nper."""
+    try:
+        rate = _num(args, 0)
+        per = _num(args, 1)
+        nper = _num(args, 2)
+        pv = _num(args, 3)
+        if None in (rate, per, nper, pv):
+            return CellError(CellError.VALUE)
+        if nper == 0:
+            return CellError(CellError.DIV0)
+        return pv * rate * (per / nper - 1.0)
+    except (ValueError, TypeError, OverflowError, ZeroDivisionError):
+        return CellError(CellError.NUM)
+
+
 # --- public surface --------------------------------------------------------
 
 
@@ -752,6 +796,8 @@ def register(functions: dict) -> None:
         "DOLLARFR": _fn_dollarfr,
         "PDURATION": _fn_pduration,
         "RRI": _fn_rri,
+        "FVSCHEDULE": _fn_fvschedule,
+        "ISPMT": _fn_ispmt,
     })
 
 
@@ -781,4 +827,6 @@ SIGNATURES = {
     "DOLLARFR": "DOLLARFR(decimal_dollar, fraction)",
     "PDURATION": "PDURATION(rate, pv, fv)",
     "RRI": "RRI(nper, pv, fv)",
+    "FVSCHEDULE": "FVSCHEDULE(principal, schedule)",
+    "ISPMT": "ISPMT(rate, per, nper, pv)",
 }

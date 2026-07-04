@@ -753,7 +753,12 @@ def _fact(args):
     n = _try_num(_arg(args, 0))
     if n is None or n < 0:
         return CellError(CellError.NUM)
-    return float(math.factorial(int(n)))
+    try:
+        return float(math.factorial(int(n)))
+    except OverflowError:
+        # FACT(171) et al. overflow float64 — Excel/gnumeric report #NUM!, not
+        # the #VALUE! the evaluator's generic OverflowError net would give.
+        return CellError(CellError.NUM)
 
 
 def _pi(args):

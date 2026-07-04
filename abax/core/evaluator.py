@@ -20,6 +20,16 @@ from .values import RangeValue
 
 Resolver = Callable[[str, int, int], Any]  # (sheet_name, row, col) -> value
 
+# Integer-combinatorial builtins whose only realistic failure at the final
+# ``float(...)`` boundary is magnitude overflow (their result is an exact but
+# astronomically large Python int). Excel/gnumeric report #NUM! for that, whereas
+# the generic handler below maps OverflowError -> #VALUE!. Listing them here keeps
+# the fix surgical: every other function's OverflowError still yields #VALUE!.
+_OVERFLOW_IS_NUM = frozenset({
+    "FACT", "FACTDOUBLE", "MULTINOMIAL",
+    "COMBIN", "COMBINA", "PERMUT", "PERMUTATIONA",
+})
+
 
 class EvalContext:
     """The calling cell's context, passed to reference/context functions (ROW,
@@ -309,7 +319,11 @@ def _eval_func(node: A.Func, resolver: Resolver, ctx: "EvalContext | None" = Non
     args = [evaluate(a, resolver, ctx) for a in node.args]
     try:
         return fn(args)
-    except (ValueError, TypeError, ZeroDivisionError, IndexError, OverflowError):
+    except OverflowError:
+        # Numeric overflow is #NUM! for the integer-combinatorial builtins that
+        # can outgrow float64 (a huge exact int), #VALUE! for everyone else.
+        return CellError(CellError.NUM if name in _OVERFLOW_IS_NUM else CellError.VALUE)
+    except (ValueError, TypeError, ZeroDivisionError, IndexError):
         return CellError(CellError.VALUE)
 
 
