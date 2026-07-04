@@ -469,6 +469,8 @@ class ToolsMixin:
     def set_number_format(self, spec: str) -> None:
         r1, c1, r2, c2 = self._selected_bounds()
         sheet = self._doc.workbook.sheet
+        # Checkpoint before mutating so Ctrl+Z reverts the format change.
+        self._doc.checkpoint(f"number format: {spec}")
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
                 if spec == "general":
@@ -477,6 +479,7 @@ class ToolsMixin:
                     sheet.cell_formats[(r, c)] = spec
         self._doc.mark_dirty()
         self.refresh_table()
+        self._refresh_undo_history()
         self._set_status(f"number format: {spec}")
 
     def _fill_series_selection(self) -> None:

@@ -338,6 +338,52 @@ class DocumentMixin:
         self.refresh_table()
         self._set_status("cleared styles")
 
+    # --- format painter --------------------------------------------------
+
+    def copy_format(self) -> None:
+        """Pick the active cell's style + number format for the format painter.
+
+        Stashes ``(CellStyle | None, number_format | None)`` on ``_picked_format``
+        so a subsequent :meth:`paste_format` stamps it onto a selection. Mirrors
+        the copy-format / paste-format toolbar button the integrator wires up.
+        """
+        row = max(0, self._table.currentRow())
+        col = max(0, self._table.currentColumn())
+        sheet = self._doc.workbook.sheet
+        style = sheet.cell_styles.get((row, col))
+        fmt = sheet.cell_formats.get((row, col))
+        self._picked_format = (style, fmt)
+        self._set_status(f"picked format from {to_a1(row, col)}")
+
+    def paste_format(self) -> None:
+        """Apply the picked style + number format to the selection as one undo step.
+
+        Reuses the sort-region capture/reapply pattern: for each target cell we
+        set (or clear) its ``cell_styles`` and ``cell_formats`` entry to match the
+        picked format, all under a single checkpoint.
+        """
+        picked = getattr(self, "_picked_format", None)
+        if picked is None:
+            self._set_status("no format picked — copy a format first")
+            return
+        style, fmt = picked
+        cells = self._selection_cells()
+        sheet = self._doc.workbook.sheet
+        self._doc.checkpoint("paste format")
+        for key in cells:
+            if style is not None and not style.is_empty():
+                sheet.cell_styles[key] = style
+            else:
+                sheet.cell_styles.pop(key, None)
+            if fmt is not None:
+                sheet.cell_formats[key] = fmt
+            else:
+                sheet.cell_formats.pop(key, None)
+        self._doc.mark_dirty()
+        self.refresh_table()
+        self._refresh_undo_history()
+        self._set_status(f"pasted format to {len(cells)} cell(s)")
+
     def show_precedents(self) -> None:
         """Highlight the cells the selected formula reads from (its precedents)."""
         from ..core import precedents

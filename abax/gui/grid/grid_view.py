@@ -36,6 +36,7 @@ from .._qtcompat import (
     Qt,
     QTableView,
     QTableWidgetSelectionRange,
+    QToolTip,
     pyqtSignal,
 )
 
@@ -147,7 +148,38 @@ class GridDelegate(QStyledItemDelegate):
             from ..completion import FormulaCompleter
             editor._abax_completer = FormulaCompleter(
                 editor, context=getattr(self._win, "_completion_context", None))
+            # Show the same function argument-hint tooltip the formula bar shows,
+            # anchored to the in-cell editor, whenever its text is a formula.
+            editor.textEdited.connect(lambda _t, e=editor: self._show_arg_hint(e))
+            editor.cursorPositionChanged.connect(
+                lambda _o, _n, e=editor: self._show_arg_hint(e))
         return editor
+
+    @staticmethod
+    def arg_hint_text(text: str, cursor: int | None = None) -> str | None:
+        """Rendered argument hint for a formula ``text`` under ``cursor``, or None.
+
+        Returns ``None`` for non-formula text (not starting with ``=``) or when no
+        call is active. Reuses the formula-bar hint logic so the in-cell tooltip
+        matches it exactly.
+        """
+        if not text.startswith("="):
+            return None
+        from ...core.completion import format_hint, signature_hint
+
+        hint = signature_hint(text, cursor)
+        if hint is None:
+            return None
+        return format_hint(hint, ("<b>", "</b>"))
+
+    def _show_arg_hint(self, editor) -> None:
+        """Float the argument hint under the in-cell editor (or hide it)."""
+        rendered = self.arg_hint_text(editor.text(), editor.cursorPosition())
+        if rendered is None:
+            QToolTip.hideText()
+            return
+        pos = editor.mapToGlobal(editor.rect().bottomLeft())
+        QToolTip.showText(pos, rendered, editor)
 
     def setEditorData(self, editor, index):  # noqa: N802 (Qt override)
         if isinstance(editor, QComboBox):
