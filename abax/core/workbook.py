@@ -29,6 +29,12 @@ class Workbook:
         # until recalculate() (the GUI's F9), for very large/slow sheets.
         self.calc_mode = "auto"
         self._calc_dirty = False  # edits pending a manual recalc
+        # Iterative calculation (opt-in; set from Settings by the front-end). When
+        # on, recalculate_iterative() resolves circular references by capped
+        # fixed-point iteration instead of #CIRC!.
+        self.calc_iterative = False
+        self.calc_max_iterations = 100
+        self.calc_max_change = 0.001
         self._add_default_if_empty()
 
     def _add_default_if_empty(self) -> None:
@@ -158,6 +164,53 @@ class Workbook:
             # and no anchor changed, so it stays current — no re-dirty needed.
             for s in self.sheets:
                 s._spill_dirty = True
+
+    def recalculate_iterative(self, max_iterations: "int | None" = None,
+                              max_change: "float | None" = None) -> "tuple[int, bool]":
+        """Resolve circular references by capped fixed-point iteration.
+
+        Sweeps every formula cell repeatedly; a circular read returns the previous
+        iteration's value (0 the first time) instead of ``#CIRC!``, so an
+        accumulator (``B1 = A1 + B1``) or a convergent model settles to its fixed
+        point. Returns ``(iterations_run, converged)`` — converged is True once the
+        largest change across a full sweep is within ``max_change``, else the sweep
+        stops at ``max_iterations``. The converged values are left in the value
+        caches (the front-end repaints without invalidating). A cycle-free workbook
+        settles in one sweep. This is the explicit, bounded, sound path — normal
+        (non-iterative) evaluation still surfaces ``#CIRC!``.
+        """
+        max_iter = max(1, max_iterations if max_iterations is not None else self.calc_max_iterations)
+        tol = max_change if max_change is not None else self.calc_max_change
+        formula_cells = [(sh, r, c)
+                         for sh in self.sheets
+                         for (r, c), cell in sh._cells.items() if cell.raw.startswith("=")]
+        for sh in self.sheets:
+            sh._iterating = True
+        iterations = 0
+        converged = False
+        try:
+            for _ in range(max_iter):
+                iterations += 1
+                for sh in self.sheets:
+                    sh._value_cache.clear()
+                    sh._spill_dirty = True
+                max_delta = 0.0
+                for (sh, r, c) in formula_cells:
+                    old = sh._iter_values.get((r, c))
+                    val = sh.get_value(r, c)
+                    sh._iter_values[(r, c)] = val
+                    if (isinstance(old, (int, float)) and isinstance(val, (int, float))
+                            and not isinstance(old, bool) and not isinstance(val, bool)):
+                        max_delta = max(max_delta, abs(float(val) - float(old)))
+                    elif old != val:
+                        max_delta = float("inf")  # non-numeric change — keep going
+                if max_delta <= tol:
+                    converged = True
+                    break
+        finally:
+            for sh in self.sheets:
+                sh._iterating = False
+        return iterations, converged
 
     def load_envelope(self, env: dict) -> None:
         """Replace this workbook's contents IN PLACE from an envelope.

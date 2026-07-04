@@ -125,6 +125,11 @@ class Sheet:
         # Recompute the spill map lazily, once per invalidation cycle.
         self._spill_dirty: bool = True
         self._spilling: bool = False  # reentrancy guard for the spill pass
+        # Iterative calculation (opt-in, workbook-driven): during a fixed-point
+        # pass ``_iterating`` is set and a circular read returns the previous
+        # iteration's value from ``_iter_values`` instead of #CIRC!.
+        self._iterating: bool = False
+        self._iter_values: dict[tuple[int, int], Any] = {}
 
     # --- editing ----------------------------------------------------------
 
@@ -496,6 +501,12 @@ class Sheet:
         no value caching; :meth:`get_value` and the spill pass layer those on."""
         key = (row, col)
         if key in self._computing:
+            # A cell reading itself (directly or through a cycle). Normally that's
+            # #CIRC!; during an explicit iterative-calc pass we instead return the
+            # cell's value from the previous iteration (0 the first time) so the
+            # fixed-point can converge. Normal evaluation is unaffected.
+            if self._iterating:
+                return self._iter_values.get(key, 0.0)
             return CellError(CellError.CIRC)
         self._computing.add(key)
         try:
