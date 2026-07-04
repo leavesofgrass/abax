@@ -46,6 +46,21 @@ All notable changes to abax are documented here. The format follows
   top-left), a **persistent formula bar** showing the active cell's reference and raw
   content, and **sheet switching** (`gt` / `gT`, `:sheet <name|index>`, `:sheets`) so
   multi-tab `.xlsx`/`.ods` workbooks are navigable over SSH.
+- **Print / PDF export** (File → Print, `Ctrl+P`; File → Export PDF…): render the
+  active workbook to a printer or a PDF.
+- **Format painter** (Format → Copy / Paste format): copy a cell's style and number
+  format onto the selection in one undo step.
+- **RF radiation pattern** in the Antenna Modeler (Tools → Radio): plot an
+  azimuth/elevation cut of the current model (built-in Method-of-Moments, or PyNEC
+  when installed) as a polar chart, and write the samples to the sheet — labelled
+  **(free space)**, since without ground reflection the elevation cut is not an
+  installed-height take-off pattern.
+- **In-cell argument hints:** editing a formula directly in a cell now shows the same
+  function signature tooltip the formula bar shows.
+
+### Fixed
+- **Number-format changes are now undoable** (a missing document checkpoint meant
+  `Ctrl+Z` couldn't revert a number-format change).
 
 ### Performance
 - **Incremental recalc now survives dynamic arrays (Phase B).** Previously a single
