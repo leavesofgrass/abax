@@ -59,8 +59,105 @@ class DocumentIOMixin:
         if doc.path:
             self._remember_recent(str(doc.path))
         self.refresh_table()
+        self._restore_view_layout()
         self._update_title()
         self._set_status(f"opened {doc.title}")
+
+    # --- view-layout persistence (column widths / row heights / freeze) ----
+    #
+    # The QTableView owns the *rendered* geometry — column widths, row heights,
+    # and (via FrozenPanes) which rows/columns are pinned. The sheet model has a
+    # frozen home for all of it (``col_widths`` / ``row_heights`` / ``frozen_rows``
+    # / ``frozen_cols``, persisted in the envelope, v2). On save we copy the view
+    # geometry *into* the sheet so it rides in the file; on open we copy it back
+    # *out* onto the view. A manual header resize is also captured live (see
+    # ``_ensure_layout_hooks``) so the sheet stays current even between saves.
+
+    def _ensure_layout_hooks(self) -> None:
+        """Connect the header's ``sectionResized`` to the sheet once.
+
+        A user drag on a column/row border writes straight through to the active
+        sheet's ``col_widths`` / ``row_heights`` so the resize is captured without
+        waiting for an explicit save. Connected lazily (and once, guarded by
+        ``_layout_hooks_wired``) because the header exists from construction but
+        this mixin can't touch ``MainWindow._setup_ui``.
+        """
+        if getattr(self, "_layout_hooks_wired", False):
+            return
+        table = getattr(self, "_table", None)
+        if table is None:
+            return
+        table.horizontalHeader().sectionResized.connect(self._on_col_resized)
+        table.verticalHeader().sectionResized.connect(self._on_row_resized)
+        self._layout_hooks_wired = True
+
+    def _on_col_resized(self, col: int, _old: int, new: int) -> None:
+        if getattr(self, "_restoring_layout", False):
+            return  # our own setColumnWidth during restore — don't echo it back
+        default = self._table.horizontalHeader().defaultSectionSize()
+        sheet = self._doc.workbook.sheet
+        sheet.set_col_width(col, None if new == default else new)
+        self._doc.mark_dirty()
+
+    def _on_row_resized(self, row: int, _old: int, new: int) -> None:
+        if getattr(self, "_restoring_layout", False):
+            return
+        default = self._table.verticalHeader().defaultSectionSize()
+        sheet = self._doc.workbook.sheet
+        sheet.set_row_height(row, None if new == default else new)
+        self._doc.mark_dirty()
+
+    def _capture_view_layout(self) -> None:
+        """Copy the view's non-default column widths / row heights and the current
+        freeze into the active sheet, so a following serialise persists them.
+
+        Only sections whose size differs from the header default are stored — the
+        sheet's width/height maps stay sparse, and a file records nothing for an
+        untouched grid.
+        """
+        self._ensure_layout_hooks()
+        table = getattr(self, "_table", None)
+        if table is None:
+            return
+        sheet = self._doc.workbook.sheet
+        hh = table.horizontalHeader()
+        col_default = hh.defaultSectionSize()
+        for c in range(table.columnCount()):
+            w = table.columnWidth(c)
+            sheet.set_col_width(c, None if w == col_default else w)
+        vh = table.verticalHeader()
+        row_default = vh.defaultSectionSize()
+        for r in range(table.rowCount()):
+            h = table.rowHeight(r)
+            sheet.set_row_height(r, None if h == row_default else h)
+        frozen = getattr(self, "_frozen", None)
+        if frozen is not None:
+            sheet.set_frozen(frozen.rows, frozen.cols)
+
+    def _restore_view_layout(self) -> None:
+        """Apply the active sheet's stored widths / heights / freeze onto the view.
+
+        Runs after ``refresh_table`` on open. The ``_restoring_layout`` guard stops
+        our own ``setColumnWidth`` calls from bouncing back through the resize hook.
+        """
+        self._ensure_layout_hooks()
+        table = getattr(self, "_table", None)
+        if table is None:
+            return
+        sheet = self._doc.workbook.sheet
+        self._restoring_layout = True
+        try:
+            for c, w in sheet.col_widths.items():
+                if 0 <= c < table.columnCount():
+                    table.setColumnWidth(c, int(w))
+            for r, h in sheet.row_heights.items():
+                if 0 <= r < table.rowCount():
+                    table.setRowHeight(r, int(h))
+        finally:
+            self._restoring_layout = False
+        frozen = getattr(self, "_frozen", None)
+        if frozen is not None:
+            frozen.freeze(sheet.frozen_rows, sheet.frozen_cols)
 
     def _run_io(self, worker, *, on_success, busy_msg: str) -> None:
         """Run a pre-built worker (IOWorker / FuncWorker) on a background thread.
@@ -209,6 +306,7 @@ class DocumentIOMixin:
     def _url_import_succeeded(self, doc) -> None:
         self._doc = doc
         self.refresh_table()
+        self._restore_view_layout()  # a URL may point at an .abax carrying layout
         self._update_title()
         self._set_status(f"imported from URL into {doc.title}")
 
@@ -352,6 +450,9 @@ class DocumentIOMixin:
             return
         target = Path(path) if path else self._doc.path
         self.commit_table_to_sheet()
+        # Fold the live view geometry (column widths / row heights / freeze) into
+        # the sheet before snapshotting, so it rides in the envelope (v2).
+        self._capture_view_layout()
         # Save an INDEPENDENT snapshot off-thread: the format-specific savers read
         # the workbook's compute caches (get_value / _value_cache / _computing),
         # which the UI thread may still touch while painting. Rebuilding the
