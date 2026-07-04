@@ -24,6 +24,28 @@ All notable changes to abax are documented here. The format follows
 - **Paste Special** (Edit → Paste special…, `Ctrl+Alt+V`): paste **values only**
   (dropping formulas), **transpose** rows ↔ columns, and/or **skip blanks** so
   empty source cells don't overwrite the destination.
+- **Connected Data — external data sources.** New importers (File menu + command
+  palette): **web table** (fetch a page and import its largest HTML `<table>`, pure
+  stdlib), **REST API** (pull a JSON endpoint's records — dotted records-path,
+  headers/bearer), and **SQL database** (PostgreSQL / MySQL via the optional
+  `database` extra — `psycopg` / `PyMySQL`; connection secrets are held in memory
+  only, never persisted).
+- **Headless notebook execution** — `abax notebook run FILE [-o OUT]` runs a
+  Jupyter notebook against abax's own shell (no `nbclient`) and writes the executed
+  outputs back into the `.ipynb`. The **kernel** now answers `do_complete` /
+  `do_inspect` (Python-namespace completion, formula completion after `=`).
+- **`abax doctor`** — an aggregated health report: Python/platform, the optional-
+  dependency matrix, the active code-isolation level and available sandbox
+  confinement, the runtime directories (and whether they're writable), and whether
+  `settings.json` parses.
+- **Formula:** `FVSCHEDULE` and `ISPMT`; numeric-overflow now reports `#NUM!`
+  (matching Excel/gnumeric) for `FACT`/`FACTDOUBLE`/`MULTINOMIAL`/`COMBIN`/`COMBINA`/
+  `PERMUT`/`PERMUTATIONA`/`POWER`/`^` instead of `#VALUE!`. **620 functions**, 96.5%
+  of the curated Excel/Gnumeric target.
+- **TUI parity:** a **scrolling viewport** (the cursor is no longer pinned near the
+  top-left), a **persistent formula bar** showing the active cell's reference and raw
+  content, and **sheet switching** (`gt` / `gT`, `:sheet <name|index>`, `:sheets`) so
+  multi-tab `.xlsx`/`.ods` workbooks are navigable over SSH.
 
 ### Performance
 - **Incremental recalc now survives dynamic arrays (Phase B).** Previously a single
