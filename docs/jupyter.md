@@ -31,6 +31,24 @@ python -m abax convert budget.ipynb budget.abax    # notebook → workbook
 - `abax.engine.nbvalidate.validate_notebook(nb)` checks a notebook against the
   real nbformat schema when it's installed, or stdlib structural checks otherwise.
 
+## Headless execution — `abax notebook run`
+
+Execute a notebook end to end **without** `nbclient`:
+
+```sh
+python -m abax notebook run analysis.ipynb          # execute in place
+python -m abax notebook run analysis.ipynb -o run.ipynb
+```
+
+Each code cell runs in order against abax's own shell — the same namespace as the
+embedded console and the kernel, so `doc`, `wb`, `cell`, `put`, … are bound — and
+the computed outputs (execute-result mime bundles and stdout streams) are written
+back into the notebook. A cell that raises doesn't stop the run: the error is
+captured into that cell's outputs and the summary reports how many cells raised.
+Because it's stdlib-first (`nbformat` is used when present, else a JSON fallback),
+it runs from the lean `.pyz` and is handy in CI. Programmatic entry point:
+`abax.engine.nbrun.run_notebook(path_in, path_out=None)`.
+
 ## Rich display in Jupyter / IPython
 
 A `Sheet` implements the IPython display protocol, so it renders as a grid:
@@ -65,7 +83,10 @@ The kernel returns results in Jupyter execute-result shape (a rich mime-bundle),
 so a `Sheet` shows as an HTML table in JupyterLab. It is a **pure-Python kernel**
 (it doesn't embed IPython); the default lightweight out-of-process console remains
 abax's own default — the kernel is the opt-in path for running abax *inside*
-Jupyter.
+Jupyter. The kernel answers **Tab-completion** (`do_complete`) and
+**introspection** (`do_inspect`): a line starting with `=` completes against the
+spreadsheet function library, and any other line completes against the live Python
+namespace (`doc`, `wb`, functions, imported names).
 
 ## Editable sheet widget (anywidget)
 
