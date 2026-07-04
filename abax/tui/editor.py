@@ -45,6 +45,7 @@ HELP_ENTRIES: list[tuple[str, str]] = [
     (":paste [dest]", "paste the copied range"),
     (":fill down|right|series <range>", "fill a range"),
     (":sort <range> [col] [desc]", "sort a range"),
+    (":describe <range>", "descriptive stats over a range"),
     (":fmt <spec> [range]", "apply a number format"),
     (":convert <v> <from> <to>", "unit conversion"),
     (":sheet <name|index>", "switch to a sheet (gt/gT for next/prev)"),
@@ -106,6 +107,7 @@ class TuiEditor:
         self.plot_pts: list = []  # sampled points when mode == plot
         self.plot_expr = ""
         self.plot_bounds = None  # (xmin, xmax, ymin, ymax) for range plots, else None
+        self.describe_summary: dict | None = None  # last :describe result, for tests
         self.message = ""
         self.running = True
 
@@ -278,6 +280,8 @@ class TuiEditor:
             self._handle_fmt(args)
         elif cmd == "plot":
             self._handle_plot(args)
+        elif cmd in ("describe", "desc", "stats"):
+            self._handle_describe(args)
         elif cmd == "eq":
             self._handle_eq(raw[2:].strip() if raw.startswith("eq") else "")
         elif cmd == "convert":
@@ -487,6 +491,51 @@ class TuiEditor:
         self.plot_pts = pts
         self.plot_bounds = (min(xs), max(xs), min(yvals), max(yvals))
         self.mode = "plot"
+
+    def _handle_describe(self, args: list[str]) -> None:
+        """``:describe A1:A50`` — descriptive stats over a range's numeric cells.
+
+        Reuses :func:`abax.core.science.descriptive.describe` for the math and
+        renders a compact summary on the status line. A bad or empty range is
+        reported gracefully rather than raising.
+        """
+        from ..core.science.descriptive import describe
+
+        rng = args[0] if args else self.cursor_a1()
+        try:
+            values = self._range_numbers(rng)
+        except Exception as exc:
+            self.describe_summary = None
+            self.message = f"describe: {exc}"
+            return
+        # _range_numbers yields None for non-numeric cells; describe() already
+        # drops None / non-finite entries, so hand it the raw column.
+        summary = describe(values)
+        self.describe_summary = summary
+        if not summary["count"]:
+            self.message = f"describe {rng}: no numeric data"
+            return
+        self.message = self._describe_text(rng, summary)
+
+    @staticmethod
+    def _describe_text(rng: str, summary: dict) -> str:
+        """One-line rendering of a :func:`describe` summary for the status bar.
+
+        Quartiles (``Q1``/``Q3``) and ``stdev`` are only appended when defined
+        for the sample (small samples leave them ``None``).
+        """
+        parts = [f"n={summary['count']}",
+                 f"mean={_fmt_num(summary['mean'])}",
+                 f"median={_fmt_num(summary['median'])}"]
+        if summary["stdev"] is not None:
+            parts.append(f"stdev={_fmt_num(summary['stdev'])}")
+        parts.append(f"min={_fmt_num(summary['min'])}")
+        if summary["Q1"] is not None:
+            parts.append(f"Q1={_fmt_num(summary['Q1'])}")
+        if summary["Q3"] is not None:
+            parts.append(f"Q3={_fmt_num(summary['Q3'])}")
+        parts.append(f"max={_fmt_num(summary['max'])}")
+        return f"{rng}  " + "  ".join(parts)
 
     def _handle_eq(self, latex: str) -> None:
         if not latex:

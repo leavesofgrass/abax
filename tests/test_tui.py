@@ -452,6 +452,63 @@ def test_plot_expression_still_works():
     assert ed.plot_bounds is None  # expression form uses auto-ranging
 
 
+def test_describe_command_over_numeric_column():
+    """:describe over a column renders count/mean/median from the shared helper.
+
+    Dataset [2, 4, 4, 4, 5, 5, 7, 9] (the standard-deviation worked example on
+    Wikipedia): count is 8 by inspection, mean = 40/8 = 5, median = (4+5)/2 =
+    4.5. The math comes from core.science.descriptive.describe, not the TUI.
+    """
+    ed = TuiEditor(Document())
+    for i, v in enumerate([2, 4, 4, 4, 5, 5, 7, 9], start=1):
+        ed.sheet.set(f"A{i}", str(v))
+    ed.command_buf = ":describe A1:A8"
+    ed.run_command()
+    assert ed.mode == "normal"  # renders on the status line, no overlay
+    # The stored summary matches describe() exactly.
+    assert ed.describe_summary["count"] == 8
+    assert ed.describe_summary["mean"] == 5.0
+    assert ed.describe_summary["median"] == 4.5
+    # …and the status message surfaces the headline stats.
+    assert "n=8" in ed.message
+    assert "mean=5" in ed.message
+    assert "median=4.5" in ed.message
+
+
+def test_describe_command_ignores_non_numeric_cells():
+    """Text cells inside the range are dropped; only numbers are summarized."""
+    ed = TuiEditor(Document())
+    ed.sheet.set("A1", "10")
+    ed.sheet.set("A2", "hello")  # ignored
+    ed.sheet.set("A3", "20")
+    ed.command_buf = ":describe A1:A3"
+    ed.run_command()
+    assert ed.describe_summary["count"] == 2
+    assert ed.describe_summary["mean"] == 15.0
+    assert "n=2" in ed.message
+
+
+def test_describe_command_empty_range_is_graceful():
+    """An all-blank/all-text range reports 'no numeric data' rather than raising."""
+    ed = TuiEditor(Document())
+    ed.sheet.set("A1", "text")
+    ed.command_buf = ":describe A1:A5"
+    ed.run_command()
+    assert ed.mode == "normal"
+    assert ed.describe_summary["count"] == 0
+    assert "no numeric data" in ed.message
+
+
+def test_describe_command_bad_range_is_graceful():
+    """A malformed range yields an error message, not a traceback."""
+    ed = TuiEditor(Document())
+    ed.command_buf = ":describe not-a-range"
+    ed.run_command()
+    assert ed.mode == "normal"
+    assert ed.describe_summary is None
+    assert "describe:" in ed.message
+
+
 def test_visual_mode_enter_and_extend():
     """`v` enters visual mode; h/j/k/l extend the selection from the anchor."""
     ed = TuiEditor(Document())
