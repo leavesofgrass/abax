@@ -51,16 +51,34 @@ def is_valid_name(name: str) -> bool:
 def normalize_target(target: str) -> str:
     """Validate and trim a name's *target*.
 
-    The target must be a single cell (``B2``, ``$B$2``, ``Sheet1!B2``) or a
-    range (``A1:C3``, ``Sheet1!A1:C3``). A leading ``Sheet!`` qualifier is
-    stripped before the cell/range part is validated but kept in the returned
-    value. Raises :class:`NameError` if the target parses as neither.
+    The target is one of:
+
+    * a single cell (``B2``, ``$B$2``, ``Sheet1!B2``),
+    * a range (``A1:C3``, ``Sheet1!A1:C3``), or
+    * a **formula** — any ``=``-prefixed expression, including a ``LAMBDA``
+      (``=LAMBDA(x, x*x)``) or a constant (``=2*PI()``). A formula name is
+      spliced into referencing formulas at resolve time (see
+      ``abax.core.sheet._resolve_names``); a ``LAMBDA``-valued name is callable
+      (``=SQ(A1)``).
+
+    A leading ``Sheet!`` qualifier on a ref target is kept in the returned value.
+    Raises :class:`NameError` if the target parses as none of the above.
     """
     if not isinstance(target, str):
         raise NameError(f"target must be a string: {target!r}")
     trimmed = target.strip()
     if not trimmed:
         raise NameError("empty target")
+
+    # A formula-valued name: validate that its body parses.
+    if trimmed.startswith("="):
+        from .parser import parse
+
+        try:
+            parse(trimmed[1:])
+        except FormulaError as exc:
+            raise NameError(f"invalid formula target: {target!r}") from exc
+        return trimmed
 
     # Strip a leading sheet qualifier ("Sheet1!...") before validating the ref.
     ref_part = trimmed

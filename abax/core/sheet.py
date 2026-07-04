@@ -752,19 +752,67 @@ def _node_for_target(target: str):
     return A.Ref(target, sheet)
 
 
-def _resolve_names(node, registry):
-    """Replace ``Name`` nodes matching a defined name with their Ref/Range."""
+def _resolve_formula_name(target: str, registry, seen):
+    """Parse a formula-valued name's body and resolve names within it.
+
+    ``target`` starts with ``=``. Returns the resolved body AST, or ``None`` if
+    the body doesn't parse (the caller then leaves the reference unresolved, so
+    it surfaces as ``#NAME?``).
+    """
+    from .errors import FormulaError
+    from .parser import parse
+
+    try:
+        body = parse(target[1:])
+    except FormulaError:
+        return None
+    return _resolve_names(body, registry, seen)
+
+
+def _resolve_names(node, registry, seen=frozenset()):
+    """Rewrite ``Name`` nodes that match a defined name.
+
+    A ref/range name becomes a ``Ref``/``Range`` node; a **formula-valued** name
+    is spliced in as its (recursively resolved) body — so ``=MYPI`` where
+    ``MYPI := =2*PI()`` evaluates the body, and ``=SQ(A1)`` where
+    ``SQ := =LAMBDA(x, x*x)`` becomes a direct ``Call`` on the LAMBDA (reusing
+    the existing lambda-call machinery). ``seen`` guards against a self- or
+    mutually-recursive name: a cyclic reference is left unresolved (``#NAME?``).
+    """
     from . import ast_nodes as A
 
     if isinstance(node, A.Name):
         target = registry.lookup(node.text)
-        return _node_for_target(target) if target is not None else node
+        if target is None:
+            return node
+        if target.startswith("="):
+            key = node.text.upper()
+            if key in seen:
+                return node  # cycle -> leave (evaluates to #NAME?)
+            resolved = _resolve_formula_name(target, registry, seen | {key})
+            return resolved if resolved is not None else node
+        return _node_for_target(target)
+    if isinstance(node, A.Func):
+        args = tuple(_resolve_names(a, registry, seen) for a in node.args)
+        target = registry.lookup(node.name)
+        if target is not None and target.startswith("="):
+            # X(args) where X is a formula/LAMBDA name -> a Call on its body.
+            key = node.name.upper()
+            if key not in seen:
+                callee = _resolve_formula_name(target, registry, seen | {key})
+                if callee is not None:
+                    return A.Call(callee, args)
+        return A.Func(node.name, args)
+    if isinstance(node, A.Call):
+        return A.Call(_resolve_names(node.callee, registry, seen),
+                      tuple(_resolve_names(a, registry, seen) for a in node.args))
     if isinstance(node, A.Unary):
-        return A.Unary(node.op, _resolve_names(node.operand, registry))
+        return A.Unary(node.op, _resolve_names(node.operand, registry, seen))
     if isinstance(node, A.Binary):
         return A.Binary(node.op,
-                        _resolve_names(node.left, registry),
-                        _resolve_names(node.right, registry))
-    if isinstance(node, A.Func):
-        return A.Func(node.name, tuple(_resolve_names(a, registry) for a in node.args))
+                        _resolve_names(node.left, registry, seen),
+                        _resolve_names(node.right, registry, seen))
+    if isinstance(node, A.ArrayLiteral):
+        return A.ArrayLiteral(tuple(
+            tuple(_resolve_names(el, registry, seen) for el in row) for row in node.rows))
     return node
