@@ -229,6 +229,54 @@ $ abax macro run my_recording data.csv --at C5
 
 If the macro is not found or fails, abax prints the error to standard error and exits with status `4`.
 
+### `doctor` — environment health report
+
+Prints a self-diagnostic: Python version and platform, the optional-dependency
+matrix (what's installed vs. available), the active **code-isolation** level and
+which sandbox confinement is selected/available, the runtime directories
+(config / data / cache / log) and whether each is writable, and whether
+`settings.json` parses. It never installs anything and never crashes when a
+confinement or directory is unavailable — a quick first stop when a feature seems
+missing.
+
+```console
+$ abax doctor
+abax doctor — environment health report
+=======================================
+Python & platform
+  python      : 3.13.0 (CPython)
+  ...
+Optional dependencies
+  [OK] openpyxl            available
+  [--] PyNEC               missing (fallback: built-in method-of-moments solver)
+  ...
+```
+
+### `notebook run FILE [-o OUT]` — execute a notebook headlessly
+
+Runs a Jupyter `.ipynb` end to end **without** `nbclient`: each code cell is
+executed in order against abax's own shell (so `doc`, `wb`, `cell`, `put`, … are
+bound, exactly as in the embedded console), and the computed outputs are written
+back into the notebook. With no `-o` the notebook is executed **in place**.
+
+```console
+# Execute in place (overwrites the file with results)
+$ abax notebook run analysis.ipynb
+executed 12 cell(s); wrote analysis.ipynb
+
+# Write the executed copy elsewhere
+$ abax notebook run analysis.ipynb -o analysis-run.ipynb
+```
+
+| Argument / flag | Description |
+|-----------------|-------------|
+| `FILE` | The `.ipynb` notebook to execute. |
+| `-o`, `--output OUT` | Write the executed notebook here (default: overwrite `FILE`). |
+
+A cell that raises does not stop the run; its error rides back into the notebook's
+outputs and the summary line notes how many cells raised. See
+[jupyter.md](jupyter.md) for the kernel and rich-display integration.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -236,7 +284,7 @@ If the macro is not found or fails, abax prints the error to standard error and 
 | `0` | Success. |
 | `2` | `view`: the requested `--sheet` does not exist. |
 | `3` | `convert`: the conversion failed (e.g. a missing optional dependency). |
-| `4` | `macro run`: the macro was not found or raised an error. |
+| `4` | `macro run` / `notebook run`: the macro/notebook was not found or failed. |
 
 ## See also
 
