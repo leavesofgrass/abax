@@ -19,10 +19,13 @@ dependent would serve a stale value, which must never happen. Anything the
 static analysis can't prove — a parse failure, an unknown macro, a workbook that
 currently spills, a structural edit — degrades to the blanket clear.
 
-Phase A (this module): only fully spill-free workbooks take the precise path;
-any array formula or active spill takes the sound full clear (a spilled-into
-cell's dependency on its anchor is not a static edge). Standalone sheets (no
-workbook) also keep the blanket clear. See ``dev/roadmap.md`` (WS1).
+Phase B (see :meth:`abax.core.workbook.Workbook.invalidate_dependents`): a spill's
+extent changes only when its anchor recomputes, which happens iff the anchor is in
+the edit's static closure. So spilling workbooks stay incremental — only edits that
+*interact* with a spill (redefine/remove an array formula, land inside a live spill
+region, unblock a ``#SPILL!``, or feed an anchor) take the sound full clear; every
+other edit is scoped precisely even when spills exist elsewhere. Standalone sheets
+(no workbook) keep the blanket clear. See ``dev/roadmap.md`` (WS1).
 
 Pure stdlib — the ``abax.core`` invariant. Toggle the whole feature with
 :data:`ABAX_INCREMENTAL` (``False`` restores the blanket-clear behaviour exactly,

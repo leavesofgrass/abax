@@ -83,21 +83,51 @@ class Workbook:
         value caches an edit at ``(sheet, row, col)`` can affect.
 
         Falls back to the blanket clear whenever soundness isn't cheap to prove:
-        the flag is off, the workbook currently spills (a spilled-into cell's
-        dependency on its anchor is not a static edge — Phase A), or the edited
-        formula can't be analysed. Name-referencing formulas are always-dirty,
-        so a defined-name change needs no special handling here.
+        the flag is off, the edited formula can't be analysed, or the edit
+        interacts with a dynamic-array spill (Phase B, below). Name-referencing
+        formulas are always-dirty, so a defined-name change needs no special
+        handling here.
+
+        **Phase B — spilling workbooks stay incremental.** A spill's grid depends
+        only on its anchor's formula inputs, and its extent changes only when the
+        anchor recomputes — which happens iff the anchor is in the edit's static
+        closure. So an edit is safe to scope precisely unless it *interacts* with
+        a spill: it (re)defines or removes an array formula, lands inside a live
+        spill region, unblocks a ``#SPILL!`` error, or feeds an anchor. Every such
+        case degrades to the sound blanket clear; all other edits get the precise
+        path even when spills exist elsewhere in the book (Phase A pessimistically
+        blanket-cleared on *any* spill anywhere). Proven equal to the full-recalc
+        oracle by ``tests/test_depgraph_property.py`` on spilling workbooks.
         """
         from .depgraph import ABAX_INCREMENTAL
 
         if not ABAX_INCREMENTAL:
             self.invalidate_caches()
             return
-        # Phase A: only fully spill-free workbooks get the precise path. Any
-        # array-formula anchor OR an active spill map => the verbatim full clear.
-        if any(s._anchor_cells or s._spill_anchor for s in self.sheets):
-            self._full_clear_and_reset()
-            return
+
+        key = (row, col)
+        spilling = any(s._anchor_cells for s in self.sheets)
+        # Pre-sync involvement — captured before the sync below, which erases a
+        # just-removed anchor from the map (so removal would otherwise slip past).
+        was_in_spill = key in sheet._spill_anchor
+        if spilling or was_in_spill or any(s._spill_error for s in self.sheets):
+            # Materialise the current spill map so region membership is exact:
+            # a freshly created spill or an unblocked #SPILL! becomes visible, and
+            # regions reflect the current formulas. Regions that would *grow* need
+            # the anchor to recompute, which the closure gate catches regardless.
+            for s in self.sheets:
+                if s._anchor_cells and s._spill_dirty:
+                    s._sync_spills()
+            if (key in sheet._anchor_cells          # edits/creates a spill formula
+                    or was_in_spill                 # edits a just-removed anchor / spilled cell
+                    or key in sheet._spill_anchor   # lands inside a live spill (post-sync)
+                    or any(s._spill_error for s in self.sheets)):  # a spill is #SPILL!
+                self._full_clear_and_reset()
+                return
+            guard_anchors = True
+        else:
+            guard_anchors = False
+
         dg = self._dep_graph
         if not dg.is_built:
             dg.build(self.sheets)
@@ -107,14 +137,27 @@ class Workbook:
             return
         seeds = {(sheet.name, row, col)}
         seeds |= dg.always_dirty
+        closure = dg.closure(seeds)
+
+        if guard_anchors:
+            anchor_keys = {(s.name, r, c) for s in self.sheets for (r, c) in s._anchor_cells}
+            if closure & anchor_keys:
+                # Recomputing an anchor can resize/move its spill; readers of the
+                # (old or new) spilled cells are not in this static closure.
+                self._full_clear_and_reset()
+                return
+
         by_name = {s.name: s for s in self.sheets}
-        for (sname, r, c) in dg.closure(seeds):
+        for (sname, r, c) in closure:
             tgt = by_name.get(sname)
             if tgt is not None:
                 tgt._value_cache.pop((r, c), None)
-        # Keep the spill flag workbook-wide, exactly as invalidate_caches does.
-        for s in self.sheets:
-            s._spill_dirty = True
+        if not guard_anchors:
+            # Keep the spill flag workbook-wide, exactly as invalidate_caches does
+            # (a no-op without anchors). When spilling, the map was synced above
+            # and no anchor changed, so it stays current — no re-dirty needed.
+            for s in self.sheets:
+                s._spill_dirty = True
 
     def load_envelope(self, env: dict) -> None:
         """Replace this workbook's contents IN PLACE from an envelope.

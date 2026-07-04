@@ -94,12 +94,24 @@ def _gen_raw(rng: random.Random, self_sheet: str) -> str:
         return f"=IF({a}>0,{b},{xsheet}{a})"
     if kind < 0.80:
         return f"=IFERROR({a}/{b},0)"
-    if kind < 0.86:
+    if kind < 0.80:
         return f'=INDIRECT("{a}")'
-    if kind < 0.90:
+    if kind < 0.84:
         return f"=OFFSET({a},0,0)"
-    if kind < 0.94:
+    if kind < 0.88:
         return f"=SUM({xsheet}A1:A5000)"  # large range -> one rectangle
+    if kind < 0.97:
+        # Dynamic-array spill formulas — the Phase-B stress. Small extents keep
+        # the spill inside the compared grid so a stale spilled cell is caught.
+        lo, hi = sorted((r1, r2))
+        return rng.choice([
+            f"=SEQUENCE({rng.randint(1, 3)})",           # column spill
+            f"=SEQUENCE({rng.randint(1, 2)},{rng.randint(1, 3)})",  # 2-D spill
+            "={1;2;3}",                                   # array constant (spills)
+            f"=UNIQUE({_a1(lo, c1)}:{_a1(hi, c1)})",      # runtime-sized spill
+            f"=SORT({_a1(lo, c1)}:{_a1(hi, c1)})",
+            f"={a}#",                                     # spill ref (always-dirty)
+        ])
     return rng.choice(["=RAND()", "=RANDBETWEEN(1,9)", "=NOW()", "=TODAY()"])
 
 
