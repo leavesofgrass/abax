@@ -102,6 +102,7 @@ class PreferencesDialog(QDialog):
         root = QVBoxLayout(self)
         tabs = QTabWidget(self)
         tabs.addTab(self._appearance_tab(), "Appearance")
+        tabs.addTab(self._accessibility_tab(), "Accessibility")
         tabs.addTab(self._calculator_tab(), "Calculator")
         tabs.addTab(self._system_tab(), "System")
         root.addWidget(tabs)
@@ -155,6 +156,45 @@ class PreferencesDialog(QDialog):
         self._vim = QCheckBox("Vim-style modal keys (Normal / Insert / Visual)", iface_box)
         iform.addRow(self._vim)
         outer.addWidget(iface_box)
+        outer.addStretch(1)
+        return page
+
+    def _accessibility_tab(self) -> QWidget:
+        page = QWidget(self)
+        outer = QVBoxLayout(page)
+
+        a11y_box = QGroupBox("Accessibility", page)
+        form = QFormLayout(a11y_box)
+        self._high_contrast = QCheckBox(
+            "High-contrast mode (bolder colours, stronger focus outline)", a11y_box)
+        form.addRow(self._high_contrast)
+        self._speak_on_move = QCheckBox(
+            "Speak the active cell as I move (text-to-speech)", a11y_box)
+        form.addRow(self._speak_on_move)
+        self._tui_screen_reader = QCheckBox(
+            "Screen-reader-friendly TUI (single-line, reader-first rendering)", a11y_box)
+        form.addRow(self._tui_screen_reader)
+        outer.addWidget(a11y_box)
+
+        # Surface whether the TTS backend is actually installed, so speak-on-move
+        # doesn't silently do nothing. Importing engine.tts is cheap and never
+        # fails (it no-ops without pyttsx3).
+        try:
+            from ...engine import tts
+            tts_ok = tts.available()
+        except Exception:
+            tts_ok = False
+        if tts_ok:
+            tts_msg = ("Speech uses your system's built-in voice — nothing is sent "
+                       "over the network.")
+        else:
+            tts_msg = ("Speak-on-move needs the optional 'pyttsx3' speech package "
+                       "(pip install pyttsx3). Without it, this option is silent; "
+                       "the high-contrast and screen-reader options work regardless.")
+        hint = QLabel(tts_msg, a11y_box)
+        hint.setWordWrap(True)
+        form.addRow(hint)
+
         outer.addStretch(1)
         return page
 
@@ -254,6 +294,10 @@ class PreferencesDialog(QDialog):
         self._show_toolbar.setChecked(bool(getattr(s, "show_toolbar", True)))
         self._vim.setChecked(bool(getattr(s, "vim_mode", True)))
 
+        self._high_contrast.setChecked(bool(getattr(s, "high_contrast", False)))
+        self._speak_on_move.setChecked(bool(getattr(s, "speak_on_move", False)))
+        self._tui_screen_reader.setChecked(bool(getattr(s, "tui_screen_reader", False)))
+
         self._select(self._calc_model, getattr(s, "calc_model", "") or _CALC_DEFAULT_MODEL)
         self._select(self._calc_style, getattr(s, "calc_style", "image") or "image")
         self._select(self._calc_degrees, bool(getattr(s, "calc_degrees", False)))
@@ -311,6 +355,13 @@ class PreferencesDialog(QDialog):
             win.set_vim_mode(vim)
 
         # --- deferred (persist now; take effect on next use) -----------------
+        # Accessibility toggles: persisted here; the front-ends read them live
+        # (the GUI speak-on-move hook lives in the grid view, the TUI reader mode
+        # in the TUI). high_contrast is honoured on the next theme apply / launch.
+        s.high_contrast = self._high_contrast.isChecked()
+        s.speak_on_move = self._speak_on_move.isChecked()
+        s.tui_screen_reader = self._tui_screen_reader.isChecked()
+
         s.tui_theme = self._tui_theme.currentData()
         s.calc_model = self._calc_model.currentData()
         s.calc_style = self._calc_style.currentData()
