@@ -90,3 +90,34 @@ def make_predicate(criteria: Any) -> Callable[[Any], bool]:
         return cmp_op(op, s2.lower(), rest.lower())
 
     return text_pred
+
+
+def numeric_criterion(criteria: Any) -> "tuple[str, float] | None":
+    """Report whether *criteria* is a purely numeric comparison, and its terms.
+
+    Returns ``(op, threshold)`` -- with ``op`` one of ``=``/``<>``/``<``/``>``/
+    ``<=``/``>=`` and ``threshold`` a float -- when the criterion is a bare number
+    or a comparison operator applied to a number (the shapes an accelerator can
+    turn into a numpy boolean mask). Returns ``None`` for anything text-flavoured:
+    a bool criterion (which :func:`make_predicate` tests by identity, not value),
+    a text/wildcard equality, or an operator applied to non-numeric text. The
+    ``(op, threshold)`` it yields is exactly what the ``num_pred`` branch of
+    :func:`make_predicate` compares against, so ``cmp_op(op, float(v), threshold)``
+    reproduces that predicate on any non-string numeric cell -- letting a vectorised
+    caller build the identical mask and fall back to :func:`make_predicate`
+    otherwise. Pure stdlib; no numpy here (core imports none)."""
+    if isinstance(criteria, bool):
+        return None                     # make_predicate uses an isinstance/value test
+    if isinstance(criteria, (int, float)):
+        return "=", float(criteria)
+    s = str(criteria).strip()
+    m = re.match(r"^(<=|>=|<>|=|<|>)(.*)$", s)
+    op, rest = ("=", s)
+    if m:
+        op, rest = m.group(1), m.group(2).strip()
+    if rest == "":
+        return None
+    num = _try_num(rest)
+    if num is None:
+        return None                     # text / wildcard criterion -> not vectorisable
+    return op, num

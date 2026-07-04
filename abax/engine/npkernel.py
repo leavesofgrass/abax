@@ -12,10 +12,13 @@ Registered into :data:`abax._runtime` by :func:`register`, called from
 ``abax.engine`` import. Correctness is guaranteed by construction: the numpy path
 only runs when the block is wholly finite-numeric, where SUM / MEAN / MIN / MAX /
 PRODUCT / SUMSQ / COUNT are identical to the stdlib reduction. The same
-finite-numeric gate widens to two more shapes -- a *sequence* of ranges (multi-
+finite-numeric gate widens to more shapes -- a *sequence* of ranges (multi-
 range SUM/AVERAGE/MIN/MAX/COUNT/PRODUCT, the argument list Excel treats as one
-concatenated pool) and equal-shaped operand ranges for SUMPRODUCT -- so those
-too vectorize when every block is clean and fall back to stdlib otherwise.
+concatenated pool), equal-shaped operand ranges for SUMPRODUCT, and the criteria
+family (COUNTIFS / SUMIFS / AVERAGEIFS) whenever every criteria/value range is
+finite-numeric and every criterion is a numeric comparison -- so those too
+vectorize when every block is clean and fall back to the exact stdlib loop
+otherwise (text and wildcard criteria always fall back).
 """
 
 from __future__ import annotations
@@ -131,16 +134,134 @@ def sumproduct(rangevalues):
     return True, float(_np.sum(prod))
 
 
+# ---------------------------------------------------------------------------
+# Criteria family: SUMIF(S) / COUNTIF(S) / AVERAGEIF(S)
+# ---------------------------------------------------------------------------
+#
+# The conditional aggregates loop in pure Python (abax.core.stats_dist and the
+# single-criterion versions in abax.core.functions.builtins). When every
+# criteria range is finite-numeric AND every criterion is a NUMERIC comparison
+# (=, <>, <, >, <=, >= against a number -- reported by
+# ``abax.core.criteria.numeric_criterion``), the whole predicate reduces to a
+# numpy boolean mask, and the sum/average/count reduces over that mask. Text
+# criteria, wildcards (``*``/``?``), and any block with text/blank/error make a
+# block non-coercible or a criterion non-numeric, and the caller bails to the
+# exact stdlib loop -- so semantics never change, this is pure speed.
+
+
+def _criteria_mask(crit_grids, ops_thresholds):
+    """Build the AND-ed boolean mask for numeric ``*IFS`` criteria, or ``None``.
+
+    ``crit_grids`` is a sequence of RangeValue grids (one per criterion) and
+    ``ops_thresholds`` the matching ``(op, threshold)`` pairs from
+    :func:`abax.core.criteria.numeric_criterion`. Returns a 1-D bool array over
+    the shared flat length when every block is finite-numeric and equal-length --
+    the same length/mismatch rule as the stdlib ``_qualifying_indices`` -- and
+    ``None`` otherwise so the caller runs the exact stdlib predicate loop. The
+    per-cell test ``cmp(block, threshold)`` mirrors ``make_predicate``'s numeric
+    branch on a non-string numeric cell, so the mask is bit-for-bit the stdlib
+    membership set."""
+    if _np is None:
+        return None
+    mask = None
+    length = None
+    for grid, (op, thr) in zip(crit_grids, ops_thresholds):
+        a = _finite_array(grid)
+        if a is None:
+            return None                 # text/blank/error block -> stdlib loop
+        flat = a.reshape(-1)
+        if length is None:
+            length = flat.size
+        elif flat.size != length:
+            return None                 # ragged criteria ranges -> stdlib (#VALUE!)
+        if op == "=":
+            m = flat == thr
+        elif op == "<>":
+            m = flat != thr
+        elif op == "<":
+            m = flat < thr
+        elif op == ">":
+            m = flat > thr
+        elif op == "<=":
+            m = flat <= thr
+        elif op == ">=":
+            m = flat >= thr
+        else:
+            return None
+        mask = m if mask is None else (mask & m)
+    if mask is None:
+        return None                     # no criteria at all -> stdlib
+    return mask
+
+
+def countifs(crit_grids, ops_thresholds):
+    """Vectorised COUNTIFS: count of cells where every numeric criterion holds.
+
+    Returns ``(handled, value)``. ``handled`` is ``True`` only when numpy is
+    present and :func:`_criteria_mask` succeeds (all blocks finite-numeric,
+    equal-length); otherwise ``(False, None)`` and the stdlib loop runs."""
+    mask = _criteria_mask(crit_grids, ops_thresholds)
+    if mask is None:
+        return False, None
+    return True, float(int(mask.sum()))
+
+
+def sumifs(value_grid, crit_grids, ops_thresholds):
+    """Vectorised SUMIFS: sum of ``value_grid`` where every criterion holds.
+
+    The value block must itself be finite-numeric (so every masked cell adds
+    ``float(v)`` exactly as the stdlib loop does -- text/blank cells there add
+    nothing, which only a clean block reproduces). Returns ``(handled, value)``;
+    bails to ``(False, None)`` if numpy is absent, the mask can't be built, or the
+    value block isn't finite-numeric or is a different length than the mask."""
+    mask = _criteria_mask(crit_grids, ops_thresholds)
+    if mask is None:
+        return False, None
+    vals = _finite_array(value_grid)
+    if vals is None:
+        return False, None
+    flat = vals.reshape(-1)
+    if flat.size != mask.size:
+        return False, None              # sum_range shape differs -> stdlib
+    return True, float(_np.sum(flat[mask]))
+
+
+def averageifs(value_grid, crit_grids, ops_thresholds):
+    """Vectorised AVERAGEIFS: mean of ``value_grid`` where every criterion holds.
+
+    Returns ``(handled, value)``. ``value`` is ``None`` with ``handled=True`` only
+    when the mask matched *zero* numeric cells -- the caller maps that to the
+    stdlib ``#DIV/0!``. Same finite-numeric / equal-length gate as
+    :func:`sumifs`; anything dirty bails to ``(False, None)``."""
+    mask = _criteria_mask(crit_grids, ops_thresholds)
+    if mask is None:
+        return False, None
+    vals = _finite_array(value_grid)
+    if vals is None:
+        return False, None
+    flat = vals.reshape(-1)
+    if flat.size != mask.size:
+        return False, None
+    picked = flat[mask]
+    if picked.size == 0:
+        return True, None               # -> caller returns #DIV/0!
+    return True, float(_np.sum(picked) / picked.size)
+
+
 def register() -> None:
     """Install the numpy reducers as the core aggregate accelerator.
 
     ``abax._runtime`` exposes a single accelerator slot, so the widened kernels
     ride along as attributes of the registered ``reduce_range`` callable: core
-    reads ``accel.multi`` / ``accel.sumproduct`` off whatever object it fetched
-    through the seam, keeping ``_runtime`` unchanged and the whole surface behind
-    one on/off toggle (clearing the slot disables every path at once)."""
+    reads ``accel.multi`` / ``accel.sumproduct`` / ``accel.countifs`` /
+    ``accel.sumifs`` / ``accel.averageifs`` off whatever object it fetched through
+    the seam, keeping ``_runtime`` unchanged and the whole surface behind one
+    on/off toggle (clearing the slot disables every path at once)."""
     from .._runtime import set_aggregate_accelerator
 
     reduce_range.multi = reduce_ranges
     reduce_range.sumproduct = sumproduct
+    reduce_range.countifs = countifs
+    reduce_range.sumifs = sumifs
+    reduce_range.averageifs = averageifs
     set_aggregate_accelerator(reduce_range)

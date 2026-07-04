@@ -18,10 +18,11 @@ from __future__ import annotations
 
 import math
 
-from .criteria import make_predicate
+from .criteria import make_predicate, numeric_criterion
 from .errors import CellError
 from .functions.helpers import _arg, _flatten, _numbers, _try_num
 from .values import RangeValue
+from .._runtime import aggregate_accelerator
 
 # ---------------------------------------------------------------------------
 # Numerical building blocks (pure Python)
@@ -871,10 +872,64 @@ def _pairs_from(args, start: int):
     return list(zip(rest[0::2], rest[1::2]))
 
 
+# Below this many criteria cells (summed across the criteria ranges) the pure-
+# Python loop wins: the numpy array round-trip isn't worth it. Mirrors the
+# aggregate accelerator's _ACCEL_MIN_CELLS in abax.core.functions.builtins.
+_ACCEL_MIN_CELLS = 4096
+
+
+def _ifs_criteria(pairs):
+    """Prepare the criteria side of a ``*IFS`` call for the numpy accelerator.
+
+    Returns ``(crit_grids, ops_thresholds)`` when *every* criteria range is a
+    ``RangeValue`` and *every* criterion is a numeric comparison (per
+    :func:`numeric_criterion`), and the pool clears :data:`_ACCEL_MIN_CELLS`;
+    otherwise ``None`` so the caller keeps the exact stdlib predicate loop (this
+    is what makes text, wildcard and mixed/blank/error inputs fall back). The
+    grids are handed to the kernel raw -- it does the finite-numeric / equal-length
+    gating and bails on any dirty block."""
+    if not pairs:
+        return None
+    if aggregate_accelerator() is None:
+        return None
+    grids = []
+    ops = []
+    cells = 0
+    for crange, crit in pairs:
+        if not isinstance(crange, RangeValue):
+            return None
+        spec = numeric_criterion(crit)
+        if spec is None:
+            return None                 # text/wildcard criterion -> stdlib loop
+        grids.append(crange.grid)
+        ops.append(spec)
+        cells += crange.nrows * crange.ncols
+    if cells < _ACCEL_MIN_CELLS:
+        return None
+    return grids, ops
+
+
+def _accel(name):
+    """Fetch a named kernel off the registered accelerator object, or ``None``.
+
+    The engine hangs the criteria kernels (``countifs`` / ``sumifs`` /
+    ``averageifs``) as attributes of the one accelerator callable in the
+    ``abax._runtime`` seam; core reads them through here and never imports numpy."""
+    accel = aggregate_accelerator()
+    return getattr(accel, name, None) if accel is not None else None
+
+
 def _countifs(args):
     pairs = _pairs_from(args, 0)
     if not pairs:
         return CellError(CellError.VALUE)
+    prep = _ifs_criteria(pairs)
+    if prep is not None:
+        kernel = _accel("countifs")
+        if kernel is not None:
+            handled, value = kernel(prep[0], prep[1])
+            if handled:
+                return value
     idx = _qualifying_indices(pairs)
     if isinstance(idx, CellError):
         return idx
@@ -882,12 +937,21 @@ def _countifs(args):
 
 
 def _sumifs(args):
-    sum_range = _as_range_list(_arg(args, 0))
+    value_arg = _arg(args, 0)
+    sum_range = _as_range_list(value_arg)
     if sum_range is None:
         return CellError(CellError.VALUE)
     pairs = _pairs_from(args, 1)
     if not pairs:
         return CellError(CellError.VALUE)
+    if isinstance(value_arg, RangeValue):
+        prep = _ifs_criteria(pairs)
+        if prep is not None:
+            kernel = _accel("sumifs")
+            if kernel is not None:
+                handled, value = kernel(value_arg.grid, prep[0], prep[1])
+                if handled:
+                    return value
     idx = _qualifying_indices(pairs)
     if isinstance(idx, CellError):
         return idx
@@ -901,12 +965,21 @@ def _sumifs(args):
 
 
 def _averageifs(args):
-    avg_range = _as_range_list(_arg(args, 0))
+    value_arg = _arg(args, 0)
+    avg_range = _as_range_list(value_arg)
     if avg_range is None:
         return CellError(CellError.VALUE)
     pairs = _pairs_from(args, 1)
     if not pairs:
         return CellError(CellError.VALUE)
+    if isinstance(value_arg, RangeValue):
+        prep = _ifs_criteria(pairs)
+        if prep is not None:
+            kernel = _accel("averageifs")
+            if kernel is not None:
+                handled, value = kernel(value_arg.grid, prep[0], prep[1])
+                if handled:
+                    return value if value is not None else CellError(CellError.DIV0)
     idx = _qualifying_indices(pairs)
     if isinstance(idx, CellError):
         return idx
