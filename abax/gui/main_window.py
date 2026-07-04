@@ -335,6 +335,8 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._reg_icon(self._act(m_file, "&Save", lambda: self.save_document(None), "Ctrl+S"), "save")
         self._act(m_file, "Save &As...", self.save_document_as, "Ctrl+Shift+S")
         self._act(m_file, "Export as &HTML report...", self.export_html_report)
+        self._act(m_file, "&Print...", self._print_workbook, "Ctrl+P")
+        self._act(m_file, "Export &PDF...", self._export_pdf)
         m_file.addSeparator()
         self._act(m_file, "&Quit", self.close, "Ctrl+Q")
 
@@ -423,6 +425,8 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._reg_icon(self._act(m_format, "&Text colour...", self.pick_text_color), "text_color")
         self._reg_icon(self._act(m_format, "&Fill colour...", self.pick_fill_color), "fill_color")
         self._act(m_format, "Clear cell st&yles", self.clear_styles)
+        self._act(m_format, "Cop&y format", self.copy_format)
+        self._act(m_format, "Paste for&mat", self.paste_format)
         m_format.addSeparator()
         m_num = m_format.addMenu("&Number")
         for spec, label in FORMATS:

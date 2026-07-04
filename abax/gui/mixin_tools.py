@@ -234,6 +234,16 @@ class ToolsMixin:
                               encoding="utf-8")
         self._set_status(f"saved HTML report: {Path(path).name}")
 
+    def _print_workbook(self) -> None:
+        from .print_export import print_document
+
+        print_document(self)
+
+    def _export_pdf(self) -> None:
+        from .print_export import export_pdf
+
+        export_pdf(self)
+
     def _unique_sheet_name(self, base: str) -> str:
         existing = {s.name for s in self._doc.workbook.sheets}
         if base not in existing:
