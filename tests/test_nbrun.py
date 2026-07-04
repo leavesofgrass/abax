@@ -18,8 +18,15 @@ from abax.engine import nbrun
 
 @pytest.fixture(params=["nbformat", "stdlib"])
 def path_backend(request, monkeypatch):
-    """Exercise both the nbformat path and the forced-stdlib cold path."""
-    if request.param == "stdlib":
+    """Exercise both the nbformat path and the forced-stdlib cold path.
+
+    The ``nbformat`` case needs nbformat actually installed (it can't be forced
+    on) — it's skipped in a thin environment (e.g. the CI ``thin`` matrix); the
+    ``stdlib`` case forces the cold path regardless and always runs.
+    """
+    if request.param == "nbformat":
+        pytest.importorskip("nbformat")
+    else:
         monkeypatch.setattr(nbrun, "HAS_NBFORMAT", False)
     return request.param
 
