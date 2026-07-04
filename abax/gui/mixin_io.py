@@ -212,6 +212,140 @@ class DocumentIOMixin:
         self._update_title()
         self._set_status(f"imported from URL into {doc.title}")
 
+    # --- Connected Data: web table / REST / database import ---------------
+
+    def _doc_from_grid(self, grid) -> "object":
+        """Build a fresh single-sheet Document from a grid (rows of cells)."""
+        from ..core.workbook import Workbook
+        from ..engine.document import Document
+
+        wb = Workbook()
+        items = []
+        for r, row in enumerate(grid):
+            for c, val in enumerate(row):
+                s = "" if val is None else str(val)
+                if s != "":
+                    items.append((r, c, s))
+        wb.sheet.set_cells_bulk(items)
+        return Document(wb, None)
+
+    def _grid_import_succeeded(self, grid, label: str) -> None:
+        if not grid:
+            self._set_status(f"{label}: nothing to import")
+            return
+        self._doc = self._doc_from_grid(grid)
+        self.refresh_table()
+        self._update_title()
+        self._set_status(f"imported {len(grid)} row(s) from {label}")
+
+    def import_web_table(self, url: str | None = None) -> None:
+        """Fetch a web page and import its largest HTML ``<table>`` as a sheet."""
+        from ._qtcompat import QInputDialog
+
+        if url is None:
+            url, ok = QInputDialog.getText(
+                self, "Import web table", "Web page URL (imports its largest HTML table):")
+            if not ok or not url.strip():
+                return
+        url = url.strip()
+
+        def fetch():
+            from ..core.io import urlfetch
+
+            return urlfetch.fetch_largest_table(url)
+
+        from ..workers import FuncWorker
+
+        self._run_io(FuncWorker(fetch),
+                     on_success=lambda grid: self._grid_import_succeeded(grid, "web table"),
+                     busy_msg=f"fetching {url[:60]}...")
+
+    def import_rest_api(self, url: str | None = None) -> None:
+        """Import a JSON REST endpoint's records as a sheet (headers + rows)."""
+        from ._qtcompat import QInputDialog
+
+        if url is None:
+            url, ok = QInputDialog.getText(
+                self, "Import from REST API", "JSON endpoint URL:")
+            if not ok or not url.strip():
+                return
+        url = url.strip()
+        path, ok = QInputDialog.getText(
+            self, "Import from REST API",
+            "Records path (dotted, e.g. data.items) — leave blank for the top level:")
+        records_path = path.strip() if ok and path.strip() else None
+
+        def fetch():
+            from ..core.io.restimport import import_rest_table
+
+            headers, rows = import_rest_table(url, records_path=records_path)
+            return [headers, *rows] if headers else rows
+
+        from ..workers import FuncWorker
+
+        self._run_io(FuncWorker(fetch),
+                     on_success=lambda grid: self._grid_import_succeeded(grid, "REST API"),
+                     busy_msg=f"fetching {url[:60]}...")
+
+    def import_database(self) -> None:
+        """Import a table from a PostgreSQL / MySQL database (optional drivers)."""
+        from ._qtcompat import QInputDialog, QMessageBox
+        from ..engine import dbapi
+
+        if not dbapi.available():
+            QMessageBox.information(
+                self, "Database import",
+                "No database driver is installed. Add the optional 'database' feature "
+                "(PostgreSQL: psycopg, MySQL: PyMySQL) from Edit → Preferences → "
+                "Manage optional features, then try again. (Run 'abax doctor' to check.)")
+            return
+        dsn, ok = QInputDialog.getText(
+            self, "Import from database",
+            "Connection URL (postgresql://user:pass@host/db  or  mysql://user:pass@host/db):")
+        if not ok or not dsn.strip():
+            return
+        dsn = dsn.strip()
+
+        def list_tables():
+            conn = dbapi.connect(dsn)
+            try:
+                return dbapi.list_tables(conn)
+            finally:
+                conn.close()
+
+        from ..workers import FuncWorker
+
+        self._run_io(FuncWorker(list_tables),
+                     on_success=lambda tables: self._db_pick_table(dsn, tables),
+                     busy_msg="connecting to database...")
+
+    def _db_pick_table(self, dsn: str, tables) -> None:
+        from ._qtcompat import QInputDialog
+
+        if not tables:
+            self._set_status("database: no tables found")
+            return
+        table, ok = QInputDialog.getItem(
+            self, "Import from database", "Table:", list(tables), 0, False)
+        if not ok or not table:
+            return
+
+        def read():
+            from ..engine import dbapi
+
+            conn = dbapi.connect(dsn)
+            try:
+                headers, rows = dbapi.read_table(conn, table)
+                return [list(headers), *[list(r) for r in rows]] if headers else rows
+            finally:
+                conn.close()
+
+        from ..workers import FuncWorker
+
+        self._run_io(FuncWorker(read),
+                     on_success=lambda grid: self._grid_import_succeeded(grid, f"table {table}"),
+                     busy_msg=f"reading {table}...")
+
     def save_document(self, path: str | None = None) -> None:
         if path is None and self._doc.path is None:
             self.save_document_as()

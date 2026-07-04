@@ -59,10 +59,20 @@ def _build_parser() -> argparse.ArgumentParser:
     mr.add_argument("-o", "--output", help="save path (default: overwrite the input file)")
     mr.add_argument("--at", metavar="A1", help="anchor cell for relative macros (e.g. C5)")
 
+    sub.add_parser("doctor", help="print an environment / health diagnostic report")
+
+    pn = sub.add_parser("notebook", help="run a Jupyter notebook headlessly")
+    nsub = pn.add_subparsers(dest="notebook_cmd")
+    nr = nsub.add_parser("run", help="execute a notebook and write results back")
+    nr.add_argument("path", help="the .ipynb file to execute")
+    nr.add_argument("-o", "--output", metavar="OUT",
+                    help="write the executed notebook here (default: overwrite in place)")
+
     return p
 
 
-_SUBCOMMANDS = frozenset({"gui", "tui", "view", "convert", "get", "macro", "deps"})
+_SUBCOMMANDS = frozenset(
+    {"gui", "tui", "view", "convert", "get", "macro", "deps", "doctor", "notebook"})
 
 
 def _normalize_argv(argv: list[str]) -> list[str]:
@@ -114,6 +124,12 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_deps()
     if cmd == "macro":
         return _cmd_macro(args, registry, udfs)
+    if cmd == "doctor":
+        from .doctor import run_doctor
+
+        return run_doctor()
+    if cmd == "notebook":
+        return _cmd_notebook(args)
 
     # No subcommand: prefer GUI, fall back to TUI, then help.
     from . import _runtime as rt
@@ -210,6 +226,29 @@ def _cmd_macro(args, registry, udfs) -> int:
         print("user functions:")
         for name in udfs:
             print(f"  {name}()")
+    return 0
+
+
+def _cmd_notebook(args) -> int:
+    if args.notebook_cmd != "run":
+        print("usage: abax notebook run FILE [-o OUT]", file=sys.stderr)
+        return 2
+    from .engine.nbrun import run_notebook
+
+    # No -o means overwrite in place, so always pass a concrete output path
+    # (run_notebook writes only when path_out is given).
+    out = args.output or args.path
+    try:
+        summary = run_notebook(args.path, out)
+    except Exception as exc:  # noqa: BLE001 - surface any read/execute failure cleanly
+        print(f"notebook run failed: {exc}", file=sys.stderr)
+        return 4
+    ran = summary.get("cells", "?")
+    errs = summary.get("error_cells") or []
+    msg = f"executed {ran} cell(s); wrote {out}"
+    if errs:
+        msg += f" ({len(errs)} cell(s) raised — see the notebook outputs)"
+    print(msg)
     return 0
 
 
