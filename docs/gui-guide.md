@@ -461,11 +461,21 @@ Import paths:
   more than ~50,000 rows it offers an optional row cap.
 - *File → Import from URL…* downloads a data file (CSV, JSON, Excel, Parquet, …)
   off the UI thread and opens it, guessing the format from the URL / content type.
+- *File → Import web table…* fetches a web page and imports its largest HTML
+  `<table>` as a sheet (pure stdlib — no extra dependency).
+- *File → Import from REST API…* pulls a JSON endpoint's records into a sheet;
+  give an optional dotted **records path** (e.g. `data.items`) to dig into the
+  payload.
+- *File → Import from database…* reads a table from **PostgreSQL** or **MySQL**
+  (install the optional `database` feature — `psycopg` / `PyMySQL`): enter a
+  connection URL, pick a table from the list, and it lands as a sheet. Connection
+  details live only in memory for that import — they are never written to disk.
 
 Supported formats include CSV/TSV, Excel `.xlsx`, LibreOffice `.ods`,
 Parquet/Feather, XML Spreadsheet, Markdown, Jupyter `.ipynb`, R, SQLite, ADIF
 amateur-radio logbooks (`.adi`/`.adif`), and native `.abax`/JSON. *File → Export
-as HTML report…* writes the whole workbook to a standalone HTML page. (Some
+as HTML report…* writes the whole workbook to a standalone HTML page, and *File →
+Print…* (`Ctrl+P`) / *Export PDF…* send it to a printer or a PDF. (Some
 formats require optional dependencies — run `python -m abax --deps` to see what's
 installed.) The full list of what each format keeps is in
 [File formats](file-formats.md).
@@ -538,9 +548,9 @@ the spreadsheet upper-left, a floating calculator, and the Python console
 The full menu bar, organised the standard desktop way (labels are exactly as in
 `abax/gui/main_window.py`):
 
-- **File** — New (`Ctrl+N`), Open (`Ctrl+O`), Import large CSV, Import from URL,
-  Save (`Ctrl+S`), Save As (`Ctrl+Shift+S`), Export as HTML report, Quit
-  (`Ctrl+Q`).
+- **File** — New (`Ctrl+N`), Open (`Ctrl+O`), Import large CSV, Import from URL /
+  web table / REST API / database, Save (`Ctrl+S`), Save As (`Ctrl+Shift+S`),
+  Export as HTML report, Print (`Ctrl+P`), Export PDF, Quit (`Ctrl+Q`).
 - **Edit** — Undo (`Ctrl+Z`), Redo (`Ctrl+Y`), Undo history (`Ctrl+Shift+Z`),
   Cut (`Ctrl+X`), Copy (`Ctrl+C`), Paste (`Ctrl+V`), Clear (Del), Fill Down
   (`Ctrl+D`), Fill Right (`Ctrl+R`), Fill series, Find / Replace (`Ctrl+F`), Go
@@ -556,9 +566,9 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
   right, append row/column, delete row(s) `Ctrl+-`, delete column(s)), Function
   (`Shift+F3`), Equation, Chart / graph, Export chart as SVG.
 - **Format** — Bold (`Ctrl+B`), Italic (`Ctrl+I`), Underline (`Ctrl+U`), Align
-  (left/center/right), Text colour, Fill colour, Clear cell styles, Number
-  (preset list), Conditional format, Clear conditional formats, Theme (submenu),
-  Choose theme (`Ctrl+T`).
+  (left/center/right), Text colour, Fill colour, Clear cell styles, Copy / Paste
+  format (the format painter), Number (preset list), Conditional format, Clear
+  conditional formats, Theme (submenu), Choose theme (`Ctrl+T`).
 - **Data** — Sort, Sort ascending, Sort descending, Filter, Clear filter, Name
   range, Name manager, Data validation, Compare workbook, Recalculate (`F9`),
   Recalculate sheet (`Shift+F9`), Calculation: auto/manual,
