@@ -8,6 +8,22 @@ from .keys import _handle_key
 from .themes import THEMES, TuiTheme, _hex_to_8, _hex_to_256
 from ..core.reference import index_to_col
 
+# Grid geometry, shared by the renderer and the editor's viewport reclamp so the
+# two agree exactly on how many cells fit. The header row, the read-only formula
+# bar, the status bar and the command/hint line each consume one screen line.
+_COL_W = 10
+_CHROME_ROWS = 4  # formula bar + column header + status bar + command/hint line
+
+
+def visible_rows(max_y: int) -> int:
+    """How many *data* rows the grid body can show for a screen ``max_y`` tall."""
+    return max(1, max_y - _CHROME_ROWS)
+
+
+def visible_cols(max_x: int, col_w: int = _COL_W) -> int:
+    """How many *data* columns fit for a screen ``max_x`` wide (5-col row gutter)."""
+    return max(1, (max_x - 5) // (col_w + 1))
+
 
 def _draw_loop(stdscr, curses, editor, cap: str) -> None:
     state = {"name": None, "pairs": {}, "cond": {}, "next": 1, "theme": THEMES["obsidian"]}
@@ -64,6 +80,12 @@ def _draw_loop(stdscr, curses, editor, cap: str) -> None:
                 colors = evaluate(sheet, sheet.cond_rules)
             except Exception:
                 colors = {}
+        # Tell the editor how big the window is so its reclamp (run on the next
+        # keystroke) can scroll to keep the cursor visible.
+        max_y, max_x = stdscr.getmaxyx()
+        editor.viewport_rows = visible_rows(max_y)
+        editor.viewport_cols = visible_cols(max_x)
+        editor._reclamp()
         stdscr.erase()
         _render(stdscr, curses, editor, attr, cap, colors, cond_attr)
         stdscr.refresh()
@@ -92,23 +114,32 @@ def _render(stdscr, curses, editor, attr, cap, colors, cond_attr) -> None:
         return
 
     sheet = editor.sheet
-    col_w = 10
-    n_cols = max(1, (max_x - 5) // (col_w + 1))
+    col_w = _COL_W
+    n_cols = visible_cols(max_x, col_w)
+    n_rows = visible_rows(max_y)
+    # Draw the window that starts at the scroll offset (kept cursor-visible by the
+    # editor's reclamp), not always at the origin — this is what lets the cursor
+    # roam the whole sheet over SSH.
+    top, left = editor.scroll_row, editor.scroll_col
     # Active visual selection (r1, c1, r2, c2), or None when not in visual mode.
     vsel = editor.visual_bounds() if editor.mode in ("visual", "visual-line") else None
-    # Header row.
-    _addstr(stdscr, 0, 0, " " * 5, attr("label"))
+    # Formula bar (row 0, read-only): A1 ref + the active cell's raw content.
+    _addstr(stdscr, 0, 0, ("  " + editor.formula_bar_text()).ljust(max_x)[: max_x - 1],
+            attr("label"))
+    # Column header (row 1).
+    _addstr(stdscr, 1, 0, " " * 5, attr("label"))
     x = 5
-    for c in range(editor.col, editor.col + n_cols):
-        _addstr(stdscr, 0, x, index_to_col(c).ljust(col_w)[: max_x - x], attr("label"))
+    for c in range(left, left + n_cols):
+        _addstr(stdscr, 1, x, index_to_col(c).ljust(col_w)[: max_x - x], attr("label"))
         x += col_w + 1
-    # Data rows — drawn cell-by-cell so conditional-format colors apply per cell.
-    for screen_r, r in enumerate(range(editor.row, editor.row + max_y - 3), start=1):
+    # Data rows (from row 2) — drawn cell-by-cell so conditional-format colors
+    # apply per cell.
+    for screen_r, r in enumerate(range(top, top + n_rows), start=2):
         if screen_r >= max_y - 2:
             break
         _addstr(stdscr, screen_r, 0, str(r + 1).rjust(4) + " ", attr("dim"))
         x = 5
-        for c in range(editor.col, editor.col + n_cols):
+        for c in range(left, left + n_cols):
             if x >= max_x:
                 break
             text = sheet.display(r, c)[:col_w].ljust(col_w)

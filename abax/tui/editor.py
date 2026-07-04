@@ -18,6 +18,7 @@ HELP_ENTRIES: list[tuple[str, str]] = [
     ("g", "jump to the first row"),
     ("G", "jump to the last used row"),
     ("0", "jump to the first column"),
+    ("gt / gT", "next / previous sheet"),
     ("n / N", "next / previous search match"),
     ("-- editing --", ""),
     ("i", "insert: edit the current cell (Enter commits, Esc cancels)"),
@@ -46,6 +47,8 @@ HELP_ENTRIES: list[tuple[str, str]] = [
     (":sort <range> [col] [desc]", "sort a range"),
     (":fmt <spec> [range]", "apply a number format"),
     (":convert <v> <from> <to>", "unit conversion"),
+    (":sheet <name|index>", "switch to a sheet (gt/gT for next/prev)"),
+    (":sheets", "list the workbook's sheets"),
     (":theme <name>", "switch the colour theme"),
     (":py <python>", "run a Python snippet against the sheet"),
     (":eq <latex>", "render LaTeX math to unicode"),
@@ -73,9 +76,17 @@ class TuiEditor:
         self.recorder = MacroRecorder()
         self.row = 0
         self.col = 0
+        # Top-left of the visible window. The render loop reports how many data
+        # rows/cols currently fit (``viewport_rows``/``viewport_cols``); the
+        # reclamp helper then scrolls just enough to keep the cursor on screen.
+        self.scroll_row = 0
+        self.scroll_col = 0
+        self.viewport_rows = 0  # data rows the grid can show (0 => unknown yet)
+        self.viewport_cols = 0  # data cols the grid can show (0 => unknown yet)
         self.mode = "normal"  # normal|insert|command|browser|visual|visual-line|help
         self.anchor_row = 0  # visual-mode selection anchor (fixed corner)
         self.anchor_col = 0
+        self.pending_g = False  # a bare 'g' was pressed; awaiting the second key
         self.command_buf = ""
         self.edit_buf = ""
         self.completions: list[str] = []
@@ -105,6 +116,32 @@ class TuiEditor:
     def move(self, dr: int, dc: int) -> None:
         self.row = max(0, self.row + dr)
         self.col = max(0, self.col + dc)
+        self._reclamp()
+
+    def _reclamp(self) -> None:
+        """Keep the cursor non-negative and inside the visible window.
+
+        Called at *every* cursor mutation (moves, g/G/0/$, goto, page, undo/redo
+        cursor restore, visual-mode extension, sheet switch). Row/col are pinned
+        to ``>= 0``; then, when the render loop has told us how big the window is
+        (``viewport_rows``/``viewport_cols`` > 0), ``scroll_row``/``scroll_col``
+        are nudged just far enough that ``scroll <= cursor < scroll + visible``.
+        """
+        self.row = max(0, self.row)
+        self.col = max(0, self.col)
+        vr, vc = self.viewport_rows, self.viewport_cols
+        if vr > 0:
+            if self.row < self.scroll_row:
+                self.scroll_row = self.row
+            elif self.row >= self.scroll_row + vr:
+                self.scroll_row = self.row - vr + 1
+        if vc > 0:
+            if self.col < self.scroll_col:
+                self.scroll_col = self.col
+            elif self.col >= self.scroll_col + vc:
+                self.scroll_col = self.col - vc + 1
+        self.scroll_row = max(0, self.scroll_row)
+        self.scroll_col = max(0, self.scroll_col)
 
     def cursor_a1(self) -> str:
         return to_a1(self.row, self.col)
@@ -221,6 +258,10 @@ class TuiEditor:
             self._handle_replace(args)
         elif cmd == "theme":
             self._handle_theme(args)
+        elif cmd == "sheet":
+            self.goto_sheet(args[0] if args else "")
+        elif cmd == "sheets":
+            self.list_sheets()
         elif cmd in ("func", "functions"):
             self._open_browser(args[0] if args else "")
         elif cmd == "rpn":
@@ -255,7 +296,7 @@ class TuiEditor:
     def do_undo(self) -> None:
         """Restore the previous checkpoint and refresh the view."""
         if self.doc.undo():
-            self._clamp_cursor()
+            self._reclamp()
             self.message = "undone"
         else:
             self.message = "nothing to undo"
@@ -263,15 +304,72 @@ class TuiEditor:
     def do_redo(self) -> None:
         """Re-apply the most recently undone checkpoint and refresh the view."""
         if self.doc.redo():
-            self._clamp_cursor()
+            self._reclamp()
             self.message = "redone"
         else:
             self.message = "nothing to redo"
 
-    def _clamp_cursor(self) -> None:
-        """Keep the cursor non-negative after the sheet is swapped by undo/redo."""
-        self.row = max(0, self.row)
-        self.col = max(0, self.col)
+    # --- formula bar ------------------------------------------------------
+
+    def formula_bar_text(self) -> str:
+        """The read-only formula bar: ``<A1 ref>  <raw cell content>``.
+
+        Mirrors the GUI's cell entry — the raw text (formula or literal) of the
+        active cell, so what you'd edit with ``i`` is always visible.
+        """
+        return f"{self.cursor_a1()}  {self.sheet.get_raw(self.row, self.col)}"
+
+    # --- sheet switching --------------------------------------------------
+
+    def switch_sheet(self, index: int) -> bool:
+        """Make sheet ``index`` (0-based) active and re-clamp the cursor.
+
+        No undo checkpoint is pushed — moving between tabs is navigation, not a
+        mutation. Returns ``True`` on success, ``False`` for an out-of-range
+        index (with an explanatory ``message``)."""
+        wb = self.doc.workbook
+        n = len(wb.sheets)
+        if not 0 <= index < n:
+            self.message = f"no sheet {index + 1} (1..{n})"
+            return False
+        wb.active = index
+        self._reclamp()  # the new sheet may have a smaller used extent
+        self.message = f"sheet {index + 1}/{n}: {self.sheet.name}"
+        return True
+
+    def next_sheet(self, step: int = 1) -> None:
+        """Move to the next (``step``>0) or previous (``step``<0) sheet, wrapping."""
+        wb = self.doc.workbook
+        n = len(wb.sheets)
+        if n <= 1:
+            self.message = "only one sheet"
+            return
+        self.switch_sheet((wb.active + step) % n)
+
+    def goto_sheet(self, token: str) -> None:
+        """Switch by 1-based index (``:sheet 2``) or by name (``:sheet Data``)."""
+        wb = self.doc.workbook
+        token = token.strip()
+        if not token:
+            self.message = "usage: :sheet <name|index>   (see :sheets)"
+            return
+        if token.isdigit():
+            self.switch_sheet(int(token) - 1)  # user indices are 1-based
+            return
+        for i, s in enumerate(wb.sheets):
+            if s.name == token:
+                self.switch_sheet(i)
+                return
+        self.message = f"no sheet named {token!r}"
+
+    def list_sheets(self) -> None:
+        """Populate ``message`` with the tab list, marking the active one with ``*``."""
+        wb = self.doc.workbook
+        parts = []
+        for i, s in enumerate(wb.sheets):
+            mark = "*" if i == wb.active else " "
+            parts.append(f"{mark}{i + 1}:{s.name}")
+        self.message = "sheets: " + "  ".join(parts)
 
     # --- help overlay -----------------------------------------------------
 
@@ -529,6 +627,7 @@ class TuiEditor:
             return
         m = self.matches[self.match_idx % len(self.matches)]
         self.row, self.col = m.row, m.col
+        self._reclamp()
 
     def next_match(self, step: int) -> None:
         if not self.matches:
@@ -739,11 +838,14 @@ class TuiEditor:
             self.move(-1, 0)
         elif ch == "g":
             self.row = 0
+            self._reclamp()
         elif ch == "G":
             n_rows, _ = self.sheet.used_bounds()
             self.row = max(0, n_rows - 1)
+            self._reclamp()
         elif ch == "0":
             self.col = 0
+            self._reclamp()
         elif ch == "n":  # next search match
             self.next_match(1)
         elif ch == "N":  # previous search match

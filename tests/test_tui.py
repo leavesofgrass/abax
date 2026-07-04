@@ -619,3 +619,266 @@ def test_relative_record_and_replay_at_cursor():
     ed.run_command()
     # B2 "=A1*2" -> D4 "=C3*2"
     assert ed.sheet.get_raw(3, 3) == "=C3*2"
+
+
+# --- (1) stable viewport with scroll offset ------------------------------
+
+def test_viewport_geometry_helpers():
+    """Renderer/reclamp share one grid-size formula (header+bar+status+hint chrome)."""
+    from abax.tui.render import visible_cols, visible_rows
+
+    assert visible_rows(24) == 20   # 24 - 4 lines of chrome
+    assert visible_rows(4) == 1     # never below one row
+    assert visible_rows(1) == 1
+    # col gutter is 5 wide; each column is col_w + 1.
+    assert visible_cols(60, col_w=10) == 5   # (60 - 5) // 11
+    assert visible_cols(6, col_w=10) == 1     # clamps to at least one column
+
+
+def test_reclamp_noop_without_viewport():
+    """With no reported viewport (headless, pre-first-frame) the scroll stays put."""
+    ed = TuiEditor(Document())
+    ed.move(50, 30)
+    assert (ed.row, ed.col) == (50, 30)
+    assert (ed.scroll_row, ed.scroll_col) == (0, 0)  # unknown viewport => no scroll
+
+
+def test_reclamp_scrolls_to_follow_cursor_down_and_right():
+    ed = TuiEditor(Document())
+    ed.viewport_rows, ed.viewport_cols = 10, 4
+    ed.move(9, 3)  # last visible cell — still no scroll needed
+    assert (ed.scroll_row, ed.scroll_col) == (0, 0)
+    ed.move(1, 1)  # steps just past the bottom-right corner
+    assert ed.row == 10 and ed.col == 4
+    assert ed.scroll_row == 1   # window shifts down by exactly one
+    assert ed.scroll_col == 1   # and right by one
+    # A big jump keeps the cursor on the last visible line.
+    ed.row = 100
+    ed._reclamp()
+    assert ed.scroll_row == 100 - 10 + 1
+
+
+def test_reclamp_scrolls_back_up_when_cursor_leaves_top():
+    ed = TuiEditor(Document())
+    ed.viewport_rows, ed.viewport_cols = 5, 3
+    ed.row, ed.col = 20, 10
+    ed._reclamp()
+    assert ed.scroll_row == 16 and ed.scroll_col == 8
+    # Move above the window: it scrolls up so the cursor sits on the top line.
+    ed.row = 4
+    ed._reclamp()
+    assert ed.scroll_row == 4
+    ed.col = 0
+    ed._reclamp()
+    assert ed.scroll_col == 0
+
+
+def test_reclamp_on_goto_top_and_bottom():
+    ed = TuiEditor(Document())
+    ed.viewport_rows, ed.viewport_cols = 5, 5
+    ed.sheet.set("A200", "x")  # extend used bounds far down
+    ed.dispatch_normal("G")    # jump to the last used row
+    assert ed.row == 199
+    assert ed.scroll_row == 199 - 5 + 1  # window followed the cursor down
+    ed.dispatch_normal("g")    # back to the top
+    assert ed.row == 0
+    assert ed.scroll_row == 0
+
+
+def test_reclamp_on_find_navigation():
+    ed = TuiEditor(Document())
+    ed.viewport_rows, ed.viewport_cols = 5, 5
+    ed.sheet.set("A50", "needle")
+    ed.command_buf = ":find needle"
+    ed.run_command()
+    assert (ed.row, ed.col) == (49, 0)
+    assert ed.scroll_row == 49 - 5 + 1  # jumped-to match is visible
+
+
+def test_render_draws_scrolled_window(monkeypatch):
+    """The draw loop reports the viewport and paints the scrolled cell range."""
+    from abax.tui import render as render_mod
+
+    ed = TuiEditor(Document())
+    ed.sheet.set("A1", "top")
+    ed.sheet.set("A40", "far")
+    ed.row, ed.col = 39, 0  # cursor well below the first screen
+
+    painted: dict[tuple[int, int], str] = {}
+
+    class FakeScr:
+        def getmaxyx(self):
+            return 24, 80
+
+        def addstr(self, y, x, text, attr_val):
+            painted[(y, x)] = text
+
+    fake = FakeScr()
+
+    class FakeCurses:
+        A_REVERSE = 0
+        A_BOLD = 0
+        A_NORMAL = 0
+
+        def color_pair(self, n):
+            return 0
+
+    # The draw loop reports the viewport + reclamps before each paint; do the
+    # same here so the render reflects the scrolled window.
+    ed.viewport_rows = render_mod.visible_rows(24)
+    ed.viewport_cols = render_mod.visible_cols(80)
+    ed._reclamp()
+    assert ed.scroll_row == 39 - ed.viewport_rows + 1
+    render_mod._render(fake, FakeCurses(), ed, lambda role: 0, "mono", {},
+                       lambda hexc: None)
+    # Formula bar (row 0) shows the active cell's ref + raw content.
+    assert painted[(0, 0)].strip().startswith("A40")
+    assert "far" in painted[(0, 0)]
+    # Row label 2 (screen row 2, the first data line) shows the scrolled top row,
+    # not row 1 — proving the window is offset.
+    top_label = painted[(2, 0)].strip()
+    assert top_label == str(ed.scroll_row + 1)
+
+
+# --- (2) persistent formula bar ------------------------------------------
+
+def test_formula_bar_shows_ref_and_raw():
+    ed = TuiEditor(Document())
+    ed.sheet.set("B2", "=1+2")
+    ed.row, ed.col = 1, 1
+    assert ed.formula_bar_text() == "B2  =1+2"
+    ed.row, ed.col = 0, 0  # empty cell -> ref then nothing
+    assert ed.formula_bar_text() == "A1  "
+
+
+# --- (3) sheet switching --------------------------------------------------
+
+def _wb_with_sheets(ed, *names):
+    for n in names:
+        ed.doc.workbook.add_sheet(n)
+
+
+def test_switch_sheet_changes_active_and_reclamps():
+    ed = TuiEditor(Document())
+    _wb_with_sheets(ed, "Data")
+    ed.viewport_rows, ed.viewport_cols = 5, 5
+    ed.row = 40  # far down on Sheet1
+    ed._reclamp()
+    assert ed.scroll_row > 0
+    ok = ed.switch_sheet(1)  # -> "Data" (used bounds empty)
+    assert ok is True
+    assert ed.doc.workbook.active == 1
+    assert ed.sheet.name == "Data"
+    # cursor kept, but reclamp ran (scroll re-derived from the new viewport)
+    assert ed.scroll_row == 40 - 5 + 1
+
+
+def test_switch_sheet_out_of_range_is_rejected():
+    ed = TuiEditor(Document())
+    assert ed.switch_sheet(3) is False
+    assert ed.doc.workbook.active == 0
+    assert "no sheet" in ed.message
+
+
+def test_next_prev_sheet_wraps():
+    ed = TuiEditor(Document())
+    _wb_with_sheets(ed, "Two", "Three")
+    assert ed.doc.workbook.active == 0
+    ed.next_sheet(1)
+    assert ed.doc.workbook.active == 1
+    ed.next_sheet(1)
+    assert ed.doc.workbook.active == 2
+    ed.next_sheet(1)          # wraps back to the first
+    assert ed.doc.workbook.active == 0
+    ed.next_sheet(-1)         # wraps to the last
+    assert ed.doc.workbook.active == 2
+
+
+def test_gt_gT_switch_sheets_via_keys():
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    _wb_with_sheets(ed, "B", "C")
+    _handle_key(ed, "g")
+    assert ed.pending_g is True   # first 'g' held pending
+    _handle_key(ed, "t")          # 'gt' -> next sheet
+    assert ed.pending_g is False
+    assert ed.doc.workbook.active == 1
+    _handle_key(ed, "g")
+    _handle_key(ed, "T")          # 'gT' -> previous sheet
+    assert ed.doc.workbook.active == 0
+
+
+def test_bare_g_still_jumps_to_top_via_keys():
+    """A 'g' not followed by t/T behaves as the plain jump-to-top motion."""
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    ed.row = 12
+    _handle_key(ed, "g")   # pending
+    _handle_key(ed, "j")   # 'gj' -> g (top) then j (down one)
+    assert ed.pending_g is False
+    assert ed.row == 1     # jumped to 0, then j moved down to 1
+
+
+def test_gg_jumps_to_top_via_keys():
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    ed.row = 30
+    _handle_key(ed, "g")
+    _handle_key(ed, "g")   # 'gg'
+    assert ed.row == 0
+    assert ed.pending_g is False
+
+
+def test_sheet_command_by_index_and_name():
+    ed = TuiEditor(Document())
+    _wb_with_sheets(ed, "Data", "Notes")
+    ed.command_buf = ":sheet 2"   # 1-based index -> "Data"
+    ed.run_command()
+    assert ed.sheet.name == "Data"
+    ed.command_buf = ":sheet Notes"
+    ed.run_command()
+    assert ed.sheet.name == "Notes"
+    ed.command_buf = ":sheet Missing"
+    ed.run_command()
+    assert ed.sheet.name == "Notes"  # unchanged
+    assert "no sheet named" in ed.message
+
+
+def test_sheets_command_lists_and_marks_active():
+    ed = TuiEditor(Document())
+    _wb_with_sheets(ed, "Data")
+    ed.doc.workbook.active = 1
+    ed.command_buf = ":sheets"
+    ed.run_command()
+    assert "*2:Data" in ed.message
+    assert "1:Sheet1" in ed.message
+
+
+def test_sheet_switch_pushes_no_undo_checkpoint():
+    ed = TuiEditor(Document())
+    _wb_with_sheets(ed, "Data")
+    # make one real edit so there IS undo history to compare against
+    ed.begin_insert()
+    ed.edit_buf = "=1"
+    ed.commit_insert()
+    undo_before, _ = ed.doc.undo_history()
+    ed.switch_sheet(1)
+    ed.switch_sheet(0)
+    ed.next_sheet(1)
+    undo_after, _ = ed.doc.undo_history()
+    assert undo_after == undo_before  # navigation added no checkpoints
+
+
+def test_switch_sheet_shows_the_other_sheets_cells():
+    """Regression: multi-tab workbooks were invisible; switching reveals them."""
+    ed = TuiEditor(Document())
+    ed.sheet.set("A1", "on-first")
+    data = ed.doc.workbook.add_sheet("Data")
+    data.set("A1", "on-second")
+    assert ed.formula_bar_text() == "A1  on-first"
+    ed.goto_sheet("Data")
+    assert ed.sheet.display(0, 0) == "on-second"
+    assert ed.formula_bar_text() == "A1  on-second"

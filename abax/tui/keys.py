@@ -39,17 +39,47 @@ def _handle_key(editor: TuiEditor, ch) -> None:
     elif editor.mode == "rpn":
         _handle_rpn(editor, ch)
     elif editor.mode == "normal":
-        # Arrow keys navigate the sheet exactly like the vi keys h/j/k/l.
-        key = ch if isinstance(ch, str) else _arrow_vi(ch)
-        if key is not None:
-            editor.message = ""
-            editor.dispatch_normal(key)
+        _handle_normal(editor, ch)
     elif editor.mode in ("visual", "visual-line"):
         _handle_visual(editor, ch)
     elif editor.mode == "insert":
         _handle_insert(editor, ch)
     elif editor.mode == "command":
         _handle_command(editor, ch)
+
+
+def _handle_normal(editor: TuiEditor, ch) -> None:
+    """Normal-mode dispatch, incl. the ``g``-prefixed two-key sheet motions.
+
+    Arrow keys navigate the sheet exactly like the vi keys h/j/k/l. A bare ``g``
+    is held pending one keystroke: ``gt``/``gT`` switch sheets; ``gg`` (or any
+    other ``g<x>``) falls back to the plain ``g`` jump-to-top, then processes the
+    trailing key. Driving :meth:`TuiEditor.dispatch_normal` directly (as the unit
+    tests do) keeps the simpler single-key ``g`` = jump-to-top behaviour."""
+    key = ch if isinstance(ch, str) else _arrow_vi(ch)
+    if key is None:
+        return
+    if editor.pending_g:  # resolve a previously-pressed 'g'
+        editor.pending_g = False
+        if key == "t":
+            editor.message = ""
+            editor.next_sheet(1)
+            return
+        if key == "T":
+            editor.message = ""
+            editor.next_sheet(-1)
+            return
+        # Not a sheet motion: honour the first 'g' (jump to top), then fall
+        # through so the trailing key is handled as usual.
+        editor.message = ""
+        editor.dispatch_normal("g")
+        if key == "g":  # 'gg' — already at top; nothing more to do
+            return
+    if key == "g":
+        editor.pending_g = True
+        return
+    editor.message = ""
+    editor.dispatch_normal(key)
 
 
 def _handle_visual(editor: TuiEditor, ch) -> None:
