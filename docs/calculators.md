@@ -100,12 +100,18 @@ the correlation coefficient (`lin est,r`). The engine also gained a
 single-expression **`SOLVE`** (robust root finder) and **`∫`** (adaptive-Simpson
 integration) — the same primitives that power [Goal Seek](data-analysis.md).
 
-The keypad still prints legends for the full solver/matrix subsystem and the
-programming keys (`GTO`, `GSB`, `LBL`, `RTN`, `SST`, `BST`, `R/S`, `P/R`, `PSE`,
-`DSE`, `ISG`, `TEST`, `SF`, `CF`, `F?`, `USER`, `MEM`, `(i)`, `I`, `MATRIX`,
-`DIM`, `RESULT`). abax's keypad is immediate-mode only with no program/solver
-*memory*, so pressing one of those reports a short note ("*needs program/solver
-memory (use the console)*") rather than acting.
+The keypad still prints legends for the full solver/matrix subsystem
+(`SOLVE`, `∫`/`INTEGRATE`, `MATRIX`, `DIM`, `RESULT`) plus the shift/flag/index
+keys (`SST`, `BST`, `P/R`, `PSE`, `DSE`, `ISG`, `TEST`, `SF`, `CF`, `F?`, `USER`,
+`MEM`, `(i)`, `I`). Pressing one of those directly on the immediate-mode keypad
+still reports a short note ("*needs program/solver memory (use the console)*")
+rather than acting — that keypad has no solver/matrix memory of its own.
+
+The **flow-control** keys, however (`GTO`, `GSB`, `LBL`, `RTN`, and the `x≤y` /
+`x=0` conditional tests), are no longer inert: they are the vocabulary of the
+[program runner](#keystroke-programs-hp-15c-style) described below, which records
+them and executes them against the live RPN engine like the real HP-15C's program
+mode.
 
 ### HP-16C — programmer
 
@@ -158,12 +164,18 @@ instead of skipping an instruction it simply leaves the boolean result in X.
 
 The 16C keypad prints many keys that need program memory, index registers, or
 flow control that the immediate-mode engine doesn't provide. These are collected
-in a `_PROGRAM_KEYS` set and, when pressed, report *"programming-mode key (no
-program memory)"* rather than acting or erroring:
+in a `_PROGRAM_KEYS` set and, when pressed *directly* on the keypad, report
+*"programming-mode key (no program memory)"* rather than acting or erroring:
 
 `GSB`, `GTO`, `LBL`, `RTN`, `R/S`, `SST`, `BST`, `DSZ`, `ISZ`, `P/R`, `PSE`,
 `(i)`, `I`, `x<>(i)`, `x<>I`, `x<=y`, `x<0`, `x>y`, `x=0`, `x>0`, `x/=y`,
 `x/=0`, `x=y`, `SF`, `CF`, `F?`, `CLR PRGM`, `MEM`.
+
+The flow-control and conditional-test keys in that list (`GSB`, `GTO`, `LBL`,
+`RTN`, and the `x<=y` / `x=0`-style comparisons) *do* run once recorded into a
+keystroke program — see [Keystroke programs](#keystroke-programs-hp-15c-style)
+above. The remaining index-register and flag keys (`(i)`, `I`, `SF`, `CF`, `F?`,
+`DSZ`, `ISZ`, …) stay immediate-mode notes.
 
 Other printed-but-unmodelled legends (e.g. the double-word `DBL` variants,
 `LJ`, `UNSIGN`, `FLOAT`, `STATUS`, `WINDOW`, display-shift keys) report a plain
@@ -201,6 +213,49 @@ money received is positive, money paid out is negative.
 
 For scripted or batch financial work, the same routines are importable from
 `abax.core.science.financial` in the Python console.
+
+### Keystroke programs (HP-15C style)
+
+Beyond immediate-mode entry, the RPN keypads can **record and run a keystroke
+program**, the way the real HP-15C's program mode does. The program subsystem
+lives in `core/calc/program.py` (`Program` / `ProgramRunner` / `Step`); the Qt
+run/step panel is `abax/gui/calc/program_panel.py` (`ProgramPanel`). It is
+model-agnostic — it drives whatever RPN faceplate it's handed, so it works with
+the 12C, 15C, and 16C keypads unchanged.
+
+A program is an ordered list of **steps**. Each step is one of: a recorded
+keypad button press; a raw engine token (a keypad-independent keystroke like `5`,
+`+`, or `sqrt`); a `LBL` label marker; a `GTO` (unconditional jump to a label); a
+`GSB` *gosub* (jump to a label after pushing a return address); an `RTN` (return
+— a top-level `RTN` stops the program); or a **conditional test**. When a program
+runs, the steps execute against the *existing* RPN engine, so every operation
+does exactly what pressing the same keys by hand would do.
+
+- **Conditional tests** follow HP's *do-if-true* convention: when the test is
+  true the next step runs; when it's false the next step is **skipped**. A guarded
+  loop is a test placed immediately before a `GTO`. The supported tests compare X
+  against Y — `x≤y`, `x<y`, `x>y`, `x≥y`, `x=y`, `x≠y` — or X against zero —
+  `x≤0`, `x<0`, `x>0`, `x≥0`, `x=0`, `x≠0` (`TESTS` in `program.py`). On the
+  HP-16C the comparisons use each value's *signed* interpretation.
+- **Bounded execution.** Every run is capped by a step budget (10 000 steps by
+  default), so an accidental infinite loop like `LBL a … GTO a` terminates with a
+  clear "possible infinite loop" error instead of hanging the UI.
+
+The **program panel** (`ProgramPanel`) sits beside the faceplate and gives it the
+usual HP program controls:
+
+- **● Record** — arm recording; every key you then press on the faceplate is
+  captured into program memory (and still executes live as you go).
+- **Clear** — erase program memory (HP `f CLEAR PRGM`).
+- **▶ Run** — execute the program from the top (HP `R/S`), bounded by the cap.
+- **Step** — execute a single instruction (HP `SST`); the highlighted listing row
+  is the program counter.
+- **Reset PC** — rewind the program counter to the top.
+
+The listing mirrors the program back in an HP `P/R`-style numbered display
+(`001 …`). Note that pressing a flow-control key *directly* on the immediate-mode
+keypad — outside the program panel — still just reports a short note; recording it
+into a program is what makes `LBL`/`GTO`/`GSB`/`RTN` and the tests actually run.
 
 ### Faceplate style: image or vector
 

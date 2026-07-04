@@ -23,7 +23,7 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `last_sheet` | int | `0` | Active sheet index, restored on launch. |
 | `last_cell` | string | `""` | Cursor cell (A1), restored on launch. |
 | `code_consent` | bool | `false` | Whether you've consented to run untrusted code (console/terminal/scripts/macros). Set back to `false` to be prompted again. |
-| `code_isolation` | string | `"isolated"` | How code execution is isolated: `off` (in-process, no worker/limits), `isolated` (out-of-process worker + resource limits), or `strict` (also OS-confine filesystem + network). Cycle it from the command palette; see [Macros & scripting](macros-and-scripting.md). |
+| `code_isolation` | string | `"isolated"` | How code execution is isolated: `off` (in-process, no worker/limits), `restricted` (the out-of-process, resource-limited worker **plus** an AST allowlist applied to your code that blocks OS/filesystem/network access — a language-level block, not an OS boundary; sits between `off` and `isolated` in the cycle; the optional `restricted` extra adds RestrictedPython compile-time guards), `isolated` (out-of-process worker + resource limits), or `strict` (also OS-confine filesystem + network). Cycle it from the command palette; see [Macros & scripting](macros-and-scripting.md). |
 | `faceplate_assets_dir` | string | `""` | Folder of calculator faceplate artwork (see [Faceplate assets](#faceplate-assets)). |
 | `show_toolbar` | bool | `true` | Show the GUI toolbar. |
 | `autosave_enabled` | bool | `true` | Whether the GUI periodically autosaves `settings.json`. |
@@ -33,7 +33,14 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `fm_buttons` | list | `[]` | Your custom file-manager command buttons (`{label, command}`); see [File manager](file-manager.md). |
 | `auto_install` | bool | `true` | Auto-install optional dependencies (and show the first-run chooser); see [Auto-install](#auto-install). Set `false` to opt out. |
 | `deps_prompted` | bool | `false` | Whether the first-run optional-feature chooser has been shown. Set back to `false` to be asked again. |
-| `schema_version` | int | `4` | Settings schema version (managed by abax). |
+| `calc_iterative` | bool | `false` | Resolve circular references by capped fixed-point iteration instead of surfacing `#CIRC!` (off by default, like Excel). |
+| `calc_max_iterations` | int | `100` | Maximum iterations for iterative calculation (when `calc_iterative` is on). |
+| `calc_max_change` | float | `0.001` | Convergence tolerance for iterative calculation — iteration stops once the largest cell change falls below this. |
+| `high_contrast` | bool | `false` | High-contrast accessibility mode. |
+| `speak_on_move` | bool | `false` | Speak the active cell aloud on cursor move (GUI + TUI); needs the `tts` extra. |
+| `tui_screen_reader` | bool | `false` | Single-line, reader-friendly TUI rendering for screen readers. |
+| `plugins_enabled` | bool | `false` | Whether third-party UDF/format plugins (entry points) may load. Off by default — loading runs third-party code with full privileges. |
+| `schema_version` | int | `5` | Settings schema version (managed by abax). |
 
 You can edit `settings.json` by hand while abax is closed, but you rarely need to: the **Preferences** dialog (Edit → Preferences…, `Ctrl+,`) is the central place to manage every field, grouped into **Appearance** (GUI + TUI theme, font, zoom, toolbar, vim keys), **Calculator** (default model, faceplate style, angle mode, faceplate folder), and **System** (autosave, code-execution consent + isolation, optional-dependency install). Changing settings from the app is the recommended way — it persists and applies without a manual edit.
 

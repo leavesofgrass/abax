@@ -26,13 +26,24 @@ See also: [index](index.md) · [architecture](architecture.md) · [licensing](li
 > `ABAX_WORKER_MEM_MB` / `ABAX_WORKER_CPU_S` / `ABAX_WORKER_PROCS` environment
 > variables (the defaults are generous — big enough for real data-science work).
 >
-> **Code isolation is a setting with three levels** (`code_isolation`, or the
-> command palette's **"Cycle code isolation (off / isolated / strict)"**):
+> **Code isolation is a setting with four levels** (`code_isolation`, or the
+> command palette's **"Cycle code isolation"** — the Tools → Code isolation
+> submenu offers the levels directly):
 >
 > - **off** — code runs **in this process**, with no worker and no limits:
 >   fastest and most direct, but a crash (e.g. in a C extension) can take down
 >   abax and a runaway can't be interrupted. Choose this only for code you wrote
 >   and trust.
+> - **restricted** — code runs in the same **resource-limited worker process**
+>   as *isolated* (below), but every statement first passes an **AST allowlist**
+>   that parses the code and blocks `import os`/`subprocess`, `open()`, dunder
+>   reflection, and the other escape hatches, so it cannot reach the OS, the
+>   filesystem, or the network. This is **language-level hardening, not an OS
+>   boundary** — it's the tier to reach for when a full OS sandbox (**strict**,
+>   below) isn't available on your platform but you still want to keep code away
+>   from your files. The AST allowlist is pure stdlib (always available);
+>   installing the optional **`restricted`** extra (`pip install abax[restricted]`,
+>   i.e. `RestrictedPython`) layers compile-time guards on top.
 > - **isolated** *(default)* — code runs in a separate, **resource-limited**
 >   worker process (memory / CPU / process caps), so a crash, hang, or runaway
 >   allocation there can't take down abax. This is **crash and resource
@@ -232,6 +243,46 @@ A file that fails to load is reported and skipped — the rest stay loadable.
 UDFs are made live by `install_functions`, which copies them into the formula
 engine's `FUNCTIONS` registry. Saved recordings auto-load into the active
 registry, so a freshly saved macro is immediately runnable.
+
+## Third-party plugins
+
+Beyond your own macro files, abax can be extended by *installed* Python
+packages. A package advertises its contribution through `importlib.metadata`
+entry points (`abax/plugins.py`) in two groups:
+
+| Entry-point group | Contributes |
+|-------------------|-------------|
+| `abax.udfs` | user-defined functions for the formula engine / console (a callable, or a module exposing `register(registry)`) |
+| `abax.formats` | a file-format importer / exporter |
+
+A package opts in through its own packaging metadata, e.g. in its
+`pyproject.toml`:
+
+```toml
+[project.entry-points."abax.udfs"]
+myfuncs = "mypkg.abax_udfs"
+```
+
+> **Plugins are OFF by default.** A plugin is third-party code from an installed
+> package, and loading one **runs that code with your full privileges** —
+> importing the entry point executes the package's module top-level. That is
+> exactly the untrusted-code risk the console and macros carry, so plugin loading
+> is gated on an explicit consent setting, **`plugins_enabled`** (default
+> `False`):
+>
+> - **`discovered()`** merely *lists* what installed packages advertise. It reads
+>   metadata only and imports nothing, so it is **always safe** to call — no
+>   consent needed. Use it to see what's on offer.
+> - **`load_plugins(enabled=...)`** is the consent gate. When `enabled` is
+>   `False` it **refuses to import anything** (the result is marked `skipped` and
+>   no third-party code runs); only when the caller passes `enabled=True` — which
+>   the GUI wires to `settings.plugins_enabled` — does it import and register the
+>   advertised plugins. One plugin that fails to import is recorded and skipped;
+>   the rest still load.
+>
+> A loaded plugin is ordinary in-process code: consent is the gate, and the
+> code-isolation setting above does not sandbox what a plugin does once imported.
+> Only enable plugins from packages you trust.
 
 ## Macro recording
 

@@ -2,7 +2,7 @@
 
 abax is a keyboard-first **statistics and data-science workstation** — an
 integrated environment for data work, built on a fast, scriptable spreadsheet.
-Import a dataset, explore it with **600+ formula functions** (statistics and
+Import a dataset, explore it with **620+ formula functions** (statistics and
 distributions, financial, engineering, database, and RF/amateur-radio), run built-in
 analyses, reshape and visualize it, hand a
 selection to pandas, and script everything with Python — over CSV, Excel, Parquet,
@@ -28,7 +28,10 @@ opt-in from a first-run chooser (nothing is installed until you choose it).
 - [RF toolkit & antenna modeling](rf-toolkit.md) — RF engineering functions (link
   budget, transmission line & matching, Maidenhead grid, band plan / CTCSS), the
   Smith chart, dipole impedance, and a thin-wire **Method-of-Moments** solver with
-  NEC `.nec` import/export.
+  wire junctions, a ground-reflection take-off model, and NEC `.nec` import/export.
+  Amateur-radio logging adds contest/POTA/SOTA dupe-checking and QSO-scoring
+  functions (`ISDUPE`, `QSOPOINTS`) and an activation-log dialog; satellite pass
+  prediction from a TLE is available with the optional `satellite` extra.
 - [Jupyter integration](jupyter.md) — lossless `.ipynb` round-trip, rich display,
   abax as a Jupyter kernel, and the editable-sheet widget.
 
@@ -36,7 +39,8 @@ opt-in from a first-run chooser (nothing is installed until you choose it).
 
 - [Getting started](getting-started.md) — install, launch, and a 5-minute walkthrough.
 - [GUI guide](gui-guide.md) — the grid, Excel-style keyboard navigation, selection
-  statistics, formatting, freeze panes, find/replace, themes.
+  statistics, formatting, cell borders and merged cells, freeze panes, find/replace,
+  themes, and accessibility options (high-contrast mode, spoken active-cell readout).
 - [File manager](file-manager.md) — the dual-pane browser, archiving, search, and
   configurable command buttons.
 - [Budgeting](budgeting.md) — the budget wizard and the live `SUMIF`-driven budget
@@ -46,7 +50,8 @@ opt-in from a first-run chooser (nothing is installed until you choose it).
 - [Command-line interface](cli.md) — headless `view`/`convert`/`get`/`macro`/`deps`
   plus the GUI/TUI launchers.
 - [Configuration](configuration.md) — settings, auto-install, environment
-  variables, themes, fonts, and runtime paths.
+  variables, themes, fonts, runtime paths, iterative (circular-reference)
+  calculation, and third-party plugin consent (off by default).
 
 ## Extend & contribute
 

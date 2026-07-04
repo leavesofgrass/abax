@@ -178,6 +178,98 @@ abax reads and writes **ADIF** (Amateur Data Interchange Format) logbooks, backe
 Combine it with `DXCC` in the grid — e.g. `=DXCC(A2)` in a column next to your logged
 callsigns — to annotate the entities you've worked.
 
+## POTA/SOTA & contest logging
+
+abax has a small logging layer for **Parks/Summits On The Air** activations and
+contest operating, backed by [`abax/core/science/hamlog.py`](../abax/core/science/hamlog.py)
+(pure standard library). It gives the grid two spreadsheet functions and a live
+GUI logger, both built on the same dupe / scoring primitives.
+
+| Function | Returns |
+| --- | --- |
+| `ISDUPE(call, band, mode, [log_range])` | `TRUE` if `(call, band, mode)` already appears in `log_range` |
+| `QSOPOINTS(mode, [ruleset])` | point value of one QSO in `mode` under a named ruleset |
+
+`log_range` is a range of prior QSOs laid out one per row as `call \| band \| mode`
+(extra columns ignored); omit it and the log is treated as empty. `QSOPOINTS`
+defaults to the `generic` ruleset (1 pt/QSO); under `fieldday` a CW/digital QSO
+scores 2 and phone 1 (ARRL Field Day 7.3.1).
+
+**Duplicate detection** works **per band per mode** with **callsign
+normalisation** — a call is upper-cased and stripped of portable decorations
+before comparison, so `W1AW`, `w1aw/p` and `VE3/W1AW` all collide, and modes are
+folded onto a family (`USB`/`LSB` → `SSB`, `FT8`/`PSK31`/`RTTY` → data) so those
+count together. The dupe key defaults to *call + band + mode* (the POTA/contest
+"once per band per mode" convention); the **SOTA** preset collapses band and
+mode so a summit counts once regardless.
+
+**Point / multiplier tally.** Scoring walks a log in order, marks each QSO new or
+dupe (a dupe earns 0 points), applies the ruleset's per-QSO point value, and
+counts multipliers (the distinct non-blank multiplier tokens among credited
+QSOs). The final score is credited points × multipliers (× 1 when a ruleset has
+no multipliers). Built-in presets are `generic`, `pota`, `sota`, `fieldday`, and
+`arrl-dx`.
+
+### Activation log dialog
+
+*Tools → Radio → Activation log (POTA/SOTA)* opens a keyboard-first logger
+(`HamLogDialog`). Pick a ruleset, type a callsign, choose band/mode (time
+defaults to now, UTC), and *Log QSO*: the contact is added to an in-memory log,
+scored against the selected ruleset, and checked for dupes. **Dupe rows are
+highlighted** and a **running tally** — valid QSOs / dupes / points / score —
+updates on every entry. *Write to sheet* drops the whole scored log into a new
+worksheet (with a summary block), where the ADIF logbook tools can export it.
+
+## Satellite passes (SGP4)
+
+abax predicts **satellite passes** from a two-line element set (TLE) and an
+observer, backed by [`abax/engine/satellite.py`](../abax/engine/satellite.py).
+Given a TLE plus an observer (latitude, longitude, altitude) it computes, for
+each pass over a time window, the **rise**, **culmination** and **set** times,
+the **azimuth** at each of those moments, and the **maximum elevation** at
+culmination.
+
+Orbit **propagation** uses the optional **`sgp4`** package (a pure-Python
+implementation of the standard SGP4 model); everything after propagation —
+converting the orbit position to the observer's topocentric frame for azimuth and
+elevation — is pure standard library. Importing the module never fails:
+`satellite.available()` reports whether the propagation path can run, and a
+predictor call raises a descriptive "install sgp4" message when the package is
+absent.
+
+```python
+from abax.engine import satellite
+
+satellite.available()                 # True iff the 'sgp4' package is importable
+passes = satellite.predict_passes(
+    tle,                              # a TLE string (three-line or two-line) or parsed Tle
+    (40.71, -74.01, 10.0),           # observer: lat°, lon°, altitude (m)
+    start, hours=24,                  # window start (UTC) and length
+    min_elevation_deg=10.0,           # only report passes above this elevation
+)
+```
+
+Each returned pass carries the satellite name, `rise` / `culmination` / `set`
+(timezone-aware UTC datetimes), `max_elevation`, the rise / max / set azimuths,
+and the duration in seconds.
+
+`sgp4` is an **optional dependency** shipped in the `satellite` extra:
+
+```bash
+pip install abax[satellite]      # or: pip install sgp4
+```
+
+### Satellite pass predictor dialog
+
+*Tools → Radio → Satellite passes (SGP4)* opens the predictor (`SatelliteDialog`).
+Paste a TLE (the name line is optional and a sample ISS element set is prefilled),
+set the observer and the window (start time in UTC, length in hours, minimum
+elevation), and **Predict** (or press F5). Passes appear in a table — rise,
+culmination and set with their azimuths, the maximum elevation, and the duration
+— and *Passes → new sheet* drops them into a fresh sheet. When `sgp4` is not
+installed the dialog stays usable but Predict reports the "install sgp4" message
+instead of computing.
+
 ## GUI tools (the *Radio* menu)
 
 All of the RF/amateur-radio tools live under the **Tools → Radio** submenu (general
@@ -191,6 +283,14 @@ math tools stay under *Tools → Scientific*):
 - **Antenna pattern** — a polar plot of the analytic dipole / array patterns with
   directivity (dBi) and half-power beamwidth. It re-plots live as you change N /
   spacing / phase, and **exports the pattern as SVG** or a **NEC `.nec`** deck.
+- **Antenna modeler** — a Method-of-Moments dialog for a real **dipole** or
+  **Yagi**, reporting gain / front-to-back / feed impedance and a radiation cut,
+  with a **Ground** option for an over-ground take-off pattern (see *Antenna
+  modeling* below).
+- **Activation log (POTA/SOTA)** — the keyboard-first activation logger with live
+  dupe highlighting and a running score (see *POTA/SOTA & contest logging*).
+- **Satellite passes (SGP4)** — the TLE + observer pass predictor (see *Satellite
+  passes*); needs the optional `sgp4` package.
 - **RF reference** — a filterable view of the US amateur band plan (with width and
   mid-band wavelength) and the 50 EIA CTCSS tones; double-click (or *Send to cell*)
   writes a value into the grid, and *Bands → new sheet* drops the band plan in.
@@ -225,10 +325,49 @@ wire_mom.yagi(0.47, [(0.5, -0.25), (0.45, 0.15)], spacing_wl=0.2)  # a Yagi
 - `mom` — a straight center-fed dipole. A single basis reproduces the induced-EMF
   impedance to 5 significant figures; the converged multi-segment result matches NEC.
 - `wire_mom` — arbitrary 3-D wire structures (bent wires, V antennas, parasitic
-  **Yagi** arrays), with a far-field pattern and front-to-back ratio.
+  **Yagi** arrays), with a far-field pattern and front-to-back ratio. It also
+  models **multi-wire junctions** and an **image-plane ground reflection** — see
+  *Junctions & ground reflection* below.
 - `nec` — read and write NEC2 `.nec` decks (`parse_nec` / `to_nec` / `solve`), so
   abax exchanges models with 4nec2 / EZNEC / xnec2c. The Antenna pattern viewer's
   *Export NEC* button writes a deck for the current geometry.
+
+### Junctions & ground reflection
+
+`wire_mom` is more than a straight dipole — two capabilities let it model real
+installed antennas rather than an idealised element in free space:
+
+- **Multi-wire junctions.** When several wires share an endpoint (to within a
+  tiny node tolerance) they form a *junction*, and the solver enforces
+  **Kirchhoff current continuity** there instead of pinning the shared point to
+  zero current. At a junction of degree *d* it builds *d − 1* piecewise-sinusoidal
+  bases (a reference arm carrying current into the node, each other arm carrying a
+  share out), so the current the solution pushes into one arm equals the sum it
+  draws out of the rest. This is what lets **verticals with radials**, **loops**,
+  and **fed T-junctions** solve correctly. A single wire's ordinary interior node
+  is just the *d = 2* case and reduces to the classic before/after pair, so the
+  free-space single-wire path is unchanged.
+- **Image-plane ground reflection.** `radiation_vector_ground` /
+  `far_field_intensity_ground` superpose the structure (assumed at *z ≥ 0*) with
+  its image in a horizontal ground plane at *z = 0*: each element gets a mirror
+  image whose horizontal current is negated and vertical current kept, scaled by
+  a reflection coefficient. That turns the free-space elevation cut — which is
+  symmetric about the horizon — into a real **take-off pattern** for a given
+  install **height** and ground, asymmetric about the horizon and zero below it.
+  A perfect (PEC) ground uses Γ = −1 (horizontal) / +1 (vertical); a finite ground
+  uses a **Fresnel** reflection coefficient from a relative permittivity and
+  conductivity (`Ground("finite", …)`).
+
+Both are surfaced in the **Antenna modeler** dialog (*Tools → Radio → Antenna
+modeler*, backed by `wire_mom`). Its **Ground** chooser offers *Free space*
+(the classic symmetric pattern), *Perfect ground* (structure on the plane), and
+*Perfect ground + height* (which enables a **Height above ground (λ)** field and
+lifts the geometry before folding in the image reflection). Choose an elevation
+cut with a ground option and the plot becomes a genuine over-ground take-off
+pattern; the dialog labels it *(over ground)* so it is never mistaken for the
+free-space cut. Over-ground cuts always use the built-in image model even when
+PyNEC is present, since PyNEC's free-space read-back cannot express the take-off
+pattern.
 
 ### Optional PyNEC solver (reference-grade)
 

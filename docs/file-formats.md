@@ -59,7 +59,7 @@ abax's own format is a self-describing JSON **envelope** produced by
 ```json
 {
   "app": "abax",
-  "schema_version": 1,
+  "schema_version": 2,
   "written_at": "2026-06-29T12:00:00+00:00",
   "data": {
     "active": 0,
@@ -71,6 +71,7 @@ abax's own format is a self-describing JSON **envelope** produced by
         "cond_rules": [],
         "formats": {},
         "styles": {},
+        "comments": {},
         "validations": []
       }
     ]
@@ -79,9 +80,33 @@ abax's own format is a self-describing JSON **envelope** produced by
 ```
 
 This is fully lossless: cell text and formulas, multiple sheets, the active
-sheet, named ranges, conditional-formatting rules, per-cell number formats and
-styles, and data validations are all preserved. `schema_version` lets older
-files migrate forward on load.
+sheet, named ranges, conditional-formatting rules, per-cell number formats,
+styles, comments, and data validations are all preserved. `schema_version` lets
+older files migrate forward on load.
+
+### View fidelity (schema v2)
+
+The envelope is now **schema v2** and additionally preserves a sheet's **view
+fidelity** — the layout you set up, not just its data. Each sheet may carry:
+
+- `col_widths` / `row_heights` — non-default column and row sizes (sparse, keyed
+  by index).
+- `frozen` — `[rows, cols]`, the frozen top rows and left columns.
+- `borders` — per-cell borders, keyed by A1, as `{edge: style}` maps.
+- `merges` — merged regions as a list of `"A1:B2"` ranges.
+
+These keys are **omitted whenever they are empty**, so a plain grid's file is
+byte-for-byte what abax wrote before — the new keys appear only once you actually
+set a width, freeze a pane, draw a border, or merge cells. They also survive
+row/column insert and delete: sizes shift along their axis, borders relocate like
+any per-cell attribute, and merged regions move like a range (dropped if wholly
+deleted or collapsed to a single cell).
+
+The change is **backward-compatible in both directions**. Older (schema v1) files
+have none of these keys and load unchanged: `from_envelope` reads each with a
+default, so a v1 file simply comes back with no custom widths, freezes, borders,
+or merges. The migration is a bare version-label bump — no data transform — so
+nothing in an older file is rewritten or lost.
 
 ### `.json` auto-detects native vs foreign
 

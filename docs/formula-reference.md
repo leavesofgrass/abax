@@ -85,11 +85,22 @@ trapped by `IFERROR` / `IFNA` / `ISERROR`.
 | `#N/A` | No match / value not available (lookups, `NA()`) |
 | `#CIRC!` | Circular reference (surfaced as a value, never a crash) |
 
+`#CIRC!` is the **default** answer to a circular reference: normal evaluation
+reports it rather than looping. A circular reference can instead be **resolved**
+by opt-in **iterative calculation** — off by default, enabled with the
+`calc_iterative` setting (with `calc_max_iterations`, default `100`, and
+`calc_max_change`, default `0.001`). When enabled, pressing **F9** (Recalculate)
+fixed-point iterates every formula cell: a circular read reads the previous
+iteration's value instead of `#CIRC!`, so an accumulator (`B1 = A1 + B1`) or a
+convergent model settles. Iteration stops once the largest change across a sweep
+is within `calc_max_change`, or at the `calc_max_iterations` cap. With the
+setting off, a genuine circular reference still reports `#CIRC!`.
+
 ## Functions
 
 Function names are case-insensitive. Below, every built-in is grouped by
 family with its signature, a one-line description, and an example. Optional
-arguments are shown in `[brackets]`. There are **over 600 built-in functions** —
+arguments are shown in `[brackets]`. There are **over 620 built-in functions** —
 **591 eager** (counting aliases and modern dotted names), **6 lazy** control-flow
 functions, and **21 reference/context** functions (`ROW`, `OFFSET`, `INDIRECT`,
 `CELL`, `LET`, `LAMBDA`, …) — **618 names** in all; user macros can add more
@@ -903,6 +914,16 @@ units note, and worked examples in [RF toolkit](rf-toolkit.md).
 | `DOPPLER` | Doppler shift (Hz) | `DOPPLER(freq_hz, velocity_mps)` | |
 | `ZINLINER` / `ZINLINEX` | lossless-line input Z real / imag (Ω) | `ZINLINER(zl_r, zl_x, z0, elen_deg)` | `=ZINLINER(100,0,50,90)` → `25` |
 | `LINELOSS` | matched line loss (dB) | `LINELOSS(length_m, freq_hz, loss_db_per_100m)` | `=LINELOSS(50,1e8,4)` → `2` |
+
+**Contest / activation logging** — dupe detection and QSO point values for
+POTA / SOTA / contest logs. Callsigns are normalised (uppercased, portable
+`/P` and prefix/suffix decorations stripped) before comparison, and the
+`once per band per mode` convention is the default.
+
+| Function | Description | Syntax | Example |
+| --- | --- | --- | --- |
+| `ISDUPE` | TRUE if `(call, band, mode)` already appears in a prior-QSO range (one QSO per row as `call \| band \| mode`) | `ISDUPE(call, band, mode, [log_range])` | `=ISDUPE("W1AW","20m","SSB",A1:C50)` |
+| `QSOPOINTS` | Point value of one QSO in `mode` under a named ruleset (default `generic` = 1 pt; `fieldday` scores CW/digital 2, phone 1) | `QSOPOINTS(mode, [ruleset])` | `=QSOPOINTS("CW","fieldday")` → `2` |
 
 For antenna modeling beyond these closed-form functions — the thin-wire Method of
 Moments solver and NEC `.nec` I/O — see [RF toolkit](rf-toolkit.md).

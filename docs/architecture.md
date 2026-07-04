@@ -18,15 +18,24 @@ core  ──►  engine  ──►  gui / tui
 ```
 
 - **`abax/core/` — pure, stdlib-only.** The spreadsheet engine and formula
-  machinery (tokenizer, parser, evaluator, 600+ functions incl. `LET`/`LAMBDA`,
+  machinery (tokenizer, parser, evaluator, 620+ functions incl. `LET`/`LAMBDA`,
   the dynamic-array spill engine, sheet/workbook model,
   search, fill/sort, completion, reference-shifting) live at the `core/` root, with
   the pluggable libraries grouped into subpackages:
   - **`core/io/`** — tabular import/export adapters (CSV/TSV, XML, Markdown, SQLite,
     flat-file, JSON exchange, R, Jupyter).
   - **`core/calc/`** — calculator engines (RPN Voyager 12C/15C/16C, algebraic, TI).
+    `core/calc/program.py` adds HP-15C-style program memory: a `Program` of
+    recorded `Step`s that a `ProgramRunner` executes against the RPN engine, so
+    the `LBL`/`GTO`/`GSB`/`RTN` flow-control keys and the `x<=y` / `x=0`
+    conditional tests actually run rather than sitting inert.
   - **`core/science/`** — numerical/statistical engines (linear algebra, calculus/
-    ODEs, signal/spectral, statistics, regression, ML, finance, units).
+    ODEs, signal/spectral, statistics, regression, ML, finance, units), the
+    `wire_mom.py` method-of-moments antenna solver (multi-wire junctions +
+    image-plane ground reflection), and `hamlog.py` — pure-stdlib amateur-radio
+    contest/POTA/SOTA logging (per-band-per-mode dupe detection with callsign
+    normalization, point/multiplier tally) that registers the `ISDUPE` and
+    `QSOPOINTS` spreadsheet functions.
   - **`core/format/`** — cell value formatting, styles, conditional formatting,
     colour maps, ANSI palette.
 
@@ -34,8 +43,15 @@ core  ──►  engine  ──►  gui / tui
   headless with nothing but the standard library.
 - **`abax/engine/` — adapters with optional dependencies.** This is where
   optional packages are allowed. `engine/excel_io.py` uses openpyxl;
-  `engine/document.py` dispatches open/save by file extension. Everything here
-  has a fallback so the app still works when the optional dep is missing.
+  `engine/document.py` dispatches open/save by file extension;
+  `engine/satellite.py` predicts satellite pass rise/culmination/set times and
+  look-angles from a TLE + observer (propagation via the optional `sgp4` extra,
+  look-angle geometry pure stdlib); `engine/tts.py` is a text-to-speech adapter
+  over the optional `pyttsx3` extra (native SAPI5/NSSpeech/eSpeak, no network) that
+  powers speak-on-move. Everything here has a fallback so the app still works when
+  the optional dep is missing — importing an adapter never fails when its dep is
+  absent (`available()` reports the truth; the feature no-ops or raises a clear
+  "install X" message).
 - **`abax/gui/` and `abax/tui/` — front-ends.** The Qt desktop GUI and the
   curses/Textual TUI. These depend on core and engine, never the other way
   around. The TUI is a package split by concern — `capabilities` (terminal
@@ -45,14 +61,18 @@ core  ──►  engine  ──►  gui / tui
   GUI groups its widgets into subpackages: **`gui/grid/`** (the
   virtualized table model/view + frozen panes), **`gui/dialogs/`** (the ~20 modal
   dialogs and browsers), **`gui/calc/`** (the floating calculator panel + painted/
-  image faceplates), and **`gui/console/`** (the embedded Python console, its
+  image faceplates + the `ProgramPanel` that enters/steps/runs a keystroke
+  program), and **`gui/console/`** (the embedded Python console, its
   out-of-process bridge, and the terminals). The main window, theming, and the
   `_qtcompat` shim stay at the `gui/` root. `MainWindow` composes focused mixins:
-  `DocumentMixin` (open/save/edit), `NavigationMixin` (movement/selection), and
+  `DocumentMixin` (open/save/edit — including cell borders via `BorderDialog`,
+  merge/unmerge, and the speak-active-cell a11y hook wired to the grid's
+  `currentCellChanged` signal), `NavigationMixin` (movement/selection), and
   `SettingsMixin` — itself composed from `ViewMixin` (theme/zoom/fonts/docks),
   `PaletteMixin` (command + shortcut palettes, About), `CalcMixin` (calculator),
   `ConsoleMixin` (console/terminal/consent), `MacroMixin` (record/replay/scripts),
-  and `ToolsMixin` (data/science dialogs, conditional format, clipboard, actions).
+  and `ToolsMixin` (data/science dialogs — including the SGP4 satellite-pass and
+  POTA/SOTA activation-log dialogs — conditional format, clipboard, actions).
 
 ### Why the seam matters
 
@@ -71,8 +91,16 @@ These are enforced by tests and by convention. Don't break them:
   `abax/gui/` imports Qt, and no module — including inside the GUI — imports
   `PySide6`/`PyQt6` directly except `_qtcompat.py`.
 - **All native persistence is JSON.** `.abax`/`.json` files use the workbook
-  JSON envelope; macro recordings use a JSON envelope; settings and state are
-  JSON. No pickle, no bespoke binary format.
+  JSON envelope (`core/workbook.py`, `schema_version` 2); macro recordings use a
+  JSON envelope; settings and state are JSON (`settings.py`, `SCHEMA_VERSION` 5).
+  No pickle, no bespoke binary format. **Schema bumps stay back-compatible:** the
+  workbook v2 view-fidelity keys (per-sheet `col_widths` / `row_heights` /
+  `frozen` / `borders` / `merges`) are *omitted when empty* so a plain grid's file
+  is byte-for-byte unchanged, and read back with a default so an older v1 file
+  loads untouched (they survive row/column insert & delete); settings v5 added
+  only defaulted, off/safe fields (iterative-calc knobs, accessibility toggles,
+  plugin consent), so older settings files simply take the defaults on lazy
+  migration.
 - **All paths go through `abax/_runtime.py`.** Use `_runtime.CONFIG_DIR`,
   `DATA_DIR`, `CACHE_DIR`, `LOG_DIR`. No hardcoded paths.
 - **Worker threads never touch Qt widgets.** Background work communicates with
@@ -147,8 +175,11 @@ does escape is logged rather than lost.
 
 The Python console, the script runner, and command macros all run user code, so
 they share one execution path with a **user-chosen isolation level** (the
-`code_isolation` setting: `off` / `isolated` / `strict`). `make_exec_bridge(level)`
-(`gui/console/console_bridge.py`) returns the transport; both transports expose
+`code_isolation` setting: `off` / `restricted` / `isolated` / `strict` — the
+cycle order, *not* a single containment scale: `restricted` and `strict` both
+wall off the OS but by different means, while `isolated` is only crash/resource
+isolation). `make_exec_bridge(level)`
+(`gui/console/console_bridge.py`) returns the transport; every transport exposes
 the same `execute` / `execute_script` / `execute_macro` / `interrupt` / `close`
 surface, so callers never branch on the level.
 
@@ -160,6 +191,13 @@ surface, so callers never branch on the level.
 - **`off` — `InProcessBridge`.** Calls the pure `Worker` in this process. No
   subprocess, no limits, no confinement, no interrupt. Fastest; a crash takes the
   GUI down.
+- **`restricted` — `ConsoleBridge(restricted=True)`.** Runs user code through an
+  **AST allowlist** (`restricted.py`) inside the out-of-process worker: on top of
+  the resource limits below, the code is restricted to a pure/safe language subset
+  that rejects imports outside a small stdlib allowlist and blocks filesystem /
+  network / OS access. The optional `restricted` extra (RestrictedPython) adds
+  compile-time guards; the AST check runs either way. This sits between `off` and
+  `isolated` for when a full OS sandbox isn't available on the platform.
 - **`isolated` (default) — `ConsoleBridge`.** Spawns `console_worker` as a child
   and frames length-prefixed JSON over its pipes; a crash/hang/runaway there can't
   take down the GUI. **Resource limits** (`proclimits.py`): POSIX `setrlimit`
@@ -172,15 +210,26 @@ surface, so callers never branch on the level.
   it. The load-bearing safety mechanism is a **fail-closed self-test**: after
   confinement is applied the worker attempts to write outside scratch and open a
   socket, and refuses to run user code if either escape succeeds — and the bridge
-  refuses to spawn at all when no confinement is available. `restricted.py` is the
-  Phase-4 AST-allowlist fallback (labelled hardening, *not* a boundary).
+  refuses to spawn at all when no confinement is available.
 
 **Invariant (honesty).** `off`/`isolated` are documented as crash/resource
-isolation, **not** a security boundary; `strict` is a real boundary only where a
-platform primitive exists and the self-test passes, and refuses everywhere else.
+isolation, **not** a security boundary; `restricted` is labelled hardening (an
+in-process language subset, defence-in-depth, *not* an OS boundary); `strict` is a
+real boundary only where a platform primitive exists and the self-test passes, and
+refuses everywhere else.
 The GUI gates all code execution behind a one-time consent prompt (`ConsoleMixin`,
 the `code_consent` setting) that states the active level plainly. See
 [macros and scripting](macros-and-scripting.md) and `dev/sandbox-design.md`.
+
+**Third-party plugins (`plugins.py`).** abax can also be extended by *installed*
+packages that advertise user-defined functions or file-format importers/exporters
+through `importlib.metadata` entry-point groups (`abax.udfs`, `abax.formats`).
+Loading one runs third-party code with full privileges — the same untrusted-code
+risk as the console — so it is **off by default** and gated on the
+`plugins_enabled` consent setting: `load_plugins(enabled=...)` refuses to import
+anything unless enabled, while `discovered()` merely *lists* advertised plugins
+from package metadata without importing (always safe). Plugin loading is not a
+security boundary; consent is the gate.
 
 ## Incremental recalculation
 
@@ -194,6 +243,14 @@ currently spills fall back to the full blanket-clear, so a stale value is never
 served — a differential fuzz test compares incremental invalidation against a
 full recalc across random edit streams. `ABAX_INCREMENTAL=0` restores the old
 path; a `Workbook.calc_mode` of `"manual"` defers dependent recalc until `F9`.
+
+**Iterative calculation (opt-in).** A genuine circular reference normally reports
+`#CIRC!`. When the `calc_iterative` setting is on, `F9` calls
+`Workbook.recalculate_iterative(max_iterations, max_change)` instead, which sweeps
+every formula cell by capped fixed-point iteration — a circular read returns the
+previous sweep's value — until the largest change is within `max_change` or the
+`max_iterations` cap is hit, returning `(iterations, converged)`. It defaults off,
+so the non-iterative path (and `#CIRC!`) is unchanged.
 
 ## Testing
 

@@ -2,7 +2,7 @@
 
 A keyboard-first **statistics and data-science workstation** — an integrated
 environment for data work, built on a fast, scriptable spreadsheet. Load a
-dataset, explore it with **600+ formula functions** (statistics and distributions,
+dataset, explore it with **620+ formula functions** (statistics and distributions,
 financial, engineering, database, and **RF/amateur-radio**), run built-in analyses
 (regression, t-tests, ANOVA, correlation),
 reshape it with pivot/group-by and recode, visualize with the grapher, hand a
@@ -77,7 +77,7 @@ Open and save by file extension — convert between any of them:
 | SQLite | `.db` `.sqlite` | tables / `SELECT` queries ↔ sheets (one sheet per table) |
 | JSON Lines | `.jsonl` `.ndjson` | flat-file record DB; one object per line |
 | Fixed-width | `.fixed` | whitespace-aligned columns |
-| Native / JSON | `.abax` `.json` | lossless workbook; JSON is also the interchange format |
+| Native / JSON | `.abax` `.json` | lossless workbook (merged cells, borders, frozen panes, column widths); JSON is also the interchange format |
 
 ```sh
 python -m abax convert budget.csv budget.md      # → GitHub-flavored Markdown table
@@ -96,7 +96,7 @@ python -m abax view qrpn-save.json --sheet stack   # read a qrpn calculator save
 
 ## Formulas
 
-600+ functions across aggregate, conditional, math, lookup, logical, text, date,
+620+ functions across aggregate, conditional, math, lookup, logical, text, date,
 statistics, financial (incl. bonds), engineering, **RF/amateur-radio & antenna**,
 info, and the LET/LAMBDA functional families:
 
@@ -145,7 +145,7 @@ palette lists every action — including any loaded macros.
 | **File** | New `Ctrl+N`, Open `Ctrl+O`, Save `Ctrl+S`, Save As `Ctrl+Shift+S`, Quit `Ctrl+Q` |
 | **Edit** | Copy `Ctrl+C`, Paste `Ctrl+V`, Clear `Del`, Fill `Ctrl+D`/`Ctrl+R`, Find/Replace `Ctrl+F`, Palette `Ctrl+Shift+P` |
 | **Insert** | Sheet `Shift+F11`, Function `Shift+F3` |
-| **Format** | Theme `Ctrl+T`, OpenDyslexic font, conditional formatting, vim mode |
+| **Format** | Theme `Ctrl+T`, OpenDyslexic font, conditional formatting, Borders, Merge / Unmerge cells, vim mode |
 | **Data** | Sort, Fill series, Recalculate `F9` |
 | **Sheet** | Next `Ctrl+PgDn`, Previous `Ctrl+PgUp`, Rename (or use the **tabs**) |
 | **Tools** | Calculator `Ctrl+K`, Python console `Ctrl+Shift+Y`, Clipboard `Ctrl+Shift+V`, **File manager `Ctrl+Shift+F`**, **Budget wizard**, **Scientific** (Matrix / Signal / ODE / ML / **RF toolkit / Smith chart / Antenna pattern**), Install optional features, Macros, recording |
@@ -156,7 +156,9 @@ at the bottom (click to switch, double-click to rename). The formula bar
 autocompletes function names and shows a live argument-hint tooltip. **Eight
 themes** ship — Obsidian, Dark One, Nord, Solarized, CRT green/amber, Light, and
 High-contrast (≥7:1) — matching the star/qv palettes; an **OpenDyslexic** font can
-be fetched on demand. Widgets are screen-reader labelled.
+be fetched on demand. Widgets are screen-reader labelled, and an
+**accessibility** layer can announce the active cell aloud as the cursor moves
+(optional `tts` extra) alongside a high-contrast mode.
 
 ## Find, format, calculate, script
 
@@ -188,7 +190,7 @@ be fetched on demand. Widgets are screen-reader labelled.
 
 ## RF, antenna & signal engineering
 
-For amateur-radio operators and RF engineers (the *Radio* menu), plus **60+ RF formula functions**:
+For amateur-radio operators and RF engineers (the *Tools → Radio* menu), plus **60+ RF formula functions**:
 
 - **RF math** — `DBM2W`, `W2DBM`, `VSWR`, `FSPL`, `FRIIS`, `EIRP`, `WAVELENGTH`,
   `XL`/`XC`, `RESFREQ`, `Z0COAX`, `SKINDEPTH`, the **Maidenhead grid locator**
@@ -198,8 +200,14 @@ For amateur-radio operators and RF engineers (the *Radio* menu), plus **60+ RF f
 - **Antenna modeling** — analytic dipole/array patterns with a polar viewer;
   dipole input impedance (`DIPOLER`/`DIPOLEX`/`RESONANTLEN`); and a real thin-wire
   **Method of Moments** solver generalised to arbitrary 3-D wire structures (Yagis,
-  bent wires) with **NEC `.nec`** deck import/export. The Antenna pattern viewer
-  exports **SVG** and **NEC** decks.
+  bent wires, **multi-wire junctions**) with **NEC `.nec`** deck import/export. An
+  image-plane **ground-reflection** model turns a free-space elevation cut into a
+  real take-off pattern for a given install height and ground type. The Antenna
+  pattern viewer exports **SVG** and **NEC** decks.
+- **Operating** — a **satellite pass predictor** (SGP4 propagation from a TLE plus
+  observer location gives rise/culmination/set times, azimuths and max elevation;
+  optional `satellite` extra) and a **POTA/SOTA activation log** with per-band /
+  per-mode duplicate detection and QSO-point tallies (`ISDUPE`, `QSOPOINTS`).
 - **Signal/DSP** — no-numpy FFT/STFT/spectrogram, Welch PSD (real + complex I/Q),
   interpolation, Butterworth/FIR filters, and ODE solvers via the *Signal / data*
   and *ODE solver* tools. See [docs/rf-toolkit.md](docs/rf-toolkit.md).
@@ -230,7 +238,9 @@ widget** (anywidget). See [docs/jupyter.md](docs/jupyter.md).
 `python -m abax tui` — a vim-first curses interface that degrades to ASCII +
 8-color over SSH. Normal/insert/command modes, the eight themes (live `:theme`),
 `Tab` autocomplete with argument hints, an RPN REPL (`:rpn`), a Python one-liner
-(`:py`), and the same editing/find/macro commands as the GUI via `:`.
+(`:py`), and the same editing/find/macro commands as the GUI via `:`. A
+**screen-reader mode** linearizes the grid to a single-line, reader-friendly
+cell read-out.
 
 ## Macros
 
@@ -263,6 +273,11 @@ command palette. Macros run your Python code — by default isolated (an
 out-of-process, resource-limited worker), optionally in a **strict OS sandbox**,
 or in-process; only load files you trust. Auto-discovered from
 `CONFIG_DIR/macros/*.py`.
+
+**Plugins.** Installed third-party packages can advertise extra UDFs and file
+importers/exporters via `abax.udfs` / `abax.formats` entry points. Plugins are
+**off by default** and load only after you opt in (loading runs third-party code
+with full privileges); discovery merely lists what's advertised without importing.
 
 ### Recording
 

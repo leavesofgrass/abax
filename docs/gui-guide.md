@@ -229,11 +229,33 @@ right-click menu:
 | Align left / center / right | *Format → Align* |
 | Text colour | *Format → Text colour…* |
 | Fill colour | *Format → Fill colour…* |
+| Borders | *Format → Borders…* |
+| Merge cells | *Format → Merge cells* |
+| Unmerge cells | *Format → Unmerge cells* |
 | Clear cell styles | *Format → Clear cell styles* |
 
 Toggling a boolean style (bold/italic/underline) turns it **on** for the whole
 selection if any cell lacks it, otherwise **off** — so the toggle is
 predictable across a mixed selection.
+
+**Borders.** *Format → Borders…* opens a small dialog to put a border on any
+combination of a cell's **top / bottom / left / right** edges, in one of three
+line weights (thin / medium / thick). Tick the edges (or use the **All edges** /
+**No borders** presets), pick the weight, and it's stamped over the whole
+selection as one undo checkpoint; **No borders** clears every border in the
+selection.
+
+**Merge cells.** Select a rectangle and *Format → Merge cells* joins it into one
+region (Excel semantics: the top-left anchor's content is kept, the interior is
+cleared, and any prior merges under the selection are dropped); the cursor lands
+on the anchor. *Format → Unmerge cells* splits every merge region the selection
+touches. Both are single undo checkpoints.
+
+Column widths, row heights, frozen panes, per-cell borders, and merges are all
+**saved in the workbook** — they travel with an `.abax`/JSON file and survive a
+round-trip, and they shift correctly when you insert or delete rows and columns.
+(A plain grid with none of them set writes exactly as before: these keys are
+omitted when empty, and older files that lack them load unchanged.)
 
 **Number formats** live under *Format → Number* (a list of presets — General,
 Integer, Currency, Percent, Scientific, and more, from
@@ -254,7 +276,10 @@ displayed, so the underlying number is never changed.
 Frozen panes are drawn as scroll-synced mirror overlays that **share the main
 grid's model and selection** (`abax/gui/grid/frozen_panes.py`), so they
 virtualize exactly like the main view — no per-cell widgets, and the selection
-shows through the frozen strips.
+shows through the frozen strips. The frozen split is **saved in the workbook**
+(alongside column widths, row heights, borders, and merges — see
+[Cell styles and number formats](#cell-styles-and-number-formats)), so it comes
+back when you reopen the file.
 
 ## Sheet tabs
 
@@ -306,8 +331,9 @@ manage every persistent setting, so you rarely need to hand-edit `settings.json`
   (degrees / radians), and the optional faceplate-art folder.
 - **System** — autosave (on/off + interval); **code execution** (an *allow code
   execution* consent switch you can grant **or revoke** here, plus the isolation
-  level: off / isolated / strict); and **optional dependencies** (the auto-install
-  toggle and a *Manage optional features…* button that opens the feature chooser).
+  level: off / restricted / isolated / strict); and **optional dependencies** (the
+  auto-install toggle and a *Manage optional features…* button that opens the
+  feature chooser).
 
 Appearance and interface changes apply live; **OK** / **Apply** persist to
 `settings.json` and **Cancel** reverts the live appearance. Calculator and TUI
@@ -341,6 +367,17 @@ recalculation until you press `F9` (the status bar shows `calculation: MANUAL`).
 It's the escape hatch for very large or slow sheets; switching back to automatic
 immediately flushes the pending edits.
 
+**Iterative calculation.** By default a genuine circular reference reports
+`#CIRC!`. If you have a deliberate circular model (say a spreadsheet that
+converges by feedback), turn on **iterative calculation** — it's **off by
+default**, like Excel — and `F9` then resolves the loop by capped fixed-point
+iteration instead. It's an opt-in switch in `settings.json`
+(`calc_iterative = true`) together with two limits, the maximum number of passes
+(`calc_max_iterations`, default 100) and the max-change convergence tolerance
+(`calc_max_change`, default 0.001). Once enabled, `F9` iterates until every cell
+settles within the tolerance or the pass cap is reached, and the status bar
+reports how many passes ran and whether it **converged** or hit the cap.
+
 ## Undo / redo
 
 | Action | Shortcut |
@@ -371,6 +408,29 @@ The grid is wired for screen readers — the active cell announces its A1 addres
 and value (plus its formula, if any), and the row/column headers announce
 `row 1` / `column A`. Together with the OpenDyslexic font and zoom in
 [Preferences](#preferences), abax aims to stay usable for low-vision work.
+
+The **Accessibility** tab of *Edit → Preferences…* gathers three optional
+toggles, all off by default and persisted to `settings.json`:
+
+- **Speak the active cell as I move** (`speak_on_move`) — announces the active
+  cell aloud each time the cursor moves, in the GUI and the TUI. It routes
+  through the optional text-to-speech backend (`abax.engine.tts`, the `tts`
+  extra — `pip install abax[tts]`), which drives your system's built-in voice
+  (SAPI5 on Windows, NSSpeechSynthesizer on macOS, eSpeak on Linux) with **no
+  network access**. Speaking runs on a background worker so it never blocks the
+  event loop, and it's a harmless no-op until the backend is installed and the
+  toggle is on. The Accessibility tab tells you whether the backend is actually
+  present.
+- **High-contrast mode** (`high_contrast`) — a persisted accessibility
+  preference for a bolder, higher-contrast presentation. Note this is a separate
+  knob from the **High contrast** *theme* under *Format → Theme* (a
+  ready-to-apply black-on-white palette with a yellow accent): pick that theme
+  directly whenever you want the high-contrast look now.
+- **Screen-reader-friendly TUI** (`tui_screen_reader`) — when abax runs in the
+  curses TUI, this swaps the grid view for a single-line, reader-first rendering
+  of the active cell, so a screen reader gets a clean linear read-out instead of
+  a full grid. (GUI users don't need it — the Qt grid already exposes per-cell
+  accessibility.)
 
 ## Copy / paste / fill / sort
 
@@ -521,7 +581,7 @@ launch.
   `cell(ref)`, `put(ref, val)`, `refresh()`, `rpn`, and the engineering /
   data-science toolkits when installed; Tab-completes those plus Python keywords
   and builtins. The console's title bar shows the active **code-isolation level**
-  (in-process / isolated / strict) — cycle it from the command palette.
+  — cycle it (off / restricted / isolated / strict) from the command palette.
 - **Terminal** (`` Ctrl+` ``, *View → Terminal*) — a dockable shell. It prefers a
   **true PTY** terminal (ConPTY on Windows, `pty` on POSIX) that renders a real
   `pyte` screen with full colour/SGR styling — interactive full-screen programs
@@ -531,11 +591,23 @@ launch.
 The console and terminal both run **arbitrary code with your full privileges**,
 so the first time you open either one abax shows a one-time **consent gate**
 ("Run untrusted code?"). Approving is remembered in settings. How isolated that
-code is depends on the **code-isolation level** (command palette → *Cycle code
-isolation*): `off` runs it in-process (no isolation), `isolated` (default) uses
-the out-of-process, resource-limited worker (crash/resource isolation, not a
-security boundary), and `strict` OS-confines the worker (no network, writes to a
-scratch dir only) and refuses to run if that confinement can't be established.
+code is depends on the **code-isolation level** — four tiers, set from the
+*Tools → Code isolation (sandbox)* submenu, the command palette (*Cycle code
+isolation*), or *Preferences → System*:
+
+- `off` — runs it in this process (no isolation, no limits).
+- `restricted` — the same out-of-process, resource-limited worker as
+  `isolated`, **plus** an **AST allowlist** applied to your code that blocks
+  OS/filesystem/network reach (no `os`/`subprocess`/`open`/dunder). It's a
+  language-level block (defence-in-depth), **not** an OS boundary — a lighter
+  option than `strict` for when a full OS sandbox isn't available on the
+  platform. The allowlist is pure stdlib; the optional `restricted` extra
+  (`RestrictedPython`) layers compile-time guards on top.
+- `isolated` (default) — the out-of-process, resource-limited worker
+  (crash/resource isolation, not a security boundary).
+- `strict` — also **OS-confines** the worker (no network, writes to a scratch
+  dir only) and refuses to run if that confinement can't be established.
+
 For untrusted code, use `strict` or a throwaway VM/container. See
 [Macros & scripting](macros-and-scripting.md) for the full description.
 
@@ -567,8 +639,9 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
   (`Shift+F3`), Equation, Chart / graph, Export chart as SVG.
 - **Format** — Bold (`Ctrl+B`), Italic (`Ctrl+I`), Underline (`Ctrl+U`), Align
   (left/center/right), Text colour, Fill colour, Clear cell styles, Copy / Paste
-  format (the format painter), Number (preset list), Conditional format, Clear
-  conditional formats, Theme (submenu), Choose theme (`Ctrl+T`).
+  format (the format painter), Borders, Merge cells, Unmerge cells, Number
+  (preset list), Conditional format, Clear conditional formats, Theme (submenu),
+  Choose theme (`Ctrl+T`).
 - **Data** — Sort, Sort ascending, Sort descending, Filter, Clear filter, Name
   range, Name manager, Data validation, Compare workbook, Recalculate (`F9`),
   Recalculate sheet (`Shift+F9`), Calculation: auto/manual,
@@ -581,9 +654,10 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
   ODE solver, ML tool), Install optional features now, Budget wizard, File
   manager (`Ctrl+Shift+F`), Macros (submenu), Recording (start/stop, relative,
   save, replay), Load macro / UDF file, Run Python script, **Code isolation
-  (sandbox)** → (Off / Isolated / Strict), **Radio** → (RF toolkit, Smith chart,
-  Antenna pattern, Antenna modeler, Open logbook (ADIF), RF reference (bands /
-  CTCSS), I/Q constellation → SVG, Smith chart → SVG, Solve NEC deck (PyNEC)),
+  (sandbox)** → (Off / Restricted / Isolated / Strict), **Radio** → (RF toolkit,
+  Smith chart, Antenna pattern, Antenna modeler, Open logbook (ADIF), Activation
+  log (POTA/SOTA), Satellite passes (SGP4), RF reference (bands / CTCSS), I/Q
+  constellation → SVG, Smith chart → SVG, Solve NEC deck (PyNEC)),
   Calculator faceplates, Copy selection as Markdown.
 - **Help** — Keyboard shortcuts (`F1`), About abax.
 
@@ -656,6 +730,14 @@ docs — this is the one-line "what it does" index.
   Z / Z₀.
 - **Open logbook (ADIF)** — open an `.adi`/`.adif` amateur-radio log as a sheet
   (with best-effort CALL → DXCC entity enrichment), and save sheets back to ADIF.
+- **Activation log (POTA/SOTA)** — a contest / POTA / SOTA logging helper:
+  per-band-per-mode duplicate detection (with callsign normalization), a
+  point/multiplier tally, and POTA/SOTA activation summaries. Its spreadsheet
+  functions `ISDUPE` and `QSOPOINTS` are pure stdlib (no extra dependency).
+- **Satellite passes (SGP4)** — given a TLE and an observer (lat/lon/altitude),
+  predict each pass's rise / culmination / set times, azimuths, and maximum
+  elevation over a time window. Orbit propagation uses the optional `sgp4` extra
+  (`pip install abax[satellite]`); the look-angle geometry is stdlib.
 - **Solve NEC deck (PyNEC)** — solve a NEC deck with PyNEC when installed (the
   built-in method-of-moments solver works without it).
 

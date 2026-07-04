@@ -98,7 +98,9 @@ keys**; `i` edits the current cell. Key features:
 | `y` · `d` / `x` | In visual mode: yank the range · delete it (under an undo checkpoint) |
 | `?` | Help overlay — a scrollable list of every key and command (also `:help`) |
 | `:plot A1:A50 [B1:B50]` | Plot a sheet range as a braille chart (or `:plot sin(x) -3 3` for an expression) |
-| `:` commands | `:w` `:q` write/quit, `:find`, `:rpn`, `:fmt`, `:py`, `:!cmd`, `:func`, … |
+| `:pivot rng idx col val [agg]` | Pivot / group-by a table into a new area of the sheet (`:pt` alias); e.g. `:pivot A1:C99 A B sum` |
+| `:describe A1:A50` | Descriptive stats (count / mean / median / stdev / min / max) in the status line; `:describe full A1:A50` opens a scrollable overlay |
+| `:` commands | `:w` `:q` write/quit, `:find`, `:rpn`, `:fmt`, `:py`, `:!cmd`, `:func`, `:sheet`, `:pivot`, `:describe`, … |
 
 ### `view file [--sheet NAME]` — print a sheet
 
