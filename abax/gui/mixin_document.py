@@ -97,6 +97,104 @@ class DocumentMixin:
         self._doc.mark_dirty()
         self.refresh_table()
 
+    # --- merged cells ----------------------------------------------------
+
+    def merge_selection(self) -> None:
+        """Merge the selected rectangle into one region (one undo checkpoint).
+
+        Uses Excel semantics via ``Sheet.merge_cells``: the top-left anchor's
+        content is kept, interior cells are cleared, and any prior merges the
+        rectangle overlaps are dropped. A 1x1 selection is a no-op.
+        """
+        r1, c1, r2, c2 = self._selected_bounds()
+        if r1 == r2 and c1 == c2:
+            self._set_status("select two or more cells to merge")
+            return
+        self._doc.checkpoint("merge cells")
+        self._doc.workbook.sheet.merge_cells(r1, c1, r2, c2)
+        self._doc.mark_dirty()
+        self.refresh_table()
+        self._refresh_undo_history()
+        self._table.setCurrentCell(r1, c1)  # land the cursor on the anchor
+        self._set_status(f"merged {to_a1(r1, c1)}:{to_a1(r2, c2)}")
+
+    def unmerge_selection(self) -> None:
+        """Unmerge every merge region touched by the selection (one checkpoint)."""
+        r1, c1, r2, c2 = self._selected_bounds()
+        sheet = self._doc.workbook.sheet
+        # Gather the distinct regions the selection covers before mutating.
+        regions = []
+        for r in range(r1, r2 + 1):
+            for c in range(c1, c2 + 1):
+                region = sheet.merge_region(r, c)
+                if region is not None and region not in regions:
+                    regions.append(region)
+        if not regions:
+            self._set_status("no merged cells in the selection")
+            return
+        self._doc.checkpoint("unmerge cells")
+        for mr1, mc1, _mr2, _mc2 in regions:
+            sheet.unmerge_cells(mr1, mc1)
+        self._doc.mark_dirty()
+        self.refresh_table()
+        self._refresh_undo_history()
+        self._set_status(f"unmerged {len(regions)} region(s)")
+
+    # --- cell borders ----------------------------------------------------
+
+    def edit_borders(self) -> None:
+        """Open the border dialog and apply the chosen edges to the selection."""
+        from .dialogs.border_dialog import BorderDialog
+
+        spec = BorderDialog.get_border(self)
+        if spec is None:
+            return
+        edges, clear = spec
+        self._apply_borders(edges, clear)
+
+    def _apply_borders(self, edges: dict, clear: bool) -> None:
+        """Stamp ``edges`` ({edge: style}) onto every selected cell (one checkpoint).
+
+        With ``clear`` (the dialog's "No borders"), every border in the selection
+        is removed. An explicit empty ``edges`` with ``clear`` False is a no-op —
+        nothing was chosen — so an accidental OK doesn't wipe existing borders.
+        """
+        if not edges and not clear:
+            self._set_status("no border edges selected")
+            return
+        cells = self._selection_cells()
+        sheet = self._doc.workbook.sheet
+        self._doc.checkpoint("cell borders")
+        for row, col in cells:
+            if clear:
+                sheet.set_cell_border(row, col, None)
+            else:
+                # Merge onto any existing edges so setting a top border doesn't
+                # drop a bottom border the cell already had.
+                current = dict(sheet.cell_border(row, col))
+                current.update(edges)
+                sheet.set_cell_border(row, col, current)
+        self._doc.mark_dirty()
+        self.refresh_table()
+        self._refresh_undo_history()
+        verb = "cleared" if clear else "set"
+        self._set_status(f"{verb} borders on {len(cells)} cell(s)")
+
+    # --- speak-on-move (accessibility) -----------------------------------
+
+    def speak_active_cell(self, row: int, col: int, *_prev) -> None:
+        """Speak the active cell when ``speak_on_move`` is set (a11y hook).
+
+        The integrator connects this to the grid's ``currentCellChanged`` signal;
+        it delegates to :meth:`CellTableView.speak_current`, which guards the
+        optional TTS backend (``abax.engine.tts``) so it is a harmless no-op until
+        the backend is installed and the setting is enabled. The extra ``*_prev``
+        absorbs the signal's (prevRow, prevCol) trailing arguments.
+        """
+        speak = getattr(self._table, "speak_current", None)
+        if speak is not None:
+            speak(row, col)
+
     # --- copy / paste / fill (grid editing) ------------------------------
 
     def _record(self, ref: str, raw: str) -> None:

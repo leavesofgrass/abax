@@ -218,6 +218,13 @@ class AbaxTableModel(QAbstractTableModel):
                                   self.index(self._rows - 1, self._cols - 1))
         self.headerDataChanged.emit(Qt.Orientation.Horizontal, 0, self._cols - 1)
         self.headerDataChanged.emit(Qt.Orientation.Vertical, 0, self._rows - 1)
+        # Keep the view's merge spans in step with the sheet — this is the one
+        # repaint choke point, so a merge/unmerge, undo/redo, or sheet switch all
+        # re-span here. Guarded: the model can outlive/precede its table view.
+        table = getattr(self._win, "_table", None)
+        apply_merges = getattr(table, "apply_merges", None)
+        if apply_merges is not None:
+            apply_merges()
 
     def ensure_extent(self, rows: int, cols: int) -> None:
         """Grow the reported extent so ``(rows-1, cols-1)`` is reachable (cheap)."""

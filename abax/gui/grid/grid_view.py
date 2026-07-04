@@ -39,12 +39,18 @@ from .._qtcompat import (
     QToolTip,
     pyqtSignal,
 )
+from ...core.reference import to_a1
 
 # Excel-style dynamic-array spill outline colour (a calm blue).
 _SPILL_COLOR = "#3b82f6"
 
 # Drag fill-handle: the little square at the bottom-right of the selection.
 _FILL_HANDLE_SIZE = 6
+
+# Cell-border rendering: the fidelity model's three weights map to pen widths,
+# drawn in a neutral dark grey that reads on any theme's cell fill.
+_BORDER_COLOR = "#1f2430"
+_BORDER_WIDTH = {"thin": 1, "medium": 2, "thick": 3}
 
 # Comment marker: a small red triangle tucked into the cell's top-right corner.
 _COMMENT_COLOR = "#dc2626"
@@ -74,6 +80,7 @@ class GridDelegate(QStyledItemDelegate):
         the visual cues for a note and for a dynamic-array spill respectively."""
         super().paint(painter, option, index)
         sheet = self._win._doc.workbook.sheet
+        self._paint_cell_borders(painter, option, sheet, index)
         if sheet.get_comment(index.row(), index.column()) is not None:
             self._paint_comment_marker(painter, option)
         self._maybe_paint_fill_handle(painter, option, index)
@@ -109,6 +116,38 @@ class GridDelegate(QStyledItemDelegate):
         painter.setRenderHint(painter.RenderHint.Antialiasing, True)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.fillPath(path, QBrush(QColor(_COMMENT_COLOR)))
+        painter.restore()
+
+    def _paint_cell_borders(self, painter, option, sheet, index) -> None:
+        """Stroke the per-edge borders set on this cell (fidelity model).
+
+        Each edge in ``sheet.cell_border`` carries a weight (thin/medium/thick);
+        the line is drawn just inside the cell rect so it reads on the cell's own
+        fill rather than fighting the grid line."""
+        border = sheet.cell_border(index.row(), index.column())
+        if not border:
+            return
+        rect = option.rect
+        painter.save()
+        for edge, style in border.items():
+            width = _BORDER_WIDTH.get(style, 1)
+            pen = QPen(QColor(_BORDER_COLOR))
+            pen.setWidth(width)
+            painter.setPen(pen)
+            # Inset by half the pen width so the stroke stays within the cell.
+            off = width // 2
+            if edge == "top":
+                y = rect.top() + off
+                painter.drawLine(rect.left(), y, rect.right(), y)
+            elif edge == "bottom":
+                y = rect.bottom() - off
+                painter.drawLine(rect.left(), y, rect.right(), y)
+            elif edge == "left":
+                x = rect.left() + off
+                painter.drawLine(x, rect.top(), x, rect.bottom())
+            elif edge == "right":
+                x = rect.right() - off
+                painter.drawLine(x, rect.top(), x, rect.bottom())
         painter.restore()
 
     def _maybe_paint_fill_handle(self, painter, option, index) -> None:
@@ -240,6 +279,9 @@ class CellTableView(QTableView):
         self._pending_move: tuple[int, int] | None = None
         self._filling = False
         self._fill_src: tuple[int, int, int, int] | None = None
+        # Anchor cells the view currently spans (for merges); reset before each
+        # re-span in apply_merges so a merge that shrinks/moves is cleaned up.
+        self._spanned: list[tuple[int, int]] = []
         self.setModel(model)
         self.setMouseTracking(True)   # for the fill-handle hover cursor
         self.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
@@ -283,6 +325,56 @@ class CellTableView(QTableView):
         text = cur.data(Qt.ItemDataRole.AccessibleTextRole)
         if text:
             self.setAccessibleDescription(str(text))
+
+    # -- merged cells: spanning + speak-on-move ---------------------------
+
+    def apply_merges(self) -> None:
+        """Re-apply ``setSpan`` for every merge region on the active sheet.
+
+        QTableView tracks spans by (row, col) span sizes; there is no bulk-clear,
+        so we track the spans we set on ``_spanned`` and reset each (to 1x1)
+        before laying down the current sheet's merges. Called from the model's
+        ``refresh`` (the single repaint choke point) so a merge/unmerge, an
+        undo/redo, or a sheet switch all keep the spans correct.
+        """
+        for r, c in self._spanned:
+            # Only reset a still-in-range cell; a shrunk grid drops it naturally.
+            if r < self.rowCount() and c < self.columnCount():
+                self.setSpan(r, c, 1, 1)
+        spanned: list[tuple[int, int]] = []
+        for (r1, c1, r2, c2) in self._win._doc.workbook.sheet.merges:
+            self.setSpan(r1, c1, r2 - r1 + 1, c2 - c1 + 1)
+            spanned.append((r1, c1))
+        self._spanned = spanned
+
+    def speak_current(self, row: int, col: int) -> None:
+        """Speak the active cell (A1 ref + value) when speak-on-move is enabled.
+
+        Guarded: the TTS backend (``abax.engine.tts.speak``) is optional and may
+        not be installed, so an ImportError (or any speak failure) degrades to a
+        silent no-op. Wired to the current-cell signal by the integrator; harmless
+        until the backend lands and the ``speak_on_move`` setting is turned on.
+        """
+        if not getattr(self._win._settings, "speak_on_move", False):
+            return
+        if row < 0 or col < 0:
+            return
+        try:
+            from ...engine.tts import speak
+        except ImportError:
+            return
+        sheet = self._win._doc.workbook.sheet
+        # Land the utterance on the merge anchor's value when the cell is merged.
+        anchor = sheet.merge_anchor(row, col)
+        ar, ac = anchor if anchor is not None else (row, col)
+        ref = to_a1(ar, ac)
+        shown = sheet.display(ar, ac)
+        phrase = f"{ref} {shown}" if shown else ref
+        try:
+            speak(phrase)
+        except Exception:
+            # A backend hiccup must never break navigation.
+            pass
 
     # -- empty-sheet onboarding hint --------------------------------------
 
@@ -449,6 +541,12 @@ class CellTableView(QTableView):
     def setCurrentCell(self, row: int, col: int) -> None:  # noqa: N802
         if row < 0 or col < 0:
             return
+        # Landing anywhere inside a merge selects the whole region — the cursor
+        # sits on the anchor (Excel semantics), so a click/goto/enter into a
+        # merged interior never leaves the active cell on a hidden interior cell.
+        anchor = self._win._doc.workbook.sheet.merge_anchor(row, col)
+        if anchor is not None:
+            row, col = anchor
         model = self.model()
         model.ensure_extent(row + 1, col + 1)
         self.setCurrentIndex(model.index(row, col))
@@ -479,10 +577,46 @@ class CellTableView(QTableView):
     # -- navigation (the Excel feel) --------------------------------------
 
     def move_cursor_by(self, dr: int, dc: int) -> None:
-        r = max(0, max(0, self.currentRow()) + dr)
-        c = max(0, max(0, self.currentColumn()) + dc)
+        cur_r, cur_c = max(0, self.currentRow()), max(0, self.currentColumn())
+        r = max(0, cur_r + dr)
+        c = max(0, cur_c + dc)
+        r, c = self._resolve_merge_move(cur_r, cur_c, r, c, dr, dc)
         self.setCurrentCell(r, c)
         self.scrollTo(self.currentIndex())
+
+    def _resolve_merge_move(self, cur_r: int, cur_c: int,
+                            r: int, c: int, dr: int, dc: int) -> tuple[int, int]:
+        """Resolve a step by ``(dr, dc)`` so merged regions act as one cell.
+
+        A merge occupies a single logical position (Excel semantics), so:
+
+        * **Entering** a merge — the naive target lands in a region the cursor was
+          *not* already in — snaps to that region's anchor (``setCurrentCell``
+          does this), i.e. one keypress lands *on* the merge, not on a hidden
+          interior cell.
+        * **Exiting** a merge — the cursor started inside the region — steps to the
+          cell just past the region's far edge in the travel direction, so the
+          next keypress leaves the merge rather than re-snapping to its anchor and
+          trapping the cursor.
+        """
+        sheet = self._win._doc.workbook.sheet
+        start = sheet.merge_region(cur_r, cur_c)
+        target = sheet.merge_region(r, c)
+        # Leaving the merge we started in: jump past its far edge in the travel
+        # direction so we actually exit (else setCurrentCell snaps us back).
+        if start is not None and target == start:
+            r1, c1, r2, c2 = start
+            if dr > 0:
+                return (r2 + dr, c)
+            if dr < 0:
+                return (max(0, r1 + dr), c)
+            if dc > 0:
+                return (r, c2 + dc)
+            if dc < 0:
+                return (r, max(0, c1 + dc))
+        # Entering a (different) merge, or a plain move: setCurrentCell lands us
+        # on the anchor when the target is inside a region.
+        return (r, c)
 
     def closeEditor(self, editor, hint) -> None:  # noqa: N802 (Qt override)
         super().closeEditor(editor, hint)
