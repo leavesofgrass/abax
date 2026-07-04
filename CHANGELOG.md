@@ -57,6 +57,18 @@ All notable changes to abax are documented here. The format follows
   installed-height take-off pattern.
 - **In-cell argument hints:** editing a formula directly in a cell now shows the same
   function signature tooltip the formula bar shows.
+- **Formula-valued / named-LAMBDA defined names.** A defined name whose target starts
+  with `=` holds a formula or a LAMBDA: `MYPI := =2*PI()` makes `=MYPI` evaluate the
+  body, and `SQ := =LAMBDA(x, x*x)` is callable as `=SQ(A1)` — a reusable function
+  library in the name manager. Cyclic names resolve to `#NAME?` (no hang); round-trips
+  through the workbook file with no format change.
+- **Finance:** `AMORLINC` / `AMORDEGRC` (French depreciation) and `ODDFPRICE` /
+  `ODDFYIELD` / `ODDLPRICE` / `ODDLYIELD` (odd-period bonds), oracle-tested against
+  Microsoft's worked examples. **626 functions**, 97.9% of the curated target.
+- **TUI `:describe`** — descriptive statistics (count / mean / median / stdev / min /
+  max) over a range, shown in the status line.
+- **CLI:** `abax fetch <url>` prints a data URL as a table; `abax sql <db> <query>`
+  runs a read-only SQL query against a SQLite database.
 
 ### Fixed
 - **Number-format changes are now undoable** (a missing document checkpoint meant
@@ -69,6 +81,10 @@ All notable changes to abax are documented here. The format follows
   actually interact with a spill fall back to the full clear; unrelated edits stay
   precisely scoped even when spills exist elsewhere. Sound by over-approximation and
   proven equal to a full recalc by a differential fuzz over spilling workbooks.
+- **Wider numpy acceleration** (optional): multi-range `SUM`/`AVERAGE`/`MIN`/`MAX`/
+  `COUNT`/`PRODUCT` and `SUMPRODUCT` over large finite-numeric ranges now use the
+  numpy kernel (previously single-range only), falling back to the exact stdlib result
+  for any block containing a blank, text, error, or NaN.
 
 ### Changed
 - **Discoverability:** menu items now show a status-bar hint (with the shortcut)
