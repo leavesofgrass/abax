@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ._runtime import _HAS_MSGSPEC
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def _migrate_settings(data: dict) -> dict:
@@ -38,6 +38,12 @@ def _migrate_settings(data: dict) -> dict:
         data.pop("column_width", None)
         data.pop("faceplate_repo", None)
         data["schema_version"] = 4
+    if v < 5:
+        # v4 -> v5: new defaulted fields for iterative calc (calc_iterative /
+        # calc_max_iterations / calc_max_change), accessibility (high_contrast /
+        # speak_on_move / tui_screen_reader), and plugin consent (plugins_enabled).
+        # All default off/safe, so older files simply take the defaults.
+        data["schema_version"] = 5
     return data
 
 
@@ -71,6 +77,17 @@ if _HAS_MSGSPEC:
         fm_buttons: list = []
         auto_install: bool = True
         deps_prompted: bool = False
+        # Iterative calculation: resolve circular references by capped fixed-point
+        # iteration instead of surfacing #CIRC! (off by default, like Excel).
+        calc_iterative: bool = False
+        calc_max_iterations: int = 100
+        calc_max_change: float = 0.001
+        # Accessibility.
+        high_contrast: bool = False
+        speak_on_move: bool = False       # TTS the active cell on cursor move (GUI/TUI)
+        tui_screen_reader: bool = False    # single-line, reader-friendly TUI rendering
+        # Whether third-party UDF/format plugins (entry_points) may load (consent).
+        plugins_enabled: bool = False
         schema_version: int = SCHEMA_VERSION
 
     _encoder = msgspec.json.Encoder()
@@ -114,6 +131,17 @@ else:
         fm_buttons: list = field(default_factory=list)
         auto_install: bool = True
         deps_prompted: bool = False
+        # Iterative calculation: resolve circular references by capped fixed-point
+        # iteration instead of surfacing #CIRC! (off by default, like Excel).
+        calc_iterative: bool = False
+        calc_max_iterations: int = 100
+        calc_max_change: float = 0.001
+        # Accessibility.
+        high_contrast: bool = False
+        speak_on_move: bool = False       # TTS the active cell on cursor move (GUI/TUI)
+        tui_screen_reader: bool = False    # single-line, reader-friendly TUI rendering
+        # Whether third-party UDF/format plugins (entry_points) may load (consent).
+        plugins_enabled: bool = False
         schema_version: int = SCHEMA_VERSION
 
     def load_settings(path: Path) -> "Settings":
