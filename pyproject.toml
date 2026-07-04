@@ -15,7 +15,7 @@ dependencies = []   # core is stdlib-only; everything else is optional
 
 [project.optional-dependencies]
 dev      = ["pytest", "pytest-xdist", "pytest-timeout", "pytest-cov", "ruff==0.15.20", "build"]
-tui      = ["textual", "rich", "windows-curses; sys_platform == 'win32'"]  # curses TUI needs windows-curses on Windows
+tui      = ["textual", "windows-curses; sys_platform == 'win32'"]  # curses TUI needs windows-curses on Windows (textual pulls rich transitively)
 gui      = ["PySide6-Essentials"]  # LGPL Qt Widgets/Gui/Core only — no QtWebEngine/Addons
 gui-pyqt = ["PyQt6"]               # GPL/commercial alternative binding
 excel    = ["openpyxl"]
