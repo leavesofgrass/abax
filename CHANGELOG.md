@@ -25,6 +25,14 @@ All notable changes to abax are documented here. The format follows
   (dropping formulas), **transpose** rows ↔ columns, and/or **skip blanks** so
   empty source cells don't overwrite the destination.
 
+### Performance
+- **Incremental recalc now survives dynamic arrays (Phase B).** Previously a single
+  spilling formula (`SEQUENCE`/`UNIQUE`/`SORT`/`FILTER`/…) anywhere in a workbook
+  forced a full-workbook cache clear on *every* keystroke. Now only edits that
+  actually interact with a spill fall back to the full clear; unrelated edits stay
+  precisely scoped even when spills exist elsewhere. Sound by over-approximation and
+  proven equal to a full recalc by a differential fuzz over spilling workbooks.
+
 ### Changed
 - **Discoverability:** menu items now show a status-bar hint (with the shortcut)
   on hover, and the icon-only toolbar's tooltips spell out each button's keyboard
