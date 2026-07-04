@@ -45,6 +45,11 @@ from typing import Protocol, runtime_checkable
 # environment so the wrapper profile and the self-test agree on it.
 SCRATCH_ENV = "ABAX_SANDBOX_SCRATCH"
 STRICT_ENV = "ABAX_SANDBOX_STRICT"
+# Signals the worker to run user code through the in-process *restricted* tier
+# (AST allowlist, see :mod:`abax.restricted`) instead of the normal interpreter.
+# A separate axis from STRICT_ENV: restricted is language-level hardening applied
+# to the code itself, strict is OS-level confinement of the whole process.
+RESTRICTED_ENV = "ABAX_SANDBOX_RESTRICTED"
 
 
 @runtime_checkable
@@ -134,6 +139,162 @@ def strict_requested() -> bool:
     if val is not None:
         return val not in ("", "0", "false", "False")
     return False
+
+
+# --- the restricted tier hook -------------------------------------------------
+#
+# The "restricted" isolation level runs user code through an AST allowlist
+# (:mod:`abax.restricted`) *in* the worker, blocking imports of os/subprocess,
+# dunder reflection, open(), etc. It is language-level hardening layered on top
+# of whatever process isolation is active (it composes with "isolated" and
+# "strict"). Unlike strict mode it needs no OS primitive, so it is always
+# available; the optional ``RestrictedPython`` package, when installed, adds
+# compile-time guards on top (see :func:`restricted_available`).
+
+
+def restricted_requested() -> bool:
+    """Whether the in-process restricted tier is active for this process.
+
+    Read from :data:`RESTRICTED_ENV` so a spawned worker inherits the parent's
+    choice, mirroring :func:`strict_requested`. An unset/empty/``0``/``false``
+    value means off.
+    """
+    val = os.environ.get(RESTRICTED_ENV)
+    if val is not None:
+        return val not in ("", "0", "false", "False")
+    return False
+
+
+def restricted_available() -> bool:
+    """Whether the restricted tier can run at all.
+
+    Always True: the AST allowlist is pure stdlib. Exposed as a function so the
+    UI can query it uniformly alongside :meth:`Confinement.available`.
+    """
+    return True
+
+
+def restricted_describe() -> str:
+    """One-line human description of the restricted tier for the UI / logs.
+
+    Notes whether the optional ``RestrictedPython`` compile-time guards are in
+    force on top of the always-present AST allowlist.
+    """
+    try:
+        from .restricted import restrictedpython_available
+
+        hardened = restrictedpython_available()
+    except Exception:  # noqa: BLE001 - never let a description probe raise
+        hardened = False
+    base = "AST-allowlisted in-process execution (blocks os/subprocess/open/dunder access)"
+    if hardened:
+        return base + " + RestrictedPython compile-time guards"
+    return base + " (install 'RestrictedPython' for extra compile-time guards)"
+
+
+# --- secrets: in-memory only, never persisted --------------------------------
+#
+# Connector credentials (a database DSN/password, a REST bearer token) must
+# never reach disk — not settings.json, not the workbook, not a log. The engine
+# adapters already refuse to persist them (see abax/engine/dbapi.py and
+# abax/core/io/restimport.py); this holder gives the GUI a place to keep a
+# secret *for the lifetime of the process only*, and a redaction helper so a
+# secret can't leak through an error message either.
+
+
+class SecretsHolder:
+    """A process-lifetime, in-memory credential store. Never serialized.
+
+    Keeps secrets (DSNs, passwords, tokens) keyed by a caller-chosen name so a
+    connector dialog can stash "the password the user just typed" without ever
+    writing it anywhere. There is deliberately **no** load/save/``__reduce__``/
+    ``to_dict`` here: the only way in or out is :meth:`set`/:meth:`get` on a live
+    instance, so a secret cannot ride along in a pickled workbook or a settings
+    dump. :meth:`redact` scrubs any stored secret value out of a string (e.g. an
+    exception message) before it is shown or logged.
+    """
+
+    def __init__(self) -> None:
+        self._store: dict[str, str] = {}
+
+    def set(self, name: str, value: str) -> None:
+        """Store *value* under *name* in memory. Empty/None values are dropped
+        (there is nothing to protect and nothing to redact)."""
+        if value:
+            self._store[str(name)] = str(value)
+        else:
+            self._store.pop(str(name), None)
+
+    def get(self, name: str, default: "str | None" = None) -> "str | None":
+        """Return the stored secret for *name*, or *default* if absent."""
+        return self._store.get(str(name), default)
+
+    def has(self, name: str) -> bool:
+        """True iff a non-empty secret is stored under *name*."""
+        return str(name) in self._store
+
+    def names(self) -> "list[str]":
+        """The names of stored secrets — never the values."""
+        return list(self._store)
+
+    def clear(self) -> None:
+        """Forget every stored secret (e.g. on disconnect / workbook close)."""
+        self._store.clear()
+
+    def redact(self, text: str, *, placeholder: str = "***") -> str:
+        """Return *text* with every stored secret value replaced by *placeholder*.
+
+        Use this on any string that might have interpolated a secret — most
+        importantly a driver's exception message, which can echo the DSN/password
+        verbatim. Longest secrets are replaced first so a secret that contains
+        another as a substring is fully scrubbed. A blank/short store is a no-op.
+        """
+        return redact_secrets(text, self._store.values(), placeholder=placeholder)
+
+    def __repr__(self) -> str:  # never leak values through repr()
+        return f"<SecretsHolder names={sorted(self._store)!r}>"
+
+
+def redact_secrets(text: str, secrets, *, placeholder: str = "***") -> str:
+    """Replace each secret in *secrets* with *placeholder* inside *text*.
+
+    A free function so callers that don't hold a :class:`SecretsHolder` (e.g. a
+    one-off error path that has the raw password in hand) can still scrub. Empty
+    secrets are ignored; replacement is longest-first so overlapping secrets are
+    fully removed. Returns *text* unchanged when it isn't a string or there is
+    nothing to redact.
+    """
+    if not isinstance(text, str) or not text:
+        return text
+    values = sorted({s for s in secrets if s}, key=len, reverse=True)
+    for secret in values:
+        if secret in text:
+            text = text.replace(secret, placeholder)
+    return text
+
+
+# --- per-action consent for running untrusted code ---------------------------
+
+
+class ConsentError(RuntimeError):
+    """Raised by :func:`require_consent` when consent for an action is absent."""
+
+
+def require_consent(granted: bool, action: str = "run code") -> None:
+    """Gate a single untrusted-code action on an already-obtained consent.
+
+    A headless/back-end counterpart to the GUI's one-time consent dialog: pass
+    the boolean the UI resolved (typically ``settings.code_consent`` or a
+    per-action confirmation) and this raises :class:`ConsentError` when it is
+    False, so a caller can guard an execution path uniformly without a UI. It
+    does **not** prompt — obtaining consent is the front-end's job; this only
+    enforces the decision.
+    """
+    if not granted:
+        raise ConsentError(
+            f"consent required to {action}: this runs code with your privileges "
+            "and was not approved"
+        )
 
 
 # --- the fail-closed self-test ------------------------------------------------

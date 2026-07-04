@@ -35,6 +35,45 @@ from .core.richdisplay import best_text
 from .core.workbook import Workbook
 
 
+def _restricted_active() -> bool:
+    """Whether user code should run through the in-process restricted tier.
+
+    The parent sets :data:`abax.sandbox.RESTRICTED_ENV` on the worker's
+    environment when the ``restricted`` isolation level is chosen; the worker
+    honours it for the console (``exec``) and script paths. Imported lazily and
+    guarded so a worker that never uses the tier pays nothing.
+    """
+    try:
+        from . import sandbox
+
+        return sandbox.restricted_requested()
+    except Exception:  # noqa: BLE001 - absence of the flag = tier off
+        return False
+
+
+def _run_restricted_into(source: str, ns: dict, *, filename: str) -> dict:
+    """Run *source* under the AST allowlist against namespace *ns*, in place.
+
+    Delegates to :func:`abax.restricted.run_restricted` (which enforces the
+    allowlist + RestrictedPython guards when available), then copies any names
+    the code defined back into *ns* so console variables persist across
+    commands. Returns ``{"output", "error"}``; a :class:`RestrictionError` from
+    the static check surfaces in ``error`` exactly like a runtime error, so the
+    user sees *why* their code was rejected.
+    """
+    from .restricted import run_restricted
+
+    result = run_restricted(source, ns, filename=filename)
+    # Fold defined names (minus the injected guards/builtins) back into ns so the
+    # persistent console namespace keeps them for the next command.
+    produced = result["namespace"]
+    for key, value in produced.items():
+        if key == "__builtins__" or key.startswith("_") and key.endswith("_"):
+            continue
+        ns[key] = value
+    return {"output": result["output"], "error": result["error"]}
+
+
 def _displayhook(value) -> None:
     """Echo an expression result using the rich-display protocol, so objects with
     ``_repr_markdown_`` / ``_repr_html_`` (e.g. a Sheet) print a readable table
@@ -61,6 +100,13 @@ class Worker:
     def handle(self, source: str, envelope: dict) -> dict:
         wb = Workbook.from_envelope(envelope)
         self.ns.update(build_namespace(wb))     # rebind workbook helpers; keep user vars
+        if _restricted_active():
+            # Restricted tier: run the console line through the AST allowlist
+            # instead of the interpreter. The namespace persists across commands
+            # (like the normal console) so user vars carry over.
+            result = _run_restricted_into(source, self.ns, filename="<console>")
+            return {"output": result["output"], "error": result["error"],
+                    "envelope": wb.to_envelope()}
         buf = io.StringIO()
         prev_hook = sys.displayhook
         sys.displayhook = _displayhook
@@ -82,6 +128,11 @@ class Worker:
         ns = build_namespace(wb, refresh=lambda: None)  # parent refreshes after
         ns["__name__"] = "abax_script"
         ns["__file__"] = path
+        if _restricted_active():
+            # Restricted tier: run the whole script through the AST allowlist.
+            result = _run_restricted_into(source, ns, filename=path or "<script>")
+            return {"output": result["output"], "error": result["error"],
+                    "envelope": wb.to_envelope()}
         buf = io.StringIO()
         error = None
         try:

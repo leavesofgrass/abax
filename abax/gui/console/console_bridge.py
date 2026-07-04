@@ -41,13 +41,17 @@ _STRICT_UNAVAILABLE = (
 
 
 class ConsoleBridge:
-    def __init__(self, strict: bool = False) -> None:
+    def __init__(self, strict: bool = False, restricted: bool = False) -> None:
         self._proc = None
         self._job = None  # Windows Job Object handle (keeps the limits alive)
         # Strict mode confines the worker's filesystem + network (Phase 3). It's
         # on when the caller asks OR the environment forces it (so a spawned
         # worker inherits the parent's decision).
         self._strict = strict or sandbox.strict_requested()
+        # Restricted mode runs user code through the in-process AST allowlist
+        # *inside* the worker (a separate axis from strict OS confinement). The
+        # worker reads RESTRICTED_ENV; the bridge just sets it on the child.
+        self._restricted = restricted or sandbox.restricted_requested()
         self._scratch: str | None = None
         self._confinement = sandbox.select_confinement() if self._strict else None
 
@@ -66,6 +70,10 @@ class ConsoleBridge:
         if env.get("PYTHONPATH"):
             paths.append(env["PYTHONPATH"])
         env["PYTHONPATH"] = os.pathsep.join(paths)
+        # Restricted tier: tell the worker to run user code through the AST
+        # allowlist (composes with any process isolation below).
+        if self._restricted:
+            env[sandbox.RESTRICTED_ENV] = "1"
         creationflags = 0x08000000 if sys.platform == "win32" else 0  # CREATE_NO_WINDOW
         argv = [sys.executable, "-c", _BOOT]
 
@@ -277,9 +285,16 @@ def make_exec_bridge(isolation: str):
     """Pick the execution transport for a ``code_isolation`` level:
 
     * ``"off"`` — :class:`InProcessBridge` (in-process, no isolation).
+    * ``"restricted"`` — :class:`ConsoleBridge` running user code through the
+      in-process AST allowlist (:mod:`abax.restricted`) inside the worker:
+      out-of-process + resource limits **and** a blocked-imports/no-open
+      language subset. Optional ``RestrictedPython`` adds compile-time guards.
     * ``"isolated"`` — :class:`ConsoleBridge` (out-of-process + resource limits).
     * ``"strict"`` — :class:`ConsoleBridge` with OS confinement (Phase 3).
+
+    Unknown levels fall back to ``"isolated"``.
     """
     if isolation == "off":
         return InProcessBridge()
-    return ConsoleBridge(strict=(isolation == "strict"))
+    return ConsoleBridge(strict=(isolation == "strict"),
+                         restricted=(isolation == "restricted"))

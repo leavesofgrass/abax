@@ -49,6 +49,7 @@ __all__ = [
     "ALLOWED_IMPORTS",
     "RestrictionError",
     "check_ast",
+    "restrictedpython_available",
     "run_restricted",
     "safe_builtins",
 ]
@@ -314,11 +315,139 @@ def safe_builtins() -> dict:
     return safe
 
 
+# ---------------------------------------------------------------------------
+# Optional RestrictedPython enhancement.
+#
+# When the third-party ``RestrictedPython`` package is installed, we compile via
+# its ``compile_restricted`` instead of the stdlib ``compile``. That rewrites
+# attribute access, subscripting, iteration, and augmented assignment to go
+# through *guard* functions, closing a broader class of escapes than the
+# stdlib compile + our AST check alone (e.g. ``x[0]`` and ``for a, b in ...``
+# unpacking are routed through guards that we control). It is GUARDED: importing
+# it is wrapped in try/except, and its absence just means we fall back to the
+# stdlib compile path. This module never *requires* RestrictedPython.
+# ---------------------------------------------------------------------------
+
+
+def restrictedpython_available() -> bool:
+    """True iff the optional ``RestrictedPython`` package is importable.
+
+    Used to decide whether the ``restricted`` isolation tier can add
+    RestrictedPython's compile-time guards on top of the always-present
+    stdlib AST allowlist. Never imports at module load; never raises.
+    """
+    import importlib.util
+
+    try:
+        return importlib.util.find_spec("RestrictedPython") is not None
+    except Exception:  # noqa: BLE001 - a broken/partial install = "not available"
+        return False
+
+
+def _restrictedpython_pieces():
+    """Return ``(compile_restricted, guards)`` from RestrictedPython, or None.
+
+    Imported lazily and guarded so the module stays pure-stdlib at import time.
+    ``guards`` is a small dict of the guard callables RestrictedPython-compiled
+    code expects in its globals (``_getitem_``, ``_getiter_``, ...).
+    """
+    try:
+        from RestrictedPython import compile_restricted
+        from RestrictedPython.Eval import (
+            default_guarded_getitem,
+            default_guarded_getiter,
+        )
+        from RestrictedPython.Guards import (
+            guarded_iter_unpack_sequence,
+            guarded_unpack_sequence,
+        )
+    except Exception:  # noqa: BLE001 - any import problem => no enhancement
+        return None
+
+    guards = {
+        "_getitem_": default_guarded_getitem,
+        "_getiter_": default_guarded_getiter,
+        "_iter_unpack_sequence_": guarded_iter_unpack_sequence,
+        "_unpack_sequence_": guarded_unpack_sequence,
+        # We forbid attribute writes entirely in restricted code; a write guard
+        # that always refuses keeps RestrictedPython-compiled assignments from
+        # silently mutating objects we hand in.
+        "_write_": _deny_write,
+        # RestrictedPython rewrites `print(...)` to a collector referenced as
+        # `_print_`; route its output to the live (redirected) stdout so the
+        # captured buffer sees it exactly like the stdlib compile path.
+        "_print_": _StreamingPrintCollector,
+        # RestrictedPython-compiled code references `_getattr_` for guarded
+        # attribute access (and the print collector's constructor takes it). Ours
+        # mirrors the AST policy: dunder attributes stay off-limits, everything
+        # else reads through unchanged.
+        "_getattr_": _guarded_getattr,
+    }
+    return compile_restricted, guards
+
+
+def _guarded_getattr(obj, name, default=None):
+    """RestrictedPython ``_getattr_`` guard mirroring the AST dunder ban.
+
+    Attribute reads on dunder names (``__class__`` etc.) are refused -- the same
+    reflection doorway the static :func:`check_ast` closes -- so the runtime
+    guard can't be used to reach it either. Any other attribute reads normally.
+    """
+    if _is_dunder(name):
+        raise RestrictionError(f"access to dunder attribute {name!r} is not allowed")
+    return getattr(obj, name, default) if default is not None else getattr(obj, name)
+
+
+class _StreamingPrintCollector:
+    """A RestrictedPython ``_print_`` that writes to the current ``sys.stdout``.
+
+    RestrictedPython-compiled code does ``_print = _print_(_getattr_)`` then
+    ``_print(...)``; the default collector buffers text into ``.txt`` and only
+    surfaces it via a ``printed`` name the code must reference. We instead
+    forward every write to ``sys.stdout`` (which :func:`run_restricted` has
+    redirected into its capture buffer), so ``print`` behaves normally and its
+    output is captured without the code needing to read ``printed``.
+    """
+
+    def __init__(self, _getattr_=None) -> None:
+        self._getattr_ = _getattr_
+
+    def write(self, text) -> None:
+        import sys
+
+        sys.stdout.write(text)
+
+    def __call__(self):  # `printed` -> "" (we streamed, nothing buffered)
+        return ""
+
+    def _call_print(self, *objects, **kwargs) -> None:
+        import sys
+
+        # Honour an explicit file= if given (guarded), else write to us (stdout).
+        if kwargs.get("file", None) is None:
+            kwargs["file"] = sys.stdout
+        elif self._getattr_ is not None:
+            self._getattr_(kwargs["file"], "write")
+        print(*objects, **kwargs)  # noqa: T201 - restricted print goes to stdout
+
+
+def _deny_write(obj):
+    """RestrictedPython ``_write_`` guard: refuse all guarded writes.
+
+    RestrictedPython routes ``obj.attr = x`` / ``obj[i] = x`` through ``_write_``
+    to obtain a writable proxy. Returning a refusal here means restricted code
+    cannot mutate attributes/items of objects it was handed -- consistent with
+    the AST check, which already blocks dunder attribute access.
+    """
+    raise RestrictionError("writing attributes/items is not allowed in restricted code")
+
+
 def run_restricted(
     source: str,
     namespace: dict | None = None,
     *,
     filename: str = "<restricted>",
+    use_restrictedpython: bool | None = None,
 ) -> dict:
     """Check, compile, and run *source* under the restricted environment.
 
@@ -334,6 +463,13 @@ def run_restricted(
     the exec is caught and formatted into ``error``. This is intentional --
     ``run_restricted`` is a boundary, not a passthrough.
 
+    ``use_restrictedpython`` controls the compile-time guards: ``True`` requires
+    the optional package (falling back to stdlib compile if it can't be loaded),
+    ``False`` forces the pure stdlib path, and ``None`` (default) uses
+    RestrictedPython when it is installed. Either way the always-present AST
+    allowlist (:func:`check_ast`) runs first, so the pure fallback is never
+    weaker on the checks this module owns.
+
     Reminder: this is hardening, not a sandbox. See the module docstring.
     """
     # Build the execution globals: our safe builtins plus any caller-supplied
@@ -345,11 +481,28 @@ def run_restricted(
     out = io.StringIO()
     error: str | None = None
 
+    want_rp = restrictedpython_available() if use_restrictedpython is None else use_restrictedpython
+    pieces = _restrictedpython_pieces() if want_rp else None
+
     try:
         # Static allowlist check first. If this raises RestrictionError we do
-        # not execute anything at all.
+        # not execute anything at all -- regardless of the compile backend.
         check_ast(source, filename=filename)
-        code = compile(source, filename, "exec")
+        if pieces is not None:
+            compile_restricted, guards = pieces
+            # RestrictedPython-compiled code references guard names in globals;
+            # inject them alongside our safe builtins.
+            exec_globals.update(guards)
+            # RestrictedPython warns "Prints, but never reads 'printed'" because
+            # our collector streams to stdout instead of exposing `printed`; that
+            # is intentional, so silence just that compile-time warning.
+            import warnings
+
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="Line None: Prints")
+                code = compile_restricted(source, filename, "exec")
+        else:
+            code = compile(source, filename, "exec")
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
             # Note: passing a single dict makes it serve as both globals and
             # locals, which is the normal module-execution model.
