@@ -68,11 +68,20 @@ def _build_parser() -> argparse.ArgumentParser:
     nr.add_argument("-o", "--output", metavar="OUT",
                     help="write the executed notebook here (default: overwrite in place)")
 
+    pf = sub.add_parser("fetch", help="download a data URL and print it as a table")
+    pf.add_argument("url", help="http(s) URL of a CSV/JSON/Excel/… data file or web page")
+    pf.add_argument("--sheet", help="sheet to print (default: the first)")
+
+    ps = sub.add_parser("sql", help="run a read-only SQL query against a SQLite database")
+    ps.add_argument("db", help="path to a .db / .sqlite file")
+    ps.add_argument("query", help="the SQL SELECT to run")
+
     return p
 
 
 _SUBCOMMANDS = frozenset(
-    {"gui", "tui", "view", "convert", "get", "macro", "deps", "doctor", "notebook"})
+    {"gui", "tui", "view", "convert", "get", "macro", "deps", "doctor", "notebook",
+     "fetch", "sql"})
 
 
 def _normalize_argv(argv: list[str]) -> list[str]:
@@ -130,6 +139,10 @@ def main(argv: list[str] | None = None) -> int:
         return run_doctor()
     if cmd == "notebook":
         return _cmd_notebook(args)
+    if cmd == "fetch":
+        return _cmd_fetch(args)
+    if cmd == "sql":
+        return _cmd_sql(args)
 
     # No subcommand: prefer GUI, fall back to TUI, then help.
     from . import _runtime as rt
@@ -249,6 +262,53 @@ def _cmd_notebook(args) -> int:
     if errs:
         msg += f" ({len(errs)} cell(s) raised — see the notebook outputs)"
     print(msg)
+    return 0
+
+
+def _cmd_fetch(args) -> int:
+    from .core.io import urlfetch
+    from .engine.document import Document
+
+    try:
+        path = urlfetch.fetch_url(args.url)
+        doc = Document.open(str(path))
+    except Exception as exc:  # noqa: BLE001 - surface network/parse failures cleanly
+        print(f"fetch failed: {exc}", file=sys.stderr)
+        return 4
+    sheet = doc.workbook.get_sheet(args.sheet) if args.sheet else doc.workbook.sheet
+    if sheet is None:
+        print(f"no such sheet: {args.sheet!r}", file=sys.stderr)
+        return 2
+    print(_render_table(sheet))
+    return 0
+
+
+def _cmd_sql(args) -> int:
+    import sqlite3
+
+    from .engine import dbapi
+
+    try:
+        conn = sqlite3.connect(args.db)
+    except Exception as exc:  # noqa: BLE001
+        print(f"cannot open database: {exc}", file=sys.stderr)
+        return 4
+    try:
+        headers, rows = dbapi.query(conn, args.query)
+    except Exception as exc:  # noqa: BLE001 - bad SQL / unreadable db
+        print(f"query failed: {exc}", file=sys.stderr)
+        return 4
+    finally:
+        conn.close()
+    widths = [len(h) for h in headers]
+    for row in rows:
+        for i, cell in enumerate(row):
+            widths[i] = max(widths[i], len(str(cell)))
+    line = "  ".join(h.ljust(widths[i]) for i, h in enumerate(headers))
+    print(line)
+    print("  ".join("-" * w for w in widths))
+    for row in rows:
+        print("  ".join(str(c).ljust(widths[i]) for i, c in enumerate(row)))
     return 0
 
 

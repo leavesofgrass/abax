@@ -69,7 +69,27 @@ def test_cli_notebook_no_subcommand_is_usage_error():
 def test_doctor_and_notebook_are_subcommands():
     from abax import app
 
-    assert {"doctor", "notebook"} <= app._SUBCOMMANDS  # not normalized to `gui`
+    assert {"doctor", "notebook", "fetch", "sql"} <= app._SUBCOMMANDS  # not normalized to `gui`
+
+
+def test_cli_sql_queries_sqlite(tmp_path):
+    import sqlite3
+
+    from abax import app
+
+    db = tmp_path / "t.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE t(name TEXT, qty INT)")
+    conn.execute("INSERT INTO t VALUES('apples', 5), ('pears', 8)")
+    conn.commit()
+    conn.close()
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = app.main(["sql", str(db), "SELECT name, qty FROM t ORDER BY qty DESC"])
+    out = buf.getvalue()
+    assert rc == 0
+    assert "pears" in out and "apples" in out
+    assert out.index("pears") < out.index("apples")  # ordered by qty desc
 
 
 # --- GUI grid-import wiring (mixin_io) -------------------------------------
