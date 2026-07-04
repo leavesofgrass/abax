@@ -8,9 +8,19 @@ from __future__ import annotations
 import abax.core.functions as fns
 from abax.core.functions import FUNCTIONS, LAZY_FUNCTIONS
 
+# The ham-logging pack (abax.core.science.hamlog) self-registers ISDUPE and
+# QSOPOINTS additively, exactly like the finance/RF packs. It lives under
+# core.science rather than in the top-level pack loop, so register it here so the
+# canary reflects the integrated registry (dict.update is idempotent — the count
+# holds whether or not the engine __init__ has also wired it).
+from abax.core.science import hamlog as _hamlog  # noqa: E402
+
+_hamlog.register(FUNCTIONS)
+
 
 def test_registry_sizes():
-    assert len(FUNCTIONS) == 599
+    # 599 built-in packs + 2 from the ham-logging pack (ISDUPE, QSOPOINTS).
+    assert len(FUNCTIONS) == 601
     assert len(LAZY_FUNCTIONS) == 6
 
 
