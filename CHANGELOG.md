@@ -8,9 +8,82 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
-## [0.1.6] — 2026-07-04
+## [0.1.7] — 2026-07-04
 
-_The "Connected Data" release: abax reaches out to external data sources (SQL
+_The "Fidelity & Access" release: a workbook now **remembers how it looks** —
+merged cells, cell borders, column widths / row heights, and frozen panes all
+round-trip through the file — and abax reaches **more people and more of the
+hobby**. New this cycle: **iterative calculation** for deliberate circular
+references, an **accessibility layer** (spoken cell moves, a high-contrast theme,
+and a TUI screen-reader mode), an opt-in **RestrictedPython isolation tier** and
+**consent-gated plugins**, HP-style **calculator program memory**, and a deeper
+amateur-radio toolkit — **SGP4 satellite-pass prediction**, **POTA/SOTA & contest
+logging**, and **multi-wire antenna junctions with a ground-reflection model**.
+**628 formula functions (97.9% of the curated Excel/Gnumeric target)**._
+
+### Added
+- **Workbook visual fidelity — merges, borders, and frozen panes now persist.**
+  Merge a selection (Format → Merge cells) and the anchor's value spans the block;
+  set **cell borders** (Format → Borders…, per-edge style); freeze header rows /
+  columns; and set explicit **column widths / row heights**. All four are stored in
+  the workbook envelope (schema v2, additive — older files load unchanged) and are
+  preserved across insert/delete of rows and columns. The GUI restores the view
+  layout (widths, heights, frozen panes) on open.
+- **Iterative calculation** (Preferences → Calculator; `F9`): opt in to resolving
+  **deliberate circular references** by fixed-point iteration with a configurable
+  **max-iterations** cap and **max-change** convergence tolerance. Off by default,
+  so a genuine mistake still reports `#CIRC!`; when enabled, `F9` sweeps the
+  formula cells until the largest change falls under the tolerance (or the cap is
+  hit), reporting the iteration count and whether it converged.
+- **Accessibility.** A **speak-on-move** option announces the active cell's
+  reference, value, and edit state through the platform's native speech engine
+  (optional `tts` extra — `pyttsx3`, no network; a silent no-op when absent); a
+  **high-contrast** theme; and a **TUI screen-reader mode** that replaces the grid
+  with a single-line, linearized read-out of the current cell for terminal
+  screen readers. All three are persisted settings on the Preferences
+  accessibility tab.
+- **Calculator program memory** (RPN keypads): record and run **HP-style keystroke
+  programs** — `LBL` / `GTO` / `GSB` / `RTN` and the `x≤y` / `x=0` conditional
+  tests, previously inert, now drive a real program runner against the existing RPN
+  engine, mirroring the HP-15C's program mode. A program panel lets you enter,
+  step, and run programs.
+- **Satellite pass prediction (SGP4)** (Tools → Radio → Satellite passes…): given a
+  two-line element set (TLE) and an observer, predict rise / culmination / set
+  times, azimuths, and maximum elevation over a time window. Propagation uses the
+  optional `satellite` extra (`sgp4`); look-angles are stdlib.
+- **POTA / SOTA & contest logging** — duplicate detection (per-band-per-mode, with
+  callsign normalization), point / multiplier tallying, and activation summaries,
+  surfaced both as spreadsheet functions (`ISDUPE`, `QSOPOINTS`, …) and an
+  **Activation log** dialog (Tools → Radio).
+- **Antenna modeling depth:** the built-in Method-of-Moments solver now handles
+  **multi-wire junctions** (wires meeting at a shared point enforce current
+  continuity), and an **image-plane ground-reflection model** turns the free-space
+  elevation cut into a real **take-off pattern** for a given installation height and
+  ground type — surfaced as a ground option in the Antenna Modeler.
+- **RestrictedPython isolation tier.** Code isolation gains a **`restricted`** level
+  between `off` and `isolated`: an AST-allowlisted executor (optional `restricted`
+  extra) that blocks OS/filesystem/network access in-process, for when a full OS
+  sandbox isn't available. Cycle it from the palette or set it in Tools → Code
+  isolation / Preferences.
+- **Third-party plugins** (opt-in): abax can load UDFs and file-format
+  importers/exporters advertised by installed packages via `importlib.metadata`
+  entry points (`abax.udfs`, `abax.formats`). **Off by default** and gated on an
+  explicit `plugins_enabled` consent setting — loading a plugin runs third-party
+  code with your privileges, so discovery (listing what's advertised) is always
+  safe, but importing requires consent.
+- **TUI `:pivot`** (`:pivot <range> <index> <column> <value> [agg]`): pivot /
+  group-by a table into the sheet from the terminal UI, plus a scrollable
+  **`:describe full`** descriptive-statistics overlay.
+
+### Changed
+- **Workbook envelope schema v1 → v2** to carry the new view-fidelity fields
+  (merges, borders, widths/heights, frozen panes). Additive and migrated in place;
+  files written by older abax load with no change, and the new keys are omitted when
+  unused so a plain grid's file is byte-for-byte as before.
+- **Settings schema v4 → v5** adds the iterative-calculation, accessibility, and
+  plugin-consent fields (all defaulting off), migrated on load.
+
+
 databases, web tables, REST/JSON) and headless workflows (notebook runner, `abax
 doctor`), while the recalc engine finally **stays fast even when a sheet uses
 dynamic arrays**. Plus a formula-library-in-the-name-manager (named LAMBDA),
