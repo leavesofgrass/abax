@@ -21,14 +21,17 @@ inside JupyterLab / nbclient, and only pulls in ipykernel when actually launched
 
 from __future__ import annotations
 
+import builtins
 import code
 import contextlib
 import io
 import json
+import keyword
 import sys
 import traceback
 from pathlib import Path
 
+from .core import completion
 from .core.console_ns import build_namespace
 from .core.richdisplay import mime_bundle
 from .core.workbook import Workbook
@@ -76,6 +79,220 @@ class AbaxShell:
             "data": dict(bundle) or None,
             "error": error,
         }
+
+    def run_cell_block(self, source: str) -> dict:
+        """Run a whole cell (many statements), Jupyter-style. Same result shape
+        as :meth:`run_cell`.
+
+        :meth:`run_cell` uses the ``code`` module's ``"single"`` mode, which only
+        accepts *one* statement — right for the line-at-a-time console, wrong for a
+        notebook cell that is a block of statements. Here the cell is compiled in
+        ``"exec"`` mode and, if its last statement is a bare expression, that value
+        is evaluated separately and shown as the cell's result (an
+        ``execute_result``), exactly as a Jupyter frontend does. A runtime error is
+        captured in ``error`` (its traceback) rather than dumped to stdout, so
+        notebook cells get a real ``error`` output.
+        """
+        import ast
+
+        self.execution_count += 1
+        buf = io.StringIO()
+        bundle: dict = {}
+        error = None
+        try:
+            tree = ast.parse(source, "<abax>", "exec")
+        except SyntaxError:
+            return {"execution_count": self.execution_count, "stdout": "",
+                    "data": None, "error": traceback.format_exc()}
+
+        last_expr = None
+        if tree.body and isinstance(tree.body[-1], ast.Expr):
+            last_expr = ast.Expression(tree.body.pop().value)
+
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            try:
+                if tree.body:
+                    exec(compile(tree, "<abax>", "exec"), self.ns)  # noqa: S102
+                if last_expr is not None:
+                    value = eval(compile(last_expr, "<abax>", "eval"), self.ns)  # noqa: S307
+                    if value is not None:
+                        self.ns["_"] = value
+                        bundle.update(mime_bundle(value))
+            except SystemExit:
+                buf.write("(exit() is ignored)\n")
+            except BaseException:                  # never let user code escape
+                error = traceback.format_exc()
+        return {
+            "execution_count": self.execution_count,
+            "stdout": buf.getvalue(),
+            "data": dict(bundle) or None,
+            "error": error,
+        }
+
+    # -- completion / introspection (the brains behind do_complete/do_inspect) --
+
+    def complete(self, source: str, cursor: int | None = None) -> dict:
+        """Completions for the token ending at ``cursor`` in ``source``.
+
+        Returns ``{"matches", "cursor_start", "cursor_end"}`` (the fields the
+        Jupyter ``complete_reply`` needs). A line that starts with ``=`` is a
+        **formula**, completed against the function registry via
+        :func:`abax.core.completion.complete`; anything else is **Python**,
+        completed against the live namespace (``build_namespace`` bindings, the
+        session's own globals, and builtins) plus a trailing-attribute path like
+        ``fft.rff`` resolved against the real object. This split matters because
+        the formula completer gates on a leading ``=`` and so returns nothing for
+        plain Python source.
+        """
+        if cursor is None:
+            cursor = len(source)
+        cursor = max(0, min(cursor, len(source)))
+        # Complete within the logical line the cursor sits on (notebooks and the
+        # console send whole cells; formulas are single lines).
+        line, line_start = _cursor_line(source, cursor)
+        line_cursor = cursor - line_start
+
+        if line.lstrip().startswith("="):
+            names = tuple(self._defined_names())
+            sheets = tuple(s.name for s in self.workbook.sheets)
+            matches = completion.complete(line.lstrip(), require_formula=True,
+                                          names=names, sheets=sheets)
+            token, _ = completion.current_token(line.lstrip())
+            start = cursor - len(token)
+            return {"matches": matches, "cursor_start": start, "cursor_end": cursor}
+
+        token, tok_start = completion.current_token(line, line_cursor)
+        if not token:
+            return {"matches": [], "cursor_start": cursor, "cursor_end": cursor}
+        start = line_start + tok_start
+        if "." in token:
+            obj_expr, _, partial = token.rpartition(".")
+            matches = self._attr_matches(obj_expr, partial)
+            # Replace only the trailing partial (keep the ``obj.`` prefix).
+            return {"matches": matches, "cursor_start": cursor - len(partial),
+                    "cursor_end": cursor}
+        matches = self._name_matches(token)
+        return {"matches": matches, "cursor_start": start, "cursor_end": cursor}
+
+    def inspect(self, source: str, cursor: int | None = None) -> dict:
+        """Introspect the token under the cursor (backs ``do_inspect``).
+
+        Returns ``{"found": bool, "text": str}``. For a formula token it hands
+        back the function signature; for a Python token it resolves the object in
+        the namespace and reports its type, signature (if callable) and docstring.
+        """
+        if cursor is None:
+            cursor = len(source)
+        cursor = max(0, min(cursor, len(source)))
+        line, line_start = _cursor_line(source, cursor)
+        line_cursor = cursor - line_start
+
+        if line.lstrip().startswith("="):
+            token, _ = completion.current_token(line.lstrip())
+            if token and completion.is_function(token):
+                return {"found": True, "text": completion.signature(token)}
+            return {"found": False, "text": ""}
+
+        token, _ = completion.current_token(line, line_cursor)
+        if not token:
+            return {"found": False, "text": ""}
+        obj, ok = self._resolve(token)
+        if not ok:
+            return {"found": False, "text": ""}
+        return {"found": True, "text": _describe(token, obj)}
+
+    def is_complete(self, source: str) -> dict:
+        """Whether ``source`` is a complete statement (backs ``do_is_complete``).
+
+        ``{"status": "complete" | "incomplete" | "invalid"}`` — mirrors what a
+        console needs to decide between executing and continuing the block. Uses
+        the same compiler check :class:`code.InteractiveInterpreter` runs on.
+        """
+        try:
+            with contextlib.redirect_stderr(io.StringIO()):
+                compiled = code.compile_command(source, "<abax>", "exec")
+        except (SyntaxError, ValueError, OverflowError):
+            return {"status": "invalid"}
+        if compiled is None:
+            return {"status": "incomplete", "indent": ""}
+        return {"status": "complete"}
+
+    # -- completion helpers --
+
+    def _defined_names(self) -> list[str]:
+        """Workbook defined-name strings (empty when the workbook has none)."""
+        registry = getattr(self.workbook, "names", None)
+        getter = getattr(registry, "names", None)
+        if not callable(getter):
+            return []
+        try:
+            return [display for display, _target in getter()]
+        except Exception:
+            return []
+
+    def _namespace_keys(self) -> list[str]:
+        """Every identifier a bare Python token could complete to."""
+        keys = set(self.ns)
+        keys.update(completion.function_names())     # formula names (per spec)
+        keys.update(dir(builtins))
+        keys.update(keyword.kwlist)
+        return sorted(k for k in keys if isinstance(k, str) and not k.startswith("__"))
+
+    def _name_matches(self, token: str) -> list[str]:
+        """Namespace/builtin identifiers that start with ``token`` (prefix match).
+
+        Case-sensitive for the usual Python names; a token typed in a single case
+        also picks up the (upper-case) formula function names case-insensitively.
+        """
+        lo = token.lower()
+        out = [k for k in self._namespace_keys()
+               if k.startswith(token) or k.lower().startswith(lo)]
+        return out
+
+    def _resolve(self, expr: str):
+        """Evaluate a dotted ``expr`` against the namespace. ``(obj, ok)``."""
+        try:
+            return eval(expr, dict(self.ns)), True     # noqa: S307 - trusted ns
+        except Exception:
+            return None, False
+
+    def _attr_matches(self, obj_expr: str, partial: str) -> list[str]:
+        """Attributes of the object named by ``obj_expr`` starting with ``partial``."""
+        obj, ok = self._resolve(obj_expr)
+        if not ok:
+            return []
+        try:
+            attrs = dir(obj)
+        except Exception:
+            return []
+        pub = [a for a in attrs if not a.startswith("_")]
+        return sorted(a for a in pub if a.startswith(partial))
+
+
+def _cursor_line(source: str, cursor: int) -> tuple[str, int]:
+    """The line containing ``cursor`` and that line's start offset in ``source``."""
+    start = source.rfind("\n", 0, cursor) + 1
+    end = source.find("\n", cursor)
+    if end == -1:
+        end = len(source)
+    return source[start:end], start
+
+
+def _describe(name: str, obj) -> str:
+    """A short introspection blurb: type, signature (if any), first doc lines."""
+    import inspect
+
+    lines = [f"{name}: {type(obj).__name__}"]
+    if callable(obj):
+        try:
+            lines[0] = f"{name}{inspect.signature(obj)}"
+        except (TypeError, ValueError):
+            pass
+    doc = inspect.getdoc(obj)
+    if doc:
+        lines.append("")
+        lines.extend(doc.splitlines()[:20])
+    return "\n".join(lines)
 
 
 def install_kernelspec(prefix: str | None = None) -> Path:
@@ -135,6 +352,21 @@ def _make_kernel_class():
             return {"status": "ok",
                     "execution_count": result["execution_count"],
                     "payload": [], "user_expressions": {}}
+
+        def do_complete(self, code, cursor_pos):
+            res = self.shell.complete(code, cursor_pos)
+            return {"status": "ok", "matches": res["matches"],
+                    "cursor_start": res["cursor_start"],
+                    "cursor_end": res["cursor_end"], "metadata": {}}
+
+        def do_inspect(self, code, cursor_pos, detail_level=0, **kwargs):
+            res = self.shell.inspect(code, cursor_pos)
+            data = {"text/plain": res["text"]} if res["found"] else {}
+            return {"status": "ok", "found": res["found"],
+                    "data": data, "metadata": {}}
+
+        def do_is_complete(self, code):
+            return self.shell.is_complete(code)
 
     return AbaxKernel
 
