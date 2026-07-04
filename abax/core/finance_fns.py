@@ -15,8 +15,9 @@ from __future__ import annotations
 import math
 from datetime import date
 
-from .errors import CellError
+from .errors import CellError, is_error
 from .functions.helpers import _arg, _as_number, _flatten, _numbers, _try_num
+from .text_datetime_fns import _parse_date, _yearfrac
 from .values import RangeValue
 
 # --- small internal helpers ------------------------------------------------
@@ -622,6 +623,119 @@ def _fn_vdb(args):
         return CellError(CellError.NUM)
 
 
+# --- French depreciation (AMORLINC / AMORDEGRC) ----------------------------
+#
+# Two French fixed-asset depreciation functions. Both prorate the very first
+# ("odd") period by the day-count fraction between the purchase date and the
+# end of the first accounting period, on Excel's `basis` (0 = US 30/360,
+# 1 = actual/actual, 2 = actual/360, 3 = actual/365, 4 = European 30/360).
+#
+# AMORLINC ("amortissement linéaire") is straight-line: the asset loses
+# ``cost * rate`` each full period, with the odd first period pro-rated and the
+# balance to ``salvage`` released in the period after the last full one.
+#
+# AMORDEGRC ("amortissement dégressif") is declining-balance: the annual rate
+# is multiplied by a French life coefficient keyed on the asset life 1/rate
+# (< 3 yr → 1.0, 3–5 yr → 1.5, 5–6 yr → 2.0, > 6 yr → 2.5), each period's
+# depreciation is rounded to the nearest currency unit, and the last two
+# periods get special handling (so the accumulated total can slightly exceed
+# ``cost - salvage``). Algorithm and coefficient table follow gnumeric's
+# get_amordegrc/get_amorlinc (plugins/fn-financial/sc-fin.c), which mirror
+# Excel; oracle values are Microsoft's documented worked examples.
+
+
+def _amor_dates_basis(args):
+    """(cost, purchased, first_period, salvage, period, rate, basis) parsed and
+    validated for AMORLINC/AMORDEGRC, or a CellError."""
+    cost = _num(args, 0)
+    purchased = _parse_date(_arg(args, 1))
+    first_period = _parse_date(_arg(args, 2))
+    salvage = _num(args, 3)
+    period = _num(args, 4)
+    rate = _num(args, 5)
+    basis_raw = _num(args, 6, 0.0)
+    if None in (cost, salvage, period, rate, basis_raw) \
+            or purchased is None or first_period is None:
+        return CellError(CellError.VALUE)
+    basis = int(basis_raw)
+    if rate <= 0 or cost < salvage or period < 0 or not (0 <= basis <= 4) \
+            or purchased > first_period:
+        return CellError(CellError.NUM)
+    return cost, purchased, first_period, salvage, int(period), rate, basis
+
+
+def _fn_amorlinc(args):
+    """AMORLINC(cost, date_purchased, first_period, salvage, period, rate, [basis])
+    — French straight-line depreciation for the given period."""
+    try:
+        parsed = _amor_dates_basis(args)
+        if isinstance(parsed, CellError):
+            return parsed
+        cost, purchased, first_period, salvage, period, rate, basis = parsed
+        yf = _yearfrac([purchased.isoformat(), first_period.isoformat(), float(basis)])
+        if is_error(yf):
+            return yf
+        one_rate = cost * rate                       # full-period depreciation
+        cost_delta = cost - salvage
+        first_rate = yf * rate * cost                # odd first period
+        # Number of whole full periods that fit before the residual is reached.
+        num_full = int((cost - salvage - first_rate) / one_rate) if one_rate else 0
+        if period == 0:
+            return first_rate
+        if period <= num_full:
+            return one_rate
+        if period == num_full + 1:
+            return cost_delta - one_rate * num_full - first_rate
+        return 0.0
+    except (ValueError, TypeError, OverflowError, ZeroDivisionError):
+        return CellError(CellError.NUM)
+
+
+def _amor_coeff(life):
+    """French declining-balance coefficient keyed on the asset life (= 1/rate).
+
+    <3 yr → 1.0, 3–5 yr → 1.5, 5–6 yr → 2.0, >6 yr → 2.5 (gnumeric sc-fin.c)."""
+    if life < 3:
+        return 1.0
+    if life < 5:
+        return 1.5
+    if life <= 6:
+        return 2.0
+    return 2.5
+
+
+def _fn_amordegrc(args):
+    """AMORDEGRC(cost, date_purchased, first_period, salvage, period, rate, [basis])
+    — French declining-balance depreciation with the life coefficient."""
+    try:
+        parsed = _amor_dates_basis(args)
+        if isinstance(parsed, CellError):
+            return parsed
+        cost, purchased, first_period, salvage, n_per, rate, basis = parsed
+        yf = _yearfrac([purchased.isoformat(), first_period.isoformat(), float(basis)])
+        if is_error(yf):
+            return yf
+        rate *= _amor_coeff(1.0 / rate)
+        # First (odd) period: round to the nearest currency unit, banker's
+        # rounding (go_rint), and carry the reduced book value forward.
+        dep = round(yf * rate * cost)
+        cost -= dep
+        rest = cost - salvage
+        for n in range(n_per):
+            dep = round(rate * cost)
+            rest -= dep
+            if rest < 0:
+                # Last two periods: release half the remaining book value,
+                # else nothing (may over-depreciate past cost - salvage).
+                if n_per - n <= 1:
+                    return float(round(cost / 2.0))
+                return 0.0
+            cost -= dep
+        return float(dep)
+    except (ValueError, TypeError, OverflowError, ZeroDivisionError):
+        return CellError(CellError.NUM)
+
+
 # --- rates & misc ----------------------------------------------------------
 
 
@@ -790,6 +904,8 @@ def register(functions: dict) -> None:
         "DB": _fn_db,
         "DDB": _fn_ddb,
         "VDB": _fn_vdb,
+        "AMORLINC": _fn_amorlinc,
+        "AMORDEGRC": _fn_amordegrc,
         "EFFECT": _fn_effect,
         "NOMINAL": _fn_nominal,
         "DOLLARDE": _fn_dollarde,
@@ -821,6 +937,8 @@ SIGNATURES = {
     "DB": "DB(cost, salvage, life, period, [month])",
     "DDB": "DDB(cost, salvage, life, period, [factor])",
     "VDB": "VDB(cost, salvage, life, start_period, end_period, [factor], [no_switch])",
+    "AMORLINC": "AMORLINC(cost, date_purchased, first_period, salvage, period, rate, [basis])",
+    "AMORDEGRC": "AMORDEGRC(cost, date_purchased, first_period, salvage, period, rate, [basis])",
     "EFFECT": "EFFECT(nominal_rate, npery)",
     "NOMINAL": "NOMINAL(effect_rate, npery)",
     "DOLLARDE": "DOLLARDE(fractional_dollar, fraction)",

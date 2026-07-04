@@ -17,8 +17,12 @@ Excel's end-of-month rule (a maturity on the last day of its month keeps every
 coupon on a month end).
 
 ``ACCRINT`` uses the simple pro-rata form (par × rate × accrued fraction),
-which matches Excel's documented examples; the odd-period functions
-(ODDF*/ODDL*) are out of scope. Registered by :func:`register`.
+which matches Excel's documented examples. The odd-period bond functions
+``ODDFPRICE``/``ODDFYIELD`` (odd first coupon) and ``ODDLPRICE``/``ODDLYIELD``
+(odd last coupon) follow gnumeric's calc_oddfprice/calc_oddlprice/
+calc_oddlyield (plugins/fn-financial/functions.c), which mirror Excel; their
+odd-period day-count ratios reuse the same coupon-schedule/day-count machinery
+as the COUP* family. Registered by :func:`register`.
 """
 
 from __future__ import annotations
@@ -539,6 +543,300 @@ def _tbillyield(args: list) -> Any:
     return (100.0 - pr) / pr * 360.0 / dsm
 
 
+# --- odd first / last coupon period ------------------------------------------
+#
+# ODDFPRICE / ODDFYIELD (odd first period) and ODDLPRICE / ODDLYIELD (odd last
+# period). The odd-period day-count fractions need coupon dates anchored at an
+# arbitrary reference date rather than settlement, so they use a `date_ratio`
+# helper (gnumeric's) built on `_coup_cd` — the same walk-back-in-step-months
+# coupon schedule the COUP* family uses, but parameterised by an anchor date.
+# Algorithm follows gnumeric calc_oddfprice/calc_oddlprice/calc_oddlyield.
+
+
+def _days_between_basis(a: date, b: date, basis: int) -> float:
+    """Signed day count on an Excel basis (matches go_date_days_between_basis):
+    30/360 for basis 0, European 30/360 for basis 4, else actual days."""
+    if a > b:
+        return -_days_between_basis(b, a, basis)
+    if basis == 0:
+        return float(_days360_count(a, b, False))
+    if basis == 4:
+        return float(_days360_count(a, b, True))
+    return float((b - a).days)
+
+
+def _coup_cd(settlement: date, maturity: date, freq: int, eom: bool,
+             nxt: bool) -> date:
+    """Previous (``nxt=False``) or next (``nxt=True``) coupon date bracketing
+    *settlement*, walking back from *maturity* in 12/freq-month steps. Mirrors
+    goffice's go_coup_cd (end-of-month rule when *maturity* is a month end)."""
+    step = 12 // freq
+    is_eom = eom and maturity.day == _days_in_month(maturity.year, maturity.month)
+
+    def cd(periods: int) -> date:
+        d = _add_months(maturity, -periods * step, False)
+        if is_eom:
+            d = date(d.year, d.month, _days_in_month(d.year, d.month))
+        return d
+
+    periods = maturity.year - settlement.year
+    if periods > 0:
+        periods = (periods - 1) * freq
+    result = maturity
+    while True:
+        periods += 1
+        result = cd(periods)
+        if not (settlement < result):
+            break
+    if nxt:
+        result = cd(periods - 1)
+    return result
+
+
+def _coupdays_pn(prev: date, ncd: date, freq: int, basis: int) -> float:
+    """Days in a coupon period (go_coupdays): 360/freq for 30/360 and act/360,
+    365/freq for act/365, else actual days between the bracketing coupons."""
+    if basis in (0, 2, 4):
+        return 360.0 / freq
+    if basis == 3:
+        return 365.0 / freq
+    return _days_between_basis(prev, ncd, 1)
+
+
+def _date_ratio(d1: date, d2: date, d3: date, freq: int, basis: int) -> float:
+    """Number of coupon periods (fractional) from *d1* to *d2*, with the coupon
+    grid anchored at *d1* and stepping toward *d3*. Mirrors gnumeric date_ratio;
+    handles odd-long spans by summing whole periods plus the partial ends."""
+    ncd = _coup_cd(d1, d3, freq, True, True)
+    pcd = _coup_cd(d1, d3, freq, True, False)
+    if ncd >= d2:
+        return _days_between_basis(d1, d2, basis) / _coupdays_pn(pcd, ncd, freq, basis)
+    res = _days_between_basis(d1, ncd, basis) / _coupdays_pn(pcd, ncd, freq, basis)
+    while True:
+        pcd = ncd
+        ncd = _add_months(ncd, 12 // freq, False)
+        if ncd >= d2:
+            return res + _days_between_basis(pcd, d2, basis) / _coupdays_pn(pcd, ncd, freq, basis)
+        res += 1.0
+
+
+def _oddf_args(args: list) -> "tuple[date, date, date, date, int, int]":
+    """settlement, maturity, issue, first_coupon, freq, basis — shared ODDF*
+    parsing/validation (issue <= settlement <= first_coupon <= maturity)."""
+    settlement = _parse_date(_arg(args, 0))
+    maturity = _parse_date(_arg(args, 1))
+    issue = _parse_date(_arg(args, 2))
+    first_coupon = _parse_date(_arg(args, 3))
+    if None in (settlement, maturity, issue, first_coupon):
+        raise _Bad(CellError(CellError.VALUE))
+    freq = _num(_arg(args, 7))
+    basis = _num(_arg(args, 8, 0))
+    if freq is None or basis is None:
+        raise _Bad(CellError(CellError.VALUE))
+    freq, basis = int(freq), int(basis)
+    if freq not in (1, 2, 4) or not (0 <= basis <= 4):
+        raise _Bad(CellError(CellError.NUM))
+    if not (issue <= settlement <= first_coupon <= maturity):
+        raise _Bad(CellError(CellError.NUM))
+    return settlement, maturity, issue, first_coupon, freq, basis
+
+
+def _oddfprice_core(settlement: date, maturity: date, issue: date,
+                    first_coupon: date, rate: float, yld: float,
+                    redemption: float, freq: int, basis: int) -> float:
+    """Price per 100 face of a bond with an odd first coupon period."""
+    a = _days_between_basis(issue, settlement, basis)
+    ds = _days_between_basis(settlement, first_coupon, basis)
+    df = _days_between_basis(issue, first_coupon, basis)
+    e = _coupdays_pn(*_coup_bracket(settlement, maturity, freq), freq, basis)
+    n = _oddf_coupnum(settlement, maturity, freq)
+    scale = 100.0 * rate / freq
+    f = 1.0 + yld / freq
+    if ds > e:  # odd-long first period: correct n and re-express a/ds/df
+        if basis in (0, 4):
+            cdays = _days_between_basis(first_coupon, maturity, basis)
+            n = 1 + int(math.ceil(cdays / e))
+        else:
+            d = first_coupon
+            n = 0
+            while True:
+                prev_date = d
+                d = _add_months(d, 12 // freq, False)
+                if d >= maturity:
+                    pe = _coupdays_pn(*_coup_bracket(prev_date, d, freq), freq, basis)
+                    n += int(math.ceil(_days_between_basis(prev_date, maturity, basis) / pe)) + 1
+                    break
+                n += 1
+            a = e * _date_ratio(issue, settlement, first_coupon, freq, basis)
+            ds = e * _date_ratio(settlement, first_coupon, first_coupon, freq, basis)
+            df = e * _date_ratio(issue, first_coupon, first_coupon, freq, basis)
+    term1 = redemption / f ** (n - 1 + ds / e)
+    term2 = (df / e) / f ** (ds / e)
+    # sum_{k=0}^{n-1} f**-(k + ds/e); the closed form is 0/0 at f == 1 (yld 0),
+    # where every term is 1 so the sum is just n.
+    if f == 1.0:
+        summ = float(n)
+    else:
+        summ = f ** (-ds / e) * (f ** (-n) - 1.0 / f) / (1.0 / f - 1.0)
+    return term1 + scale * (term2 + summ - a / e)
+
+
+def _coup_bracket(settlement: date, maturity: date, freq: int) -> "tuple[date, date]":
+    """(prev, next) coupon dates bracketing settlement — for act/act coupdays."""
+    return (_coup_cd(settlement, maturity, freq, True, False),
+            _coup_cd(settlement, maturity, freq, True, True))
+
+
+def _oddf_coupnum(settlement: date, maturity: date, freq: int) -> int:
+    """Coupon count for the ODDF path — the same schedule count the COUP*
+    family uses (walk back from maturity, end-of-month aware)."""
+    return _coupon_schedule(settlement, maturity, freq)[2]
+
+
+def _oddfprice(args: list) -> Any:
+    """ODDFPRICE(settlement, maturity, issue, first_coupon, rate, yld,
+    redemption, frequency, [basis])."""
+    try:
+        settlement, maturity, issue, first_coupon, freq, basis = _oddf_args(args)
+    except _Bad as b:
+        return b.err
+    rate = _num(_arg(args, 4))
+    yld = _num(_arg(args, 5))
+    redemption = _num(_arg(args, 6))
+    if rate is None or yld is None or redemption is None:
+        return CellError(CellError.VALUE)
+    if rate < 0 or yld < 0 or redemption <= 0:
+        return CellError(CellError.NUM)
+    try:
+        return _oddfprice_core(settlement, maturity, issue, first_coupon,
+                               rate, yld, redemption, freq, basis)
+    except (ValueError, ZeroDivisionError, OverflowError):
+        return CellError(CellError.NUM)
+
+
+def _oddfyield(args: list) -> Any:
+    """ODDFYIELD(settlement, maturity, issue, first_coupon, rate, pr,
+    redemption, frequency, [basis]) — inverts ODDFPRICE by bisection."""
+    try:
+        settlement, maturity, issue, first_coupon, freq, basis = _oddf_args(args)
+    except _Bad as b:
+        return b.err
+    rate = _num(_arg(args, 4))
+    pr = _num(_arg(args, 5))
+    redemption = _num(_arg(args, 6))
+    if rate is None or pr is None or redemption is None:
+        return CellError(CellError.VALUE)
+    if rate < 0 or pr <= 0 or redemption <= 0:
+        return CellError(CellError.NUM)
+
+    def diff(y: float) -> float:
+        return _oddfprice_core(settlement, maturity, issue, first_coupon,
+                               rate, y, redemption, freq, basis) - pr
+
+    try:
+        lo, hi = 0.0, 1.0
+        if diff(lo) < 0:  # price below target at zero yield: negative yield
+            lo, hi = -0.99, 0.0
+        else:
+            while diff(hi) > 0 and hi < 1e3:
+                hi *= 2
+        for _ in range(200):
+            mid = 0.5 * (lo + hi)
+            if diff(mid) > 0:
+                lo = mid
+            else:
+                hi = mid
+            if hi - lo < 1e-12:
+                break
+        return 0.5 * (lo + hi)
+    except (ValueError, ZeroDivisionError, OverflowError):
+        return CellError(CellError.NUM)
+
+
+def _oddl_args(args: list) -> "tuple[date, date, date, int, int]":
+    """settlement, maturity, last_interest, freq, basis — shared ODDL* parsing
+    (last_interest <= settlement <= maturity)."""
+    settlement = _parse_date(_arg(args, 0))
+    maturity = _parse_date(_arg(args, 1))
+    last_interest = _parse_date(_arg(args, 2))
+    if None in (settlement, maturity, last_interest):
+        raise _Bad(CellError(CellError.VALUE))
+    freq = _num(_arg(args, 6))
+    basis = _num(_arg(args, 7, 0))
+    if freq is None or basis is None:
+        raise _Bad(CellError(CellError.VALUE))
+    freq, basis = int(freq), int(basis)
+    if freq not in (1, 2, 4) or not (0 <= basis <= 4):
+        raise _Bad(CellError(CellError.NUM))
+    if not (last_interest <= settlement <= maturity):
+        raise _Bad(CellError(CellError.NUM))
+    return settlement, maturity, last_interest, freq, basis
+
+
+def _oddl_ratios(settlement: date, maturity: date, last_interest: date,
+                 freq: int, basis: int) -> "tuple[float, float, float]":
+    """(x1, x2, x3) date ratios anchored at last_interest, stepping to the
+    first coupon on or after maturity (gnumeric calc_oddl* setup)."""
+    d = last_interest
+    while True:
+        d = _add_months(d, 12 // freq, False)
+        if not (d < maturity):
+            break
+    x1 = _date_ratio(last_interest, settlement, d, freq, basis)
+    x2 = _date_ratio(last_interest, maturity, d, freq, basis)
+    x3 = _date_ratio(settlement, maturity, d, freq, basis)
+    return x1, x2, x3
+
+
+def _oddlprice(args: list) -> Any:
+    """ODDLPRICE(settlement, maturity, last_interest, rate, yld, redemption,
+    frequency, [basis])."""
+    try:
+        settlement, maturity, last_interest, freq, basis = _oddl_args(args)
+    except _Bad as b:
+        return b.err
+    rate = _num(_arg(args, 3))
+    yld = _num(_arg(args, 4))
+    redemption = _num(_arg(args, 5))
+    if rate is None or yld is None or redemption is None:
+        return CellError(CellError.VALUE)
+    if rate < 0 or yld < 0 or redemption <= 0:
+        return CellError(CellError.NUM)
+    try:
+        x1, x2, x3 = _oddl_ratios(settlement, maturity, last_interest, freq, basis)
+        denom = yld * x3 + freq
+        if denom == 0:
+            return CellError(CellError.NUM)
+        return (redemption * freq
+                + 100.0 * rate * (x2 - x1 * (1.0 + yld * x3 / freq))) / denom
+    except (ValueError, ZeroDivisionError, OverflowError):
+        return CellError(CellError.NUM)
+
+
+def _oddlyield(args: list) -> Any:
+    """ODDLYIELD(settlement, maturity, last_interest, rate, pr, redemption,
+    frequency, [basis]) — closed-form (gnumeric calc_oddlyield)."""
+    try:
+        settlement, maturity, last_interest, freq, basis = _oddl_args(args)
+    except _Bad as b:
+        return b.err
+    rate = _num(_arg(args, 3))
+    pr = _num(_arg(args, 4))
+    redemption = _num(_arg(args, 5))
+    if rate is None or pr is None or redemption is None:
+        return CellError(CellError.VALUE)
+    if rate < 0 or pr <= 0 or redemption <= 0:
+        return CellError(CellError.NUM)
+    try:
+        x1, x2, x3 = _oddl_ratios(settlement, maturity, last_interest, freq, basis)
+        denom = x3 * pr + 100.0 * rate * x1 * x3 / freq
+        if denom == 0:
+            return CellError(CellError.NUM)
+        return (freq * (redemption - pr) + 100.0 * rate * (x2 - x1)) / denom
+    except (ValueError, ZeroDivisionError, OverflowError):
+        return CellError(CellError.NUM)
+
+
 # --- registry ---------------------------------------------------------------------
 
 _REGISTRY: dict[str, Callable[[list], Any]] = {
@@ -564,6 +862,10 @@ _REGISTRY: dict[str, Callable[[list], Any]] = {
     "TBILLEQ": _tbilleq,
     "TBILLPRICE": _tbillprice,
     "TBILLYIELD": _tbillyield,
+    "ODDFPRICE": _oddfprice,
+    "ODDFYIELD": _oddfyield,
+    "ODDLPRICE": _oddlprice,
+    "ODDLYIELD": _oddlyield,
 }
 
 

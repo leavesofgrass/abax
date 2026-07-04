@@ -10,7 +10,7 @@ from abax.core.functions import FUNCTIONS, LAZY_FUNCTIONS
 
 
 def test_registry_sizes():
-    assert len(FUNCTIONS) == 593
+    assert len(FUNCTIONS) == 599
     assert len(LAZY_FUNCTIONS) == 6
 
 
