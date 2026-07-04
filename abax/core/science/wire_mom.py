@@ -240,6 +240,65 @@ def front_to_back_db(wires, result, theta: float = math.pi / 2,
     return 10.0 * math.log10(front / back)
 
 
+def pattern_cut(wires, result, plane: str = "azimuth", count: int = 361,
+                decibels: bool = True, fixed_phi: float = 0.0,
+                floor_db: float = -40.0):
+    """A principal-plane radiation cut as ``[(angle_rad, value)]`` samples.
+
+    Sweeps :func:`far_field_intensity` over one plane and returns normalised
+    values suitable for a polar plot (see :func:`abax.core.science.antenna`):
+
+    * ``plane="azimuth"`` sweeps ``phi`` in [0, 2π) at ``theta = π/2`` (the array
+      plane), so ``angle`` is the azimuth.
+    * ``plane="elevation"`` sweeps ``theta`` in [0, 2π) at ``phi = fixed_phi``, so
+      ``angle`` is measured from the antenna (z) axis.
+
+    ``value`` is field magnitude (√intensity) normalised to a peak of 1 when
+    ``decibels`` is False, otherwise 0..1 mapped from ``floor_db``..0 dB (matching
+    :func:`antenna.pattern_samples`). This result is **free space**: the elevation
+    cut is symmetric about the horizon and is *not* an over-ground take-off
+    pattern.
+    """
+    if plane not in ("azimuth", "elevation"):
+        raise ValueError("plane must be 'azimuth' or 'elevation'")
+    if count < 2:
+        raise ValueError("count must be >= 2")
+    raw = []
+    peak = 0.0
+    for i in range(count):
+        angle = _TWO_PI * i / (count - 1)
+        if plane == "azimuth":
+            u = far_field_intensity(wires, result, math.pi / 2.0, angle)
+        else:
+            u = far_field_intensity(wires, result, angle, fixed_phi)
+        mag = math.sqrt(max(0.0, u))
+        peak = max(peak, mag)
+        raw.append((angle, mag))
+    if peak <= 0.0:
+        return [(angle, 0.0) for angle, _ in raw]
+    out = []
+    for angle, mag in raw:
+        lin = mag / peak
+        if decibels:
+            db = 20.0 * math.log10(lin) if lin > 1e-6 else floor_db
+            lin = max(0.0, (db - floor_db) / (-floor_db))
+        out.append((angle, lin))
+    return out
+
+
+def pattern_to_rows(samples, decibels: bool = True):
+    """Turn ``pattern_cut`` samples into ``(headers, rows)`` of cell text.
+
+    ``headers`` is ``["Angle (deg)", "Gain (norm)"]`` (or ``"Gain (0..1 dB)"`` when
+    ``decibels``); each row is ``(angle_deg, value)`` as strings ready to drop into
+    a sheet. The angle is the sample angle converted to degrees."""
+    label = "Gain (0..1 dB)" if decibels else "Gain (norm)"
+    headers = ["Angle (deg)", label]
+    rows = [(f"{math.degrees(angle):.1f}", f"{value:.4f}")
+            for angle, value in samples]
+    return headers, rows
+
+
 def dipole(length_wl: float, radius_wl: float = 1e-3, segments: int = 20):
     """Convenience: a straight center-fed dipole along z, returning its feed
     impedance (ohms). Mirrors :func:`abax.core.science.mom.dipole_input_impedance`

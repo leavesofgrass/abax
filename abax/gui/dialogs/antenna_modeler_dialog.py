@@ -18,10 +18,12 @@ from .antenna_dialog import PolarPlot
 from .._qtcompat import (
     QComboBox,
     QDialog,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
 )
@@ -112,6 +114,49 @@ def azimuth_pattern(wires, result, count: int = 361):
     return [(phi, mag / peak) for phi, mag in raw]
 
 
+#: The free-space caveat carried into plot titles and the sheet header. The
+#: built-in MoM and calc-mode-0 PyNEC results are free space, so the elevation
+#: cut is symmetric about the horizon and is NOT an installed-height take-off
+#: pattern — the label keeps that from being mistaken for a real ground pattern.
+FREE_SPACE = "(free space)"
+
+
+def pattern_cut(kind: str, params: dict, plane: str = "azimuth",
+                count: int = 361, decibels: bool = True,
+                segments: int = _SEGMENTS):
+    """A free-space radiation cut as ``[(angle_rad, value)]`` samples plus a source.
+
+    Builds the geometry for ``kind``/``params`` (see :func:`build_geometry`) and
+    computes an ``azimuth`` or ``elevation`` cut, **preferring PyNEC** when it is
+    installed and falling back to the built-in MoM otherwise. Returns
+    ``(samples, source)`` where ``source`` is ``"pynec"`` or ``"mom"``. The result
+    is free space: the elevation cut is symmetric about the horizon and is not an
+    over-ground take-off pattern."""
+    from ...core.science import nec, wire_mom
+
+    wires, feed = build_geometry(kind, params, segments)
+
+    # Prefer the reference solver when present; any PyNEC hiccup silently degrades
+    # to the always-available built-in MoM so the dialog never dead-ends.
+    try:
+        from ...engine import necpy
+
+        if necpy.available():
+            radii = [1e-3] * len(wires)
+            deck = nec.to_nec(wires, [(0, feed, 1.0)], 300.0, radii_wl=radii,
+                              comment=f"abax {kind}")
+            samples = necpy.pattern_cut(deck, plane=plane, count=count,
+                                        decibels=decibels)
+            return samples, "pynec"
+    except Exception:
+        pass
+
+    result = wire_mom.solve(wires, [(0, feed, 1.0)])
+    samples = wire_mom.pattern_cut(wires, result, plane=plane,
+                                   count=count, decibels=decibels)
+    return samples, "mom"
+
+
 class AntennaModelerDialog(QDialog):
     def __init__(self, window) -> None:
         super().__init__(window)
@@ -152,11 +197,34 @@ class AntennaModelerDialog(QDialog):
         form.addRow(*self._dir_row)
         form.addRow(*self._refl_sp_row)
         form.addRow(*self._dir_sp_row)
+
+        self._plane = QComboBox(self)
+        self._plane.addItems(["Azimuth", "Elevation"])
+        self._plane.currentIndexChanged.connect(self._plot_pattern)
+        form.addRow("Pattern plane:", self._plane)
         side.addLayout(form)
 
         run_btn = QPushButton("Run model", self)
         run_btn.clicked.connect(self._run)
         side.addWidget(run_btn)
+
+        pat_btn = QPushButton("Radiation pattern", self)
+        pat_btn.setToolTip("Compute a free-space azimuth/elevation cut and plot it")
+        pat_btn.clicked.connect(self._plot_pattern)
+        side.addWidget(pat_btn)
+
+        sheet_btn = QPushButton("Pattern → sheet", self)
+        sheet_btn.setToolTip("Write the (angle, gain) samples to a new sheet")
+        sheet_btn.clicked.connect(self._pattern_to_sheet)
+        side.addWidget(sheet_btn)
+
+        svg_btn = QPushButton("Export pattern SVG...", self)
+        svg_btn.clicked.connect(self._export_pattern_svg)
+        side.addWidget(svg_btn)
+
+        # Cached from the last pattern compute, for the sheet / SVG writers.
+        self._pattern: list = []
+        self._pattern_source = ""
 
         self._readout = QLabel(self)
         self._readout.setWordWrap(True)
@@ -222,3 +290,99 @@ class AntennaModelerDialog(QDialog):
         if res["front_to_back_db"] is not None:
             lines.insert(1, f"Front/back: {res['front_to_back_db']:.1f} dB")
         self._readout.setText("\n".join(lines))
+
+    # --- radiation-pattern read-back ---------------------------------------
+
+    def _selected_plane(self) -> str:
+        return "elevation" if self._plane.currentIndex() == 1 else "azimuth"
+
+    def compute_pattern(self, count: int = 361):
+        """Compute the current model's radiation cut (UI-free; testable).
+
+        Returns ``(samples, source)`` for the selected plane, preferring PyNEC when
+        installed and otherwise the built-in MoM, and **caches** the samples on the
+        dialog for the sheet / SVG writers. Samples are 0..1 dB-mapped and free
+        space (the elevation cut is symmetric about the horizon, not a real
+        over-ground take-off pattern)."""
+        kind, params = self._params()
+        samples, source = pattern_cut(kind, params, plane=self._selected_plane(),
+                                      count=count, decibels=True)
+        self._pattern = samples
+        self._pattern_source = source
+        return samples, source
+
+    def _pattern_title(self) -> str:
+        kind, _ = self._params()
+        plane = self._selected_plane().capitalize()
+        src = "PyNEC" if self._pattern_source == "pynec" else "MoM"
+        return f"{kind.capitalize()} {plane} pattern {FREE_SPACE} — {src}"
+
+    def _plot_pattern(self) -> None:
+        try:
+            samples, source = self.compute_pattern()
+        except (ValueError, KeyError, ZeroDivisionError):
+            self._readout.setText("Dimensions must be positive numbers (in wavelengths).")
+            return
+        self._plotw.set_samples(samples)
+        src = "PyNEC" if source == "pynec" else "built-in MoM"
+        self._readout.setText(
+            f"{self._selected_plane().capitalize()} pattern {FREE_SPACE}\n"
+            f"Source: {src}\n"
+            "Free space: the elevation cut is symmetric about the horizon and is "
+            "not a real over-ground take-off pattern.")
+
+    def _pattern_to_sheet(self) -> None:
+        from ...core.science import wire_mom
+
+        if not self._pattern:
+            try:
+                self.compute_pattern()
+            except (ValueError, KeyError, ZeroDivisionError):
+                QMessageBox.warning(self, "Radiation pattern",
+                                    "Fix the dimensions first (wavelengths).")
+                return
+        headers, rows = wire_mom.pattern_to_rows(self._pattern, decibels=True)
+        confirm = QMessageBox.question(
+            self, "Radiation pattern",
+            f"Write {len(rows)} {self._selected_plane()} samples {FREE_SPACE} "
+            "to a new sheet?")
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        wb = self._win._doc.workbook
+        name = self._win._unique_sheet_name("Pattern")
+        sheet = wb.add_sheet(name)
+        title = self._pattern_title()
+        sheet.set_cell(0, 0, title)
+        for j, head in enumerate(headers):
+            sheet.set_cell(1, j, head)
+        for i, row in enumerate(rows, start=2):
+            for j, cell in enumerate(row):
+                sheet.set_cell(i, j, cell)
+        wb.active = len(wb.sheets) - 1
+        self._win._doc.mark_dirty()
+        self._win.refresh_table()
+        self._win._set_status(f"Radiation pattern -> sheet '{name}' {FREE_SPACE}")
+
+    def _export_pattern_svg(self) -> None:
+        from pathlib import Path
+
+        from ...core.science import antenna
+
+        if not self._pattern:
+            try:
+                self.compute_pattern()
+            except (ValueError, KeyError, ZeroDivisionError):
+                QMessageBox.warning(self, "Export pattern SVG",
+                                    "Fix the dimensions first (wavelengths).")
+                return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export pattern as SVG", "pattern.svg", "SVG image (*.svg)")
+        if not path:
+            return
+        svg = antenna.polar_svg(self._pattern, title=self._pattern_title())
+        try:
+            Path(path).write_text(svg, encoding="utf-8")
+        except OSError as exc:
+            QMessageBox.warning(self, "Export pattern SVG", str(exc))
+            return
+        self._win._set_status(f"Saved pattern SVG: {Path(path).name}")
