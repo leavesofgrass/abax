@@ -63,6 +63,13 @@ def _is_array_candidate(formula_upper: str) -> bool:
     return any(fn + "(" in formula_upper for fn in ARRAY_FUNCTIONS)
 
 
+def _rects_overlap(a: tuple, b: tuple) -> bool:
+    """Do two ``(r1, c1, r2, c2)`` rectangles intersect?"""
+    ar1, ac1, ar2, ac2 = a
+    br1, bc1, br2, bc2 = b
+    return not (ar2 < br1 or br2 < ar1 or ac2 < bc1 or bc2 < ac1)
+
+
 class Sheet:
     def __init__(self, name: str = "Sheet1") -> None:
         self.name = name
@@ -80,6 +87,18 @@ class Sheet:
         self.cell_comments: dict[tuple[int, int], str] = {}
         # Data-validation rules over ranges: list of (r1, c1, r2, c2, ValidationRule).
         self.validations: list = []
+        # --- layout & fidelity (persisted in the envelope; the GUI renders them) ---
+        # Non-default column pixel widths / row pixel heights (sparse).
+        self.col_widths: dict[int, int] = {}
+        self.row_heights: dict[int, int] = {}
+        # Frozen top rows / left columns (0 = none).
+        self.frozen_rows: int = 0
+        self.frozen_cols: int = 0
+        # Per-cell borders: (row, col) -> {"top"/"bottom"/"left"/"right": style}.
+        self.cell_borders: dict[tuple[int, int], dict] = {}
+        # Merged regions as (r1, c1, r2, c2); the top-left is the anchor (its value
+        # shows across the block), interior cells are cleared on merge.
+        self.merges: list[tuple[int, int, int, int]] = []
         self._cells: dict[tuple[int, int], Cell] = {}
         # Incremental extent of ``_cells`` (excludes spills): adds bump the maxes
         # in O(1); a delete of a boundary cell marks it dirty for a lazy rescan.
@@ -217,6 +236,78 @@ class Sheet:
         """Delete ``count`` columns starting at column ``at`` (0-based)."""
         self._restructure("col", at, -count)
 
+    # --- merged cells -----------------------------------------------------
+
+    def merge_cells(self, r1: int, c1: int, r2: int, c2: int) -> None:
+        """Merge the rectangle into one region, keeping the top-left anchor's
+        content and clearing the interior cells (Excel semantics). Overlapping
+        prior merges in the rectangle are dropped first."""
+        r1, r2 = sorted((r1, r2))
+        c1, c2 = sorted((c1, c2))
+        if r1 == r2 and c1 == c2:
+            return  # a 1x1 "merge" is a no-op
+        self.merges = [m for m in self.merges if not _rects_overlap(m, (r1, c1, r2, c2))]
+        for r in range(r1, r2 + 1):
+            for c in range(c1, c2 + 1):
+                if (r, c) != (r1, c1) and self.get_raw(r, c) != "":
+                    self.set_cell(r, c, "")
+        self.merges.append((r1, c1, r2, c2))
+
+    def unmerge_cells(self, row: int, col: int) -> bool:
+        """Remove the merge region covering ``(row, col)``. Returns whether one was."""
+        region = self.merge_region(row, col)
+        if region is None:
+            return False
+        self.merges.remove(region)
+        return True
+
+    def merge_region(self, row: int, col: int) -> "tuple[int, int, int, int] | None":
+        """The ``(r1, c1, r2, c2)`` merged region covering ``(row, col)``, or None."""
+        for (r1, c1, r2, c2) in self.merges:
+            if r1 <= row <= r2 and c1 <= col <= c2:
+                return (r1, c1, r2, c2)
+        return None
+
+    def merge_anchor(self, row: int, col: int) -> "tuple[int, int] | None":
+        """The top-left ``(r, c)`` of the merge covering ``(row, col)``, or None."""
+        region = self.merge_region(row, col)
+        return (region[0], region[1]) if region is not None else None
+
+    def is_merged(self, row: int, col: int) -> bool:
+        return self.merge_region(row, col) is not None
+
+    # --- borders ----------------------------------------------------------
+
+    def set_cell_border(self, row: int, col: int, edges: "dict | None") -> None:
+        """Set (or clear, with ``None``/empty) a cell's per-edge border styles."""
+        key = (row, col)
+        if edges:
+            self.cell_borders[key] = dict(edges)
+        else:
+            self.cell_borders.pop(key, None)
+
+    def cell_border(self, row: int, col: int) -> dict:
+        """The ``{edge: style}`` border map for ``(row, col)`` (empty if none)."""
+        return self.cell_borders.get((row, col), {})
+
+    # --- column widths / row heights / freeze -----------------------------
+
+    def set_col_width(self, col: int, px: "int | None") -> None:
+        if px is None:
+            self.col_widths.pop(col, None)
+        else:
+            self.col_widths[col] = int(px)
+
+    def set_row_height(self, row: int, px: "int | None") -> None:
+        if px is None:
+            self.row_heights.pop(row, None)
+        else:
+            self.row_heights[row] = int(px)
+
+    def set_frozen(self, rows: int, cols: int) -> None:
+        self.frozen_rows = max(0, int(rows))
+        self.frozen_cols = max(0, int(cols))
+
     def _restructure(self, axis: str, index: int, delta: int) -> None:
         from .structure import (
             REF_ERROR,
@@ -269,6 +360,27 @@ class Sheet:
                 nr1, nc1, nr2, nc2 = parse_range(newr)
                 new_validations.append((nr1, nc1, nr2, nc2, rule))
         self.validations = new_validations
+
+        # Shift the layout/fidelity maps. Borders relocate like any per-cell map;
+        # widths/heights shift along their own axis; merged regions shift like a
+        # range (dropped if wholly deleted or collapsed to a single cell).
+        self.cell_borders = {nk: b for k, b in self.cell_borders.items()
+                             if (nk := move(k)) is not None}
+        if axis == "row":
+            self.row_heights = {nk: v for k, v in self.row_heights.items()
+                                if (nk := shift_coord(k, index, delta)) is not None}
+        else:
+            self.col_widths = {nk: v for k, v in self.col_widths.items()
+                               if (nk := shift_coord(k, index, delta)) is not None}
+        new_merges = []
+        for (mr1, mc1, mr2, mc2) in self.merges:
+            newm = adjust_range(f"{to_a1(mr1, mc1)}:{to_a1(mr2, mc2)}",
+                                self.name, self.name, axis, index, delta)
+            if newm != REF_ERROR:
+                nr1, nc1, nr2, nc2 = parse_range(newm)
+                if (nr1, nc1) != (nr2, nc2):  # still a real (>1 cell) region
+                    new_merges.append((nr1, nc1, nr2, nc2))
+        self.merges = new_merges
 
         # Shift workbook-level named ranges whose target resolves to this sheet
         # (qualified targets shift only when the qualifier matches; unqualified

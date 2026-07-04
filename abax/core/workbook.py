@@ -14,7 +14,7 @@ from pathlib import Path
 from .reference import parse_a1, to_a1
 from .sheet import Sheet
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class Workbook:
@@ -249,6 +249,19 @@ class Workbook:
                         "validations": [
                             {"range": f"{to_a1(r1, c1)}:{to_a1(r2, c2)}", "rule": rule.to_dict()}
                             for r1, c1, r2, c2, rule in s.validations],
+                        # v2 layout & fidelity (omitted when empty to keep files lean).
+                        **({"col_widths": {str(c): w for c, w in s.col_widths.items()}}
+                           if s.col_widths else {}),
+                        **({"row_heights": {str(r): h for r, h in s.row_heights.items()}}
+                           if s.row_heights else {}),
+                        **({"frozen": [s.frozen_rows, s.frozen_cols]}
+                           if (s.frozen_rows or s.frozen_cols) else {}),
+                        **({"borders": {to_a1(r, c): edges
+                                        for (r, c), edges in s.cell_borders.items()}}
+                           if s.cell_borders else {}),
+                        **({"merges": [f"{to_a1(r1, c1)}:{to_a1(r2, c2)}"
+                                       for (r1, c1, r2, c2) in s.merges]}
+                           if s.merges else {}),
                     }
                     for s in self.sheets
                 ],
@@ -288,6 +301,19 @@ class Workbook:
                     r1, c1 = parse_a1(a)
                     r2, c2 = parse_a1(b)
                     sheet.validations.append((r1, c1, r2, c2, ValidationRule.from_dict(rule_dict)))
+            # v2 layout & fidelity (all optional; a v1 file simply has none).
+            sheet.col_widths = {int(c): int(w) for c, w in s.get("col_widths", {}).items()}
+            sheet.row_heights = {int(r): int(h) for r, h in s.get("row_heights", {}).items()}
+            fr = s.get("frozen") or [0, 0]
+            sheet.frozen_rows, sheet.frozen_cols = int(fr[0]), int(fr[1])
+            sheet.cell_borders = {parse_a1(ref): dict(edges)
+                                  for ref, edges in s.get("borders", {}).items()}
+            for m in s.get("merges", []):
+                if ":" in m:
+                    a, b = m.split(":", 1)
+                    mr1, mc1 = parse_a1(a)
+                    mr2, mc2 = parse_a1(b)
+                    sheet.merges.append((mr1, mc1, mr2, mc2))
             wb.sheets.append(sheet)
         wb.active = data.get("active", 0)
         wb._add_default_if_empty()
@@ -310,6 +336,13 @@ class Workbook:
 
 
 def _migrate(data: dict, version: int) -> dict:
-    """Expand-switch-contract migration hook. v1 is current; no-op for now."""
-    # if version < 2: ... transform data ...; data["schema_version"] = 2
+    """Expand-switch-contract migration hook.
+
+    v1 -> v2 added per-sheet layout & fidelity keys (``col_widths`` /
+    ``row_heights`` / ``frozen`` / ``borders`` / ``merges``). They are read with
+    defaults in :meth:`Workbook.from_envelope`, so a v1 file (which lacks them)
+    loads unchanged — no data transform is needed, only the version label.
+    """
+    if version < 2:
+        data["schema_version"] = 2
     return data

@@ -68,7 +68,7 @@ def test_workbook_envelope_is_self_describing(tmp_path):
     wb.save_json(path)
     env = json.loads(path.read_text())
     assert env["app"] == "abax"
-    assert env["schema_version"] == 1
+    assert env["schema_version"] == 2
     assert "written_at" in env
     assert "sheets" in env["data"]
 
