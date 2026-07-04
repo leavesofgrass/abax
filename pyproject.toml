@@ -47,11 +47,16 @@ nec      = ["PyNEC"]
 # (a small compiled ReadStat binding). Needs pandas from `science` at runtime.
 # In `all`, not `thin`.
 stats-io = ["pyreadstat"]
+# SQL database connectivity via DB-API 2.0 drivers: psycopg (PostgreSQL) and
+# PyMySQL (MySQL). Optional — abax can't reach a SQL database without one. The
+# psycopg[binary] wheel bundles libpq (no compiler needed); PyMySQL is pure
+# Python. In `all`, not `thin`.
+database = ["psycopg[binary]", "PyMySQL"]
 # Lean install — the GUI plus every lightweight convenience (TUI, Excel, fast-io,
 # terminal), but NONE of the heavy optional data-science libraries. ~0.22 GB.
 thin     = ["abax[gui,tui,excel,fast-io,terminal,sevenzip]"]
 # Everything abax can use, in one shot (the default full-fat set). ~0.84 GB.
-all      = ["abax[thin,parquet,science,jupyter,bayes,stats-io,hdf5,nec]"]
+all      = ["abax[thin,parquet,science,jupyter,bayes,stats-io,database,hdf5,nec]"]
 
 [project.scripts]
 abax = "abax.app:main"

@@ -51,6 +51,11 @@ _NEC = [("PyNEC", "PyNEC")]
 # (ReadStat); pandas provides the DataFrame it returns (already in `science`).
 # Part of the default full-fat `ALL` set; NOT in `thin`.
 _STATS_IO = [("pyreadstat", "pyreadstat")]
+# SQL database drivers (DB-API 2.0): psycopg for PostgreSQL, PyMySQL for MySQL.
+# Both are optional — abax simply can't reach a SQL database without one. The
+# psycopg[binary] wheel bundles libpq so there's no compiler/postgres-dev needed;
+# PyMySQL is pure-Python. Part of the default full-fat `ALL` set; NOT in `thin`.
+_DATABASE = [("psycopg[binary]", "psycopg"), ("PyMySQL", "pymysql")]
 _TERMINAL = [("pyte", "pyte")]
 if sys.platform == "win32":
     _TERMINAL.append(("pywinpty", "winpty"))   # ConPTY backend on Windows
@@ -69,6 +74,7 @@ FEATURES: dict[str, list[tuple[str, str]]] = {
     "hdf5": [("h5py", "h5py")],
     "nec": _NEC,
     "stats-io": _STATS_IO,
+    "database": _DATABASE,
 }
 
 # The full-fat set (the `all` extra), ordered light -> heavy so the quick wins
@@ -84,6 +90,7 @@ ALL: list[tuple[str, str]] = [
     *_SCIENCE,
     ("ipykernel", "ipykernel"),
     *_STATS_IO,
+    *_DATABASE,
     *_BAYES,
     ("h5py", "h5py"),
     *_NEC,          # compiled; last so a build failure can't block the rest
@@ -114,6 +121,8 @@ FEATURE_INFO: dict[str, tuple[str, str, int]] = {
             "PyNEC (compiled; may need a build toolchain on some platforms)", 5),
     "stats-io": ("Stata / SPSS data files (.dta / .sav)",
                  "pyreadstat", 10),
+    "database": ("SQL databases (PostgreSQL / MySQL)",
+                 "psycopg + PyMySQL — read tables from a live SQL connection", 15),
 }
 
 # The two common presets offered by the chooser. "thin" = the lean conveniences

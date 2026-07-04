@@ -111,6 +111,16 @@ OPTIONAL_DEPENDENCIES = {
         "fallback": "no Stata (.dta) / SPSS (.sav) import",
         "purpose": "read Stata / SPSS statistical data files",
     },
+    "psycopg": {
+        "available": _has("psycopg"),
+        "fallback": "no PostgreSQL database import (pymysql still covers MySQL)",
+        "purpose": "read tables from a live PostgreSQL database (DB-API 2.0)",
+    },
+    "pymysql": {
+        "available": _has("pymysql"),
+        "fallback": "no MySQL database import (psycopg still covers PostgreSQL)",
+        "purpose": "read tables from a live MySQL database (DB-API 2.0)",
+    },
 }
 
 
