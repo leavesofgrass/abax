@@ -1,6 +1,12 @@
 # Normalize line endings: store LF in the repository, check out native locally.
 * text=auto
 
+# Scripts that run inside Linux containers must stay LF even on Windows checkouts
+# (CRLF breaks the shebang / bash parsing). Overrides the native checkout above.
+*.sh          text eol=lf
+Dockerfile    text eol=lf
+*.desktop     text eol=lf
+
 # Binary assets — never touch line endings.
 *.png binary
 *.otf binary

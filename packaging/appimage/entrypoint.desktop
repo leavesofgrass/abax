@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=abax
+GenericName=Spreadsheet
+Comment=Keyboard-first statistics, data-science & RF/amateur-radio spreadsheet
+Exec=abax
+Icon=abax
+Terminal=false
+Categories=Office;Spreadsheet;Science;Education;
+Keywords=spreadsheet;statistics;data;RF;amateur radio;calculator;

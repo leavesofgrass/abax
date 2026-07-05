@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- abax — a counting tablet (the abacus lineage): dark slate board, three
+       rails of counters in the accent colour. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b3440"/>
+      <stop offset="1" stop-color="#1b222b"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="44" fill="url(#bg)"/>
+  <rect x="8" y="8" width="240" height="240" rx="44" fill="none" stroke="#3a4756" stroke-width="2"/>
+  <!-- three rails -->
+  <g stroke="#4b5765" stroke-width="6" stroke-linecap="round">
+    <line x1="52" y1="88"  x2="204" y2="88"/>
+    <line x1="52" y1="128" x2="204" y2="128"/>
+    <line x1="52" y1="168" x2="204" y2="168"/>
+  </g>
+  <!-- counters -->
+  <g fill="#8fd0c4">
+    <circle cx="76"  cy="88"  r="15"/><circle cx="112" cy="88"  r="15"/>
+    <circle cx="180" cy="88"  r="15" fill="#e6b673"/>
+    <circle cx="76"  cy="128" r="15"/><circle cx="148" cy="128" r="15"/>
+    <circle cx="184" cy="128" r="15"/>
+    <circle cx="88"  cy="168" r="15" fill="#e6b673"/>
+    <circle cx="124" cy="168" r="15"/><circle cx="160" cy="168" r="15"/>
+  </g>
+</svg>
