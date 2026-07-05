@@ -150,3 +150,8 @@ jobs:
           path: dist
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Idempotent: don't fail if this version is already on PyPI (a re-cut
+          # tag, or a workflow_dispatch test run against an already-published
+          # version). New versions still publish normally.
+          skip-existing: true
