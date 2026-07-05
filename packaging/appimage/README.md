@@ -32,6 +32,16 @@ chmod +x dist/abax-0.1.7-x86_64.AppImage
 ./dist/abax-0.1.7-x86_64.AppImage --version  # or any CLI subcommand: tui, doctor, view …
 ```
 
+## CI (automatic on release)
+
+The `Release` workflow (`.github/workflows/release.yml`) has an **`appimage`** job
+that builds this AppImage on every `v*` tag and attaches it to the GitHub Release
+alongside the wheel, sdist, and `.pyz` — no manual step. It builds abax from the
+release's freshly-built **wheel** (dropped into `wheelhouse/`; extras still resolve
+from PyPI), so the AppImage doesn't wait on the PyPI publish. You can also trigger
+it without releasing via the workflow's **Run workflow** button (`workflow_dispatch`),
+which builds and uploads the artifact but does not publish a release.
+
 ## Notes
 
 - **PyNEC is best-effort.** It's the only `[all]` dependency without a prebuilt

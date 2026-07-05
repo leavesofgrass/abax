@@ -40,7 +40,13 @@ WORKDIR /build
 # Heavy layer: pip-install abax[all] into a relocatable Python and build the raw
 # AppImage. Cached across rebuilds; the pip cache mount avoids re-downloading the
 # ~0.84 GB of wheels when it does re-run.
+#
+# wheelhouse/ is empty for local builds (→ 01-build-raw.sh installs abax[all] from
+# PyPI). CI drops the freshly-built abax wheel here so the AppImage installs abax
+# from it (extras still resolve from PyPI) — decoupling the AppImage from the PyPI
+# publish, so it can build in parallel on a tag.
 COPY entrypoint.desktop abax.svg 01-build-raw.sh ./
+COPY wheelhouse/ ./wheelhouse/
 RUN --mount=type=cache,target=/root/.cache/pip \
     chmod +x 01-build-raw.sh && ./01-build-raw.sh
 

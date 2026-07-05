@@ -1,0 +1,4 @@
+# CI drops the built abax wheel/sdist here; never commit those.
+*
+!.gitkeep
+!.gitignore

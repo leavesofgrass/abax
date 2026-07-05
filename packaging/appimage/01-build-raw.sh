@@ -23,15 +23,30 @@ build_recipe() {
   "$PY" -m python_appimage build app -l manylinux_2_28_x86_64 -p 3.11 recipe
 }
 
+# Install abax from a CI-provided local wheel if one was dropped in wheelhouse/
+# (extras still resolve from PyPI); otherwise install abax[all] from PyPI. This
+# lets CI build the AppImage from the freshly-built wheel before it's on PyPI.
+NONEC_EXTRAS="thin,parquet,science,jupyter,bayes,stats-io,database,hdf5,satellite,tts,restricted"
+WHEEL=$(ls /build/wheelhouse/abax-*.whl 2>/dev/null | head -1 || true)
+if [ -n "$WHEEL" ]; then
+  echo "== installing abax from local wheel: $WHEEL =="
+  ALL_SPEC="${WHEEL}[all]"
+  NONEC_SPEC="${WHEEL}[${NONEC_EXTRAS}]"
+else
+  echo "== installing abax[all]==${VERSION} from PyPI =="
+  ALL_SPEC="abax[all]==${VERSION}"
+  NONEC_SPEC="abax[${NONEC_EXTRAS}]==${VERSION}"
+fi
+
 rm -f /build/NONEC
 echo "== python-appimage build (attempting full abax[all]) =="
-if build_recipe "abax[all]==${VERSION}"; then
+if build_recipe "$ALL_SPEC"; then
   echo "   full abax[all] build succeeded (PyNEC included)."
 else
   echo "!! Full [all] build failed (most likely PyNEC's SWIG/C++ compile)."
   echo "!! Falling back to all-except-nec (the built-in MoM solver still works)."
   touch /build/NONEC
-  build_recipe "abax[thin,parquet,science,jupyter,bayes,stats-io,database,hdf5,satellite,tts,restricted]==${VERSION}"
+  build_recipe "$NONEC_SPEC"
 fi
 
 APP=$(ls -t abax*.AppImage 2>/dev/null | grep -iv appimagetool | head -1)

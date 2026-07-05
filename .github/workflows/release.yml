@@ -59,12 +59,56 @@ jobs:
           name: pyz
           path: abax.pyz
 
+  # ── AppImage (Linux, portable, abax[all]) ──────────────────────────────────
+  # Builds a single-file Linux binary of abax[all] via the Docker recipe under
+  # packaging/appimage (manylinux_2_28 → glibc 2.28, so it runs on distros from
+  # ~2019 on). Installs abax from the wheel job's artifact (extras from PyPI), so
+  # it doesn't wait on the PyPI publish. Uploaded as an artifact that the release
+  # job then attaches. Runs on tag pushes and manual runs (like wheel/pyz).
+  appimage:
+    name: Build AppImage (Linux, abax[all])
+    needs: [wheel]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Fetch the built abax wheel (installed into the AppImage)
+        uses: actions/download-artifact@v7
+        with:
+          name: wheel
+          path: packaging/appimage/wheelhouse
+      - name: Resolve version
+        id: ver
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            v=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+            echo "version=$v" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build the AppImage in manylinux_2_28
+        run: |
+          docker build -t abax-appimage \
+            --build-arg ABAX_VERSION="${{ steps.ver.outputs.version }}" \
+            -f packaging/appimage/Dockerfile packaging/appimage
+      - name: Extract the AppImage from the image
+        run: |
+          mkdir -p dist
+          cid=$(docker create abax-appimage)
+          docker cp "$cid:/build/dist" ./appimage-out
+          docker rm "$cid"
+          cp ./appimage-out/*.AppImage dist/
+          ls -lh dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: appimage
+          path: dist/*.AppImage
+
   # ── Publish the GitHub Release ──────────────────────────────────────────────
-  # Tag pushes only. Collects every built artifact (wheel, sdist, pyz) and
-  # attaches them to a release with auto-generated notes.
+  # Tag pushes only. Collects every built artifact (wheel, sdist, pyz, AppImage)
+  # and attaches them to a release with auto-generated notes.
   release:
     name: Publish GitHub Release
-    needs: [wheel, pyz]
+    needs: [wheel, pyz, appimage]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:

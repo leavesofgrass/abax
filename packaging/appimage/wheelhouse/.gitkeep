@@ -1,0 +1,3 @@
+# Placeholder so `COPY wheelhouse/` always works. CI drops the built abax
+# wheel here so the AppImage installs abax from it (extras still from PyPI);
+# for local builds this stays empty and the recipe installs abax[all] from PyPI.

@@ -38,12 +38,16 @@ if [ -n "$QTCORE" ]; then
       [ -e "$ROOT/usr/lib/$b" ] || cp -Lv "$so" "$ROOT/usr/lib/" 2>/dev/null || true
     done
   }
-  [ -n "$PLUGDIR" ] && for f in "$PLUGDIR"/*.so; do [ -e "$f" ] && inject "$f"; done
-  for f in "$QTLIBDIR"/libQt6*.so*; do [ -e "$f" ] && inject "$f"; done
-  for want in libxcb-cursor.so.0 libxkbcommon-x11.so.0 libxkbcommon.so.0 libxcb-util.so.1; do
-    src=$(ldconfig -p 2>/dev/null | awk -v n="$want" '$1==n {print $NF; exit}')
-    [ -n "${src:-}" ] && [ ! -e "$ROOT/usr/lib/$want" ] && cp -Lv "$src" "$ROOT/usr/lib/" 2>/dev/null || true
-  done
+  # Best-effort bundling — run with `set -e`/`pipefail` OFF so a SIGPIPE (an awk
+  # `exit` closing ldconfig's pipe, a copy racing) can never abort the build.
+  ( set +e +o pipefail
+    [ -n "$PLUGDIR" ] && for f in "$PLUGDIR"/*.so; do [ -e "$f" ] && inject "$f"; done
+    for f in "$QTLIBDIR"/libQt6*.so*; do [ -e "$f" ] && inject "$f"; done
+    for want in libxcb-cursor.so.0 libxkbcommon-x11.so.0 libxkbcommon.so.0 libxcb-util.so.1; do
+      src=$(ldconfig -p 2>/dev/null | awk -v n="$want" '$1==n {print $NF; exit}')
+      [ -n "$src" ] && [ ! -e "$ROOT/usr/lib/$want" ] && cp -Lv "$src" "$ROOT/usr/lib/" 2>/dev/null
+    done
+  ) || true
   echo "   usr/lib now carries $(ls "$ROOT/usr/lib" 2>/dev/null | wc -l) libs"
 else
   echo "!! libQt6Core not found — Qt injection skipped."
