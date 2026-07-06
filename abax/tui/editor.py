@@ -168,12 +168,21 @@ class TuiEditor:
         self.mode = "insert"
         self.edit_buf = self.sheet.get_raw(self.row, self.col)
 
-    def commit_insert(self) -> None:
+    def commit_insert(self, advance: bool = False) -> None:
         self.doc.checkpoint(f"edit {self.cursor_a1()}")
         self.sheet.set_cell(self.row, self.col, self.edit_buf)
         self.recorder.record_set(self.cursor_a1(), self.edit_buf)
         self.doc.mark_dirty()
         self.mode = "normal"
+        self.completions = []
+        self.arg_hint = ""
+        if advance:              # Excel: Enter drops to the cell below
+            self.move(1, 0)
+
+    def cancel_insert(self) -> None:
+        """Abandon the in-progress edit, keeping the cell's existing value."""
+        self.mode = "normal"
+        self.edit_buf = ""
         self.completions = []
         self.arg_hint = ""
 
@@ -1147,7 +1156,7 @@ class TuiEditor:
             self.next_match(1)
         elif ch == "N":  # previous search match
             self.next_match(-1)
-        elif ch == "i":
+        elif ch in ("i", "a"):  # enter edit mode (vim insert/append)
             self.begin_insert()
         elif ch == "v":  # visual (cell-range) selection
             self.begin_visual(line=False)

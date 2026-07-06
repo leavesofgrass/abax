@@ -71,29 +71,56 @@ def _draw_loop(stdscr, curses, editor, cap: str) -> None:
         if editor.theme_name != state["name"]:
             rebuild(THEMES.get(editor.theme_name, THEMES["obsidian"]))
             state["name"] = editor.theme_name
-        sheet = editor.sheet
-        colors = {}
-        if sheet.cond_rules:
-            from ..core.format.condformat import evaluate
+        # Rendering must NEVER tear down the UI: a bad formula, an odd value, a
+        # narrow window — any of it should degrade to a one-line error in the
+        # status bar, not crash out of curses and drop the user's session.
+        try:
+            sheet = editor.sheet
+            colors = {}
+            if sheet.cond_rules:
+                from ..core.format.condformat import evaluate
 
-            try:
-                colors = evaluate(sheet, sheet.cond_rules)
-            except Exception:
-                colors = {}
-        # Tell the editor how big the window is so its reclamp (run on the next
-        # keystroke) can scroll to keep the cursor visible.
-        max_y, max_x = stdscr.getmaxyx()
-        editor.viewport_rows = visible_rows(max_y)
-        editor.viewport_cols = visible_cols(max_x)
-        editor._reclamp()
-        stdscr.erase()
-        _render(stdscr, curses, editor, attr, cap, colors, cond_attr)
-        stdscr.refresh()
+                try:
+                    colors = evaluate(sheet, sheet.cond_rules)
+                except Exception:
+                    colors = {}
+            # Tell the editor how big the window is so its reclamp (run on the
+            # next keystroke) can scroll to keep the cursor visible.
+            max_y, max_x = stdscr.getmaxyx()
+            editor.viewport_rows = visible_rows(max_y)
+            editor.viewport_cols = visible_cols(max_x)
+            editor._reclamp()
+            stdscr.erase()
+            _render(stdscr, curses, editor, attr, cap, colors, cond_attr)
+            stdscr.refresh()
+        except Exception as exc:  # noqa: BLE001 — the draw loop must survive anything
+            _render_error_bar(stdscr, curses, editor, exc)
         try:
             ch = stdscr.get_wch()
         except curses.error:
             continue
-        _handle_key(editor, ch)
+        # A keystroke handler must never crash the session either — a bad edit
+        # or command surfaces as a status message; the user keeps editing.
+        try:
+            _handle_key(editor, ch)
+        except Exception as exc:  # noqa: BLE001
+            editor.message = f"error: {type(exc).__name__}: {exc}"[:120]
+
+
+def _render_error_bar(stdscr, curses, editor, exc: Exception) -> None:
+    """Last-resort paint when the normal render raised: a bare screen with the
+    error on the status line, so the session survives and stays usable."""
+    editor.message = f"render error: {type(exc).__name__}: {exc}"[:120]
+    try:
+        max_y, max_x = stdscr.getmaxyx()
+        stdscr.erase()
+        _addstr(stdscr, max_y - 2, 0, editor.message[: max_x - 1], curses.A_REVERSE)
+        _addstr(stdscr, max_y - 1, 0,
+                "a render error was contained — move away / undo (u) / :q to quit"[: max_x - 1],
+                curses.A_DIM)
+        stdscr.refresh()
+    except Exception:
+        pass
 
 
 def _render(stdscr, curses, editor, attr, cap, colors, cond_attr) -> None:
@@ -198,7 +225,7 @@ def _render(stdscr, curses, editor, attr, cap, colors, cond_attr) -> None:
         hint = "VISUAL  h/j/k/l extend  ·  y yank  ·  d/x delete  ·  Esc cancel"
         _addstr(stdscr, max_y - 1, 0, hint[: max_x - 1], attr("dim"))
     else:
-        hint = "i edit  v visual  u undo  ? help  :find  :rpn  :plot  :eq  :fmt  :py  :func  :w :q"
+        hint = "Enter/i edit  v visual  u undo  ? help  :find  :rpn  :plot  :fmt  :py  :func  :w :q"
         _addstr(stdscr, max_y - 1, 0, hint[: max_x - 1], attr("dim"))
 
 

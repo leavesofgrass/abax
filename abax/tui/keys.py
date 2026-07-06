@@ -6,6 +6,20 @@ from .editor import TuiEditor
 
 _ARROW_TO_VI: "dict[int, str] | None" = None
 
+# Every code a Backspace can arrive as. Over SSH with keypad mode on (curses
+# default), the key is translated to curses.KEY_BACKSPACE (263) — NOT the raw
+# 0x7f/0x08 — which is why deleting a mistake "did nothing" from a PowerShell →
+# Debian SSH session. We accept them all: 0x08 (^H), 0x7f (DEL), and 263.
+_BACKSPACE = {"\b", "\x7f", 8, 127, 263}
+
+
+def _is_enter(ch) -> bool:
+    return ch in ("\n", "\r", 10, 13, 343)   # 343 = curses.KEY_ENTER (keypad Enter)
+
+
+def _is_backspace(ch) -> bool:
+    return ch in _BACKSPACE
+
 
 def _arrow_vi(ch) -> "str | None":
     """Map a curses arrow key code to the equivalent vi navigation char.
@@ -58,6 +72,13 @@ def _handle_normal(editor: TuiEditor, ch) -> None:
     other ``g<x>``) falls back to the plain ``g`` jump-to-top, then processes the
     trailing key. Driving :meth:`TuiEditor.dispatch_normal` directly (as the unit
     tests do) keeps the simpler single-key ``g`` = jump-to-top behaviour."""
+    # Excel-style: Enter starts editing the current cell (in addition to the vim
+    # i/a keys), so you never get stranded unable to edit. Escape then cancels,
+    # Enter commits and steps down.
+    if _is_enter(ch):
+        editor.message = ""
+        editor.begin_insert()
+        return
     key = ch if isinstance(ch, str) else _arrow_vi(ch)
     if key is None:
         return
@@ -101,11 +122,11 @@ def _handle_visual(editor: TuiEditor, ch) -> None:
 
 
 def _handle_rpn(editor: TuiEditor, ch) -> None:
-    if ch in ("\n", "\r", 10, 13):
+    if _is_enter(ch):
         editor.rpn_eval()
     elif ch == "\x1b":
         editor.mode = "normal"
-    elif ch in ("\b", "\x7f", 8, 127):
+    elif _is_backspace(ch):
         editor.rpn_input = editor.rpn_input[:-1]
     elif isinstance(ch, str) and ch.isprintable():
         editor.rpn_input += ch
@@ -118,7 +139,7 @@ def _handle_plot(editor: TuiEditor, ch) -> None:
 
 def _handle_browser(editor: TuiEditor, ch) -> None:
     ch = _arrow_vi(ch) or ch   # arrows move the list like j/k (h/l are no-ops here)
-    if ch in ("\n", "\r", 10, 13):
+    if _is_enter(ch):
         editor.browser_insert()
     elif ch == "\x1b" or ch == "q":
         editor.mode = "normal"
@@ -161,17 +182,18 @@ def _handle_describe(editor: TuiEditor, ch) -> None:
 
 
 def _handle_insert(editor: TuiEditor, ch) -> None:
-    if ch in ("\n", "\r", 10, 13):
-        editor.commit_insert()
+    if _is_enter(ch):
+        # Excel-style: commit the value and drop to the cell below, ready for
+        # the next entry. (Esc cancels the edit; Tab autocompletes.)
+        editor.commit_insert(advance=True)
         return
     if ch in ("\t", 9):  # Tab — autocomplete the current function token
         editor.complete()
         return
-    if ch == "\x1b":  # Escape
-        editor.mode = "normal"
-        editor.completions = []
+    if ch == "\x1b":  # Escape — cancel the edit (Excel/vim: revert, keep old value)
+        editor.cancel_insert()
         return
-    if ch in ("\b", "\x7f", 8, 127):
+    if _is_backspace(ch):
         editor.edit_buf = editor.edit_buf[:-1]
     elif isinstance(ch, str) and ch.isprintable():
         editor.edit_buf += ch
@@ -179,12 +201,12 @@ def _handle_insert(editor: TuiEditor, ch) -> None:
 
 
 def _handle_command(editor: TuiEditor, ch) -> None:
-    if ch in ("\n", "\r", 10, 13):
+    if _is_enter(ch):
         editor.run_command()
     elif ch == "\x1b":
         editor.mode = "normal"
         editor.command_buf = ""
-    elif ch in ("\b", "\x7f", 8, 127):
+    elif _is_backspace(ch):
         editor.command_buf = editor.command_buf[:-1]
         if not editor.command_buf:
             editor.mode = "normal"

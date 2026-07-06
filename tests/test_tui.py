@@ -1272,3 +1272,88 @@ def test_describe_overlay_renders_rows():
     assert "n=8" in painted[(0, 0)]
     body = " ".join(v for (y, _), v in painted.items() if y >= 1)
     assert "Count" in body and "Mean" in body
+
+
+# --- editing ergonomics: backspace over SSH, Excel-style Enter, resilience ----
+
+
+def test_backspace_variants_delete_during_insert():
+    # Over SSH with keypad mode, Backspace arrives as curses.KEY_BACKSPACE (263),
+    # NOT the raw 0x7f/0x08 — deleting a typo "did nothing" from PowerShell->SSH.
+    import curses
+
+    from abax.tui.keys import _handle_key
+
+    assert curses.KEY_BACKSPACE == 263        # the value hard-coded for headless envs
+    ed = TuiEditor(Document())
+    ed.dispatch_normal("i")
+    for c in "=SUMx":
+        _handle_key(ed, c)
+    assert ed.edit_buf == "=SUMx"
+    for code in (263, "\x7f", 8, "\b", 127):  # five distinct backspace encodings
+        before = ed.edit_buf
+        _handle_key(ed, code)
+        assert len(ed.edit_buf) == len(before) - 1, code
+    assert ed.edit_buf == ""
+
+
+def test_enter_enters_edit_then_commits_and_advances():
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    ed.row, ed.col = 0, 0
+    # Enter from navigation starts editing the current cell (Excel-like).
+    _handle_key(ed, "\n")
+    assert ed.mode == "insert"
+    for c in "=1+2":
+        _handle_key(ed, c)
+    _handle_key(ed, "\n")                      # commit + drop down a row
+    assert ed.mode == "normal"
+    assert ed.row == 1
+    assert ed.sheet.get_raw(0, 0) == "=1+2"
+    assert ed.sheet.get_value(0, 0) == 3.0
+
+
+def test_enter_via_keypad_code_also_edits():
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    _handle_key(ed, 343)                        # curses.KEY_ENTER
+    assert ed.mode == "insert"
+
+
+def test_escape_cancels_edit_keeping_old_value():
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    ed.sheet.set_cell(0, 0, "5")
+    ed.row, ed.col = 0, 0
+    _handle_key(ed, "\n")
+    for c in "999":
+        _handle_key(ed, c)
+    _handle_key(ed, "\x1b")                     # Escape reverts
+    assert ed.mode == "normal"
+    assert ed.sheet.get_raw(0, 0) == "5"
+
+
+def test_a_key_also_enters_edit():
+    ed = TuiEditor(Document())
+    ed.dispatch_normal("a")
+    assert ed.mode == "insert"
+
+
+def test_bad_formula_is_contained_not_fatal():
+    # A malformed formula must render as an error value and leave the sheet fully
+    # editable — never crash. (Core-level guarantee behind the draw-loop net.)
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    _handle_key(ed, "\n")
+    for c in "=SUM(A1:A3":                      # unbalanced
+        _handle_key(ed, c)
+    _handle_key(ed, "\n")
+    assert ed.mode == "normal"
+    assert str(ed.sheet.display(0, 0)).startswith("#")
+    # Still editable afterwards.
+    _handle_key(ed, "\n")
+    assert ed.mode == "insert"

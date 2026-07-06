@@ -8,13 +8,13 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
-## [0.1.8] — 2026-07-05
+## [0.1.8] — 2026-07-06
 
 _The "Batteries Included" release: ready-to-run downloads for people without
 Python — a **portable Linux AppImage** and a **self-contained Windows build**,
 both of the full `abax[all]` — plus the calculator's program panel surfaced in
-the UI and the `HYPERLINK`/`ENCODEURL` web pair. **630 formula functions (98.4%
-of the curated Excel/Gnumeric target).**_
+the UI, the `HYPERLINK`/`ENCODEURL` web pair, and a friendlier, sturdier TUI.
+**630 formula functions (98.4% of the curated Excel/Gnumeric target).**_
 
 ### Added
 - **Calculator program memory is now in the UI.** The keystroke-program panel
@@ -39,6 +39,25 @@ of the curated Excel/Gnumeric target).**_
   built-in MoM solver covers it). Frozen-app guards keep the sandboxed console
   worker working (`abax-worker.exe` / a `--run-console-worker` escape hatch)
   and force-disable runtime auto-install (a bundle can't gain modules).
+- **TUI editing is friendlier.** **Enter** now edits like Excel — from
+  navigation it starts editing the current cell; while editing it commits and
+  drops to the cell below — alongside the vim `i`/`a` keys. `Esc` cancels an
+  edit (keeps the old value).
+
+### Fixed
+- **TUI: Backspace works over SSH.** Deleting a mistake mid-entry did nothing
+  from a PowerShell → Linux SSH session because curses delivered the key as
+  `KEY_BACKSPACE` (263), which the editor didn't recognize; all Backspace
+  encodings (0x08 / 0x7f / 263) are now handled in every input mode.
+- **TUI: a bad formula can no longer bomb the session.** The draw loop contains
+  any rendering or keystroke error as a one-line status message instead of
+  crashing out of curses — one typo never takes down the sheet, and it stays
+  editable.
+- **Windows binary: the frozen GUI/terminal now work** — the QSS themes and
+  `winpty` helper executables are bundled (the GUI flash-crashed and the PTY
+  terminal showed only a block cursor without them); the calculator's image
+  faceplate resolves a folder pointed anywhere at/above the assets root and no
+  longer duplicates on a model/style switch when artwork is absent.
 
 ## [0.1.7] — 2026-07-04
 

@@ -89,10 +89,11 @@ abax tui data.csv       # open a file
 | `file` | Optional spreadsheet to open. |
 
 The TUI is modal and vi-flavoured. Navigate with `h`/`j`/`k`/`l` **or the arrow
-keys**; `i` edits the current cell. Key features:
+keys**. Key features:
 
 | Key / command | Action |
 |---|---|
+| `Enter` / `i` / `a` | Edit the current cell. `Enter` also works Excel-style (from navigation it starts editing; while editing it commits and steps down a row). `Esc` cancels an edit (keeps the old value); `Backspace` deletes (works over SSH too). |
 | `u` / `Ctrl-R` | Undo / redo (also `:undo` / `:redo`) — destructive actions checkpoint first |
 | `v` / `V` | Visual selection (cell range / whole rows); movement extends it, and the status line shows a live **sum / count / average** |
 | `y` · `d` / `x` | In visual mode: yank the range · delete it (under an undo checkpoint) |
