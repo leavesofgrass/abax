@@ -58,10 +58,21 @@ class CalculatorPanel(QWidget):
         self._style_box.addItem("Vector", "vector")
         self._style_box.setCurrentIndex(1 if self._style == "vector" else 0)
         self._style_box.currentIndexChanged.connect(self._on_style)
+        self._prog_btn = QPushButton("Program ▸", self)
+        self._prog_btn.setCheckable(True)
+        self._prog_btn.setToolTip(
+            "Show/hide HP program memory — record, run, and single-step "
+            "keystroke programs (LBL/GTO/GSB/RTN)")
+        self._prog_btn.toggled.connect(self.toggle_program_panel)
         row.addWidget(QLabel("Model:", self))
         row.addWidget(self._model_box, 1)
         row.addWidget(self._style_box)
+        row.addWidget(self._prog_btn)
         self._vbox.addLayout(row)
+        # The faceplate and (when shown) the program panel sit side by side.
+        self._body = QHBoxLayout()
+        self._vbox.addLayout(self._body, 1)
+        self._prog_panel = None
         self._rebuild()
         interop = QHBoxLayout()
         get_btn = QPushButton("⭱ Get from cell", self)
@@ -84,6 +95,53 @@ class CalculatorPanel(QWidget):
         if top is not None:
             top.hide()
 
+    # -- HP program memory (record / run / step) ---------------------------
+
+    #: Width added to the floating window while the program panel is shown, so
+    #: the faceplate keeps its size instead of being squeezed.
+    _PROG_WIDTH = 260
+
+    def toggle_program_panel(self, show: "bool | None" = None) -> None:
+        """Show/hide the HP keystroke-program panel beside the faceplate.
+
+        Only meaningful for the HP (RPN) models — the TI/algebraic keypads have
+        no program memory, so the request is ignored there. The panel is created
+        lazily on first show and re-pointed at the current faceplate.
+        """
+        visible = self._prog_panel is not None and self._prog_panel.isVisible()
+        if show is None:
+            show = not visible
+        show = bool(show)
+        if show and self._kind != "hp":
+            show = False           # RPN-only; fall through to sync the button off
+        if self._prog_panel is None:
+            if not show:
+                self._sync_prog_btn(False)
+                return
+            from .program_panel import ProgramPanel
+
+            self._prog_panel = ProgramPanel(self._widget, self)
+            self._prog_panel.setMaximumWidth(self._PROG_WIDTH)
+            self._body.addWidget(self._prog_panel)
+        if show == visible:        # nothing to change — just keep the button honest
+            self._sync_prog_btn(show)
+            return
+        if show:
+            self._prog_panel.set_faceplate(self._widget)
+        self._prog_panel.setVisible(show)
+        self._sync_prog_btn(show)
+        # Widen/narrow the floating window so the faceplate isn't squeezed.
+        top = self.window()
+        if top is not None and top.isVisible():
+            delta = self._PROG_WIDTH if show else -self._PROG_WIDTH
+            top.resize(max(320, top.width() + delta), top.height())
+
+    def _sync_prog_btn(self, checked: bool) -> None:
+        """Reflect state on the toggle button without re-firing the signal."""
+        self._prog_btn.blockSignals(True)
+        self._prog_btn.setChecked(checked)
+        self._prog_btn.blockSignals(False)
+
     def _on_model(self, _i: int) -> None:
         self._kind, self._key = self._model_box.currentData()
         self._save_prefs()
@@ -104,13 +162,24 @@ class CalculatorPanel(QWidget):
 
     def _rebuild(self) -> None:
         if self._widget is not None:
-            self._vbox.removeWidget(self._widget)
+            self._body.removeWidget(self._widget)
             self._widget.deleteLater()
             self._widget = None
         self._style_box.setVisible(self._kind == "hp")
+        # Program memory is an HP (RPN keypad) feature — hide the toggle (and any
+        # open panel) for the TI / algebraic models.
+        self._prog_btn.setVisible(self._kind == "hp")
         self._widget = self._make_widget()
-        self._vbox.insertWidget(1, self._widget, 1)
+        self._body.insertWidget(0, self._widget, 1)
         self._widget.setFocus()
+        if self._prog_panel is not None:
+            if self._kind == "hp":
+                # Re-point the recorder/runner at the new faceplate (this also
+                # stops any in-flight recording safely).
+                self._prog_panel.set_faceplate(self._widget)
+            else:
+                self.toggle_program_panel(False)
+                self._prog_panel.set_faceplate(None)
 
     def _make_widget(self):
         if self._kind == "alg":

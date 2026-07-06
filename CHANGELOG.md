@@ -8,6 +8,24 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
+## [Unreleased]
+
+### Added
+- **Calculator program memory is now in the UI.** The keystroke-program panel
+  (record / ▶ Run / Step / Reset PC — HP `LBL`/`GTO`/`GSB`/`RTN` program mode,
+  shipped in 0.1.7 but not yet reachable) now opens beside the faceplate via a
+  **Program ▸** toggle on the calculator (HP models only; it re-points itself
+  when you switch models) and a **"Calculator program memory (record / run)…"**
+  command-palette entry.
+- **Formula:** `HYPERLINK(link, [friendly_name])` (a link's display value —
+  abax cells aren't clickable) and `ENCODEURL(text)` (strict RFC 3986
+  percent-encoding of a URL component, UTF-8 first, matching Excel).
+  **630 functions**, 98.4% of the curated Excel/Gnumeric target.
+- **Packaging:** a portable **Linux AppImage** of `abax[all]` (built in
+  `manylinux_2_28` via Docker — `packaging/appimage/`), now produced by CI and
+  attached to every GitHub Release automatically; the PyPI publish step is
+  idempotent (`skip-existing`).
+
 ## [0.1.7] — 2026-07-04
 
 _The "Fidelity & Access" release: a workbook now **remembers how it looks** —

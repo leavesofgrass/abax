@@ -128,6 +128,7 @@ class PaletteMixin:
             "Append column (end)": self.append_column,
             "Function browser...": self.show_formula_browser,
             "Show/hide calculator": self.toggle_calculator,
+            "Calculator program memory (record / run)...": self.show_program_panel,
             "Get cell value -> calculator": self.cell_to_calc,
             "Send calculator value -> cell": self.calc_to_cells,
             "Terminal...": self.show_terminal,

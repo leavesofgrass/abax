@@ -242,7 +242,10 @@ does exactly what pressing the same keys by hand would do.
   clear "possible infinite loop" error instead of hanging the UI.
 
 The **program panel** (`ProgramPanel`) sits beside the faceplate and gives it the
-usual HP program controls:
+usual HP program controls. Open it with the **Program ▸** toggle next to the
+model picker (it appears for the HP models only), or from the command palette —
+*Calculator program memory (record / run)…* — which opens the calculator with
+the panel showing:
 
 - **● Record** — arm recording; every key you then press on the faceplate is
   captured into program memory (and still executes live as you go).

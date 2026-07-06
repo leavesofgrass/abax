@@ -47,6 +47,22 @@ class CalcMixin:
         if win is not None and getattr(win, "_panel", None) is not None:
             win._panel._rebuild()
 
+    def show_program_panel(self) -> None:
+        """Open the calculator with the HP keystroke-program panel visible.
+
+        Program memory (record / run / step, LBL/GTO/GSB/RTN) is an RPN feature,
+        so this needs one of the HP models selected in the calculator.
+        """
+        self.show_calculator()
+        panel = self._calc_panel()
+        if panel is None:
+            return
+        if panel._kind != "hp":
+            self._set_status(
+                "program memory is for the HP (RPN) models — pick 12C / 15C / 16C")
+            return
+        panel.toggle_program_panel(True)
+
     def _calc_panel(self):
         win = getattr(self, "_calc_window", None)
         return getattr(win, "_panel", None) if win is not None else None
