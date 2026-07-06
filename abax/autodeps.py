@@ -163,6 +163,12 @@ def set_enabled(flag: bool | None) -> None:
 
 
 def enabled() -> bool:
+    if getattr(sys, "frozen", False):
+        # A frozen (PyInstaller) bundle can't gain modules at runtime — pip
+        # would install into a site-packages the bundled interpreter never
+        # reads. Auto-install is meaningless there, so it is force-disabled
+        # (overrides even an explicit set_enabled(True)).
+        return False
     if os.environ.get("ABAX_NO_AUTOINSTALL"):
         return False
     if _enabled_override is not None:
@@ -205,6 +211,11 @@ def _mark(pip_name: str) -> None:
 
 
 def _pip_install(pip_name: str, timeout: float = 1800) -> bool:
+    if getattr(sys, "frozen", False):
+        # Frozen exe: sys.executable is abax itself ("-m pip" would relaunch
+        # the app), and a bundle can't gain modules anyway. Fail-closed even
+        # when a caller bypasses enabled().
+        return False
     try:
         proc = subprocess.run(
             [sys.executable, "-m", "pip", "install", "--quiet", pip_name],

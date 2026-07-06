@@ -93,7 +93,17 @@ def _normalize_argv(argv: list[str]) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    argv = _normalize_argv(sys.argv[1:] if argv is None else argv)
+    argv = sys.argv[1:] if argv is None else argv
+    # Frozen-app escape hatch (PyInstaller): in a bundled build sys.executable
+    # is this exe, so the console bridge can't spawn ``python -c ...`` — it
+    # relaunches *us* with this sentinel instead, and we become the isolated
+    # code-execution worker and nothing else (no Qt, no CLI parsing).
+    if argv and argv[0] == "--run-console-worker":
+        from .console_worker import main as _worker_main
+
+        _worker_main()
+        return 0
+    argv = _normalize_argv(argv)
     parser = _build_parser()
     args = parser.parse_args(argv)
 

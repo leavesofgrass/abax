@@ -75,7 +75,22 @@ class ConsoleBridge:
         if self._restricted:
             env[sandbox.RESTRICTED_ENV] = "1"
         creationflags = 0x08000000 if sys.platform == "win32" else 0  # CREATE_NO_WINDOW
-        argv = [sys.executable, "-c", _BOOT]
+        if getattr(sys, "frozen", False):
+            # PyInstaller bundle: sys.executable IS the abax exe, so "-c code"
+            # would be parsed as CLI arguments and relaunch the app. Prefer the
+            # dedicated console-subsystem worker exe shipped beside us (its std
+            # handles always exist, even when the parent is the windowed
+            # abaxw.exe); fall back to the entry point's --run-console-worker
+            # escape hatch (abax.app.main).
+            _exe_dir = os.path.dirname(sys.executable)
+            _worker = os.path.join(
+                _exe_dir, "abax-worker.exe" if sys.platform == "win32" else "abax-worker")
+            if os.path.exists(_worker):
+                argv = [_worker]
+            else:
+                argv = [sys.executable, "--run-console-worker"]
+        else:
+            argv = [sys.executable, "-c", _BOOT]
 
         if self._strict and self._confinement and self._confinement.available():
             # Sandbox Phase 3: confine the worker's filesystem + network. Tell
