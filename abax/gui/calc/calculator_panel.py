@@ -229,6 +229,12 @@ class CalculatorPanel(QWidget):
             self._style_box.blockSignals(False)
             self._style = "vector"
             self._save_prefs()
+            # Say WHY the choice snapped back, so the fallback isn't a silent
+            # mystery — abax bundles no artwork; the user has to point at some.
+            status = getattr(self._window, "_set_status", None)
+            if status is not None:
+                status("no faceplate images found — using the vector faceplate "
+                       "(Tools → Calculator faceplates → set the image folder)")
         return VoyagerFaceplate(keypad, legends, self, model_name=name.replace("HP-", ""))
 
     # -- value bridge (driven by the window's calc<->cell actions) ---------

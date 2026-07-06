@@ -87,3 +87,44 @@ def test_image_fallback_never_duplicates_faceplate(app, monkeypatch):
         panel._model_box.setCurrentIndex(ix)
         assert faceplates() == 1, f"duplicate faceplate after switching to index {ix}"
     panel.deleteLater()
+
+
+def test_style_toggle_to_image_without_assets_stays_single(app, monkeypatch):
+    # The user's exact gesture on an assetless machine: style Vector -> Image.
+    # The image fallback must snap the choice back to Vector with exactly ONE
+    # faceplate rendered (no re-entrant duplicate) and report why via the
+    # window's status line.
+    from abax.gui.calc import image_faceplate
+    from abax.gui.calc.calculator_panel import CalculatorPanel
+    from abax.settings import Settings
+
+    monkeypatch.setattr(image_faceplate, "find_assets_dir", lambda *_a: None)
+    status = {}
+
+    class _Host:
+        _settings = Settings()
+
+        def cell_to_calc(self):
+            pass
+
+        def calc_to_cells(self):
+            pass
+
+        def _set_status(self, msg):
+            status["msg"] = msg
+
+    _Host._settings.calc_style = "vector"
+    panel = CalculatorPanel(_Host())
+
+    def faceplates():
+        return sum(1 for i in range(panel._body.count())
+                   if panel._body.itemAt(i).widget() is not None
+                   and panel._body.itemAt(i).widget() is not panel._prog_panel)
+
+    assert faceplates() == 1
+    panel._style_box.setCurrentIndex(0)          # Vector -> Image (no assets)
+    assert faceplates() == 1                      # never a duplicate
+    assert panel._style == "vector"               # choice snapped back
+    assert panel._style_box.currentData() == "vector"   # UI agrees
+    assert "faceplate" in status.get("msg", "")   # and the user was told why
+    panel.deleteLater()
