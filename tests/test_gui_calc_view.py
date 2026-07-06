@@ -48,3 +48,42 @@ def test_calc_degrees_persists(app):
     win._settings.calc_degrees = True              # a rebuilt faceplate restores it
     panel._rebuild()
     assert panel._widget._calc.degrees is True
+
+
+def test_image_fallback_never_duplicates_faceplate(app, monkeypatch):
+    # Frozen/assetless machines: style "image" with no faceplate art falls back
+    # to vector. The fallback used to fire currentIndexChanged -> _on_style ->
+    # _rebuild RE-ENTRANTLY mid-_make_widget, stacking a second (orphaned)
+    # vector faceplate in the layout — two calculators on screen.
+    from abax.gui.calc import image_faceplate
+    from abax.gui.calc.calculator_panel import CalculatorPanel
+    from abax.settings import Settings
+
+    monkeypatch.setattr(image_faceplate, "find_assets_dir", lambda *_a: None)
+
+    class _Host:  # minimal window stand-in (interop buttons need these slots)
+        _settings = Settings()
+
+        def cell_to_calc(self):
+            pass
+
+        def calc_to_cells(self):
+            pass
+
+    _Host._settings.calc_style = "image"
+    panel = CalculatorPanel(_Host())
+
+    def faceplates():
+        n = 0
+        for i in range(panel._body.count()):
+            w = panel._body.itemAt(i).widget()
+            if w is not None and w is not panel._prog_panel:
+                n += 1
+        return n
+
+    assert faceplates() == 1
+    # Switch models a few times with the fallback active — still exactly one.
+    for ix in range(panel._model_box.count()):
+        panel._model_box.setCurrentIndex(ix)
+        assert faceplates() == 1, f"duplicate faceplate after switching to index {ix}"
+    panel.deleteLater()

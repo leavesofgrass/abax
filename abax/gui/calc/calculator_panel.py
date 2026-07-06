@@ -161,6 +161,18 @@ class CalculatorPanel(QWidget):
             s.calc_style = self._style
 
     def _rebuild(self) -> None:
+        # Re-entrancy guard: a combobox signal fired from inside this method
+        # (e.g. a widget factory adjusting the style box) must never start a
+        # second rebuild — that stacks an orphaned duplicate faceplate.
+        if getattr(self, "_rebuilding", False):
+            return
+        self._rebuilding = True
+        try:
+            self._rebuild_inner()
+        finally:
+            self._rebuilding = False
+
+    def _rebuild_inner(self) -> None:
         if self._widget is not None:
             self._body.removeWidget(self._widget)
             self._widget.deleteLater()
@@ -207,7 +219,16 @@ class CalculatorPanel(QWidget):
                     return ImageFaceplate(keypad, adir, self, legends=legends)
                 except Exception:
                     pass
-            self._style_box.setCurrentIndex(1)  # reflect vector fallback
+            # Reflect the vector fallback in the UI and prefs WITHOUT firing
+            # currentIndexChanged: we are inside _rebuild here, and the signal
+            # would re-enter it — the re-entrant pass inserts one faceplate and
+            # this pass a second, leaving an orphaned duplicate on screen (seen
+            # on any machine without faceplate art, e.g. the frozen bundle).
+            self._style_box.blockSignals(True)
+            self._style_box.setCurrentIndex(1)
+            self._style_box.blockSignals(False)
+            self._style = "vector"
+            self._save_prefs()
         return VoyagerFaceplate(keypad, legends, self, model_name=name.replace("HP-", ""))
 
     # -- value bridge (driven by the window's calc<->cell actions) ---------
