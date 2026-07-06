@@ -52,12 +52,23 @@ def find_assets_dir(settings_dir: str = "", model: str = "16c") -> "Path | None"
     Returns the directory with the model's KML + ``background.png``, or ``None``.
     abax bundles no artwork and never copies these files; it only reads them in place.
     """
-    candidates: list[Path] = []
+    # 1) An explicitly configured folder (setting, then env var) WINS — and a
+    #    folder pointing ABOVE the assets root still resolves: users pick the
+    #    qrpn-voyager checkout (or its qrpn/ package dir) rather than
+    #    .../qrpn/assets/voyager, so after the direct candidates we search a
+    #    few levels down (bounded, so a big tree stays cheap).
     for base in (settings_dir, os.environ.get("ABAX_FACEPLATE_DIR", "")):
-        if base:
-            candidates += [Path(base) / model, Path(base)]
-    # A local qrpn-voyager / qv checkout kept beside the project or working dir —
-    # contributors who have it handy get the artwork with no configuration.
+        if not base:
+            continue
+        for cand in (Path(base) / model, Path(base)):
+            if _has_art(cand):
+                return cand
+        found = _deep_find_model(Path(base), model)
+        if found is not None:
+            return found
+    # 2) A local qrpn-voyager / qv checkout kept beside the project or working
+    #    dir — contributors who have it handy get the artwork with no config.
+    candidates: list[Path] = []
     rel = Path("qrpn") / "assets" / "voyager" / model
     roots = [Path.cwd(), Path.cwd().parent]
     _anc = Path(__file__).resolve().parents
@@ -65,7 +76,7 @@ def find_assets_dir(settings_dir: str = "", model: str = "16c") -> "Path | None"
         roots.append(_anc[3])  # a sibling of the abax project tree
     for root in roots:
         candidates += [root / "qrpn-voyager" / rel, root / "qv" / rel]
-    # assets the user fetched from a GitHub repo into the cache (Tools → Fetch…)
+    # 3) assets the user fetched from a GitHub repo into the cache (Tools → Fetch…)
     try:
         from ...core import faceplate_assets
 
@@ -75,12 +86,44 @@ def find_assets_dir(settings_dir: str = "", model: str = "16c") -> "Path | None"
     except Exception:
         pass
     for cand in candidates:
-        try:
-            if cand.is_dir() and (cand / "background.png").exists() \
-                    and any(cand.glob("*.kml")):
-                return cand
-        except OSError:
+        if _has_art(cand):
+            return cand
+    return None
+
+
+def _has_art(cand: "Path") -> bool:
+    """True when ``cand`` holds a faceplate (background.png + a KML layout)."""
+    try:
+        return (cand.is_dir() and (cand / "background.png").exists()
+                and any(cand.glob("*.kml")))
+    except OSError:
+        return False
+
+
+def _deep_find_model(root: "Path", model: str, max_depth: int = 4) -> "Path | None":
+    """Bounded walk under ``root`` for a ``<model>/`` dir holding faceplate art."""
+    try:
+        if not root.is_dir():
+            return None
+        base_depth = len(root.resolve().parts)
+    except OSError:
+        return None
+    for dirpath, dirnames, _files in os.walk(root):
+        cur = Path(dirpath)
+        if len(cur.parts) - base_depth >= max_depth:
+            dirnames[:] = []            # too deep — stop descending here
             continue
+        # Prune junk trees that can be huge and never hold artwork.
+        dirnames[:] = [d for d in dirnames
+                       if not d.startswith(".")
+                       and d not in ("__pycache__", "node_modules", "build", "dist")]
+        if model in dirnames:
+            cand = cur / model
+            try:
+                if (cand / "background.png").exists() and any(cand.glob("*.kml")):
+                    return cand
+            except OSError:
+                pass
     return None
 
 

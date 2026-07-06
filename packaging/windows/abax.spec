@@ -27,7 +27,7 @@ Notes:
 
 import pathlib
 
-from PyInstaller.utils.hooks import collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 SPEC_DIR = pathlib.Path(SPECPATH).resolve()  # noqa: F821 — SPECPATH is a PyInstaller global
 REPO = SPEC_DIR.parents[1]
@@ -89,6 +89,13 @@ _DYNAMIC_STACK = [
     "pymysql",          # MySQL import
 ]
 
+# pywinpty ships helper EXECUTABLES (winpty-agent.exe, OpenConsole.exe) next to
+# its DLLs — lib-collection hooks grab the .dll/.pyd but NOT the .exe data
+# files, and without them a ConPTY spawn dies silently: the PTY terminal
+# rendered one block cursor and no shell in the frozen build. collect_all
+# brings modules + libs + datas (the exes) together.
+_WINPTY_DATAS, _WINPTY_BINARIES, _WINPTY_HIDDEN = collect_all("winpty")
+
 HIDDEN = (
     ABAX_MODULES
     + collect_submodules("sklearn")   # sklearn lazy-loads submodules internally
@@ -97,6 +104,9 @@ HIDDEN = (
     # comtypes on Windows) — invisible to static analysis.
     + collect_submodules("pyttsx3")
     + ["comtypes.client", "comtypes.stream", "win32com.client"]
+    # The PTY terminal's imports are all function-level try/excepts.
+    + _WINPTY_HIDDEN
+    + collect_submodules("pyte")
 )
 
 EXCLUDES = [
@@ -108,7 +118,8 @@ EXCLUDES = [
 a = Analysis(
     ["launch_abax.py"],
     pathex=["../.."],
-    datas=ABAX_DATAS,
+    datas=ABAX_DATAS + _WINPTY_DATAS,
+    binaries=_WINPTY_BINARIES,
     hiddenimports=HIDDEN,
     excludes=EXCLUDES,
     noarchive=False,

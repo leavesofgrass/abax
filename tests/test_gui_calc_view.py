@@ -128,3 +128,33 @@ def test_style_toggle_to_image_without_assets_stays_single(app, monkeypatch):
     assert panel._style_box.currentData() == "vector"   # UI agrees
     assert "faceplate" in status.get("msg", "")   # and the user was told why
     panel.deleteLater()
+
+
+def test_find_assets_dir_searches_below_the_chosen_folder(tmp_path, monkeypatch):
+    # Users point the faceplate setting at the checkout root (qrpn-voyager/),
+    # the package dir (qrpn/), or the assets root itself — all must resolve to
+    # <...>/assets/voyager/<model>. Direct-candidates-only left the first two
+    # silently failing.
+    from abax.gui.calc.image_faceplate import find_assets_dir
+
+    monkeypatch.delenv("ABAX_FACEPLATE_DIR", raising=False)
+    art = tmp_path / "qrpn-voyager" / "qrpn" / "assets" / "voyager" / "16c"
+    art.mkdir(parents=True)
+    (art / "background.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    (art / "16c.kml").write_text("[]", encoding="utf-8")
+
+    for chosen in (tmp_path / "qrpn-voyager",                      # checkout root
+                   tmp_path / "qrpn-voyager" / "qrpn",             # package dir
+                   tmp_path / "qrpn-voyager" / "qrpn" / "assets" / "voyager"):
+        assert find_assets_dir(str(chosen), "16c") == art, chosen
+    # An empty pick yields no false positive from the CONFIGURED folder. (The
+    # resolver may still fall back to a contributor checkout near the CWD, so
+    # pin the CWD to a bare directory to test the setting in isolation.)
+    from pathlib import Path
+
+    bare = tmp_path / "bare" / "sub"
+    bare.mkdir(parents=True)
+    monkeypatch.setattr(Path, "cwd", staticmethod(lambda: bare))
+    empty = tmp_path / "elsewhere"
+    empty.mkdir()
+    assert find_assets_dir(str(empty), "16c") is None

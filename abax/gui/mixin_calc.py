@@ -131,6 +131,19 @@ class CalcMixin:
         save_settings(self._settings, rt.CONFIG_DIR / "settings.json")
         # rebuild an open faceplate so the new art takes effect immediately
         self._refresh_calculator()
-        self._set_status(f"faceplate folder: {chosen}")
+        # Tell the user right away whether artwork was actually found under the
+        # chosen folder (the resolver also searches a few levels down, so the
+        # checkout root works — but an empty pick shouldn't fail silently).
+        from .calc.image_faceplate import find_assets_dir
+
+        panel = self._calc_panel()
+        model = getattr(panel, "_key", "16c") if panel is not None else "16c"
+        hit = find_assets_dir(chosen, model)
+        if hit is not None:
+            self._set_status(f"faceplate folder: {chosen} — found {model} art at {hit}")
+        else:
+            self._set_status(
+                f"faceplate folder set, but no {model} artwork found under {chosen} "
+                f"(expected <folder>/.../{model}/background.png + a .kml)")
 
     show_faceplate = toggle_calculator
