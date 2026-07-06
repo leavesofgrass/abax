@@ -54,6 +54,25 @@ def _abax_submodules() -> "list[str]":
 ABAX_MODULES = _abax_submodules()
 assert len(ABAX_MODULES) > 100, f"abax source walk found only {len(ABAX_MODULES)} modules"
 
+
+def _abax_datas() -> "list[tuple[str, str]]":
+    """Every NON-Python file inside the abax package, preserving its layout.
+
+    PyInstaller only collects modules; __file__-relative data files (the QSS
+    themes that apply_current_theme reads at GUI startup) silently stay behind
+    — the GUI then dies on FileNotFoundError before showing a window. Walking
+    the tree collects them all, present and future.
+    """
+    out = []
+    for p in (REPO / "abax").rglob("*"):
+        if p.is_file() and p.suffix not in (".py", ".pyc") and "__pycache__" not in p.parts:
+            out.append((str(p), str(p.parent.relative_to(REPO))))
+    return out
+
+
+ABAX_DATAS = _abax_datas()
+assert ABAX_DATAS, "abax data walk found nothing — the QSS themes must be bundled"
+
 # The data-science / database stack is loaded ENTIRELY dynamically
 # (engine/analysis.py importlib.import_module, engine/dbapi.py __import__) —
 # none of it is a static import anywhere in abax, so every package must be
@@ -89,6 +108,7 @@ EXCLUDES = [
 a = Analysis(
     ["launch_abax.py"],
     pathex=["../.."],
+    datas=ABAX_DATAS,
     hiddenimports=HIDDEN,
     excludes=EXCLUDES,
     noarchive=False,
