@@ -246,3 +246,36 @@ def test_sheet_integration():
     assert _sheet_val("=SUBTOTAL(9,{1,2,3,4})") == 10
     assert _sheet_val('=XMATCH(25,{10,20,30},1)') == 3
     assert _sheet_val('=CEILING.MATH(-8.1,2)') == -8
+
+
+# --- ENCODEURL / HYPERLINK ----------------------------------------------------
+
+
+def test_encodeurl_microsoft_example():
+    # Microsoft's worked example: the URL is escaped as a component — every
+    # reserved character (:, /, space) is percent-encoded.
+    assert (v("ENCODEURL", "http://contoso.sharepoint.com/Finance/Profit and Loss Statement.xlsx")
+            == "http%3A%2F%2Fcontoso.sharepoint.com%2FFinance%2FProfit%20and%20Loss%20Statement.xlsx")
+
+
+def test_encodeurl_unreserved_utf8_and_coercion():
+    assert v("ENCODEURL", "AZaz09-_.~") == "AZaz09-_.~"    # unreserved set passes through
+    assert v("ENCODEURL", "a b&c=d") == "a%20b%26c%3Dd"
+    assert v("ENCODEURL", "café") == "caf%C3%A9"           # UTF-8 bytes, then escaped
+    assert v("ENCODEURL", 42) == "42"                      # numbers coerce to text
+    err = CellError(CellError.NA)
+    assert v("ENCODEURL", err) is err                      # errors propagate
+
+
+def test_hyperlink_display_value():
+    assert v("HYPERLINK", "https://example.org") == "https://example.org"
+    assert v("HYPERLINK", "https://example.org", "Example") == "Example"
+    assert v("HYPERLINK", "https://example.org", 42) == 42  # friendly name kept verbatim
+    err = CellError(CellError.NA)
+    assert v("HYPERLINK", err) is err
+    assert v("HYPERLINK", "u", err) is err
+
+
+def test_hyperlink_encodeurl_sheet_integration():
+    assert _sheet_val('=HYPERLINK("https://example.org","abax")') == "abax"
+    assert _sheet_val('=ENCODEURL("a b")') == "a%20b"

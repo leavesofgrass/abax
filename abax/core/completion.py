@@ -162,6 +162,8 @@ SIGNATURES = {
     "UNIQUE": "UNIQUE(range)", "SORT": "SORT(range, [ascending=TRUE])",
     "FILTER": "FILTER(range, condition_range)",
     "SEQUENCE": "SEQUENCE(rows, [cols=1], [start=1], [step=1])",
+    "ENCODEURL": "ENCODEURL(text)",
+    "HYPERLINK": "HYPERLINK(link_location, [friendly_name])",
     "HAMBAND": "HAMBAND(freq_hz)", "DXCC": "DXCC(callsign)",
     "CTCSSTONE": "CTCSSTONE(number_1_to_50)",
     "NEARESTCTCSS": "NEARESTCTCSS(freq_hz)",

@@ -501,6 +501,8 @@ that composes inside aggregates (`=SUM(OFFSET(A1,0,0,3,1))`).
 | `SHEET` | 1-based sheet index (of the caller, a reference, or a named sheet) | `SHEET([value])` | `=SHEET("Data")` | `2` |
 | `SHEETS` | Sheet count of the workbook | `SHEETS([reference])` | `=SHEETS()` | `2` |
 | `CELL` | Cell info: `address` / `row` / `col` / `contents` / `type` / `filename` | `CELL(info_type, [reference])` | `=CELL("address",C4)` | `$C$4` |
+| `HYPERLINK` | A link's display value — the friendly name when given, else the link text (abax cells aren't clickable) | `HYPERLINK(link_location, [friendly_name])` | `=HYPERLINK("https://a.org","abax")` | `abax` |
+| `ENCODEURL` | Percent-encode text as a URL component (everything outside `A–Z a–z 0–9 - _ . ~`, UTF-8 first) | `ENCODEURL(text)` | `=ENCODEURL("a b")` | `a%20b` |
 
 For `VLOOKUP`/`HLOOKUP` the 4th argument defaults to **TRUE** (approximate,
 assumes ascending order); pass `FALSE` for an exact match. `MATCH` defaults to

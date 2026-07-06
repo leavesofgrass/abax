@@ -27,6 +27,7 @@ import cmath
 import math
 from datetime import timedelta
 from typing import Any, Callable
+from urllib.parse import quote
 
 from .errors import CellError, is_error
 from .science.complexnum import ComplexError
@@ -574,6 +575,47 @@ _LN2 = math.log(2.0)
 _LN10 = math.log(10.0)
 
 
+# --- web / info ---------------------------------------------------------------
+
+
+def _encodeurl(args: list) -> Any:
+    """ENCODEURL(text) — percent-encode ``text`` for use as a URL component.
+
+    Excel semantics: every character outside the RFC 3986 unreserved set
+    (``A–Z a–z 0–9 - _ . ~``) is %-escaped, non-ASCII as its UTF-8 bytes first —
+    so ``/``, ``:``, ``&``, and spaces are all encoded. It escapes a URL
+    *component* (a path segment or query value), not a whole URL.
+    """
+    v = _arg(args, 0, "")
+    if is_error(v):
+        return v
+    if isinstance(v, (RangeValue, list)):
+        return CellError(CellError.VALUE)
+    return quote(_text(v), safe="")
+
+
+def _hyperlink(args: list) -> Any:
+    """HYPERLINK(link_location, [friendly_name]) — the link's display value.
+
+    abax's grid has no clickable cells, so HYPERLINK contributes exactly the
+    *value* the cell shows in Excel: ``friendly_name`` when given (verbatim — a
+    number stays a number), else the link text itself.
+    """
+    link = _arg(args, 0, "")
+    if is_error(link):
+        return link
+    if isinstance(link, (RangeValue, list)):
+        return CellError(CellError.VALUE)
+    if len(args) < 2:
+        return _text(link)
+    friendly = args[1]
+    if is_error(friendly):
+        return friendly
+    if isinstance(friendly, (RangeValue, list)):
+        return CellError(CellError.VALUE)
+    return friendly
+
+
 # --- registry ----------------------------------------------------------------
 
 _REGISTRY: dict[str, Callable[[list], Any]] = {
@@ -588,6 +630,8 @@ _REGISTRY: dict[str, Callable[[list], Any]] = {
     "AGGREGATE": _aggregate,
     "WORKDAY.INTL": _workday_intl,
     "NETWORKDAYS.INTL": _networkdays_intl,
+    "ENCODEURL": _encodeurl,
+    "HYPERLINK": _hyperlink,
     "IMTAN": _im_unary(cmath.tan),
     "IMCOT": _im_unary(_recip(cmath.tan)),
     "IMSEC": _im_unary(_recip(cmath.cos)),

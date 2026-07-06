@@ -19,8 +19,9 @@ _hamlog.register(FUNCTIONS)
 
 
 def test_registry_sizes():
-    # 599 built-in packs + 2 from the ham-logging pack (ISDUPE, QSOPOINTS).
-    assert len(FUNCTIONS) == 601
+    # 601 built-in packs (incl. ENCODEURL/HYPERLINK) + 2 from the ham-logging
+    # pack (ISDUPE, QSOPOINTS).
+    assert len(FUNCTIONS) == 603
     assert len(LAZY_FUNCTIONS) == 6
 
 
