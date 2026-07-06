@@ -27,6 +27,13 @@ pip install abax[gui]         # the Qt GUI (PySide6) — the usual choice
 python -m abax                # launch it
 ```
 
+**No Python? No problem.** Every [GitHub Release](https://github.com/leavesofgrass/abax/releases)
+ships ready-to-run downloads: a portable **Linux AppImage** of the full
+`abax[all]` (download, `chmod +x`, run), a self-contained **Windows build**
+(unzip; double-click `abaxw.exe` for the GUI, or run `abax.exe` for the full
+CLI), and a tiny cross-platform `abax.pyz` zipapp (needs only a Python 3.13
+interpreter: `python abax.pyz`).
+
 abax stays lean by default and **installs nothing on its own**: on first launch it
 shows a **chooser** where you pick which optional features you want (the data-science
 stack, Excel/Parquet I/O, the PTY terminal, Jupyter integration, …) — **nothing is

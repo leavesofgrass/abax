@@ -8,7 +8,13 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
-## [Unreleased]
+## [0.1.8] — 2026-07-05
+
+_The "Batteries Included" release: ready-to-run downloads for people without
+Python — a **portable Linux AppImage** and a **self-contained Windows build**,
+both of the full `abax[all]` — plus the calculator's program panel surfaced in
+the UI and the `HYPERLINK`/`ENCODEURL` web pair. **630 formula functions (98.4%
+of the curated Excel/Gnumeric target).**_
 
 ### Added
 - **Calculator program memory is now in the UI.** The keystroke-program panel
@@ -21,10 +27,18 @@ All notable changes to abax are documented here. The format follows
   abax cells aren't clickable) and `ENCODEURL(text)` (strict RFC 3986
   percent-encoding of a URL component, UTF-8 first, matching Excel).
   **630 functions**, 98.4% of the curated Excel/Gnumeric target.
-- **Packaging:** a portable **Linux AppImage** of `abax[all]` (built in
-  `manylinux_2_28` via Docker — `packaging/appimage/`), now produced by CI and
-  attached to every GitHub Release automatically; the PyPI publish step is
-  idempotent (`skip-existing`).
+- **Linux AppImage** of `abax[all]` (built in `manylinux_2_28` via Docker —
+  `packaging/appimage/`), produced by CI and attached to every GitHub Release
+  automatically; the PyPI publish step is idempotent (`skip-existing`).
+- **Self-contained Windows build** (`packaging/windows/`, PyInstaller): three
+  executables sharing one bundle — `abax.exe` (console: the full CLI + GUI),
+  `abaxw.exe` (windowed GUI), and `abax-worker.exe` (the isolated
+  code-execution worker, spawned hidden) — with Python and the whole optional
+  stack included (PySide6, numpy/pandas/scipy/scikit-learn, pymc, HDF5,
+  Parquet, SQL drivers, SGP4, TTS, …; PyNEC excluded — no Windows wheel — the
+  built-in MoM solver covers it). Frozen-app guards keep the sandboxed console
+  worker working (`abax-worker.exe` / a `--run-console-worker` escape hatch)
+  and force-disable runtime auto-install (a bundle can't gain modules).
 
 ## [0.1.7] — 2026-07-04
 

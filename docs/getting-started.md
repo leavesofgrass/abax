@@ -13,6 +13,13 @@ saved spreadsheet with a working formula. For the end-to-end data workflow, see 
 
 abax is pure Python and works with no optional packages at all — the core spreadsheet engine is stdlib-only. The graphical interfaces and the data/format features are pulled in through *extras*, each with a graceful stdlib fallback. Install only what you need.
 
+> **Don't want to install Python?** Every [GitHub Release](https://github.com/leavesofgrass/abax/releases)
+> ships ready-to-run downloads: a portable **Linux AppImage** of the full
+> `abax[all]` (download, `chmod +x`, run), a self-contained **Windows build**
+> (unzip; double-click `abaxw.exe` for the GUI, or `abax.exe` for the full CLI),
+> and the tiny cross-platform `abax.pyz` zipapp (`python abax.pyz`, needs only a
+> Python 3.13 interpreter).
+
 Clone or download the project, then install from the project root:
 
 ```bash
