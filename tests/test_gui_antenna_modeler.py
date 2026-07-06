@@ -51,8 +51,8 @@ def test_dialog_constructs(win):
 
 
 def test_dipole_gain_and_impedance():
-    from abax.gui.dialogs.antenna_modeler_dialog import build_geometry, directivity_dbi
     from abax.core.science import wire_mom
+    from abax.gui.dialogs.antenna_modeler_dialog import build_geometry, directivity_dbi
 
     wires, feed = build_geometry("dipole", {"driven": 0.47})
     result = wire_mom.solve(wires, [(0, feed, 1.0)])
@@ -64,8 +64,8 @@ def test_dipole_gain_and_impedance():
 
 
 def test_yagi_has_forward_gain_and_fb():
-    from abax.gui.dialogs.antenna_modeler_dialog import build_geometry, directivity_dbi
     from abax.core.science import wire_mom
+    from abax.gui.dialogs.antenna_modeler_dialog import build_geometry, directivity_dbi
 
     params = {
         "driven": 0.47, "reflector": 0.5, "director": 0.44,

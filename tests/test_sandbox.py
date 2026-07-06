@@ -12,7 +12,6 @@ import pytest
 from abax import sandbox
 from abax.core.workbook import Workbook
 
-
 # --- the seam -----------------------------------------------------------------
 
 

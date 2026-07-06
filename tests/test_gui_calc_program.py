@@ -98,8 +98,8 @@ def test_empty_program_is_guarded(app):
 
 @pytest.fixture()
 def win(app):
-    from abax.settings import Settings
     from abax.gui.main_window import MainWindow
+    from abax.settings import Settings
 
     _win = MainWindow(Settings())
     yield _win

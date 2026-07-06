@@ -80,8 +80,9 @@ def test_grid_positions():
 
 
 def test_voyager_hyp_prefix_sinh() -> None:
-    from abax.core.calc.voyager import VoyagerKeypad
     import math
+
+    from abax.core.calc.voyager import VoyagerKeypad
 
     kp = VoyagerKeypad()
     for ch in "1":
@@ -92,8 +93,9 @@ def test_voyager_hyp_prefix_sinh() -> None:
 
 
 def test_voyager_hyp_inverse() -> None:
-    from abax.core.calc.voyager import VoyagerKeypad
     import math
+
+    from abax.core.calc.voyager import VoyagerKeypad
 
     kp = VoyagerKeypad()
     kp._apply("2")

@@ -6,7 +6,6 @@ from abax.core.reference import parse_a1
 from abax.core.sheet import Sheet
 from abax.core.workbook import Workbook
 
-
 # --- set / get --------------------------------------------------------------
 
 def test_set_and_get_comment():

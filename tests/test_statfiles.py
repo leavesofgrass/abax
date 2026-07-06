@@ -14,7 +14,6 @@ from abax import autodeps, diagnostics
 from abax.engine import statfiles
 from abax.engine.statfiles import StatFileError
 
-
 # --- no-dep-required tests --------------------------------------------------
 
 

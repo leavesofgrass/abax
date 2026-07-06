@@ -10,7 +10,6 @@ from abax.core.errors import CellError
 from abax.core.regex_fns import _regexextract, _regexreplace, _regextest
 from abax.core.sheet import Sheet
 
-
 # --- REGEXTEST -------------------------------------------------------------
 
 
