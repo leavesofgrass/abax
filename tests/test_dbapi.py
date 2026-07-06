@@ -13,6 +13,7 @@ validated against SQL injection, and connection DSNs are never written to disk.
 
 from __future__ import annotations
 
+import builtins
 import sqlite3
 
 import pytest
@@ -52,8 +53,19 @@ def test_list_drivers_shape():
 def test_missing_driver_message_points_at_extra(monkeypatch):
     # With NO driver installed, connect() must raise a DatabaseError that names
     # both drivers and the pip extra — the graceful-fallback contract. We force
-    # the absent path so this runs whether or not a real driver is present.
+    # the absent path so this runs whether or not a real driver is present:
+    # stubbing _installed alone isn't enough, because connect()'s raise lives in
+    # _import (__import__), which succeeds when a real psycopg is installed and
+    # then attempts an actual connection.
     monkeypatch.setattr(dbapi, "_installed", lambda mod: False)
+    real_import = builtins.__import__
+
+    def _no_drivers(name, *args, **kwargs):
+        if name in ("psycopg", "pymysql"):
+            raise ImportError(f"No module named {name!r}")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _no_drivers)
     with pytest.raises(DatabaseError) as exc:
         dbapi.connect("postgresql://user:pw@localhost/db")
     msg = str(exc.value)
