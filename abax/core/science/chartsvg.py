@@ -664,3 +664,305 @@ def heatmap_svg(matrix, labels=None, *, title: str = "", width: int = 480,
 
     parts.append("</svg>")
     return "\n".join(parts)
+
+
+# --- Business / executive charts -------------------------------------------
+
+# Diverging up/down colours for waterfall deltas and a neutral total.
+_UP = "#2e7d32"
+_DOWN = "#c62828"
+_TOTAL = "#1565c0"
+
+
+def waterfall_svg(labels, deltas, *, total: bool = True, title: str = "",
+                  width: int = 480, height: int = 320) -> str:
+    """Waterfall chart: floating delta bars over a running cumulative total.
+
+    ``labels`` names each step and ``deltas`` gives its signed change. Rising
+    steps use an up colour, falling steps a down colour, and (when ``total`` is
+    true) a final bar sums the running total from zero to the grand total.
+    """
+    margin_l, margin_r, margin_t, margin_b = 46, 16, 26, 32
+    parts, geom = _frame(width, height, margin_l, margin_r, margin_t, margin_b, title)
+
+    labs = [str(x) for x in labels]
+    ds = [float(d) for d in deltas]
+    n = min(len(labs), len(ds))
+    labs, ds = labs[:n], ds[:n]
+
+    # Running cumulative levels: bar i spans start[i]..start[i]+ds[i].
+    starts = []
+    running = 0.0
+    for d in ds:
+        starts.append(running)
+        running += d
+    grand = running
+
+    x_labels = list(labs)
+    if total and n:
+        x_labels = labs + ["Total"]
+    ncols = len(x_labels)
+
+    # Y range covers zero, every bar edge and the grand total.
+    edges = [0.0, grand]
+    for s, d in zip(starts, ds):
+        edges.append(s)
+        edges.append(s + d)
+    if edges:
+        ylo = min(edges)
+        yhi = max(edges)
+        ylo, yhi = _nice_range(ylo, yhi)
+    else:
+        ylo, yhi = 0.0, 1.0
+    _axes(parts, geom, 0.0, max(1, ncols), ylo, yhi,
+          x_labels=x_labels if ncols else None)
+
+    px0, py0, pw, ph = geom
+    py1 = py0 + ph
+
+    def sy(y):
+        return py1 if yhi == ylo else py1 - (y - ylo) / (yhi - ylo) * ph
+
+    if ncols:
+        slot = pw / ncols
+        bw = slot * 0.6
+        for i, (s, d) in enumerate(zip(starts, ds)):
+            cx = px0 + slot * (i + 0.5)
+            y_top = sy(s + d)
+            y_bot = sy(s)
+            top = min(y_top, y_bot)
+            bh = abs(y_top - y_bot)
+            colour = _UP if d >= 0 else _DOWN
+            parts.append(f'<rect x="{cx - bw / 2.0:.2f}" y="{top:.2f}" '
+                         f'width="{bw:.2f}" height="{bh:.2f}" '
+                         f'fill="{colour}" stroke="#333333" stroke-width="0.75"/>')
+        if total:
+            i = n
+            cx = px0 + slot * (i + 0.5)
+            y_top = sy(grand)
+            y_bot = sy(0.0)
+            top = min(y_top, y_bot)
+            bh = abs(y_top - y_bot)
+            parts.append(f'<rect x="{cx - bw / 2.0:.2f}" y="{top:.2f}" '
+                         f'width="{bw:.2f}" height="{bh:.2f}" '
+                         f'fill="{_TOTAL}" stroke="#333333" stroke-width="0.75"/>')
+
+    parts.append("</svg>")
+    return "\n".join(parts)
+
+
+def _polar_to_xy(cx, cy, r, ang):
+    """Convert a centre-relative polar coordinate (angle in radians) to (x, y)."""
+    return cx + r * math.cos(ang), cy + r * math.sin(ang)
+
+
+def _ring_path(cx, cy, r0, r1, a0, a1):
+    """SVG path ``d`` for an annular segment (ring wedge) from r0..r1, a0..a1."""
+    x0o, y0o = _polar_to_xy(cx, cy, r1, a0)
+    x1o, y1o = _polar_to_xy(cx, cy, r1, a1)
+    x1i, y1i = _polar_to_xy(cx, cy, r0, a1)
+    x0i, y0i = _polar_to_xy(cx, cy, r0, a0)
+    large = 1 if (a1 - a0) > math.pi else 0
+    return (f'M{x0o:.2f} {y0o:.2f} '
+            f'A{r1:.2f} {r1:.2f} 0 {large} 1 {x1o:.2f} {y1o:.2f} '
+            f'L{x1i:.2f} {y1i:.2f} '
+            f'A{r0:.2f} {r0:.2f} 0 {large} 0 {x0i:.2f} {y0i:.2f} Z')
+
+
+def _node_value(node):
+    """Effective value of a tree node: its own value or the sum of children."""
+    children = node.get("children") or []
+    if children:
+        return sum(_node_value(c) for c in children)
+    try:
+        return max(0.0, float(node.get("value", 0.0)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def sunburst_svg(tree, *, title: str = "", width: int = 360, height: int = 360,
+                 max_depth: int = 6) -> str:
+    """Sunburst chart: concentric ring segments from a nested ``tree`` dict.
+
+    ``tree`` is ``{name, value, children}``. Each depth becomes one ring; a
+    parent's angular span is subdivided among its children in proportion to
+    their (recursively summed) values. Pure trig — stdlib ``math`` only.
+    """
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}">',
+        f'<rect width="{width}" height="{height}" fill="white"/>',
+    ]
+    if title:
+        parts.append(
+            f'<text x="{width / 2.0:.1f}" y="16" text-anchor="middle" '
+            f'font-family="sans-serif" font-size="13" '
+            f'font-weight="bold">{_svg_escape(title)}</text>')
+
+    cx = width / 2.0
+    cy = height / 2.0 + (8 if title else 0)
+    outer = min(width, height) / 2.0 - 12
+
+    roots = tree.get("children") if isinstance(tree, dict) else None
+    total = _node_value(tree) if isinstance(tree, dict) else 0.0
+    if not isinstance(tree, dict) or not roots or total <= 0 or outer <= 0:
+        parts.append("</svg>")
+        return "\n".join(parts)
+
+    # Depth of the deepest branch (bounded) to size the rings.
+    def depth(node, d=0):
+        kids = node.get("children") or []
+        return max([depth(c, d + 1) for c in kids], default=d)
+
+    nrings = min(max_depth, max(1, depth(tree)))
+    ring_w = outer / nrings
+
+    palette = _PALETTE
+
+    def draw(node, r_index, a0, a1, colour_idx):
+        if r_index >= nrings:
+            return
+        kids = node.get("children") or []
+        span = a1 - a0
+        vsum = sum(_node_value(c) for c in kids) or 1.0
+        cursor = a0
+        for i, child in enumerate(kids):
+            frac = _node_value(child) / vsum
+            ca1 = cursor + span * frac
+            ci = colour_idx if r_index else i
+            colour = palette[ci % len(palette)]
+            r0 = ring_w * r_index
+            r1 = ring_w * (r_index + 1)
+            d = _ring_path(cx, cy, r0, r1, cursor, ca1)
+            parts.append(f'<path d="{d}" fill="{colour}" fill-opacity="0.85" '
+                         f'stroke="white" stroke-width="1"/>')
+            draw(child, r_index + 1, cursor, ca1, ci)
+            cursor = ca1
+
+    draw(tree, 0, -math.pi / 2.0, -math.pi / 2.0 + 2.0 * math.pi, 0)
+
+    parts.append("</svg>")
+    return "\n".join(parts)
+
+
+def treemap_svg(items, *, title: str = "", width: int = 480, height: int = 320) -> str:
+    """Treemap: nested rectangles sized by value via slice-and-dice layout.
+
+    ``items`` is ``[(name, value)]`` or ``[{"name", "value"}]``. Rectangles fill
+    the plot area, alternating horizontal/vertical splits, each labelled with its
+    name. Values must be non-negative; zero/negative items are dropped.
+    """
+    margin_t = 26 if title else 6
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}">',
+        f'<rect width="{width}" height="{height}" fill="white"/>',
+    ]
+    if title:
+        parts.append(
+            f'<text x="{width / 2.0:.1f}" y="16" text-anchor="middle" '
+            f'font-family="sans-serif" font-size="13" '
+            f'font-weight="bold">{_svg_escape(title)}</text>')
+
+    # Normalise items to (name, value) with positive value.
+    norm = []
+    for it in items or []:
+        if isinstance(it, dict):
+            name = str(it.get("name", ""))
+            val = it.get("value", 0.0)
+        else:
+            name, val = it[0], it[1]
+        try:
+            val = float(val)
+        except (TypeError, ValueError):
+            continue
+        if val > 0:
+            norm.append((str(name), val))
+
+    x0, y0 = 6.0, float(margin_t)
+    x1, y1 = float(width) - 6.0, float(height) - 6.0
+    if not norm or x1 <= x0 or y1 <= y0:
+        parts.append("</svg>")
+        return "\n".join(parts)
+
+    # Largest first tends to give a nicer slice-and-dice layout.
+    norm.sort(key=lambda p: p[1], reverse=True)
+
+    def layout(entries, rx0, ry0, rx1, ry1, horizontal):
+        tot = sum(v for _n, v in entries)
+        if tot <= 0:
+            return
+        w = rx1 - rx0
+        h = ry1 - ry0
+        cursor = rx0 if horizontal else ry0
+        for i, (name, val) in enumerate(entries):
+            frac = val / tot
+            if horizontal:
+                seg = w * frac
+                cx0, cy0, cx1, cy1 = cursor, ry0, cursor + seg, ry1
+                cursor += seg
+            else:
+                seg = h * frac
+                cx0, cy0, cx1, cy1 = rx0, cursor, rx1, cursor + seg
+                cursor += seg
+            colour = _PALETTE[i % len(_PALETTE)]
+            parts.append(f'<rect x="{cx0:.2f}" y="{cy0:.2f}" '
+                         f'width="{max(0.0, cx1 - cx0):.2f}" '
+                         f'height="{max(0.0, cy1 - cy0):.2f}" '
+                         f'fill="{colour}" fill-opacity="0.85" '
+                         f'stroke="white" stroke-width="1"/>')
+            if (cx1 - cx0) > 24 and (cy1 - cy0) > 12:
+                parts.append(
+                    f'<text x="{cx0 + 4:.2f}" y="{cy0 + 13:.2f}" '
+                    f'text-anchor="start" font-family="sans-serif" '
+                    f'font-size="10" fill="white">{_svg_escape(name)}</text>')
+
+    layout(norm, x0, y0, x1, y1, horizontal=(x1 - x0) >= (y1 - y0))
+
+    parts.append("</svg>")
+    return "\n".join(parts)
+
+
+def sparkline_svg(values, *, width: int = 120, height: int = 24,
+                  marker: bool = True) -> str:
+    """Tiny inline sparkline: a min/max-normalised line small enough for a cell.
+
+    ``values`` are plotted left-to-right, scaled to fit the box with a small
+    padding. When ``marker`` is true the last point gets a highlighted dot. No
+    axes, title, or frame — just the trend line.
+    """
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}">',
+    ]
+
+    vals = [float(v) for v in values if v is not None and math.isfinite(v)]
+    pad = 2.0
+    n = len(vals)
+    if n == 0:
+        parts.append("</svg>")
+        return "\n".join(parts)
+
+    vlo, vhi = min(vals), max(vals)
+    span = vhi - vlo
+    ph = height - 2.0 * pad
+    pw = width - 2.0 * pad
+
+    def px(i):
+        return pad if n == 1 else pad + pw * i / (n - 1)
+
+    def py(v):
+        # Flat series sits on the mid-line; else normalise to the box.
+        frac = 0.5 if span == 0 else (v - vlo) / span
+        return pad + ph * (1.0 - frac)
+
+    pts = [f'{px(i):.2f},{py(v):.2f}' for i, v in enumerate(vals)]
+    parts.append(f'<polyline points="{" ".join(pts)}" fill="none" '
+                 f'stroke="{_PALETTE[0]}" stroke-width="1.25"/>')
+    if marker:
+        lx, ly = px(n - 1), py(vals[-1])
+        parts.append(f'<circle cx="{lx:.2f}" cy="{ly:.2f}" r="1.75" '
+                     f'fill="{_DOWN}"/>')
+
+    parts.append("</svg>")
+    return "\n".join(parts)
