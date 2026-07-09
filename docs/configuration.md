@@ -40,7 +40,8 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `speak_on_move` | bool | `false` | Speak the active cell aloud on cursor move (GUI + TUI); needs the `tts` extra. |
 | `tui_screen_reader` | bool | `false` | Single-line, reader-friendly TUI rendering for screen readers. |
 | `plugins_enabled` | bool | `false` | Whether third-party UDF/format plugins (entry points) may load. Off by default — loading runs third-party code with full privileges. |
-| `schema_version` | int | `5` | Settings schema version (managed by abax). |
+| `live_data_enabled` | bool | `false` | Whether the `REST`/`WEBSOCKET` live-data formulas may open network connections. Off by default so a workbook opened from disk can never phone home; enable via **Tools → Enable live data** or TUI `:live on`. URLs are limited to http/https/ws/wss. |
+| `schema_version` | int | `6` | Settings schema version (managed by abax). |
 
 You can edit `settings.json` by hand while abax is closed, but you rarely need to: the **Preferences** dialog (Edit → Preferences…, `Ctrl+,`) is the central place to manage every field, grouped into **Appearance** (GUI + TUI theme, font, zoom, toolbar, vim keys), **Calculator** (default model, faceplate style, angle mode, faceplate folder), and **System** (autosave, code-execution consent + isolation, optional-dependency install). Changing settings from the app is the recommended way — it persists and applies without a manual edit.
 

@@ -42,6 +42,15 @@ _Development version 0.1.9 — accumulating until the next ship signal._
 - **Drop-to-shell context** — the TUI `:!` shell command now exports the current
   cell as `$ABAX_ACTIVE_CELL`, `$ABAX_SELECTION_RANGE`, `$ABAX_SELECTION_JSON`,
   and `$ABAX_SELECTION_TSV`, so shell one-liners can see what's selected.
+- **Live-data formulas** — `=REST(url, [path], [interval])` polls a JSON endpoint
+  and `=WEBSOCKET(url, [path])` streams JSON text frames, each keeping a cell
+  live from a background thread (shared per URL, extracted with a small
+  `data.tickers[0].price` JSON path). Both are volatile, so the grid recalcs when
+  a source pushes a new value — a 1 s GUI timer / TUI wake picks it up without a
+  keystroke. **Consent-gated and off by default** (`live_data_enabled`; **Tools →
+  Enable live data**, TUI `:live on|off`) so a workbook opened from disk can never
+  phone home; URL schemes are allow-listed to http/https/ws/wss. The WebSocket
+  client is a dependency-free stdlib implementation of RFC 6455's read path.
 
 ## [0.1.8] — 2026-07-06
 

@@ -509,6 +509,26 @@ assumes ascending order); pass `FALSE` for an exact match. `MATCH` defaults to
 type `1` (largest value ≤ target, ascending); `0` is exact; `-1` is smallest
 value ≥ target.
 
+### Live data (network)
+
+Two volatile functions turn a cell into a live view of an external JSON source.
+They are **disabled by default**: nothing connects until you opt in via **Tools →
+Enable live data** (GUI) or `:live on` (TUI) — so a workbook opened from disk can
+never phone home. URLs are limited to `http` / `https` / `ws` / `wss`.
+
+| Function | Description | Signature | Example |
+|---|---|---|---|
+| `REST` | Poll a JSON endpoint every *interval* seconds (default 5) and show a value dug out by *path* | `REST(url, [path], [interval])` | `=REST("https://api.example/quote","data.last",2)` |
+| `WEBSOCKET` | Stream JSON text frames from a WebSocket, showing the latest *path* value | `WEBSOCKET(url, [path])` | `=WEBSOCKET("wss://api.example/ticks","[0].price")` |
+
+*path* is a small JSON path: dotted keys and `[i]` indices (negative allowed),
+e.g. `data.tickers[0].price`; omit it to show the whole document. Many cells
+watching the same URL share one background connection. A cell shows `#OFF!` while
+live data is disabled, `#N/A` until the first value arrives, then the value
+(numbers stay numbers). The grid recalcs automatically when a source pushes an
+update. Connection secrets are never persisted — put credentials in the URL only
+for trusted, local endpoints.
+
 ### Dynamic arrays and spill
 
 A formula whose result is an *array* **spills**: the formula lives in the
