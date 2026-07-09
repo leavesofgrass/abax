@@ -56,6 +56,7 @@ HELP_ENTRIES: list[tuple[str, str]] = [
     (":py <python>", "run a Python snippet against the sheet"),
     (":eq <latex>", "render LaTeX math to unicode"),
     (":!<cmd>", "run a shell command"),
+    (":live [on|off]", "toggle network live data (REST/WEBSOCKET)"),
     (":func [filter]", "browse function names"),
     (":rpn [tokens]", "RPN calculator (REPL or one-shot)"),
     (":plot <expr|range>", "plot an expression or cell range(s)"),
@@ -376,8 +377,27 @@ class TuiEditor:
             self.do_redo()
         elif cmd == "help":
             self._open_help()
+        elif cmd == "live":
+            self._handle_live(args)
         else:
             self.message = f"unknown command: {cmd}"
+
+    def _handle_live(self, args: list) -> None:
+        """``:live [on|off]`` — toggle/report network live data (REST/WEBSOCKET)."""
+        from ..core.livedata import HUB
+
+        want = (args[0] if args else "").strip().lower()
+        if want in ("on", "off"):
+            enable = want == "on"
+            HUB.set_enabled(enable)
+            try:
+                self.settings.live_data_enabled = enable
+            except Exception:  # noqa: BLE001 — settings may be a bare struct
+                pass
+            self.message = f"live data {'enabled' if enable else 'disabled'}"
+        else:
+            state = "on" if HUB.enabled else "off"
+            self.message = f"live data is {state} ({HUB.source_count()} source(s)) — :live on|off"
 
     # --- undo / redo ------------------------------------------------------
 

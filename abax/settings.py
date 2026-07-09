@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ._runtime import _HAS_MSGSPEC
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 def _migrate_settings(data: dict) -> dict:
@@ -44,6 +44,11 @@ def _migrate_settings(data: dict) -> dict:
         # speak_on_move / tui_screen_reader), and plugin consent (plugins_enabled).
         # All default off/safe, so older files simply take the defaults.
         data["schema_version"] = 5
+    if v < 6:
+        # v5 -> v6: new consent field 'live_data_enabled' gating the network
+        # live-data formulas (REST/WEBSOCKET). Defaults off, so a workbook loaded
+        # from disk never opens a connection until the user opts in.
+        data["schema_version"] = 6
     return data
 
 
@@ -88,6 +93,9 @@ if _HAS_MSGSPEC:
         tui_screen_reader: bool = False    # single-line, reader-friendly TUI rendering
         # Whether third-party UDF/format plugins (entry_points) may load (consent).
         plugins_enabled: bool = False
+        # Whether network live-data formulas (REST/WEBSOCKET) may open connections
+        # (consent). Off by default so a loaded workbook cannot phone home on open.
+        live_data_enabled: bool = False
         schema_version: int = SCHEMA_VERSION
 
     _encoder = msgspec.json.Encoder()
@@ -142,6 +150,9 @@ else:
         tui_screen_reader: bool = False    # single-line, reader-friendly TUI rendering
         # Whether third-party UDF/format plugins (entry_points) may load (consent).
         plugins_enabled: bool = False
+        # Whether network live-data formulas (REST/WEBSOCKET) may open connections
+        # (consent). Off by default so a loaded workbook cannot phone home on open.
+        live_data_enabled: bool = False
         schema_version: int = SCHEMA_VERSION
 
     def load_settings(path: Path) -> "Settings":

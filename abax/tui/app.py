@@ -38,6 +38,11 @@ def run_tui(file: str | None = None, registry=None) -> int:
         except Exception:
             pass
 
+    # Honour the persisted live-data consent so REST/WEBSOCKET formulas work in
+    # the TUI too (off unless the user opted in; a loaded file can't phone home).
+    from ..core.livedata import HUB
+    HUB.set_enabled(bool(getattr(settings, "live_data_enabled", False)))
+
     doc = Document.open(file) if file else Document()
     # Pass settings so the editor can honour the Wave-1 accessibility flags
     # (tui_screen_reader / speak_on_move); it reads them defensively, so an older

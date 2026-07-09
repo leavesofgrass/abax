@@ -93,6 +93,25 @@ def test_command_quit_stops_loop():
     assert ed.running is False
 
 
+def test_live_command_toggles_hub():
+    from abax.core.livedata import HUB
+
+    ed = TuiEditor(Document())
+    try:
+        ed.command_buf = ":live on"
+        ed.run_command()
+        assert HUB.enabled is True
+        assert "enabled" in ed.message
+        ed.command_buf = ":live"  # report only
+        ed.run_command()
+        assert "on" in ed.message
+        ed.command_buf = ":live off"
+        ed.run_command()
+        assert HUB.enabled is False
+    finally:
+        HUB.set_enabled(False)
+
+
 def test_editor_records_edits_when_recording():
     ed = TuiEditor(Document())
     ed.recorder.start("t")

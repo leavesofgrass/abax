@@ -86,6 +86,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self.refresh_table()
         self._update_title()
         self._start_autosave()
+        self._start_live_data()
         self._update_status_cluster()
         self._restore_window_state()
         self.statusBar().showMessage(
@@ -503,6 +504,14 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._act(m_tools, "Install optional features now", self.install_optional_features)
         self._act(m_tools, "&Budget wizard...", self.show_budget_wizard)
         self._act(m_tools, "&Hex viewer...", self.show_hex_viewer)
+        # Consent toggle for network live-data formulas (REST / WEBSOCKET).
+        act_live = QAction("Enable &live data (network)", self)
+        act_live.setCheckable(True)
+        act_live.setChecked(bool(getattr(self._settings, "live_data_enabled", False)))
+        act_live.setStatusTip("Allow REST/WEBSOCKET formulas to open network connections")
+        act_live.toggled.connect(self._toggle_live_data)
+        m_tools.addAction(act_live)
+        self._live_data_action = act_live
         self._act(m_tools, "&File manager...", self.show_file_manager, "Ctrl+Shift+F")
         m_tools.addSeparator()
         self._macros_menu = m_tools.addMenu("&Macros")
@@ -642,6 +651,56 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
             timer.start(max(1, secs) * 1000)
         else:
             timer.stop()
+
+    # --- live data (REST/WEBSOCKET) --------------------------------------
+
+    def _start_live_data(self) -> None:
+        """Sync the live-data hub with consent and poll it for pushed updates.
+
+        The hub is process-wide and starts disabled; here we honour the persisted
+        ``live_data_enabled`` consent, then run a light timer that triggers a
+        recalc whenever a background source has delivered a new value (tracked by
+        the hub's monotonic generation counter). No polling of the network — the
+        timer only reads an in-memory integer.
+        """
+        from ..core.livedata import HUB
+
+        HUB.set_enabled(bool(getattr(self._settings, "live_data_enabled", False)))
+        self._live_generation = HUB.generation()
+        self._live_timer = QTimer(self)
+        self._live_timer.timeout.connect(self._poll_live_data)
+        self._live_timer.start(1000)
+
+    def _poll_live_data(self) -> None:
+        from ..core.livedata import HUB
+
+        gen = HUB.generation()
+        if gen != getattr(self, "_live_generation", 0):
+            self._live_generation = gen
+            self._recalculate()
+
+    def _toggle_live_data(self, checked: bool) -> None:
+        """Consent toggle for network live data (Tools menu)."""
+        from ..core.livedata import HUB
+
+        if checked:
+            from ._qtcompat import QMessageBox
+
+            ok = QMessageBox.question(
+                self, "Enable live data",
+                "Allow REST/WEBSOCKET formulas to open network connections?\n\n"
+                "Only enable this for workbooks you trust — a formula can reach "
+                "any http/https/ws/wss URL.",
+            )
+            if ok != QMessageBox.StandardButton.Yes:
+                act = getattr(self, "_live_data_action", None)
+                if act is not None:
+                    act.setChecked(False)
+                return
+        self._settings.live_data_enabled = bool(checked)
+        HUB.set_enabled(bool(checked))
+        self.statusBar().showMessage(
+            "Live data enabled" if checked else "Live data disabled", 4000)
 
     # --- window state + status cluster -----------------------------------
 

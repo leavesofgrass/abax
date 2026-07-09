@@ -191,7 +191,8 @@ _arrayfuncs.register(FUNCTIONS)
 # pack is skipped so a partial checkout still loads.
 for _pack in ("math_fns", "stats_dist", "text_datetime_fns", "finance_fns",
               "finance_bonds", "engineering_fns", "gnumeric_fns", "gnumeric_math",
-              "gnumeric_stats", "excel_modern", "dist_dotted", "regex_fns"):
+              "gnumeric_stats", "excel_modern", "dist_dotted", "regex_fns",
+              "livefuncs"):
     try:
         _mod = __import__(f"abax.core.{_pack}", fromlist=["register"])
         _mod.register(FUNCTIONS)

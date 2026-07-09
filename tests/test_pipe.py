@@ -7,7 +7,6 @@ import pytest
 from abax.core.pipe import PipeError, apply_stream, parse_target, split_stream
 from abax.core.workbook import Workbook
 
-
 # --- parse_target -------------------------------------------------------------
 
 def test_parse_target_with_sheet():

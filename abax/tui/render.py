@@ -67,10 +67,27 @@ def _draw_loop(stdscr, curses, editor, cap: str) -> None:
             state["next"] += 1
         return curses.color_pair(pn) | curses.A_BOLD
 
+    from ..core.livedata import HUB
+    live_gen = HUB.generation()
+
     while editor.running:
         if editor.theme_name != state["name"]:
             rebuild(THEMES.get(editor.theme_name, THEMES["obsidian"]))
             state["name"] = editor.theme_name
+        # Live data (REST/WEBSOCKET): while enabled, wake the input loop once a
+        # second so a background source's new value is picked up without a
+        # keystroke; a bumped generation means recalc the volatile cells.
+        if HUB.enabled:
+            stdscr.timeout(1000)
+            gen = HUB.generation()
+            if gen != live_gen:
+                live_gen = gen
+                try:
+                    editor.doc.workbook.recalculate()
+                except Exception:  # noqa: BLE001 — never crash the draw loop
+                    pass
+        else:
+            stdscr.timeout(-1)
         # Rendering must NEVER tear down the UI: a bad formula, an odd value, a
         # narrow window — any of it should degrade to a one-line error in the
         # status bar, not crash out of curses and drop the user's session.
