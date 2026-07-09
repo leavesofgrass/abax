@@ -474,6 +474,21 @@ class ToolsMixin:
 
         PivotDialog(self).exec()
 
+    def show_pivot_sidebar(self) -> None:
+        """Toggle the drag-drop PivotTable Fields dock (create once, reuse)."""
+        from ._qtcompat import Qt
+        from .dialogs.pivot_sidebar import PivotSidebar
+
+        dock = getattr(self, "_pivot_sidebar", None)
+        if dock is None:
+            dock = PivotSidebar(self)
+            self._pivot_sidebar = dock
+            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
+        else:
+            dock.reload_fields()
+        dock.show()
+        dock.raise_()
+
     def show_ml_tool(self) -> None:
         from .dialogs.ml_dialog import MLDialog
 
