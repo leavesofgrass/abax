@@ -48,6 +48,16 @@ _Development version 0.1.9 — accumulating until the next ship signal._
   per-value aggregation, toggle grand totals / % of, watch a live preview, and
   insert the result. Backed by the pure, tested `core.pivotspec.build_pivot` over
   the existing pivot engine; supports multiple Row and Value fields.
+- **Closed-workbook external references** — a formula can pull a cell from
+  another workbook file: `=[Budget.abax]Sheet1!B4` (quote the name when it has
+  spaces). The referenced workbook loads **once in the background** and is cached;
+  the cell shows `#N/A` until the load finishes, then the value, with the grid
+  refreshing on its own (the external sheet is always-dirty, so the same 1 s GUI
+  timer / TUI wake that drives live data picks it up). **Consent-gated and off by
+  default** (`external_refs_enabled`; **Tools → Enable external references**, TUI
+  `:extern on|off`) so opening an untrusted workbook can never make abax read
+  other files; paths resolve relative to the open workbook's folder and only
+  `.abax`/`.json` load.
 - **Live-data formulas** — `=REST(url, [path], [interval])` polls a JSON endpoint
   and `=WEBSOCKET(url, [path])` streams JSON text frames, each keeping a cell
   live from a background thread (shared per URL, extracted with a small

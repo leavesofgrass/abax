@@ -41,7 +41,8 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 | `tui_screen_reader` | bool | `false` | Single-line, reader-friendly TUI rendering for screen readers. |
 | `plugins_enabled` | bool | `false` | Whether third-party UDF/format plugins (entry points) may load. Off by default — loading runs third-party code with full privileges. |
 | `live_data_enabled` | bool | `false` | Whether the `REST`/`WEBSOCKET` live-data formulas may open network connections. Off by default so a workbook opened from disk can never phone home; enable via **Tools → Enable live data** or TUI `:live on`. URLs are limited to http/https/ws/wss. |
-| `schema_version` | int | `6` | Settings schema version (managed by abax). |
+| `external_refs_enabled` | bool | `false` | Whether closed-workbook external references (`=[Book.abax]Sheet1!A1`) may read other workbook files. Off by default so an opened file never pulls in others on its own; enable via **Tools → Enable external references** or TUI `:extern on`. Paths resolve relative to the open workbook's folder; only `.abax`/`.json` load. |
+| `schema_version` | int | `7` | Settings schema version (managed by abax). |
 
 You can edit `settings.json` by hand while abax is closed, but you rarely need to: the **Preferences** dialog (Edit → Preferences…, `Ctrl+,`) is the central place to manage every field, grouped into **Appearance** (GUI + TUI theme, font, zoom, toolbar, vim keys), **Calculator** (default model, faceplate style, angle mode, faceplate folder), and **System** (autosave, code-execution consent + isolation, optional-dependency install). Changing settings from the app is the recommended way — it persists and applies without a manual edit.
 

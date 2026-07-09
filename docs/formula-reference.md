@@ -529,6 +529,26 @@ live data is disabled, `#N/A` until the first value arrives, then the value
 update. Connection secrets are never persisted — put credentials in the URL only
 for trusted, local endpoints.
 
+### External workbook references
+
+Reference a cell in another, **closed** workbook by qualifying the sheet with a
+bracketed file name:
+
+```
+=[Budget.abax]Sheet1!B4
+='[Q3 Results.abax]Summary'!A1      (quote when the name has spaces)
+```
+
+The referenced workbook is loaded **once, in the background**, and cached; the
+cell shows `#N/A` until the load finishes, then the value (the grid refreshes on
+its own). Like live data, this is **disabled by default**: until you opt in via
+**Tools → Enable external references** (GUI) or `:extern on` (TUI), such a
+reference resolves to `#OFF!` and no file is read — so opening an untrusted
+workbook can never make abax read other files. Paths resolve **relative to the
+open workbook's folder** (absolute paths are allowed too) and only `.abax` /
+`.json` workbooks load; anything else, or a missing file/sheet/cell, yields
+`#REF!`.
+
 ### Dynamic arrays and spill
 
 A formula whose result is an *array* **spills**: the formula lives in the
