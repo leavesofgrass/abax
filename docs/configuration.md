@@ -44,6 +44,35 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 
 You can edit `settings.json` by hand while abax is closed, but you rarely need to: the **Preferences** dialog (Edit → Preferences…, `Ctrl+,`) is the central place to manage every field, grouped into **Appearance** (GUI + TUI theme, font, zoom, toolbar, vim keys), **Calculator** (default model, faceplate style, angle mode, faceplate folder), and **System** (autosave, code-execution consent + isolation, optional-dependency install). Changing settings from the app is the recommended way — it persists and applies without a manual edit.
 
+## Startup script (`init.py`)
+
+For power users, abax runs an optional Python script at `CONFIG_DIR/init.py`
+(e.g. `~/.config/abax/init.py`) when the TUI starts. It's your own trusted
+config — like a `.vimrc` or `.pythonrc`, executed with your privileges — and it
+receives an `abax` facade for **rebinding keys** and **adding macro-menu
+entries**:
+
+```python
+# ~/.config/abax/init.py
+
+def to_top(ed):
+    ed.row = 0
+    ed._reclamp()
+
+# Rebind a normal-mode key (rebinds override the built-in bindings).
+abax.bind_key("normal", "K", to_top, desc="jump to top")
+
+# Register a named entry for the macro menu / palette.
+abax.register_macro_menu("Uppercase cell", lambda ed: ed.sheet.set_cell(
+    ed.row, ed.col, ed.sheet.get_raw(ed.row, ed.col).upper()))
+```
+
+Keys are matched as the literal keystroke (e.g. `"K"`). The `action` is called
+with the editor. A broken `init.py` never blocks startup — the error is captured
+and surfaced in the status line, and abax carries on with its defaults. This is
+**not** the sandboxed code-execution path (console/macros); it is your own
+config, trusted by design.
+
 ## Runtime directories
 
 abax never hardcodes paths. It resolves four OS-appropriate directories at startup and creates them if needed. When the `platformdirs` package (from the `fast-io` extra) is installed it uses that; otherwise a built-in fallback mirrors the same logic.

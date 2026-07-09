@@ -10,7 +10,29 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
-_Development version 0.1.9 — accumulating on `main` until the next ship signal._
+_Development version 0.1.9 — accumulating until the next ship signal._
+
+### Added
+- **TUI editing quick-wins:** `:q` now refuses when there are unsaved edits
+  (`:q!` / `:Q!` force-quit; `:Q` aliases `:q`); `:w` on an untitled workbook
+  writes `./untitled_workbook.abax` instead of erroring; and **PageUp / PageDown
+  / Home / End** navigate the grid (page jumps + row edges), handled as curses
+  key codes so they work over SSH.
+- **`abax diff OLD NEW`** — a lossless, cell-level diff between two `.abax`/JSON
+  workbooks (added / removed / changed cells per sheet), with `diff(1)`-style
+  exit codes and colour on a TTY.
+- **Formula dependency tracer** — TUI `:trace` (and `:trace deps [N]`) renders
+  the precedents (or dependents) of the current cell as a scrollable ASCII tree.
+- **`~/.config/abax/init.py`** — a power-user bootstrap: rebind TUI keys and add
+  macro-menu entries via `abax.bind_key(mode, key, action)` /
+  `abax.register_macro_menu(name, action)`. A broken init.py is reported, never
+  fatal. Normal-mode rebinds override the built-in keys.
+- **Business-chart SVG renderers** (`core.science.chartsvg`): **waterfall**,
+  **sunburst**, **treemap**, **sparkline** — pure SVG, no matplotlib. (Engine
+  shipped; GUI/`:plot` surfaces to follow.)
+- **Streaming hex viewer model** (`core.hexview`) — offset / hex / ASCII rows
+  read through a bounded seek/read window, so files larger than RAM browse
+  cleanly. (Engine shipped; GUI/TUI viewer to follow.)
 
 ## [0.1.8] — 2026-07-06
 

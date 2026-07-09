@@ -94,7 +94,11 @@ keys**. Key features:
 | Key / command | Action |
 |---|---|
 | `Enter` / `i` / `a` | Edit the current cell. `Enter` also works Excel-style (from navigation it starts editing; while editing it commits and steps down a row). `Esc` cancels an edit (keeps the old value); `Backspace` deletes (works over SSH too). |
+| `PageUp` / `PageDown` / `Home` / `End` | Page the viewport up/down; jump to the first / last used column of the row |
 | `u` / `Ctrl-R` | Undo / redo (also `:undo` / `:redo`) — destructive actions checkpoint first |
+| `:q` / `:q!` | Quit (`:q` refuses on unsaved edits; `:q!`/`:Q!` force-quit) |
+| `:w [path]` | Write; with no path an untitled sheet saves to `./untitled_workbook.abax` |
+| `:trace [deps] [N]` | Show the current cell's precedents (or `deps` = dependents) as a scrollable ASCII dependency tree, up to depth `N` |
 | `v` / `V` | Visual selection (cell range / whole rows); movement extends it, and the status line shows a live **sum / count / average** |
 | `y` · `d` / `x` | In visual mode: yank the range · delete it (under an undo checkpoint) |
 | `?` | Help overlay — a scrollable list of every key and command (also `:help`) |
@@ -164,6 +168,21 @@ $ abax get budget.abax C10
 |----------|-------------|
 | `file` | Spreadsheet to open. |
 | `ref` | An A1-style reference, e.g. `B7`. |
+
+### `diff old new` — cell-level workbook diff
+
+Compare two `.abax`/JSON workbooks and print the per-sheet cell differences —
+added (`+`), removed (`-`), and changed (`~ old -> new`). Output is coloured when
+stdout is a terminal. Exit codes follow `diff(1)`: **0** = identical, **1** =
+differences found, **2** = error.
+
+```bash
+$ abax diff before.abax after.abax
+Sheet1
+  ~B2: 100 -> 125
+  +D2: =B2*C2
+  -E9: draft
+```
 
 ### `deps` — install optional dependencies
 
