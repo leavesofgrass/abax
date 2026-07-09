@@ -36,6 +36,7 @@ See also: [index](index.md) · [data science](data-science.md) ·
 | Open selection in pandas | Data → Analyze → Open selection in pandas… | [`gui/dialogs/dataframe_dialog.py`](../abax/gui/dialogs/dataframe_dialog.py) |
 | Recode / clean column | Data → Analyze → Recode / clean column… | [`core/recode.py`](../abax/core/recode.py) |
 | Pivot / group-by | Data → Analyze → Pivot / group-by… | [`core/pivot.py`](../abax/core/pivot.py) |
+| PivotTable fields (drag-drop) | Data → Analyze → PivotTable fields (drag-drop)… | [`core/pivotspec.py`](../abax/core/pivotspec.py) |
 | Curve fit | Data → Analyze → Curve fit… | [`gui/dialogs/curvefit_dialog.py`](../abax/gui/dialogs/curvefit_dialog.py), [`core/science/curvefit.py`](../abax/core/science/curvefit.py) |
 | Goal seek | Data → Analyze → Goal seek… | [`gui/dialogs/goalseek_dialog.py`](../abax/gui/dialogs/goalseek_dialog.py), [`core/goalseek.py`](../abax/core/goalseek.py) |
 | Compare workbook | Data → Compare workbook… | [`core/wbdiff.py`](../abax/core/wbdiff.py) |
@@ -133,6 +134,26 @@ when every key parses as a number, else lexicographically — and floats render
 compactly (`5.0` → `5`). Columns are addressed by **name**; an unknown column or
 aggregation raises `PivotError`. Rows shorter than the header are treated as
 blank-padded (ragged-tolerant). The result block is written back into the sheet.
+
+### PivotTable Fields (drag-drop)
+
+**Data → Analyze → PivotTable fields (drag-drop)…** opens a dockable pane like
+Excel's PivotTable Fields, over the same [`core/pivot.py`](../abax/core/pivot.py)
+engine (routing in [`core/pivotspec.py`](../abax/core/pivotspec.py)). Set a data
+range, then drag columns — or use the `→` buttons — into four areas:
+
+- **Rows** — one or more group fields (multiple are joined into one composite
+  index when a Columns field is also set);
+- **Columns** — an optional pivot field across the top (omit it for a plain
+  multi-field group-by);
+- **Values** — one or more measures; select a Values item and pick its
+  aggregation from **Summarize**;
+- **Filters** — restrict the data to a field's value before pivoting.
+
+**Grand totals** and **% of** (grand/row/col) mirror the classic dialog. A live
+preview updates on every change; **Insert into sheet** writes the full result at
+the anchor cell. Multiple Values fields are supported here (each becomes its own
+sub-column), which the classic dialog does not expose.
 
 Example — sales by region, then a region × quarter pivot:
 

@@ -42,6 +42,12 @@ _Development version 0.1.9 — accumulating until the next ship signal._
 - **Drop-to-shell context** — the TUI `:!` shell command now exports the current
   cell as `$ABAX_ACTIVE_CELL`, `$ABAX_SELECTION_RANGE`, `$ABAX_SELECTION_JSON`,
   and `$ABAX_SELECTION_TSV`, so shell one-liners can see what's selected.
+- **PivotTable Fields sidebar** — a drag-drop dock (**Data → Analyze → PivotTable
+  fields (drag-drop)…**) mirroring Excel's field pane: drag columns into
+  **Filters / Columns / Rows / Values** areas (or use the `→` buttons), choose a
+  per-value aggregation, toggle grand totals / % of, watch a live preview, and
+  insert the result. Backed by the pure, tested `core.pivotspec.build_pivot` over
+  the existing pivot engine; supports multiple Row and Value fields.
 - **Live-data formulas** — `=REST(url, [path], [interval])` polls a JSON endpoint
   and `=WEBSOCKET(url, [path])` streams JSON text frames, each keeping a cell
   live from a background thread (shared per URL, extracted with a small
