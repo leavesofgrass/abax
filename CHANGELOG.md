@@ -8,6 +8,10 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
+## [Unreleased]
+
+_Development version 0.1.9 — accumulating on `main` until the next ship signal._
+
 ## [0.1.8] — 2026-07-06
 
 _The "Batteries Included" release: ready-to-run downloads for people without
