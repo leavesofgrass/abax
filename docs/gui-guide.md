@@ -631,12 +631,13 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
   Calculator (`Ctrl+K`), Get/Send calculator value (`Ctrl+Shift+G` /
   `Ctrl+Shift+H`), Terminal (`` Ctrl+` ``), Python console (`Ctrl+Shift+Y`),
   Clipboard history (`Ctrl+Shift+V`), Manage clipboard, Open default workspace,
-  Show toolbar, Show formula precedents (`Ctrl+[`), Toggle vim mode, Toggle
-  OpenDyslexic font, Zoom in (`Ctrl+=`), Zoom out (`Ctrl+-`), Reset zoom
-  (`Ctrl+0`).
+  Show toolbar, Show formula precedents (`Ctrl+[`), Formula dependency trace,
+  Toggle vim mode, Toggle OpenDyslexic font, Zoom in (`Ctrl+=`), Zoom out
+  (`Ctrl+-`), Reset zoom (`Ctrl+0`).
 - **Insert** — Rows / columns (row above `Ctrl++`, row below, column left, column
   right, append row/column, delete row(s) `Ctrl+-`, delete column(s)), Function
-  (`Shift+F3`), Equation, Chart / graph, Export chart as SVG.
+  (`Shift+F3`), Equation, Chart / graph, **Business chart** (waterfall / sunburst
+  / treemap / sparkline — SVG with a live preview), Export chart as SVG.
 - **Format** — Bold (`Ctrl+B`), Italic (`Ctrl+I`), Underline (`Ctrl+U`), Align
   (left/center/right), Text colour, Fill colour, Clear cell styles, Copy / Paste
   format (the format painter), Borders, Merge cells, Unmerge cells, Number
@@ -651,8 +652,8 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
 - **Sheet** — New sheet (`Shift+F11`), Duplicate sheet, Rename sheet, Delete
   sheet, Next sheet (`Ctrl+PgDown`), Previous sheet (`Ctrl+PgUp`).
 - **Tools** — Scientific → (Matrix tool, Numerical solver, Signal / data tool,
-  ODE solver, ML tool), Install optional features now, Budget wizard, File
-  manager (`Ctrl+Shift+F`), Macros (submenu), Recording (start/stop, relative,
+  ODE solver, ML tool), Install optional features now, Budget wizard, Hex viewer,
+  File manager (`Ctrl+Shift+F`), Macros (submenu), Recording (start/stop, relative,
   save, replay), Load macro / UDF file, Run Python script, **Code isolation
   (sandbox)** → (Off / Restricted / Isolated / Strict), **Radio** → (RF toolkit,
   Smith chart, Antenna pattern, Antenna modeler, Open logbook (ADIF), Activation

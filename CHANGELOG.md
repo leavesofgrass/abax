@@ -22,17 +22,18 @@ _Development version 0.1.9 — accumulating until the next ship signal._
   workbooks (added / removed / changed cells per sheet), with `diff(1)`-style
   exit codes and colour on a TTY.
 - **Formula dependency tracer** — TUI `:trace` (and `:trace deps [N]`) renders
-  the precedents (or dependents) of the current cell as a scrollable ASCII tree.
+  the precedents (or dependents) of the current cell as a scrollable ASCII tree;
+  the GUI has the same under **View → Formula dependency trace…**.
 - **`~/.config/abax/init.py`** — a power-user bootstrap: rebind TUI keys and add
   macro-menu entries via `abax.bind_key(mode, key, action)` /
   `abax.register_macro_menu(name, action)`. A broken init.py is reported, never
   fatal. Normal-mode rebinds override the built-in keys.
-- **Business-chart SVG renderers** (`core.science.chartsvg`): **waterfall**,
-  **sunburst**, **treemap**, **sparkline** — pure SVG, no matplotlib. (Engine
-  shipped; GUI/`:plot` surfaces to follow.)
-- **Streaming hex viewer model** (`core.hexview`) — offset / hex / ASCII rows
-  read through a bounded seek/read window, so files larger than RAM browse
-  cleanly. (Engine shipped; GUI/TUI viewer to follow.)
+- **Business charts** — **waterfall / sunburst / treemap / sparkline** as pure
+  SVG (no matplotlib; `core.science.chartsvg`), surfaced in the GUI under
+  **Insert → Business chart…** with a live preview and Save-SVG.
+- **Hex viewer** — a streaming offset / hex / ASCII inspector (`core.hexview`,
+  bounded seek/read windows so files larger than RAM browse cleanly), in the GUI
+  under **Tools → Hex viewer…**.
 
 ## [0.1.8] — 2026-07-06
 
