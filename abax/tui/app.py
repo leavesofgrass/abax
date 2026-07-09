@@ -40,10 +40,14 @@ def run_tui(file: str | None = None, registry=None) -> int:
 
     # Honour the persisted live-data consent so REST/WEBSOCKET formulas work in
     # the TUI too (off unless the user opted in; a loaded file can't phone home).
+    from ..core.externref import HUB as EXT
     from ..core.livedata import HUB
     HUB.set_enabled(bool(getattr(settings, "live_data_enabled", False)))
+    EXT.set_enabled(bool(getattr(settings, "external_refs_enabled", False)))
 
     doc = Document.open(file) if file else Document()
+    # Anchor external-ref paths at the open workbook's directory.
+    EXT.set_base_dir(doc.path.parent if getattr(doc, "path", None) else None)
     # Pass settings so the editor can honour the Wave-1 accessibility flags
     # (tui_screen_reader / speak_on_move); it reads them defensively, so an older
     # settings struct without those fields simply leaves the features off.

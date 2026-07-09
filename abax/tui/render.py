@@ -67,21 +67,23 @@ def _draw_loop(stdscr, curses, editor, cap: str) -> None:
             state["next"] += 1
         return curses.color_pair(pn) | curses.A_BOLD
 
+    from ..core.externref import HUB as EXT
     from ..core.livedata import HUB
     live_gen = HUB.generation()
+    ext_gen = EXT.generation()
 
     while editor.running:
         if editor.theme_name != state["name"]:
             rebuild(THEMES.get(editor.theme_name, THEMES["obsidian"]))
             state["name"] = editor.theme_name
-        # Live data (REST/WEBSOCKET): while enabled, wake the input loop once a
-        # second so a background source's new value is picked up without a
-        # keystroke; a bumped generation means recalc the volatile cells.
-        if HUB.enabled:
+        # Background data (REST/WEBSOCKET live data, external-workbook refs): while
+        # either is enabled, wake the input loop once a second so a source's new
+        # value is picked up without a keystroke; a bumped generation means recalc.
+        if HUB.enabled or EXT.enabled:
             stdscr.timeout(1000)
-            gen = HUB.generation()
-            if gen != live_gen:
-                live_gen = gen
+            gen, egen = HUB.generation(), EXT.generation()
+            if gen != live_gen or egen != ext_gen:
+                live_gen, ext_gen = gen, egen
                 try:
                     editor.doc.workbook.recalculate()
                 except Exception:  # noqa: BLE001 — never crash the draw loop

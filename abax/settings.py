@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ._runtime import _HAS_MSGSPEC
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 def _migrate_settings(data: dict) -> dict:
@@ -49,6 +49,11 @@ def _migrate_settings(data: dict) -> dict:
         # live-data formulas (REST/WEBSOCKET). Defaults off, so a workbook loaded
         # from disk never opens a connection until the user opts in.
         data["schema_version"] = 6
+    if v < 7:
+        # v6 -> v7: new consent field 'external_refs_enabled' gating the
+        # closed-workbook external references (=[Book.abax]Sheet1!A1). Defaults
+        # off, so an opened workbook never reads other files on its own.
+        data["schema_version"] = 7
     return data
 
 
@@ -96,6 +101,10 @@ if _HAS_MSGSPEC:
         # Whether network live-data formulas (REST/WEBSOCKET) may open connections
         # (consent). Off by default so a loaded workbook cannot phone home on open.
         live_data_enabled: bool = False
+        # Whether closed-workbook external references (=[Book.abax]Sheet1!A1) may
+        # read other workbook files (consent). Off by default so an opened file
+        # cannot pull in other files on its own.
+        external_refs_enabled: bool = False
         schema_version: int = SCHEMA_VERSION
 
     _encoder = msgspec.json.Encoder()
@@ -153,6 +162,10 @@ else:
         # Whether network live-data formulas (REST/WEBSOCKET) may open connections
         # (consent). Off by default so a loaded workbook cannot phone home on open.
         live_data_enabled: bool = False
+        # Whether closed-workbook external references (=[Book.abax]Sheet1!A1) may
+        # read other workbook files (consent). Off by default so an opened file
+        # cannot pull in other files on its own.
+        external_refs_enabled: bool = False
         schema_version: int = SCHEMA_VERSION
 
     def load_settings(path: Path) -> "Settings":

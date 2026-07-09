@@ -22,8 +22,10 @@ class Token(NamedTuple):
 _OPERATORS = ("<=", ">=", "<>", "+", "-", "*", "/", "^", "%", "&", "=", "<", ">", "@")
 
 # A sheet qualifier is a bare name (Sheet2) or a quoted name ('My Sheet'),
-# followed by '!'. Quoted names may contain '' as an escaped apostrophe.
-_SHEET = r"(?:'(?:[^']|'')*'|[A-Za-z_][A-Za-z0-9_.]*)!"
+# followed by '!'. Quoted names may contain '' as an escaped apostrophe. A bare
+# name may carry a bracketed external-workbook prefix ([Book.abax]Sheet1); the
+# quoted form ('[Book.abax]Sheet1') is already covered by the quoted alternative.
+_SHEET = r"(?:'(?:[^']|'')*'|(?:\[[^\]\r\n]+\])?[A-Za-z_][A-Za-z0-9_.]*)!"
 
 _TOKEN_RE = re.compile(
     r"""

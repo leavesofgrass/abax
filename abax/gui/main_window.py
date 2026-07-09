@@ -513,6 +513,14 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         act_live.toggled.connect(self._toggle_live_data)
         m_tools.addAction(act_live)
         self._live_data_action = act_live
+        # Consent toggle for closed-workbook external references.
+        act_ext = QAction("Enable e&xternal references (files)", self)
+        act_ext.setCheckable(True)
+        act_ext.setChecked(bool(getattr(self._settings, "external_refs_enabled", False)))
+        act_ext.setStatusTip("Allow =[Book.abax]Sheet1!A1 formulas to read other workbook files")
+        act_ext.toggled.connect(self._toggle_external_refs)
+        m_tools.addAction(act_ext)
+        self._external_refs_action = act_ext
         self._act(m_tools, "&File manager...", self.show_file_manager, "Ctrl+Shift+F")
         m_tools.addSeparator()
         self._macros_menu = m_tools.addMenu("&Macros")
@@ -664,20 +672,37 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         the hub's monotonic generation counter). No polling of the network — the
         timer only reads an in-memory integer.
         """
+        from ..core.externref import HUB as EXT
         from ..core.livedata import HUB
 
         HUB.set_enabled(bool(getattr(self._settings, "live_data_enabled", False)))
+        EXT.set_enabled(bool(getattr(self._settings, "external_refs_enabled", False)))
+        self._sync_external_base_dir()
         self._live_generation = HUB.generation()
+        self._extern_generation = EXT.generation()
         self._live_timer = QTimer(self)
         self._live_timer.timeout.connect(self._poll_live_data)
         self._live_timer.start(1000)
 
+    def _sync_external_base_dir(self) -> None:
+        """Keep the external-ref hub anchored at the current workbook's folder."""
+        from ..core.externref import HUB as EXT
+
+        path = getattr(self._doc, "path", None)
+        EXT.set_base_dir(path.parent if path else None)
+
     def _poll_live_data(self) -> None:
+        """Recalc when a background source (live data / external ref) updated."""
+        from ..core.externref import HUB as EXT
         from ..core.livedata import HUB
 
-        gen = HUB.generation()
-        if gen != getattr(self, "_live_generation", 0):
-            self._live_generation = gen
+        self._sync_external_base_dir()
+        live = HUB.generation()
+        ext = EXT.generation()
+        if (live != getattr(self, "_live_generation", 0)
+                or ext != getattr(self, "_extern_generation", 0)):
+            self._live_generation = live
+            self._extern_generation = ext
             self._recalculate()
 
     def _toggle_live_data(self, checked: bool) -> None:
@@ -702,6 +727,29 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         HUB.set_enabled(bool(checked))
         self.statusBar().showMessage(
             "Live data enabled" if checked else "Live data disabled", 4000)
+
+    def _toggle_external_refs(self, checked: bool) -> None:
+        """Consent toggle for closed-workbook external references (Tools menu)."""
+        from ..core.externref import HUB as EXT
+
+        if checked:
+            from ._qtcompat import QMessageBox
+
+            ok = QMessageBox.question(
+                self, "Enable external references",
+                "Allow =[Book.abax]Sheet1!A1 formulas to read other workbook "
+                "files from disk?\n\nEnable this only for workbooks you trust.",
+            )
+            if ok != QMessageBox.StandardButton.Yes:
+                act = getattr(self, "_external_refs_action", None)
+                if act is not None:
+                    act.setChecked(False)
+                return
+        self._settings.external_refs_enabled = bool(checked)
+        self._sync_external_base_dir()
+        EXT.set_enabled(bool(checked))
+        self.statusBar().showMessage(
+            "External references enabled" if checked else "External references disabled", 4000)
 
     # --- window state + status cluster -----------------------------------
 

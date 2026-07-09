@@ -57,6 +57,7 @@ HELP_ENTRIES: list[tuple[str, str]] = [
     (":eq <latex>", "render LaTeX math to unicode"),
     (":!<cmd>", "run a shell command"),
     (":live [on|off]", "toggle network live data (REST/WEBSOCKET)"),
+    (":extern [on|off]", "toggle closed-workbook external references"),
     (":func [filter]", "browse function names"),
     (":rpn [tokens]", "RPN calculator (REPL or one-shot)"),
     (":plot <expr|range>", "plot an expression or cell range(s)"),
@@ -379,8 +380,29 @@ class TuiEditor:
             self._open_help()
         elif cmd == "live":
             self._handle_live(args)
+        elif cmd == "extern":
+            self._handle_extern(args)
         else:
             self.message = f"unknown command: {cmd}"
+
+    def _handle_extern(self, args: list) -> None:
+        """``:extern [on|off]`` — toggle/report closed-workbook external refs."""
+        from ..core.externref import HUB
+
+        want = (args[0] if args else "").strip().lower()
+        if want in ("on", "off"):
+            enable = want == "on"
+            path = getattr(self.doc, "path", None)
+            HUB.set_base_dir(path.parent if path else None)
+            HUB.set_enabled(enable)
+            try:
+                self.settings.external_refs_enabled = enable
+            except Exception:  # noqa: BLE001
+                pass
+            self.message = f"external references {'enabled' if enable else 'disabled'}"
+        else:
+            state = "on" if HUB.enabled else "off"
+            self.message = f"external refs are {state} — :extern on|off"
 
     def _handle_live(self, args: list) -> None:
         """``:live [on|off]`` — toggle/report network live data (REST/WEBSOCKET)."""

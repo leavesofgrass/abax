@@ -718,6 +718,12 @@ class Sheet:
         """Resolver passed to the evaluator. Empty sheet_name = this sheet."""
         if not sheet_name:
             return self.get_value(row, col)
+        if sheet_name.startswith("["):
+            # Closed-workbook external reference, e.g. [Book.abax]Sheet1!A1.
+            from .externref import HUB, parse_external
+            parsed = parse_external(sheet_name)
+            if parsed is not None:
+                return HUB.lookup(parsed[0], parsed[1], row, col)
         if self.workbook is None:
             return CellError(CellError.REF)
         target = self.workbook.get_sheet(sheet_name)

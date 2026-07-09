@@ -112,6 +112,22 @@ def test_live_command_toggles_hub():
         HUB.set_enabled(False)
 
 
+def test_extern_command_toggles_hub():
+    from abax.core.externref import HUB
+
+    ed = TuiEditor(Document())
+    try:
+        ed.command_buf = ":extern on"
+        ed.run_command()
+        assert HUB.enabled is True
+        assert "enabled" in ed.message
+        ed.command_buf = ":extern off"
+        ed.run_command()
+        assert HUB.enabled is False
+    finally:
+        HUB.set_enabled(False)
+
+
 def test_editor_records_edits_when_recording():
     ed = TuiEditor(Document())
     ed.recorder.start("t")
