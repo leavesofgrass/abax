@@ -21,6 +21,28 @@ def _is_backspace(ch) -> bool:
     return ch in _BACKSPACE
 
 
+# Page / Home / End → editor navigation methods. Like backspace, curses (with
+# keypad mode) delivers these as KEY_* ints over SSH, not raw ANSI (\x1b[5~ …).
+_NAV_METHODS: "dict[int, str] | None" = None
+
+
+def _nav_method(ch) -> "str | None":
+    global _NAV_METHODS
+    if isinstance(ch, str):
+        return None
+    if _NAV_METHODS is None:
+        try:
+            import curses
+
+            _NAV_METHODS = {
+                curses.KEY_NPAGE: "page_down", curses.KEY_PPAGE: "page_up",
+                curses.KEY_HOME: "line_home", curses.KEY_END: "line_end",
+            }
+        except Exception:
+            _NAV_METHODS = {}
+    return _NAV_METHODS.get(ch)
+
+
 def _arrow_vi(ch) -> "str | None":
     """Map a curses arrow key code to the equivalent vi navigation char.
 
@@ -79,9 +101,24 @@ def _handle_normal(editor: TuiEditor, ch) -> None:
         editor.message = ""
         editor.begin_insert()
         return
+    nav = _nav_method(ch)          # PageUp/PageDown/Home/End
+    if nav is not None:
+        editor.message = ""
+        getattr(editor, nav)()
+        return
     key = ch if isinstance(ch, str) else _arrow_vi(ch)
     if key is None:
         return
+    # User rebinds from ~/.config/abax/init.py win over built-ins. Keys are the
+    # literal keystroke (e.g. "K"); the action is called with the editor. Errors
+    # can't crash the loop — the draw loop contains them.
+    uc = getattr(editor, "user_config", None)
+    if uc is not None and isinstance(key, str):
+        binding = uc.keybinding("normal", key)
+        if binding is not None:
+            editor.message = ""
+            binding.action(editor)
+            return
     if editor.pending_g:  # resolve a previously-pressed 'g'
         editor.pending_g = False
         if key == "t":

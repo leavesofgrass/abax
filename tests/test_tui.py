@@ -1357,3 +1357,90 @@ def test_bad_formula_is_contained_not_fatal():
     # Still editable afterwards.
     _handle_key(ed, "\n")
     assert ed.mode == "insert"
+
+
+# --- 0.1.9 TUI: page/edge nav, :q guard, :w default, :trace, user rebinds -----
+
+
+def test_page_and_edge_navigation():
+    import curses
+
+    from abax.tui.keys import _handle_key
+
+    ed = TuiEditor(Document())
+    ed.viewport_rows = 10
+    _handle_key(ed, curses.KEY_NPAGE)
+    assert ed.row == 10
+    _handle_key(ed, curses.KEY_PPAGE)
+    assert ed.row == 0
+    ed.col = 7
+    _handle_key(ed, curses.KEY_HOME)
+    assert ed.col == 0
+    ed.sheet.set_cell(0, 4, "x")            # used width -> 5 cols
+    _handle_key(ed, curses.KEY_END)
+    assert ed.col == 4
+
+
+def test_quit_guards_unsaved_but_force_quits():
+    ed = TuiEditor(Document())
+    ed.doc.dirty = True
+    ed.command_buf = ":q"
+    ed.run_command()
+    assert ed.running is True                # :q refused (unsaved)
+    ed.command_buf = ":q!"
+    ed.run_command()
+    assert ed.running is False               # :q! forced
+
+
+def test_w_default_path_for_untitled(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    ed = TuiEditor(Document())
+    assert ed.default_save_path().endswith("untitled_workbook.abax")
+    ed.command_buf = ":w"
+    ed.run_command()
+    assert (tmp_path / "untitled_workbook.abax").exists()
+
+
+def test_trace_command_shows_ascii_tree():
+    ed = TuiEditor(Document())
+    ed.sheet.set_cell(0, 0, "=B1+C1")
+    ed.sheet.set_cell(0, 1, "5")
+    ed.sheet.set_cell(0, 2, "=B1*2")
+    ed.row, ed.col = 0, 0
+    ed.command_buf = ":trace"
+    ed.run_command()
+    assert ed.mode == "describe"
+    assert "Precedents of A1" in ed.describe_title
+    body = "\n".join(lbl for lbl, _ in ed.describe_lines)
+    assert "B1" in body and "C1" in body
+
+
+def test_user_init_py_rebinds_a_normal_key(tmp_path):
+    from abax.tui.keys import _handle_key
+    from abax.userconfig import load_user_config
+
+    init = tmp_path / "init.py"
+    init.write_text(
+        "def jump(ed):\n"
+        "    ed.row = 42\n"
+        "abax.bind_key('normal', 'K', jump)\n",
+        encoding="utf-8")
+    ed = TuiEditor(Document())
+    ed.user_config = load_user_config(str(init))
+    _handle_key(ed, "K")
+    assert ed.row == 42
+
+
+def test_abax_diff_cli(tmp_path):
+    import json
+
+    from abax.app import main
+    from abax.core.workbook import Workbook
+
+    a = Workbook(); a.sheet.set_cell(0, 0, "1"); a.sheet.set_cell(0, 1, "2")
+    b = Workbook(); b.sheet.set_cell(0, 0, "1"); b.sheet.set_cell(0, 1, "99")
+    pa = tmp_path / "a.abax"; pb = tmp_path / "b.abax"
+    pa.write_text(json.dumps(a.to_envelope()), encoding="utf-8")
+    pb.write_text(json.dumps(b.to_envelope()), encoding="utf-8")
+    assert main(["diff", str(pa), str(pb)]) == 1       # differences found
+    assert main(["diff", str(pa), str(pa)]) == 0       # identical

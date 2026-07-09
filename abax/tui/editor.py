@@ -77,6 +77,14 @@ class TuiEditor:
         self.doc = document
         self.registry = registry
         self.settings = settings
+        # Power-user config: ~/.config/abax/init.py may rebind TUI keys and add
+        # macro-menu entries. Loading never raises (a broken init.py is captured
+        # as an error), so this can't block startup.
+        from ..userconfig import load_user_config
+
+        self.user_config = load_user_config()
+        if self.user_config.errors:
+            self.message = "init.py: " + self.user_config.errors[0][:100]
         # Accessibility knobs, read defensively off the Wave-1 settings contract
         # (older settings.json / structs simply lack them -> the features stay
         # off). ``screen_reader`` swaps the grid header for a single-line,
@@ -121,6 +129,7 @@ class TuiEditor:
         self.describe_summary: dict | None = None  # last :describe result, for tests
         self.describe_lines: list[tuple[str, str]] = []  # full-overlay rows (label, value)
         self.describe_range = ""  # range shown by the :describe full overlay
+        self.describe_title = ""  # overrides the overlay title (e.g. for :trace)
         self.describe_idx = 0  # scroll offset when mode == describe
         self.spoken: list[str] = []  # last lines handed to TTS (drives tests/replay)
         self.message = ""
@@ -135,6 +144,41 @@ class TuiEditor:
         self.col = max(0, self.col + dc)
         self._reclamp()
         self.announce()
+
+    # --- page / edge navigation (PageUp/Down, Home, End) -----------------
+
+    def _page(self) -> int:
+        """Rows to jump for a page — a screenful, or a sane default pre-render."""
+        return max(1, self.viewport_rows or 20)
+
+    def page_down(self) -> None:
+        self.move(self._page(), 0)
+
+    def page_up(self) -> None:
+        self.move(-self._page(), 0)
+
+    def line_home(self) -> None:
+        """Home — jump to the first column of the current row (Excel Home)."""
+        self.col = 0
+        self._reclamp()
+        self.announce()
+
+    def line_end(self) -> None:
+        """End — jump to the last used column (Excel-ish End)."""
+        _, n_cols = self.sheet.used_bounds()
+        self.col = max(0, n_cols - 1)
+        self._reclamp()
+        self.announce()
+
+    def default_save_path(self) -> str:
+        """The path ``:w`` writes to with no argument: the document's own path
+        if it has one, else a ``./untitled_workbook.abax`` template in the
+        working directory (so ``:w`` on a fresh sheet doesn't just error)."""
+        p = getattr(self.doc, "path", None)
+        if p:
+            return str(p)
+        import os
+        return os.path.join(os.getcwd(), "untitled_workbook.abax")
 
     def _reclamp(self) -> None:
         """Keep the cursor non-negative and inside the visible window.
@@ -249,17 +293,24 @@ class TuiEditor:
         cmd, args = parse_command(self.command_buf)
         self.mode = "normal"
         self.command_buf = ""
-        if cmd in ("q", "quit"):
+        if cmd in ("q", "quit", "Q"):
+            # Vim semantics: :q refuses when there are unsaved edits; :q! / :Q!
+            # force-quit past that. :Q is a shift-typo-friendly alias for :q.
+            if self.doc.dirty:
+                self.message = "unsaved changes — :w to save, or :q! to discard"
+            else:
+                self.running = False
+        elif cmd in ("q!", "Q!"):
             self.running = False
         elif cmd in ("w", "write"):
             try:
-                self.doc.save(args[0] if args else None)
+                self.doc.save(args[0] if args else self.default_save_path())
                 self.message = f"written {self.doc.title}"
             except Exception as exc:
                 self.message = f"error: {exc}"
         elif cmd in ("wq", "x"):
             try:
-                self.doc.save(args[0] if args else None)
+                self.doc.save(args[0] if args else self.default_save_path())
             except Exception as exc:
                 self.message = f"error: {exc}"
                 return
@@ -285,6 +336,8 @@ class TuiEditor:
             self._handle_replace(args)
         elif cmd == "theme":
             self._handle_theme(args)
+        elif cmd in ("trace", "tr"):
+            self._handle_trace(args)
         elif cmd == "sheet":
             self.goto_sheet(args[0] if args else "")
         elif cmd == "sheets":
@@ -735,7 +788,35 @@ class TuiEditor:
         ("kurtosis", "Kurtosis (excess)"),
     )
 
+    def _handle_trace(self, args: list[str]) -> None:
+        """``:trace`` shows the precedents of the current cell as an ASCII tree
+        in the scrollable overlay; ``:trace deps`` shows dependents. Optional
+        trailing integer sets the max depth."""
+        from ..core.deptrace import render_ascii, trace_dependents, trace_precedents
+
+        deps = bool(args) and args[0].lower() in ("deps", "dependents", "d")
+        depth = 8
+        for a in args:
+            if a.isdigit():
+                depth = max(1, int(a))
+        try:
+            node = (trace_dependents if deps else trace_precedents)(
+                self.sheet, self.row, self.col, max_depth=depth)
+            text = render_ascii(node)
+        except Exception as exc:  # never let a trace crash the loop
+            self.message = f"trace error: {exc}"[:120]
+            return
+        lines = text.splitlines() or ["(none)"]
+        self.describe_lines = [(ln, "") for ln in lines]
+        self.describe_title = (f"{'Dependents' if deps else 'Precedents'} of "
+                               f"{self.cursor_a1()}  ·  j/k scroll · Esc/q close")
+        self.describe_summary = None
+        self.describe_range = ""
+        self.describe_idx = 0
+        self.mode = "describe"
+
     def _open_describe(self, rng: str) -> None:
+        self.describe_title = ""  # a real describe uses the computed title
         """Build and show the scrollable full descriptive-stats overlay.
 
         Computes :func:`~abax.core.science.descriptive.describe` over ``rng`` and

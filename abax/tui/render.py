@@ -294,8 +294,9 @@ def _render_describe(stdscr, curses, editor, attr, max_y, max_x) -> None:
     """
     n = getattr(editor, "describe_summary", None)
     count = n["count"] if isinstance(n, dict) else 0
-    title = (f"Describe {editor.describe_range}  (n={count})  ·  "
-             "j/k scroll · g/G top/bottom · Esc/q close")
+    title = getattr(editor, "describe_title", "") or (
+        f"Describe {editor.describe_range}  (n={count})  ·  "
+        "j/k scroll · g/G top/bottom · Esc/q close")
     _addstr(stdscr, 0, 0, title.ljust(max_x)[: max_x - 1], attr("banner"))
     rows = editor.describe_lines
     visible = max(1, max_y - 3)

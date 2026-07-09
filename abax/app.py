@@ -76,12 +76,16 @@ def _build_parser() -> argparse.ArgumentParser:
     ps.add_argument("db", help="path to a .db / .sqlite file")
     ps.add_argument("query", help="the SQL SELECT to run")
 
+    pd = sub.add_parser("diff", help="show cell-level differences between two workbooks")
+    pd.add_argument("old", help="the older / left .abax or .json workbook")
+    pd.add_argument("new", help="the newer / right .abax or .json workbook")
+
     return p
 
 
 _SUBCOMMANDS = frozenset(
     {"gui", "tui", "view", "convert", "get", "macro", "deps", "doctor", "notebook",
-     "fetch", "sql"})
+     "fetch", "sql", "diff"})
 
 
 def _normalize_argv(argv: list[str]) -> list[str]:
@@ -153,6 +157,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_fetch(args)
     if cmd == "sql":
         return _cmd_sql(args)
+    if cmd == "diff":
+        return _cmd_diff(args.old, args.new)
 
     # No subcommand: prefer GUI, fall back to TUI, then help.
     from . import _runtime as rt
@@ -167,6 +173,23 @@ def main(argv: list[str] | None = None) -> int:
         return run_tui(None, registry)
     parser.print_help()
     return 0
+
+
+def _cmd_diff(old: str, new: str) -> int:
+    """``abax diff OLD NEW`` — a cell-level workbook diff, ``diff(1)``-style exit
+    codes: 0 = identical, 1 = differences found, 2 = error."""
+    from .core.abaxdiff import DiffError, diff_files, render_text
+
+    try:
+        d = diff_files(old, new)
+    except DiffError as exc:
+        print(f"diff: {exc}", file=sys.stderr)
+        return 2
+    if d.is_empty:
+        print("no differences")
+        return 0
+    print(render_text(d, color=sys.stdout.isatty()))
+    return 1
 
 
 def _cmd_deps() -> int:
