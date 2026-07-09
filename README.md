@@ -2,7 +2,7 @@
 
 A keyboard-first **statistics and data-science workstation** — an integrated
 environment for data work, built on a fast, scriptable spreadsheet. Load a
-dataset, explore it with **620+ formula functions** (statistics and distributions,
+dataset, explore it with **630+ formula functions** (statistics and distributions,
 financial, engineering, database, and **RF/amateur-radio**), run built-in analyses
 (regression, t-tests, ANOVA, correlation),
 reshape it with pivot/group-by and recode, visualize with the grapher, hand a
@@ -103,7 +103,7 @@ python -m abax view qrpn-save.json --sheet stack   # read a qrpn calculator save
 
 ## Formulas
 
-620+ functions across aggregate, conditional, math, lookup, logical, text, date,
+630+ functions across aggregate, conditional, math, lookup, logical, text, date,
 statistics, financial (incl. bonds), engineering, **RF/amateur-radio & antenna**,
 info, and the LET/LAMBDA functional families:
 

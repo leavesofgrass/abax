@@ -185,7 +185,7 @@ Move to cell **B5** and type a formula. Formulas start with `=`:
 =SUM(B2:B4)
 ```
 
-Press `Enter`. The cell shows the computed total, `12`. abax ships with 620+ functions — `SUM`, `AVERAGE`, `IF`, `VLOOKUP`, `CONCAT`, date functions, and more — and array formulas like `=SORT(A1:A9)` **spill** across neighbouring cells. As you type a function name the GUI offers autocomplete and an argument hint showing the current parameter. See [formula-reference.md](formula-reference.md) for the full function list.
+Press `Enter`. The cell shows the computed total, `12`. abax ships with 630+ functions — `SUM`, `AVERAGE`, `IF`, `VLOOKUP`, `CONCAT`, date functions, and more — and array formulas like `=SORT(A1:A9)` **spill** across neighbouring cells. As you type a function name the GUI offers autocomplete and an argument hint showing the current parameter. See [formula-reference.md](formula-reference.md) for the full function list.
 
 A few things worth knowing right away:
 

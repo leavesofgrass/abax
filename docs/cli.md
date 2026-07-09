@@ -106,7 +106,9 @@ keys**. Key features:
 | `:pivot rng idx col val [agg]` | Pivot / group-by a table into a new area of the sheet (`:pt` alias); e.g. `:pivot A1:C99 A B sum` |
 | `:describe A1:A50` | Descriptive stats (count / mean / median / stdev / min / max) in the status line; `:describe full A1:A50` opens a scrollable overlay |
 | `:!cmd` | Run a shell command; the current cell is exported as `$ABAX_ACTIVE_CELL` / `$ABAX_SELECTION_RANGE` / `$ABAX_SELECTION_JSON` / `$ABAX_SELECTION_TSV` |
-| `:` commands | `:w` `:q` write/quit, `:find`, `:rpn`, `:fmt`, `:py`, `:!cmd`, `:func`, `:sheet`, `:pivot`, `:describe`, `:trace`, … |
+| `:live [on\|off]` | Toggle network live data (`=REST`/`=WEBSOCKET` formulas); off by default |
+| `:extern [on\|off]` | Toggle closed-workbook external references (`=[Book.abax]Sheet1!A1`); off by default |
+| `:` commands | `:w` `:q` write/quit, `:find`, `:rpn`, `:fmt`, `:py`, `:!cmd`, `:func`, `:sheet`, `:pivot`, `:describe`, `:trace`, `:live`, `:extern`, … |
 
 ### `view file [--sheet NAME]` — print a sheet
 

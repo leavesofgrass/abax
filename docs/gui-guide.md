@@ -648,11 +648,13 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
   Recalculate sheet (`Shift+F9`), Calculation: auto/manual,
   Analyze → (Descriptive Statistics, Statistics / analysis, SQL query, Profile
   columns, Open selection in pandas, Recode / clean column, Pivot / group-by,
-  Curve fit, Goal seek).
+  PivotTable fields (drag-drop), Curve fit, Goal seek).
 - **Sheet** — New sheet (`Shift+F11`), Duplicate sheet, Rename sheet, Delete
   sheet, Next sheet (`Ctrl+PgDown`), Previous sheet (`Ctrl+PgUp`).
 - **Tools** — Scientific → (Matrix tool, Numerical solver, Signal / data tool,
   ODE solver, ML tool), Install optional features now, Budget wizard, Hex viewer,
+  **Enable live data** (network REST/WEBSOCKET), **Enable external references**
+  (closed-workbook `[Book.abax]` refs) — both consent toggles, off by default —
   File manager (`Ctrl+Shift+F`), Macros (submenu), Manage macros, Recording (start/stop, relative,
   save, replay), Load macro / UDF file, Run Python script, **Code isolation
   (sandbox)** → (Off / Restricted / Isolated / Strict), **Radio** → (RF toolkit,
@@ -686,6 +688,13 @@ docs — this is the one-line "what it does" index.
   map, clip, and similar column-cleaning transforms.
 - **Pivot / group-by** (*Data → Analyze*) — summarise a table with
   `abax.core.pivot`.
+- **PivotTable fields (drag-drop)** (*Data → Analyze*) — a dockable Excel-style
+  field pane: drag columns into Filters / Columns / Rows / Values, pick
+  aggregations, preview live, and insert (`abax.core.pivotspec`).
+- **Live data & external references** — `=REST(…)`/`=WEBSOCKET(…)` formulas and
+  closed-workbook `=[Book.abax]Sheet1!A1` refs update from background threads
+  once enabled under *Tools* (both off by default). See the
+  [formula reference](formula-reference.md).
 - **Goal Seek** (*Data → Analyze*) — find the input-cell value that makes a
   target cell equal a chosen value.
 - **Sort** and **Filter** (*Data*) — multi-column sort; multi-condition column

@@ -100,7 +100,7 @@ setting off, a genuine circular reference still reports `#CIRC!`.
 
 Function names are case-insensitive. Below, every built-in is grouped by
 family with its signature, a one-line description, and an example. Optional
-arguments are shown in `[brackets]`. There are **over 620 built-in functions** —
+arguments are shown in `[brackets]`. There are **over 630 built-in functions** —
 **591 eager** (counting aliases and modern dotted names), **6 lazy** control-flow
 functions, and **21 reference/context** functions (`ROW`, `OFFSET`, `INDIRECT`,
 `CELL`, `LET`, `LAMBDA`, …) — **618 names** in all; user macros can add more

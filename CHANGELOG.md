@@ -8,11 +8,46 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
-## [Unreleased]
+## [0.1.9] — 2026-07-09
 
-_Development version 0.1.9 — accumulating until the next ship signal._
+_The "Live & Connected" release: cells that update themselves. Formulas can now
+poll a **REST** endpoint or ride a **WebSocket** (`=REST(…)` / `=WEBSOCKET(…)`),
+and reference cells in **other, closed workbooks** (`=[Book.abax]Sheet1!A1`) —
+all loaded on background threads and refreshed without a keystroke, all
+**consent-gated and off by default** so an opened file can't phone home or read
+other files on its own. Plus a drag-drop **PivotTable Fields** sidebar, a
+**dependency tracer**, **business charts** (waterfall / sunburst / treemap /
+sparkline), a **hex viewer**, a **macro manager**, `abax diff` / `abax pipe`,
+drop-to-shell selection context, an `init.py` power-user bootstrap, and a
+friendlier TUI. **632 formula functions (98.4% of the curated Excel/Gnumeric
+target).**_
 
 ### Added
+- **Live-data formulas** — `=REST(url, [path], [interval])` polls a JSON endpoint
+  and `=WEBSOCKET(url, [path])` streams JSON text frames, each keeping a cell
+  live from a background thread (shared per URL, extracted with a small
+  `data.tickers[0].price` JSON path). Both are volatile, so the grid recalcs when
+  a source pushes a new value — a 1 s GUI timer / TUI wake picks it up without a
+  keystroke. **Consent-gated and off by default** (`live_data_enabled`; **Tools →
+  Enable live data**, TUI `:live on|off`) so a workbook opened from disk can never
+  phone home; URL schemes are allow-listed to http/https/ws/wss. The WebSocket
+  client is a dependency-free stdlib implementation of RFC 6455's read path.
+- **Closed-workbook external references** — a formula can pull a cell from
+  another workbook file: `=[Budget.abax]Sheet1!B4` (quote the name when it has
+  spaces). The referenced workbook loads **once in the background** and is cached;
+  the cell shows `#N/A` until the load finishes, then the value, with the grid
+  refreshing on its own (the external sheet is always-dirty, so the same 1 s GUI
+  timer / TUI wake that drives live data picks it up). **Consent-gated and off by
+  default** (`external_refs_enabled`; **Tools → Enable external references**, TUI
+  `:extern on|off`) so opening an untrusted workbook can never make abax read
+  other files; paths resolve relative to the open workbook's folder and only
+  `.abax`/`.json` load.
+- **PivotTable Fields sidebar** — a drag-drop dock (**Data → Analyze → PivotTable
+  fields (drag-drop)…**) mirroring Excel's field pane: drag columns into
+  **Filters / Columns / Rows / Values** areas (or use the `→` buttons), choose a
+  per-value aggregation, toggle grand totals / % of, watch a live preview, and
+  insert the result. Backed by the pure, tested `core.pivotspec.build_pivot` over
+  the existing pivot engine; supports multiple Row and Value fields.
 - **TUI editing quick-wins:** `:q` now refuses when there are unsaved edits
   (`:q!` / `:Q!` force-quit; `:Q` aliases `:q`); `:w` on an untitled workbook
   writes `./untitled_workbook.abax` instead of erroring; and **PageUp / PageDown
@@ -42,31 +77,6 @@ _Development version 0.1.9 — accumulating until the next ship signal._
 - **Drop-to-shell context** — the TUI `:!` shell command now exports the current
   cell as `$ABAX_ACTIVE_CELL`, `$ABAX_SELECTION_RANGE`, `$ABAX_SELECTION_JSON`,
   and `$ABAX_SELECTION_TSV`, so shell one-liners can see what's selected.
-- **PivotTable Fields sidebar** — a drag-drop dock (**Data → Analyze → PivotTable
-  fields (drag-drop)…**) mirroring Excel's field pane: drag columns into
-  **Filters / Columns / Rows / Values** areas (or use the `→` buttons), choose a
-  per-value aggregation, toggle grand totals / % of, watch a live preview, and
-  insert the result. Backed by the pure, tested `core.pivotspec.build_pivot` over
-  the existing pivot engine; supports multiple Row and Value fields.
-- **Closed-workbook external references** — a formula can pull a cell from
-  another workbook file: `=[Budget.abax]Sheet1!B4` (quote the name when it has
-  spaces). The referenced workbook loads **once in the background** and is cached;
-  the cell shows `#N/A` until the load finishes, then the value, with the grid
-  refreshing on its own (the external sheet is always-dirty, so the same 1 s GUI
-  timer / TUI wake that drives live data picks it up). **Consent-gated and off by
-  default** (`external_refs_enabled`; **Tools → Enable external references**, TUI
-  `:extern on|off`) so opening an untrusted workbook can never make abax read
-  other files; paths resolve relative to the open workbook's folder and only
-  `.abax`/`.json` load.
-- **Live-data formulas** — `=REST(url, [path], [interval])` polls a JSON endpoint
-  and `=WEBSOCKET(url, [path])` streams JSON text frames, each keeping a cell
-  live from a background thread (shared per URL, extracted with a small
-  `data.tickers[0].price` JSON path). Both are volatile, so the grid recalcs when
-  a source pushes a new value — a 1 s GUI timer / TUI wake picks it up without a
-  keystroke. **Consent-gated and off by default** (`live_data_enabled`; **Tools →
-  Enable live data**, TUI `:live on|off`) so a workbook opened from disk can never
-  phone home; URL schemes are allow-listed to http/https/ws/wss. The WebSocket
-  client is a dependency-free stdlib implementation of RFC 6455's read path.
 
 ## [0.1.8] — 2026-07-06
 
