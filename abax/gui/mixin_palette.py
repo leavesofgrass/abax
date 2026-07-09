@@ -149,6 +149,7 @@ class PaletteMixin:
             "Business chart (waterfall / sunburst / treemap / sparkline)...": self.show_business_chart,
             "Formula dependency trace...": self.show_deptrace,
             "Hex viewer...": self.show_hex_viewer,
+            "Manage macros...": self.show_macro_manager,
             "Equation editor...": self.show_equation,
             "Paste special (values / transpose)...": self.paste_special,
             "Clipboard history...": self.show_clipboard,

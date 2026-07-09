@@ -200,9 +200,25 @@ try:
 except Exception:  # noqa: BLE001 — optional widget; absence is handled by callers
     QSvgWidget = None  # type: ignore
 
+# QDesktopServices/QUrl (opening a folder/URL in the OS handler) are always
+# present in a normal binding, but keep the import defensive so a stripped build
+# can't break module load — callers fall back to os.startfile.
+try:
+    if BINDING == "PySide6":
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+    else:
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtGui import QDesktopServices
+except Exception:  # noqa: BLE001
+    QUrl = None  # type: ignore
+    QDesktopServices = None  # type: ignore
+
 __all__ = [
     "BINDING",
     "QSvgWidget",
+    "QDesktopServices",
+    "QUrl",
     "QAbstractTableModel",
     "QEvent",
     "QItemSelection",

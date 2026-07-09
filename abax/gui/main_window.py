@@ -507,6 +507,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         m_tools.addSeparator()
         self._macros_menu = m_tools.addMenu("&Macros")
         self._rebuild_macros_menu()
+        self._act(m_tools, "Manage &macros...", self.show_macro_manager)
         m_rec = m_tools.addMenu("&Recording")
         self._act(m_rec, "Start/stop recording", self._toggle_recording)
         self._act(m_rec, "Start relative recording", self._start_relative_recording)

@@ -285,8 +285,12 @@ class TuiEditor:
             self.mode = "normal"
             self.command_buf = ""
             from ..core.shell import run
+            from ..core.shellenv import merged_env
 
-            res = run(raw[1:].strip())
+            # Export the current cell as $ABAX_ACTIVE_CELL / $ABAX_SELECTION_* so
+            # the shell command can see what's selected (drop-to-shell context).
+            env = merged_env(None, self.sheet, self.row, self.col, self.row, self.col)
+            res = run(raw[1:].strip(), env=env)
             out = (res.stdout or res.stderr or "(no output)").strip().replace("\n", " ⏎ ")
             self.message = f"$ {out[:200]}"
             return

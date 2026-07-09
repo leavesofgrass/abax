@@ -80,12 +80,18 @@ def _build_parser() -> argparse.ArgumentParser:
     pd.add_argument("old", help="the older / left .abax or .json workbook")
     pd.add_argument("new", help="the newer / right .abax or .json workbook")
 
+    pp = sub.add_parser("pipe", help="stream stdin into a workbook range and save")
+    pp.add_argument("target", help="anchor cell / range, e.g. Sheet1!A1 or B2")
+    pp.add_argument("file", help="workbook to write into (.abax/.json/.csv/…)")
+    pp.add_argument("--tsv", action="store_true", help="force tab-separated columns")
+    pp.add_argument("--csv", action="store_true", help="force comma-separated columns")
+
     return p
 
 
 _SUBCOMMANDS = frozenset(
     {"gui", "tui", "view", "convert", "get", "macro", "deps", "doctor", "notebook",
-     "fetch", "sql", "diff"})
+     "fetch", "sql", "diff", "pipe"})
 
 
 def _normalize_argv(argv: list[str]) -> list[str]:
@@ -159,6 +165,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_sql(args)
     if cmd == "diff":
         return _cmd_diff(args.old, args.new)
+    if cmd == "pipe":
+        return _cmd_pipe(args)
 
     # No subcommand: prefer GUI, fall back to TUI, then help.
     from . import _runtime as rt
@@ -190,6 +198,35 @@ def _cmd_diff(old: str, new: str) -> int:
         return 0
     print(render_text(d, color=sys.stdout.isatty()))
     return 1
+
+
+def _cmd_pipe(args) -> int:
+    """``abax pipe TARGET FILE`` — stream stdin into a workbook range and save."""
+    from .core.pipe import PipeError, apply_stream, parse_target
+    from .engine.document import Document
+
+    try:
+        sheet_name, _r, _c = parse_target(args.target)
+    except PipeError as exc:
+        print(f"pipe: {exc}", file=sys.stderr)
+        return 2
+    try:
+        doc = Document.open(args.file)
+    except Exception as exc:  # noqa: BLE001
+        print(f"pipe: cannot open {args.file}: {exc}", file=sys.stderr)
+        return 2
+    wb = doc.workbook
+    sheet = (wb.get_sheet(sheet_name) or wb.sheet) if sheet_name else wb.sheet
+    delimiter = "\t" if args.tsv else ("," if args.csv else None)
+    text = sys.stdin.read()
+    rows, cells = apply_stream(sheet, args.target, text, delimiter=delimiter)
+    try:
+        doc.save()
+    except Exception as exc:  # noqa: BLE001
+        print(f"pipe: cannot save {args.file}: {exc}", file=sys.stderr)
+        return 2
+    print(f"wrote {cells} cell(s) across {rows} row(s) at {args.target}")
+    return 0
 
 
 def _cmd_deps() -> int:

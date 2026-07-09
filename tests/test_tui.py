@@ -1444,3 +1444,43 @@ def test_abax_diff_cli(tmp_path):
     pb.write_text(json.dumps(b.to_envelope()), encoding="utf-8")
     assert main(["diff", str(pa), str(pb)]) == 1       # differences found
     assert main(["diff", str(pa), str(pa)]) == 0       # identical
+
+
+# --- 0.1.9 batch 2: abax pipe, :! selection env ------------------------------
+
+
+def test_abax_pipe_cli(tmp_path, monkeypatch):
+    import io
+    import json
+
+    from abax.app import main
+    from abax.core.workbook import Workbook
+    from abax.engine.document import Document
+
+    p = tmp_path / "wb.abax"
+    p.write_text(json.dumps(Workbook().to_envelope()), encoding="utf-8")
+    monkeypatch.setattr("sys.stdin", io.StringIO("1,2\n3,4\n"))
+    assert main(["pipe", "A1", str(p)]) == 0
+    s = Document.open(str(p)).workbook.sheet
+    assert (s.get_raw(0, 0), s.get_raw(0, 1), s.get_raw(1, 0), s.get_raw(1, 1)) == ("1", "2", "3", "4")
+
+
+def test_shell_passthrough_exports_selection_env(monkeypatch):
+    import abax.core.shell as shell_mod
+
+    captured = {}
+
+    def _fake_run(command, cwd=None, timeout=30.0, env=None):
+        captured["env"] = env
+        return shell_mod.Result(returncode=0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(shell_mod, "run", _fake_run)
+    ed = TuiEditor(Document())
+    ed.sheet.set_cell(0, 0, "42")
+    ed.row, ed.col = 0, 0
+    ed.command_buf = ":!echo hi"
+    ed.run_command()
+    env = captured["env"]
+    assert env is not None
+    assert env["ABAX_ACTIVE_CELL"] == "A1"
+    assert "ABAX_SELECTION_JSON" in env

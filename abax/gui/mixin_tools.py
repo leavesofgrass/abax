@@ -511,6 +511,12 @@ class ToolsMixin:
 
         DepTraceDialog(self).exec()
 
+    def show_macro_manager(self) -> None:
+        """A panel to view, run, and load macros (and init.py macro-menu entries)."""
+        from .dialogs.macro_manager_dialog import MacroManagerDialog
+
+        MacroManagerDialog(self).exec()
+
     def show_equation(self) -> None:
         from .dialogs.equation_dialog import EquationDialog
 

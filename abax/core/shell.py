@@ -41,12 +41,15 @@ def _shell_command(command: str) -> list[str] | str:
     return ["/bin/sh", "-c", command]
 
 
-def run(command: str, cwd: str | None = None, timeout: float = 30.0) -> Result:
+def run(command: str, cwd: str | None = None, timeout: float = 30.0,
+        env: "dict[str, str] | None" = None) -> Result:
     """Run `command` through the system shell and capture its output.
 
     `cwd` selects the working directory (the process cwd when ``None``).
-    On timeout, return a :class:`Result` with a nonzero ``returncode`` and a
-    note in ``stderr`` rather than raising.
+    `env` replaces the child's environment when given (callers merge extra
+    variables — e.g. abax's ``$ABAX_*`` selection context — into ``os.environ``
+    themselves). On timeout, return a :class:`Result` with a nonzero
+    ``returncode`` and a note in ``stderr`` rather than raising.
     """
     try:
         proc = subprocess.run(
@@ -55,6 +58,7 @@ def run(command: str, cwd: str | None = None, timeout: float = 30.0) -> Result:
             text=True,
             timeout=timeout,
             cwd=cwd,
+            env=env,
         )
     except subprocess.TimeoutExpired as exc:
         out = exc.stdout or ""

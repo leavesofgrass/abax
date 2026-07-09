@@ -78,11 +78,16 @@ class PtyTerminal:
     """
 
     def __init__(
-        self, cols: int = 100, rows: int = 30, command: str | None = None
+        self, cols: int = 100, rows: int = 30, command: str | None = None,
+        env: "dict[str, str] | None" = None,
     ) -> None:
         self.cols = cols
         self.rows = rows
         self.command = command if command is not None else _default_command()
+        # None -> the child inherits this process's environment unchanged.
+        # A dict replaces it (callers merge extras, e.g. the $ABAX_* selection
+        # context, into os.environ via shellenv.merged_env).
+        self.env = env
 
         self._lock = threading.RLock()
         self._screen: pyte.Screen | None = None
@@ -128,7 +133,8 @@ class PtyTerminal:
     def _start_windows(self) -> None:
         import winpty
 
-        self._proc = winpty.PtyProcess.spawn(self.command)
+        self._proc = (winpty.PtyProcess.spawn(self.command, env=self.env)
+                      if self.env is not None else winpty.PtyProcess.spawn(self.command))
         self._proc.setwinsize(self.rows, self.cols)
 
     def _start_posix(self) -> None:
@@ -146,6 +152,7 @@ class PtyTerminal:
                 stderr=slave,
                 close_fds=True,
                 preexec_fn=os.setsid,  # detach so it owns the tty
+                env=self.env,          # None -> inherit os.environ
             )
         finally:
             os.close(slave)
