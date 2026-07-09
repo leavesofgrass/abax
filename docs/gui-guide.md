@@ -653,7 +653,7 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
   sheet, Next sheet (`Ctrl+PgDown`), Previous sheet (`Ctrl+PgUp`).
 - **Tools** — Scientific → (Matrix tool, Numerical solver, Signal / data tool,
   ODE solver, ML tool), Install optional features now, Budget wizard, Hex viewer,
-  File manager (`Ctrl+Shift+F`), Macros (submenu), Recording (start/stop, relative,
+  File manager (`Ctrl+Shift+F`), Macros (submenu), Manage macros, Recording (start/stop, relative,
   save, replay), Load macro / UDF file, Run Python script, **Code isolation
   (sandbox)** → (Off / Restricted / Isolated / Strict), **Radio** → (RF toolkit,
   Smith chart, Antenna pattern, Antenna modeler, Open logbook (ADIF), Activation

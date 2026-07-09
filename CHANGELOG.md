@@ -34,6 +34,14 @@ _Development version 0.1.9 — accumulating until the next ship signal._
 - **Hex viewer** — a streaming offset / hex / ASCII inspector (`core.hexview`,
   bounded seek/read windows so files larger than RAM browse cleanly), in the GUI
   under **Tools → Hex viewer…**.
+- **Macro manager** (**Tools → Manage macros…**) — one panel to view, run, and
+  load macros (including `init.py` macro-menu entries), plus Open-macros-folder.
+- **`abax pipe TARGET FILE`** — stream stdin into a workbook range and save,
+  e.g. `abax pipe Sheet1!A1 book.abax < data.csv` (tab/comma auto-detected,
+  `--tsv`/`--csv` to force).
+- **Drop-to-shell context** — the TUI `:!` shell command now exports the current
+  cell as `$ABAX_ACTIVE_CELL`, `$ABAX_SELECTION_RANGE`, `$ABAX_SELECTION_JSON`,
+  and `$ABAX_SELECTION_TSV`, so shell one-liners can see what's selected.
 
 ## [0.1.8] — 2026-07-06
 

@@ -105,7 +105,8 @@ keys**. Key features:
 | `:plot A1:A50 [B1:B50]` | Plot a sheet range as a braille chart (or `:plot sin(x) -3 3` for an expression) |
 | `:pivot rng idx col val [agg]` | Pivot / group-by a table into a new area of the sheet (`:pt` alias); e.g. `:pivot A1:C99 A B sum` |
 | `:describe A1:A50` | Descriptive stats (count / mean / median / stdev / min / max) in the status line; `:describe full A1:A50` opens a scrollable overlay |
-| `:` commands | `:w` `:q` write/quit, `:find`, `:rpn`, `:fmt`, `:py`, `:!cmd`, `:func`, `:sheet`, `:pivot`, `:describe`, … |
+| `:!cmd` | Run a shell command; the current cell is exported as `$ABAX_ACTIVE_CELL` / `$ABAX_SELECTION_RANGE` / `$ABAX_SELECTION_JSON` / `$ABAX_SELECTION_TSV` |
+| `:` commands | `:w` `:q` write/quit, `:find`, `:rpn`, `:fmt`, `:py`, `:!cmd`, `:func`, `:sheet`, `:pivot`, `:describe`, `:trace`, … |
 
 ### `view file [--sheet NAME]` — print a sheet
 
@@ -182,6 +183,18 @@ Sheet1
   ~B2: 100 -> 125
   +D2: =B2*C2
   -E9: draft
+```
+
+### `pipe target file` — stream stdin into cells
+
+Read piped text and lay it into a workbook starting at `target` (an anchor cell
+or the top-left of a range, optionally sheet-qualified `Sheet1!A1`), then save
+`file`. Columns are auto-detected (tab, else comma, else one cell per line);
+force with `--tsv` / `--csv`.
+
+```bash
+$ printf 'a,b\n1,2\n' | abax pipe Sheet1!A1 book.abax
+wrote 4 cell(s) across 2 row(s) at Sheet1!A1
 ```
 
 ### `deps` — install optional dependencies
