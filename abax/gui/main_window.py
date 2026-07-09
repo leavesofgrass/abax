@@ -389,6 +389,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._act_toolbar = act_tb   # kept so set_toolbar_visible can sync the check state
         m_view.addSeparator()
         self._act(m_view, "Show formula &precedents", self.show_precedents, "Ctrl+[")
+        self._act(m_view, "Formula dependency &trace...", self.show_deptrace)
         m_view.addSeparator()
         self._act(m_view, "Toggle &vim mode", self.toggle_vim_mode)
         self._act(m_view, "Toggle &OpenDyslexic font", self.toggle_dyslexic_font)
@@ -414,6 +415,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._act(m_insert, "&Function...", self.show_formula_browser, "Shift+F3")
         self._reg_icon(self._act(m_insert, "&Equation...", self.show_equation), "equation")
         self._reg_icon(self._act(m_insert, "C&hart / graph...", self.show_graph), "graph")
+        self._act(m_insert, "&Business chart (waterfall / treemap / ...)...", self.show_business_chart)
         self._act(m_insert, "Export chart as &SVG...", self.export_chart_svg)
 
         # --- Format (font - alignment - number - theme) -------------------
@@ -500,6 +502,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         m_tools.addSeparator()
         self._act(m_tools, "Install optional features now", self.install_optional_features)
         self._act(m_tools, "&Budget wizard...", self.show_budget_wizard)
+        self._act(m_tools, "&Hex viewer...", self.show_hex_viewer)
         self._act(m_tools, "&File manager...", self.show_file_manager, "Ctrl+Shift+F")
         m_tools.addSeparator()
         self._macros_menu = m_tools.addMenu("&Macros")

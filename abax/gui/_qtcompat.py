@@ -189,8 +189,20 @@ except ImportError:  # pragma: no cover - depends on which binding is installed
 
     BINDING = "PyQt6"
 
+# QtSvgWidgets is optional (shipped in PySide6-Essentials / PyQt6, but a thin or
+# unusual build may lack it). A live SVG preview degrades to export-only when
+# ``QSvgWidget`` is None, so callers must treat it as possibly-absent.
+try:
+    if BINDING == "PySide6":
+        from PySide6.QtSvgWidgets import QSvgWidget
+    else:
+        from PyQt6.QtSvgWidgets import QSvgWidget
+except Exception:  # noqa: BLE001 — optional widget; absence is handled by callers
+    QSvgWidget = None  # type: ignore
+
 __all__ = [
     "BINDING",
+    "QSvgWidget",
     "QAbstractTableModel",
     "QEvent",
     "QItemSelection",

@@ -492,6 +492,25 @@ class ToolsMixin:
         self._graph_dialog.show()
         self._graph_dialog.raise_()
 
+    def show_business_chart(self) -> None:
+        """Turn the current selection into a waterfall/sunburst/treemap/sparkline
+        chart (SVG, with a live preview and Save-SVG)."""
+        from .dialogs.business_chart_dialog import BusinessChartDialog
+
+        BusinessChartDialog(self).exec()
+
+    def show_hex_viewer(self) -> None:
+        """A streaming offset/hex/ASCII inspector for any file (non-modal)."""
+        from .dialogs.hex_dialog import HexDialog
+
+        HexDialog(self).show()
+
+    def show_deptrace(self) -> None:
+        """The current cell's precedents/dependents as a dependency tree."""
+        from .dialogs.deptrace_dialog import DepTraceDialog
+
+        DepTraceDialog(self).exec()
+
     def show_equation(self) -> None:
         from .dialogs.equation_dialog import EquationDialog
 
