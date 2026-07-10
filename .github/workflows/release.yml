@@ -148,34 +148,18 @@ jobs:
           name: windows-binary
           path: dist/*.zip
 
-  # ── macOS app bundle (self-contained, PyInstaller → .app → .dmg) ────────────
-  # Builds Abax.app natively on macOS (PyInstaller can't cross-compile), packages
-  # it as a .dmg with create-dmg, and uploads it for the release job to attach.
-  # A 2-leg matrix covers BOTH architectures:
-  #   • arm64  on macos-15 — the FULL `[all]` stack (incl. PyNEC + pymc) resolves
-  #     from prebuilt wheels, so no trimming is needed.
-  #   • x86_64 on macos-13 (Intel) — PyNEC has no reliable Intel-mac wheel (it
-  #     needs a Fortran toolchain), so we install the same minus-nec set as the
-  #     Windows build; the built-in Method-of-Moments antenna solver still works.
-  # `fail-fast: false` keeps one arch's failure from cancelling the other, and the
-  # whole job is soft-decoupled from the release (see the `release` job's `if`),
-  # so a flaky platform build never blocks a tag. Each leg calls
-  # packaging/macos/sign_and_notarize.sh, which codesigns + notarizes ONLY when
-  # the Apple Developer secrets are set and is otherwise a no-op — the build stays
-  # unsigned by default. See packaging/macos/README.md.
+  # ── macOS app bundle — arm64 (Apple Silicon), PyInstaller → .app → .dmg ─────
+  # Built natively on macos-15 (PyInstaller can't cross-compile). The FULL `[all]`
+  # stack (incl. PyNEC + pymc) resolves from prebuilt arm64 wheels, so no trimming
+  # is needed. macos-15 runners are plentiful and fast, so this job STAYS in the
+  # release job's `needs` — the arm64 .dmg is reliably present when the release is
+  # cut. The Intel build is a separate, non-blocking job (below); see
+  # packaging/macos/README.md. Calls packaging/macos/sign_and_notarize.sh, which
+  # codesigns + notarizes ONLY when the Apple Developer secrets are set and is a
+  # no-op otherwise (unsigned by default).
   macos-binary:
-    name: Build macOS app (${{ matrix.arch }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: macos-15
-            arch: arm64
-            extras: "dev,all"
-          - runner: macos-13
-            arch: x86_64
-            extras: "dev,thin,parquet,science,jupyter,bayes,stats-io,database,hdf5,satellite,tts,restricted"
-    runs-on: ${{ matrix.runner }}
+    name: Build macOS app (arm64)
+    runs-on: macos-15
     # Signing/notarization secrets, surfaced as env so the shared script (and its
     # skip-when-empty guard) can see them. Absent secrets → unsigned build.
     env:
@@ -201,35 +185,12 @@ jobs:
             v=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
             echo "version=$v" >> "$GITHUB_OUTPUT"
           fi
-      - name: Install abax + stack (${{ matrix.extras }}) + PyInstaller
+      - name: Install abax + full stack + PyInstaller
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[${{ matrix.extras }}]" pyinstaller
+          pip install -e ".[dev,all]" pyinstaller
       - name: Generate the .icns icon from the SVG
-        run: |
-          set -e
-          ICONSET=packaging/macos/abax.iconset
-          mkdir -p "$ICONSET"
-          # Rasterize the source SVG to the largest size, then downscale with sips.
-          qlmanage -t -s 1024 -o packaging/macos packaging/appimage/abax.svg || true
-          BASE=packaging/macos/abax.svg.png
-          if [ ! -f "$BASE" ]; then
-            # Fallback: let sips read the SVG directly at 1024px.
-            sips -s format png packaging/appimage/abax.svg --out "$BASE" -Z 1024 || true
-          fi
-          if [ -f "$BASE" ]; then
-            for s in 16 32 64 128 256 512 1024; do
-              sips -z $s $s "$BASE" --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
-            done
-            # Retina @2x variants iconutil expects.
-            cp "$ICONSET/icon_32x32.png"   "$ICONSET/icon_16x16@2x.png"
-            cp "$ICONSET/icon_64x64.png"   "$ICONSET/icon_32x32@2x.png"
-            cp "$ICONSET/icon_256x256.png" "$ICONSET/icon_128x128@2x.png"
-            cp "$ICONSET/icon_512x512.png" "$ICONSET/icon_256x256@2x.png"
-            cp "$ICONSET/icon_1024x1024.png" "$ICONSET/icon_512x512@2x.png"
-            iconutil -c icns "$ICONSET" -o packaging/macos/abax.icns || true
-          fi
-          echo "icns present: $([ -f packaging/macos/abax.icns ] && echo yes || echo no)"
+        run: bash packaging/macos/make_icns.sh
       - name: Build the app bundle
         run: python -m PyInstaller packaging/macos/abax.spec --noconfirm --distpath dist/macos
       - name: Smoke-test the frozen build
@@ -240,7 +201,7 @@ jobs:
         run: |
           set -e
           brew install create-dmg
-          DMG="dist/abax-${{ steps.ver.outputs.version }}-macos-${{ matrix.arch }}.dmg"
+          DMG="dist/abax-${{ steps.ver.outputs.version }}-macos-arm64.dmg"
           create-dmg --volname "abax ${{ steps.ver.outputs.version }}" \
             --app-drop-link 480 0 --icon "Abax.app" 120 0 \
             "$DMG" "dist/macos/Abax.app" \
@@ -249,17 +210,102 @@ jobs:
         run: bash packaging/macos/sign_and_notarize.sh notarize "$(ls dist/*.dmg)"
       - uses: actions/upload-artifact@v7
         with:
-          name: macos-binary-${{ matrix.arch }}
+          name: macos-binary-arm64
           path: dist/*.dmg
+
+  # ── macOS app bundle — x86_64 (Intel), best-effort, NON-BLOCKING ────────────
+  # Same recipe on macos-13, with the `[all]` set MINUS PyNEC (no reliable
+  # Intel-mac wheel; the built-in Method-of-Moments solver still ships) — matching
+  # the Windows build. Deliberately kept OUT of the `release` job's `needs`:
+  # GitHub-hosted macos-13 (Intel) runners are scarce and can starve in the queue
+  # for a long time, and we will NOT let that block the GitHub Release (learned the
+  # hard way on v0.1.11, where this leg sat unassigned for 30+ min while every
+  # other artifact was ready). Because the release can therefore publish before
+  # this .dmg exists, the last step attaches the .dmg to the release itself, once
+  # it's built (tag pushes only). If the Intel runner never frees up, the release
+  # simply ships without the Intel .dmg — Intel users still have pip / abax.pyz.
+  macos-binary-intel:
+    name: Build macOS app (x86_64, best-effort)
+    runs-on: macos-13
+    env:
+      MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
+      MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
+      MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            v=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+            echo "version=$v" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install abax + stack (minus PyNEC) + PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,thin,parquet,science,jupyter,bayes,stats-io,database,hdf5,satellite,tts,restricted]" pyinstaller
+      - name: Generate the .icns icon from the SVG
+        run: bash packaging/macos/make_icns.sh
+      - name: Build the app bundle
+        run: python -m PyInstaller packaging/macos/abax.spec --noconfirm --distpath dist/macos
+      - name: Smoke-test the frozen build
+        run: dist/macos/Abax.app/Contents/MacOS/abax --version
+      - name: Codesign the app (no-op without signing secrets)
+        run: bash packaging/macos/sign_and_notarize.sh sign dist/macos/Abax.app
+      - name: Package as a .dmg
+        run: |
+          set -e
+          brew install create-dmg
+          DMG="dist/abax-${{ steps.ver.outputs.version }}-macos-x86_64.dmg"
+          create-dmg --volname "abax ${{ steps.ver.outputs.version }}" \
+            --app-drop-link 480 0 --icon "Abax.app" 120 0 \
+            "$DMG" "dist/macos/Abax.app" \
+            || hdiutil create -volname "abax" -srcfolder "dist/macos/Abax.app" -ov -format UDZO "$DMG"
+      - name: Notarize + staple the .dmg (no-op without notary secrets)
+        run: bash packaging/macos/sign_and_notarize.sh notarize "$(ls dist/*.dmg)"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-binary-x86_64
+          path: dist/*.dmg
+      - name: Attach the Intel .dmg to the release (best-effort, tag pushes only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # This job is intentionally NOT in the release job's `needs`, so the
+          # release may already be published — or may still be pending — when we
+          # get here. Wait a bounded time for the release to exist, then attach
+          # the .dmg. Never fail the pipeline over this: if the release never
+          # appears the .dmg remains available as a run artifact.
+          DMG=$(ls dist/*.dmg)
+          for i in $(seq 1 30); do
+            if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+              gh release upload "${GITHUB_REF_NAME}" "$DMG" --clobber && exit 0
+            fi
+            echo "release ${GITHUB_REF_NAME} not published yet; retrying ($i/30)…"
+            sleep 20
+          done
+          echo "::warning::release ${GITHUB_REF_NAME} not found after waiting; Intel .dmg left as a run artifact only"
 
   # ── Publish the GitHub Release ──────────────────────────────────────────────
   # Tag pushes only. Collects every built artifact and attaches them to a release
-  # with auto-generated notes. The Windows and macOS binaries are SOFT
-  # dependencies: they stay in `needs` so the release waits for them (attaching
-  # their assets when built), but the `if` below only *requires* the core
-  # artifacts (wheel/pyz/AppImage) — a failed or unavailable platform build never
-  # blocks the release; its asset is simply absent. `download-artifact` (no name)
-  # pulls whatever artifacts exist.
+  # with auto-generated notes. Windows + macOS-arm64 are SOFT dependencies: they
+  # stay in `needs` so the release waits for them (attaching their assets when
+  # built), but the `if` below only *requires* the core artifacts (wheel/pyz/
+  # AppImage) — a failed or unavailable platform build never blocks the release;
+  # its asset is simply absent. The Intel macOS build is deliberately NOT in
+  # `needs` (scarce macos-13 runners must never gate a release); it attaches its
+  # own .dmg afterward (see macos-binary-intel). `download-artifact` (no name)
+  # pulls whatever artifacts exist at release time.
   release:
     name: Publish GitHub Release
     needs: [wheel, pyz, appimage, windows-binary, macos-binary]
