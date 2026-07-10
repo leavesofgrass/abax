@@ -23,6 +23,7 @@ try:
         raise ImportError("ABAX_QT_BINDING=PyQt6")
     from PySide6.QtCore import (
         QAbstractTableModel,
+        QByteArray,
         QEvent,
         QItemSelection,
         QItemSelectionModel,
@@ -107,6 +108,7 @@ try:
 except ImportError:  # pragma: no cover - depends on which binding is installed
     from PyQt6.QtCore import (
         QAbstractTableModel,
+        QByteArray,
         QEvent,
         QItemSelection,
         QItemSelectionModel,
@@ -200,6 +202,18 @@ try:
 except Exception:  # noqa: BLE001 — optional widget; absence is handled by callers
     QSvgWidget = None  # type: ignore
 
+# QSvgRenderer (QtSvg) paints SVG onto an arbitrary QPainter — the in-cell
+# SPARKLINE renderer. Same optionality contract as QSvgWidget: None when the
+# module is absent, and callers (the grid delegate) fall back to the unicode
+# text form of the sparkline.
+try:
+    if BINDING == "PySide6":
+        from PySide6.QtSvg import QSvgRenderer
+    else:
+        from PyQt6.QtSvg import QSvgRenderer
+except Exception:  # noqa: BLE001 — optional; absence is handled by callers
+    QSvgRenderer = None  # type: ignore
+
 # QDesktopServices/QUrl (opening a folder/URL in the OS handler) are always
 # present in a normal binding, but keep the import defensive so a stripped build
 # can't break module load — callers fall back to os.startfile.
@@ -217,6 +231,8 @@ except Exception:  # noqa: BLE001
 __all__ = [
     "BINDING",
     "QSvgWidget",
+    "QSvgRenderer",
+    "QByteArray",
     "QDesktopServices",
     "QUrl",
     "QAbstractTableModel",

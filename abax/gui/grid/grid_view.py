@@ -32,6 +32,7 @@ from .._qtcompat import (
     QPen,
     QPointF,
     QRect,
+    QRectF,
     QStyledItemDelegate,
     Qt,
     QTableView,
@@ -77,7 +78,13 @@ class GridDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):  # noqa: N802 (Qt override)
         """Draw the cell, then overlay a small red triangle on any commented cell
         and trace the dashed spill outline on any region edge passing through it —
-        the visual cues for a note and for a dynamic-array spill respectively."""
+        the visual cues for a note and for a dynamic-array spill respectively.
+        A cell whose computed value is a Sparkline paints as an inline SVG chart
+        (falling back to its unicode text form when QtSvg is unavailable)."""
+        if self._paint_sparkline(painter, option, index):
+            sheet = self._win._doc.workbook.sheet
+            self._paint_cell_borders(painter, option, sheet, index)
+            return
         super().paint(painter, option, index)
         sheet = self._win._doc.workbook.sheet
         self._paint_cell_borders(painter, option, sheet, index)
@@ -101,6 +108,36 @@ class GridDelegate(QStyledItemDelegate):
         if "right" in edges:
             painter.drawLine(rect.topRight(), rect.bottomRight())
         painter.restore()
+
+    def _paint_sparkline(self, painter, option, index) -> bool:
+        """Paint an in-cell SPARKLINE as SVG; True when the cell was handled.
+
+        Returns False for non-Sparkline cells AND when QtSvg is unavailable or
+        the SVG fails to parse — the caller then falls through to the default
+        text paint, which draws the Sparkline's unicode ``str()`` form.
+        """
+        from ...core.sparkcell import Sparkline
+
+        sheet = self._win._doc.workbook.sheet
+        val = sheet.get_value(index.row(), index.column())
+        if not isinstance(val, Sparkline):
+            return False
+        from .._qtcompat import QByteArray, QSvgRenderer
+
+        if QSvgRenderer is None:
+            return False
+        try:
+            rect = option.rect.adjusted(1, 1, -1, -1)
+            svg = val.to_svg(width=max(8, rect.width()), height=max(6, rect.height()))
+            renderer = QSvgRenderer(QByteArray(svg.encode("utf-8")))
+            if not renderer.isValid():
+                return False
+            painter.save()
+            renderer.render(painter, QRectF(rect))
+            painter.restore()
+            return True
+        except Exception:  # noqa: BLE001 — never let a chart crash the grid paint
+            return False
 
     def _paint_comment_marker(self, painter, option) -> None:
         """Fill a small red triangle in the cell's top-right corner (the note cue)."""
