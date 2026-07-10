@@ -1,11 +1,20 @@
-"""Tests for abax.core.profile — column & sheet data profiling."""
+"""Tests for abax.core.profile — data profiling and formula-recalc profiling."""
 
 from __future__ import annotations
 
 import statistics
 
-from abax.core.profile import profile_column, profile_sheet
+from abax.core.profile import (
+    CellTiming,
+    dependency_svg,
+    format_report,
+    profile_column,
+    profile_recalc,
+    profile_sheet,
+    slowest,
+)
 from abax.core.sheet import Sheet
+from abax.core.workbook import Workbook
 
 
 def test_numeric_column_stats():
@@ -143,3 +152,127 @@ def test_profile_sheet_without_header_uses_column_letters():
     assert profs[0]["dtype"] == "int"
     assert profs[0]["count"] == 2  # first row IS data here
     assert profs[1]["dtype"] == "text"
+
+
+# --- recalc profiling -------------------------------------------------------
+
+
+def _chain_workbook() -> Workbook:
+    """A1=1, A2=A1+1, … A5=A4+1, plus an independent slow-ish formula in C1."""
+    wb = Workbook()
+    sheet = wb.sheet
+    sheet.set("A1", "1")
+    for i in range(2, 6):
+        sheet.set(f"A{i}", f"=A{i - 1}+1")
+    # An independent formula that does more work than a single add.
+    sheet.set("C1", "=SUM(A1:A5)*SQRT(2)+SUMPRODUCT(A1:A5,A1:A5)")
+    return wb
+
+
+def test_profile_recalc_covers_every_formula_cell():
+    wb = _chain_workbook()
+    timings = profile_recalc(wb)
+
+    # A2..A5 (4) + C1 (1) are formulas; A1 is a literal and excluded.
+    a1s = {t.a1 for t in timings}
+    assert a1s == {"A2", "A3", "A4", "A5", "C1"}
+    assert len(timings) == 5
+
+    for t in timings:
+        assert isinstance(t, CellTiming)
+        assert t.a1 and t.formula.startswith("=")   # a1 + formula populated
+        assert t.seconds >= 0.0                      # non-negative
+        assert t.sheet == "Sheet1"
+
+
+def test_profile_recalc_sorted_descending():
+    wb = _chain_workbook()
+    timings = profile_recalc(wb)
+    secs = [t.seconds for t in timings]
+    assert secs == sorted(secs, reverse=True)
+
+
+def test_profile_recalc_repeat_averages():
+    wb = _chain_workbook()
+    timings = profile_recalc(wb, repeat=3)
+    assert len(timings) == 5
+    assert all(t.seconds >= 0.0 for t in timings)
+
+
+def test_profile_recalc_sheet_selector():
+    wb = _chain_workbook()
+    by_name = profile_recalc(wb, sheet="Sheet1")
+    by_obj = profile_recalc(wb, sheet=wb.sheet)
+    assert {t.a1 for t in by_name} == {"A2", "A3", "A4", "A5", "C1"}
+    assert {t.a1 for t in by_obj} == {"A2", "A3", "A4", "A5", "C1"}
+    # An unknown sheet name profiles nothing.
+    assert profile_recalc(wb, sheet="Nope") == []
+
+
+def test_slowest_limits_count():
+    wb = _chain_workbook()
+    top = slowest(wb, n=3)
+    assert len(top) == 3
+    # It is a prefix of a full, descending profile (compare within one run —
+    # absolute timings are noisy across separate runs).
+    full = profile_recalc(wb)
+    assert [t.seconds for t in full] == sorted((t.seconds for t in full), reverse=True)
+    assert len(full) == 5
+
+
+def test_format_report_contains_refs_and_ms():
+    wb = _chain_workbook()
+    report = format_report(profile_recalc(wb))
+    assert "ms" in report
+    for ref in ("A2", "A5", "C1"):
+        assert ref in report
+    # Rank column and a formula snippet are present.
+    assert "Formula" in report
+
+
+def test_dependency_svg_precedents_of_a5():
+    wb = _chain_workbook()
+    svg = dependency_svg(wb.sheet, *_a1("A5"), direction="precedents")
+    assert "<svg" in svg
+    # The whole chain A1..A5 shows up as node labels.
+    for ref in ("A1", "A2", "A3", "A4", "A5"):
+        assert ref in svg
+    # Boxes and edges are drawn.
+    assert "<line" in svg
+    assert "<rect" in svg
+
+
+def test_dependency_svg_dependents_direction():
+    wb = _chain_workbook()
+    svg = dependency_svg(wb.sheet, *_a1("A1"), direction="dependents")
+    assert "<svg" in svg
+    # A1 feeds A2 and C1 (directly).
+    assert "A2" in svg and "C1" in svg
+
+
+def test_dependency_svg_bad_direction_raises():
+    wb = _chain_workbook()
+    try:
+        dependency_svg(wb.sheet, *_a1("A5"), direction="sideways")
+    except ValueError:
+        pass
+    else:  # pragma: no cover
+        raise AssertionError("expected ValueError for a bad direction")
+
+
+def test_empty_sheet_profiles_and_svg():
+    wb = Workbook()  # a single blank Sheet1
+    assert profile_recalc(wb) == []
+    assert slowest(wb, n=5) == []
+    # format_report tolerates an empty timing list.
+    assert isinstance(format_report([]), str)
+    # A dependency SVG on a blank cell is still valid SVG.
+    svg = dependency_svg(wb.sheet, *_a1("A1"))
+    assert svg.startswith("<svg")
+    assert svg.rstrip().endswith("</svg>")
+
+
+def _a1(ref: str) -> tuple[int, int]:
+    from abax.core.reference import parse_a1
+
+    return parse_a1(ref)
