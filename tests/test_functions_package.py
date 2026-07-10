@@ -20,9 +20,9 @@ _hamlog.register(FUNCTIONS)
 
 def test_registry_sizes():
     # 601 built-in packs (incl. ENCODEURL/HYPERLINK) + 2 from the ham-logging
-    # pack (ISDUPE, QSOPOINTS) + 3 live-data formulas (REST, WEBSOCKET,
-    # WEBSERVICE) + FILTERXML + SPARKLINE. GETPIVOTDATA is CONTEXT (not here).
-    assert len(FUNCTIONS) == 608
+    # pack (ISDUPE, QSOPOINTS) + 4 live-data formulas (REST, WEBSOCKET,
+    # WEBSERVICE, RESTTABLE) + FILTERXML + SPARKLINE. GETPIVOTDATA is CONTEXT.
+    assert len(FUNCTIONS) == 609
     assert len(LAZY_FUNCTIONS) == 6
 
 

@@ -19,6 +19,7 @@ SCHEMA_VERSION = 2
 
 class Workbook:
     def __init__(self) -> None:
+        from .connections import ConnectionRegistry
         from .names import NameRegistry
         from .tables import TableRegistry
 
@@ -26,6 +27,10 @@ class Workbook:
         self.active: int = 0
         self.names = NameRegistry()
         self.tables = TableRegistry()
+        # Named, refreshable data sources (REST/SQL/web-table). Only non-secret
+        # metadata is stored here / persisted; credentials live session-only in
+        # sandbox.SecretsHolder keyed by Connection.secret_ref.
+        self.connections = ConnectionRegistry()
         # Calculation mode: "auto" recomputes dependents on every edit (via the
         # incremental dependency graph); "manual" defers all dependent recalc
         # until recalculate() (the GUI's F9), for very large/slow sheets.
@@ -225,11 +230,13 @@ class Workbook:
         self.active = other.active
         self.names = other.names
         self.tables = other.tables
+        self.connections = other.connections
         self._link_sheets()
         self._reset_depgraph()  # sheet set replaced — rebuild the index lazily
 
     @classmethod
     def from_sheets(cls, sheets, active: int = 0) -> "Workbook":
+        from .connections import ConnectionRegistry
         from .names import NameRegistry
         from .tables import TableRegistry
 
@@ -238,6 +245,7 @@ class Workbook:
         wb.active = active
         wb.names = NameRegistry()
         wb.tables = TableRegistry()
+        wb.connections = ConnectionRegistry()
         wb._add_default_if_empty()
         wb.active = min(max(wb.active, 0), len(wb.sheets) - 1)
         return wb
@@ -297,6 +305,9 @@ class Workbook:
                 "names": self.names.to_dict(),
                 # Omitted when empty to keep files lean (older readers ignore it).
                 **({"tables": self.tables.to_dict()} if len(self.tables) else {}),
+                # Non-secret connection metadata only (credentials never persist).
+                **({"connections": self.connections.to_dict()}
+                   if len(self.connections) else {}),
                 "sheets": [
                     {
                         "name": s.name,
@@ -333,6 +344,7 @@ class Workbook:
         version = env.get("schema_version", 0)
         data = env.get("data", env)  # tolerate bare payloads
         data = _migrate(data, version)
+        from .connections import ConnectionRegistry
         from .format.cellstyle import CellStyle
         from .format.condformat import CondRule
         from .names import NameRegistry
@@ -342,6 +354,7 @@ class Workbook:
         wb.sheets = []
         wb.names = NameRegistry.from_dict(data.get("names", {}))
         wb.tables = TableRegistry.from_dict(data.get("tables", {}))
+        wb.connections = ConnectionRegistry.from_dict(data.get("connections", {}))
         for s in data.get("sheets", []):
             sheet = Sheet.from_dict(s["name"], s.get("cells", {}))
             sheet.cond_rules = [CondRule.from_dict(d) for d in s.get("cond_rules", [])]

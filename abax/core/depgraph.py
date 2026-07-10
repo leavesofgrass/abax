@@ -52,7 +52,7 @@ ABAX_INCREMENTAL = os.environ.get("ABAX_INCREMENTAL", "1") not in ("0", "false",
 #   dynamic-ref  — the cells they read are computed from runtime values
 ALWAYS_DIRTY_FUNCS = frozenset({
     "NOW", "TODAY", "RAND", "RANDBETWEEN", "RANDARRAY",  # volatile
-    "REST", "WEBSOCKET", "WEBSERVICE",                    # live data (push-updated)
+    "REST", "WEBSOCKET", "WEBSERVICE", "RESTTABLE",       # live data (push-updated)
     "INDIRECT", "OFFSET",                                 # dynamic reference
 })
 

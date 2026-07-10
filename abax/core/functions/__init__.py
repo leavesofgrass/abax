@@ -192,7 +192,7 @@ _arrayfuncs.register(FUNCTIONS)
 for _pack in ("math_fns", "stats_dist", "text_datetime_fns", "finance_fns",
               "finance_bonds", "engineering_fns", "gnumeric_fns", "gnumeric_math",
               "gnumeric_stats", "excel_modern", "dist_dotted", "regex_fns",
-              "livefuncs", "sparkcell"):
+              "livefuncs", "sparkcell", "livearray"):
     try:
         _mod = __import__(f"abax.core.{_pack}", fromlist=["register"])
         _mod.register(FUNCTIONS)
