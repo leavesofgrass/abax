@@ -59,6 +59,7 @@ HELP_ENTRIES: list[tuple[str, str]] = [
     (":live [on|off]", "toggle network live data (REST/WEBSOCKET)"),
     (":extern [on|off]", "toggle closed-workbook external references"),
     (":table [NAME]", "name the current region as a table (Table1[Col] refs) / list tables"),
+    (":auth HOST HEADER VALUE", "set a session-only live-data request header (:noauth to clear)"),
     (":func [filter]", "browse function names"),
     (":rpn [tokens]", "RPN calculator (REPL or one-shot)"),
     (":plot <expr|range>", "plot an expression or cell range(s)"),
@@ -388,8 +389,29 @@ class TuiEditor:
             self._handle_extern(args)
         elif cmd == "table":
             self._handle_table(args)
+        elif cmd in ("auth", "noauth"):
+            self._handle_auth(cmd, args)
         else:
             self.message = f"unknown command: {cmd}"
+
+    def _handle_auth(self, cmd: str, args: list) -> None:
+        """``:auth HOST HEADER VALUE...`` sets a **session-only** request header
+        for live-data fetches to HOST (e.g. ``:auth api.x Authorization Bearer t``);
+        ``:auth`` lists configured hosts (never values); ``:noauth [HOST]`` clears."""
+        from ..core.livecreds import CREDS, redact
+
+        if cmd == "noauth":
+            CREDS.clear(args[0] if args else None)
+            self.message = "cleared credentials for " + (args[0] if args else "all hosts")
+            return
+        if len(args) < 3:
+            hosts = CREDS.hosts()
+            self.message = ("auth hosts: " + (", ".join(hosts) if hosts else "none")
+                            + "  ·  :auth HOST HEADER VALUE (session only)")
+            return
+        host, header, value = args[0], args[1], " ".join(args[2:])
+        CREDS.set_headers(host, {header: value})
+        self.message = f"auth set for {host}: {header}={redact(value)} (session only)"
 
     def _handle_table(self, args: list) -> None:
         """``:table NAME`` — name the current region as a structured table

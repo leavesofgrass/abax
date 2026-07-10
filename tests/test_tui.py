@@ -1519,3 +1519,20 @@ def test_shell_passthrough_exports_selection_env(monkeypatch):
     assert env is not None
     assert env["ABAX_ACTIVE_CELL"] == "A1"
     assert "ABAX_SELECTION_JSON" in env
+
+
+def test_auth_command_sets_session_header():
+    from abax.core.livecreds import CREDS
+
+    ed = TuiEditor(Document())
+    try:
+        ed.command_buf = ":auth api.example.com Authorization Bearer tok123"
+        ed.run_command()
+        assert "api.example.com" in CREDS.hosts()
+        assert CREDS.headers_for("https://api.example.com/x")["Authorization"] == "Bearer tok123"
+        assert "tok123" not in ed.message   # redacted in the echo
+        ed.command_buf = ":noauth api.example.com"
+        ed.run_command()
+        assert "api.example.com" not in CREDS.hosts()
+    finally:
+        CREDS.clear()

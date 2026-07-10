@@ -279,11 +279,14 @@ def rest_transport(url: str, *, interval: float, stop_event: threading.Event) ->
     """Poll a JSON REST endpoint every *interval* seconds via stdlib urllib."""
     import urllib.request
 
+    from .livecreds import build_request
+
     delay = max(0.5, float(interval))
     while not stop_event.is_set():
         try:
-            req = urllib.request.Request(
-                url, headers={"User-Agent": "abax-livedata/1", "Accept": "application/json"})
+            # build_request overlays any session-only credential headers
+            # (CredentialStore) for this URL's host on top of the defaults.
+            req = build_request(url, accept="application/json")
             with urllib.request.urlopen(req, timeout=10) as resp:  # noqa: S310 — scheme checked
                 raw = resp.read()
             yield (True, json.loads(raw.decode("utf-8", "replace")))
@@ -304,9 +307,10 @@ def webservice_transport(url: str, *, interval: float, stop_event: threading.Eve
     """
     import urllib.request
 
+    from .livecreds import build_request
+
     try:
-        req = urllib.request.Request(
-            url, headers={"User-Agent": "abax-webservice/1"})
+        req = build_request(url, user_agent="abax-webservice/1")
         with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310 — scheme checked
             raw = resp.read()
         yield (True, raw.decode("utf-8", "replace"))
