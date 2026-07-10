@@ -11,6 +11,7 @@ from abax.core.pivotspec import (
     build_pivot,
     distinct_values,
     field_names,
+    filter_values,
 )
 
 # region -> quarter -> product -> sales
@@ -28,6 +29,13 @@ def test_field_names_and_distinct():
     assert field_names(DATA) == ["region", "quarter", "product", "sales"]
     assert distinct_values(DATA, "region") == ["East", "West"]
     assert distinct_values(DATA, "quarter") == ["Q1", "Q2"]
+
+
+def test_filter_values_offers_all_then_distinct():
+    # filter_values reuses distinct_values but leads with the ALL sentinel so a
+    # picker can default to "no restriction".
+    assert filter_values(DATA, "quarter") == [ALL, "Q1", "Q2"]
+    assert filter_values(DATA, "region") == [ALL, "East", "West"]
 
 
 def test_group_by_mode_single_value():
@@ -59,13 +67,36 @@ def test_pivot_mode_with_column_field():
     assert by_region["East"] == ["East", "5", "7"]
 
 
-def test_pivot_multi_row_uses_composite_index():
+def test_pivot_multi_row_yields_nested_columns():
+    # Two row fields + a column field → separate leading columns (true nested
+    # rows), NOT a single "region / product" joined string.
     spec = PivotSpec(row_fields=["region", "product"], column_field="quarter",
                      value_fields=["sales"], aggs=["sum"])
     out = build_pivot(DATA, spec)
-    assert out[0][0] == "region / product"
-    labels = {r[0] for r in out[1:]}
-    assert "West / A" in labels and "East / B" in labels
+    assert out[0] == ["region", "product", "Q1", "Q2"]
+    assert "region / product" not in out[0]
+    body = {(r[0], r[1]): r for r in out[1:]}
+    assert body[("East", "B")] == ["East", "B", "5", "7"]
+    assert body[("West", "A")] == ["West", "A", "10", "20"]
+    assert body[("West", "B")] == ["West", "B", "3", ""]   # no Q2 for West/B
+
+
+def test_pivot_nested_rows_with_margins():
+    # Nested rows still pass margins through: Total row keeps its label in the
+    # first leading column, the rest blank.
+    spec = PivotSpec(row_fields=["region", "product"], column_field="quarter",
+                     value_fields=["sales"], aggs=["sum"], margins=True)
+    out = build_pivot(DATA, spec)
+    assert out[0] == ["region", "product", "Q1", "Q2", "Total"]
+    assert out[-1] == ["Total", "", "18", "27", "45"]
+
+
+def test_pivot_single_row_with_column_unchanged():
+    # The single-row-field path must stay exactly as before (one index column).
+    spec = PivotSpec(row_fields=["region"], column_field="quarter",
+                     value_fields=["sales"], aggs=["sum"])
+    out = build_pivot(DATA, spec)
+    assert out[0] == ["region", "Q1", "Q2"]
 
 
 def test_filters_restrict_rows():

@@ -7,9 +7,11 @@ primitives in :mod:`abax.core.pivot`:
 
 * no Columns field  → :func:`~abax.core.pivot.group_by` over the Row fields
   (one aggregated column per Value field, merged on the group key);
-* one Columns field → :func:`~abax.core.pivot.pivot_table` (multiple Row fields
-  are joined into one composite index column, since the classic pivot indexes on
-  a single field), with the Value fields as ``value_cols``.
+* one Columns field → :func:`~abax.core.pivot.pivot_table` with the Value fields
+  as ``value_cols``. A single Row field indexes the pivot directly; **multiple**
+  Row fields are pivoted on a composite index that is then split back into one
+  leading column per row field (true nested rows), so the group keys stay in
+  their own columns rather than collapsing into one ``" / "``-joined string.
 
 Filters keep only the rows whose cell in a filter field equals a chosen value.
 Keeping this pure (no Qt) makes the whole builder unit-testable; the sidebar is a
@@ -58,6 +60,15 @@ def distinct_values(rows: list[list[str]], name: str) -> list[str]:
     return sorted(seen)
 
 
+def filter_values(rows: list[list[str]], field: str) -> list[str]:
+    """Keep-value picker options for a filter *field*.
+
+    Reuses :func:`distinct_values`, prefixing the :data:`ALL` sentinel so the UI
+    can offer "no restriction" as the default choice: ``[ALL, *distinct]``.
+    """
+    return [ALL, *distinct_values(rows, field)]
+
+
 def _apply_filters(rows: list[list[str]], filters: dict[str, str]) -> list[list[str]]:
     active = {f: v for f, v in filters.items() if v not in (None, "", ALL)}
     if not active:
@@ -70,17 +81,55 @@ def _apply_filters(rows: list[list[str]], filters: dict[str, str]) -> list[list[
     return out
 
 
-def _composite_index(rows: list[list[str]], row_fields: list[str]) -> tuple[list[list[str]], str]:
-    """Add a derived column joining *row_fields*; return (new_rows, its_name)."""
+def _composite_index(
+    rows: list[list[str]], row_fields: list[str],
+) -> tuple[list[list[str]], str, dict[str, tuple[str, ...]]]:
+    """Add a derived column joining *row_fields*.
+
+    Returns ``(new_rows, name, mapping)`` where *mapping* takes each composite
+    cell string back to the tuple of individual row-field values — so a nested
+    pivot can split the joined index back into one column per row field.
+    """
     name = " / ".join(row_fields)
     existing = field_names(rows)
     while name in existing:
         name += " "
     idxs = [_header_index(rows, f) for f in row_fields]
     new_rows = [[*rows[0], name]]
+    mapping: dict[str, tuple[str, ...]] = {}
     for row in rows[1:]:
-        new_rows.append([*row, " / ".join(_cell(row, i) for i in idxs)])
-    return new_rows, name
+        key = tuple(_cell(row, i) for i in idxs)
+        joined = " / ".join(key)
+        mapping[joined] = key
+        new_rows.append([*row, joined])
+    return new_rows, name, mapping
+
+
+def _split_nested_rows(
+    result: list[list[str]], row_fields: list[str],
+    mapping: dict[str, tuple[str, ...]], margins_name: str = "Total",
+) -> list[list[str]]:
+    """Split a composite-index pivot's leading column into per-row-field columns.
+
+    *result* is a :func:`~abax.core.pivot.pivot_table` block whose first column
+    holds the ``" / "``-joined row-field keys. Replace that single column with
+    ``len(row_fields)`` separate columns, repeating each group's key values. A
+    grand-total (margins) row keyed *margins_name* keeps that label in the first
+    column with the remaining leading columns left blank.
+    """
+    n = len(row_fields)
+    out = [[*row_fields, *result[0][1:]]]
+    for row in result[1:]:
+        key = row[0]
+        tup = mapping.get(key)
+        if tup is not None:
+            lead = list(tup)
+        elif key == margins_name:
+            lead = [margins_name, *[""] * (n - 1)]
+        else:  # defensive: fall back to splitting the joined string
+            lead = (key.split(" / ") + [""] * n)[:n]
+        out.append([*lead, *row[1:]])
+    return out
 
 
 def _group_multi(rows: list[list[str]], row_fields: list[str],
@@ -116,18 +165,25 @@ def build_pivot(rows: list[list[str]], spec: PivotSpec) -> list[list[str]]:
     if not spec.column_field:
         return _group_multi(data, spec.row_fields, spec.value_fields, aggs)
 
-    # One column field → classic pivot. Collapse multiple row fields into a
-    # single composite index column (the pivot indexes on one field).
+    # One column field → classic pivot. A single row field indexes directly; two
+    # or more are pivoted on a composite index, then split back into separate
+    # leading columns (true nested rows) rather than a joined string.
     if len(spec.row_fields) > 1:
-        data, index_col = _composite_index(data, spec.row_fields)
-    else:
-        index_col = spec.row_fields[0]
+        composite, index_col, mapping = _composite_index(data, spec.row_fields)
+        result = _pivot_block(composite, index_col, spec, aggs)
+        return _split_nested_rows(result, spec.row_fields, mapping)
 
+    return _pivot_block(data, spec.row_fields[0], spec, aggs)
+
+
+def _pivot_block(rows: list[list[str]], index_col: str, spec: PivotSpec,
+                 aggs: list[str]) -> list[list[str]]:
+    """Run :func:`~abax.core.pivot.pivot_table` for *spec* on a single index col."""
     if len(spec.value_fields) == 1:
         return pivot_table(
-            data, index_col, spec.column_field, spec.value_fields[0], aggs[0],
+            rows, index_col, spec.column_field, spec.value_fields[0], aggs[0],
             margins=spec.margins, pct_of=spec.pct_of)
     return pivot_table(
-        data, index_col, spec.column_field,
+        rows, index_col, spec.column_field,
         value_cols=spec.value_fields, aggs=aggs,
         margins=spec.margins, pct_of=spec.pct_of)

@@ -34,7 +34,7 @@ from .._qtcompat import (
     QWidget,
 )
 from ...core import pivot as P
-from ...core.pivotspec import PivotSpec, build_pivot, distinct_values, field_names
+from ...core.pivotspec import ALL, PivotSpec, build_pivot, field_names, filter_values
 from ...core.reference import parse_a1, parse_range, to_a1
 
 _FIELD_ROLE = Qt.ItemDataRole.UserRole
@@ -76,6 +76,8 @@ class PivotSidebar(QDockWidget):
     # -- construction ------------------------------------------------------
 
     def _build(self) -> None:
+        # field -> chosen keep-value for the per-field filter picker (ALL = none).
+        self._filter_vals: dict[str, str] = {}
         root = QWidget()
         outer = QVBoxLayout(root)
 
@@ -112,6 +114,16 @@ class PivotSidebar(QDockWidget):
             self._areas[kind] = area
             lay.addWidget(area)
             outer.addWidget(box)
+
+        # Per-field filter value picker (enabled when a Filters field is selected).
+        filt_row = QHBoxLayout()
+        filt_row.addWidget(QLabel("Keep value:"))
+        self._filter_combo = QComboBox()
+        self._filter_combo.setEnabled(False)
+        self._filter_combo.currentIndexChanged.connect(self._apply_filter_value)
+        filt_row.addWidget(self._filter_combo)
+        outer.addLayout(filt_row)
+        self._areas["filters"].itemSelectionChanged.connect(self._sync_filter_combo)
 
         # Values aggregation + remove.
         agg_row = QHBoxLayout()
@@ -282,7 +294,7 @@ class PivotSidebar(QDockWidget):
         filters = {}
         for i in range(self._areas["filters"].count()):
             f = self._field_of(self._areas["filters"].item(i))
-            filters[f] = self._filter_value(f)
+            filters[f] = self._filter_vals.get(f, ALL)
         return PivotSpec(
             row_fields=rows_f,
             column_field=cols[0] if cols else None,
@@ -291,17 +303,45 @@ class PivotSidebar(QDockWidget):
             pct_of=self._pct.currentData(),
         )
 
-    def _filter_value(self, field: str) -> str:
-        """The chosen keep-value for a filter field (first distinct value here).
+    def set_filter_value(self, field: str, value: str) -> None:
+        """Set the keep-value for a Filters *field* (:data:`ALL` = no restriction).
 
-        A per-field value picker is a future refinement; for now a filtered field
-        keeps its first distinct value, which is still a useful slice control.
+        The programmatic counterpart to the keep-value picker, so headless tests
+        (and callers) can choose a filter's slice without a real combo event.
         """
+        self._filter_vals[field] = value
+        cur = self._areas["filters"].currentItem()
+        if cur is not None and self._field_of(cur) == field:
+            self._sync_filter_combo()
+        self._on_changed()
+
+    def _sync_filter_combo(self) -> None:
+        """Repopulate the keep-value picker for the currently selected filter."""
+        combo = self._filter_combo
+        it = self._areas["filters"].currentItem()
+        combo.blockSignals(True)
+        combo.clear()
+        if it is None:
+            combo.setEnabled(False)
+            combo.blockSignals(False)
+            return
+        field = self._field_of(it)
         try:
-            vals = distinct_values(self._rows(), field)
-        except Exception:  # noqa: BLE001
-            return ""
-        return vals[0] if vals else ""
+            options = filter_values(self._rows(), field)
+        except Exception:  # noqa: BLE001 — bad range → just offer "no restriction"
+            options = [ALL]
+        combo.addItems(options)
+        idx = combo.findText(self._filter_vals.get(field, ALL))
+        combo.setCurrentIndex(idx if idx >= 0 else 0)
+        combo.setEnabled(True)
+        combo.blockSignals(False)
+
+    def _apply_filter_value(self) -> None:
+        it = self._areas["filters"].currentItem()
+        if it is None:
+            return
+        self._filter_vals[self._field_of(it)] = self._filter_combo.currentText() or ALL
+        self._on_changed()
 
     def _on_changed(self) -> None:
         self.refresh_preview()

@@ -96,6 +96,54 @@ def test_sidebar_values_agg_and_remove():
     assert "Values" in dock._status.text()
 
 
+def test_sidebar_filter_value_picker_flows_into_spec_and_preview():
+    _app()
+    win = _window_with_data()
+    from abax.core.pivotspec import ALL
+    from abax.gui.dialogs.pivot_sidebar import PivotSidebar
+
+    dock = PivotSidebar(win)
+    dock._range.setText("A1:C4")
+    dock.reload_fields()
+    dock.add_to("rows", "region")
+    dock.add_to("values", "sales", "sum")
+    dock.add_to("filters", "quarter")
+
+    # Default keep-value is (All): no restriction, so both quarters are pooled.
+    spec = dock.current_spec()
+    assert spec.filters == {"quarter": ALL}
+    body = {r[0]: r[1] for r in dock.build()[1:]}
+    assert body["West"] == "30"   # 10 (Q1) + 20 (Q2)
+    assert body["East"] == "5"
+
+    # Pick Q1 → the spec restricts and the preview re-renders.
+    dock.set_filter_value("quarter", "Q1")
+    assert dock.current_spec().filters == {"quarter": "Q1"}
+    body = {r[0]: r[1] for r in dock.build()[1:]}
+    assert body["West"] == "10"   # only West Q1
+    assert body["East"] == "5"
+    labels = {dock._preview.item(i, 0).text() for i in range(dock._preview.rowCount())}
+    assert labels == {"West", "East"}
+
+
+def test_sidebar_filter_combo_populates_on_selection():
+    _app()
+    win = _window_with_data()
+    from abax.core.pivotspec import ALL
+    from abax.gui.dialogs.pivot_sidebar import PivotSidebar
+
+    dock = PivotSidebar(win)
+    dock._range.setText("A1:C4")
+    dock.reload_fields()
+    dock.add_to("filters", "quarter")
+
+    # Selecting the filter field populates the picker: (All) + distinct values.
+    dock._areas["filters"].setCurrentRow(0)
+    assert dock._filter_combo.isEnabled()
+    items = [dock._filter_combo.itemText(i) for i in range(dock._filter_combo.count())]
+    assert items == [ALL, "Q1", "Q2"]
+
+
 def test_sidebar_menu_toggle_creates_dock():
     _app()
     win = _window_with_data()
