@@ -22,6 +22,23 @@ class ToolsMixin:
                 f"iterative recalc: {iters} pass(es), "
                 + ("converged" if converged else "did NOT converge (hit the cap)"))
             return
+        # Large sheets: a cancellable progress dialog (F9 can be aborted). The
+        # cancellation is cooperative — QProgressDialog pumps its own events on
+        # setValue(), so the Cancel button registers between chunks (no threads).
+        total = sum(len(s._cells) for s in wb.sheets)
+        if total >= 20000:
+            from ._qtcompat import QProgressDialog, Qt
+
+            dlg = QProgressDialog("Recalculating…", "Cancel", 0, total, self)
+            dlg.setWindowModality(Qt.WindowModality.WindowModal)
+            dlg.setMinimumDuration(0)
+            completed = wb.recalculate(
+                should_cancel=dlg.wasCanceled,
+                progress=lambda done, tot: dlg.setValue(done))
+            dlg.close()
+            self.refresh_table()
+            self._set_status("recalculated" if completed else "recalc cancelled (sheet stays dirty)")
+            return
         wb.recalculate()
         self.refresh_table()
         self._set_status("recalculated")

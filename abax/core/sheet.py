@@ -902,12 +902,31 @@ class Sheet:
         tail = f"\n\n*… {', '.join(notes)}*" if notes else ""
         return f"**{self.name}**\n\n" + "\n".join([header, rule, *rows]) + tail
 
-    def recalculate(self) -> None:
-        """Force a full recompute (clears caches, evaluates every cell)."""
+    def recalculate(self, *, should_cancel=None, tick=None) -> None:
+        """Force a full recompute (clears caches, evaluates every cell).
+
+        With ``should_cancel``/``tick`` omitted this is the original tight loop
+        (zero added overhead). When given, ``should_cancel()`` is polled before
+        each cell — returning truthy raises :class:`RecalcCancelled` after the
+        caches were cleared (so the workbook is left partially recomputed and
+        marked dirty) — and ``tick()`` fires once per evaluated cell so the
+        workbook can drive a progress bar. Used by the GUI's cancellable F9 on
+        large sheets.
+        """
         self._value_cache.clear()
         self._spill_dirty = True
-        for r, c in list(self._cells):
+        cells = list(self._cells)
+        if should_cancel is None and tick is None:
+            for r, c in cells:
+                self.get_value(r, c)
+            return
+        from .workbook import RecalcCancelled
+        for r, c in cells:
+            if should_cancel is not None and should_cancel():
+                raise RecalcCancelled()
             self.get_value(r, c)
+            if tick is not None:
+                tick()
 
     # --- serialization helpers -------------------------------------------
 

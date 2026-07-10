@@ -17,6 +17,14 @@ from .sheet import Sheet
 SCHEMA_VERSION = 2
 
 
+class RecalcCancelled(Exception):
+    """Raised inside a recalc when its ``should_cancel`` callback returns truthy.
+
+    Caught by ``Workbook.recalculate`` (which returns ``False``); a caller using
+    ``Sheet.recalculate`` directly should catch it too.
+    """
+
+
 class Workbook:
     def __init__(self) -> None:
         from .connections import ConnectionRegistry
@@ -287,10 +295,50 @@ class Workbook:
         if mode == "auto" and self._calc_dirty:
             self.recalculate()
 
-    def recalculate(self) -> None:
-        for sheet in self.sheets:
-            sheet.recalculate()
+    def recalculate(self, *, should_cancel=None, progress=None) -> bool:
+        """Full recompute of every sheet. Returns ``True`` when it completed.
+
+        With both callbacks omitted this is the original tight loop. Otherwise:
+
+        * ``should_cancel()`` is polled between cells — when it returns truthy the
+          recalc stops, the workbook is left partially recomputed and dirty
+          (``_calc_dirty``), and this returns ``False`` instead of raising, so a
+          cancelled F9 is a normal outcome rather than an error.
+        * ``progress(done, total)`` fires as cells are evaluated (throttled to
+          ~every 256 cells, plus a final 100% call), for a progress bar.
+
+        Cancellation is *cooperative*: because Python's GIL serializes formula
+        evaluation, the win here is responsiveness (abort a runaway recalc, show
+        progress) — the GUI pumps events inside ``progress`` and sets the cancel
+        flag from the button, no worker thread needed. Results are byte-identical
+        to the plain recalc when the run completes.
+        """
+        if should_cancel is None and progress is None:
+            for sheet in self.sheets:
+                sheet.recalculate()
+            self._calc_dirty = False
+            return True
+
+        total = sum(len(s._cells) for s in self.sheets) or 1
+        done = [0]
+
+        def _tick() -> None:
+            done[0] += 1
+            if progress is not None and (done[0] & 0xFF) == 0:
+                progress(done[0], total)
+
+        try:
+            for sheet in self.sheets:
+                sheet.recalculate(should_cancel=should_cancel, tick=_tick)
+        except RecalcCancelled:
+            self._calc_dirty = True  # partial recompute — stays dirty
+            if progress is not None:
+                progress(done[0], total)
+            return False
+        if progress is not None:
+            progress(total, total)
         self._calc_dirty = False
+        return True
 
     # --- JSON persistence (native format) --------------------------------
 
