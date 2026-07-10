@@ -72,6 +72,13 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._clip = None  # last copied region (core.fill.Clip)
         self._clip_values = None  # same region as displayed values, for Paste Special
         self._clipboard = ClipboardManager()  # text/copy history
+        # Power-user config: ~/.config/abax/init.py (trusted path). Gives the
+        # macro manager its init.py entries and merges any registered formula
+        # functions (UDFs) into the live registries. Never raises; a broken
+        # init.py is surfaced on the status bar after the UI is up.
+        from ..userconfig import apply_user_functions, load_user_config
+        self.user_config = load_user_config()
+        apply_user_functions(self.user_config)
         self._setup_ui()
         from .grid.frozen_panes import FrozenPanes
         from .grid.grid_view import GridDelegate
@@ -89,8 +96,12 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._start_live_data()
         self._update_status_cluster()
         self._restore_window_state()
-        self.statusBar().showMessage(
-            "Ctrl+Shift+P: all commands   ·   F1: shortcuts   ·   Ctrl+K: calculator")
+        if getattr(self.user_config, "errors", None):
+            self.statusBar().showMessage(
+                "init.py: " + self.user_config.errors[0].splitlines()[0][:120], 8000)
+        else:
+            self.statusBar().showMessage(
+                "Ctrl+Shift+P: all commands   ·   F1: shortcuts   ·   Ctrl+K: calculator")
         # The calculator is NOT auto-opened on launch — open it on demand (Ctrl+K).
         # Its model/style are still remembered for when it is opened.
 

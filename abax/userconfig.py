@@ -25,11 +25,14 @@ accidentally clobber the package by assigning to it. The facade forwards
 ``bind_key`` / ``register_macro_menu`` / ``register_function`` to a fresh
 :class:`UserConfig` and exposes ``abax.__version__`` for display.
 
-Registered functions are only *collected* here — this module never touches the
-live engine registries in :mod:`abax.core.functions`. The integrator is
-responsible for merging a loaded config's ``functions`` / ``lazy_functions`` /
-``context_functions`` into ``FUNCTIONS`` / ``LAZY_FUNCTIONS`` /
-``CONTEXT_FUNCTIONS`` on the trusted init-file path.
+Registered functions are only *collected* by :func:`load_user_config` — loading
+never touches the live engine registries in :mod:`abax.core.functions` (so tests
+can load throwaway init files without polluting global state). The frontends
+(GUI/TUI) opt in explicitly by calling :func:`apply_user_functions` on the
+trusted init-file path, which merges the collected ``functions`` /
+``lazy_functions`` / ``context_functions`` into ``FUNCTIONS`` /
+``LAZY_FUNCTIONS`` / ``CONTEXT_FUNCTIONS`` (last-write-wins, so a user function
+may deliberately shadow a built-in).
 
 SECURITY
 --------
@@ -335,3 +338,29 @@ def load_user_config(path: Optional[str] = None) -> UserConfig:
         config.errors.append(f"{type(exc).__name__} in {init_file}: {exc}\n{tb}")
 
     return config
+
+
+def apply_user_functions(config: UserConfig) -> int:
+    """Merge *config*'s collected UDFs into the live formula registries.
+
+    The explicit opt-in step the frontends call after :func:`load_user_config`
+    on the trusted init-file path. Kept separate from loading so that merely
+    *loading* an init file (tests, tooling) never mutates global engine state.
+
+    Merging is ``dict.update`` per registry — last-write-wins, so a user
+    function may deliberately shadow a built-in of the same name. Idempotent:
+    re-applying the same config is a no-op.
+
+    Returns:
+        The number of function names merged (across all three registries).
+    """
+    if not (config.functions or config.lazy_functions or config.context_functions):
+        return 0
+    # Imported lazily: the registries transitively import the whole function
+    # engine, which this light module must not pull in at import time.
+    from .core.functions import CONTEXT_FUNCTIONS, FUNCTIONS, LAZY_FUNCTIONS
+
+    FUNCTIONS.update(config.functions)
+    LAZY_FUNCTIONS.update(config.lazy_functions)
+    CONTEXT_FUNCTIONS.update(config.context_functions)
+    return len(config.functions) + len(config.lazy_functions) + len(config.context_functions)

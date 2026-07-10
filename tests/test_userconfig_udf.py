@@ -241,3 +241,43 @@ def test_udf_registration_is_additive_to_bindings(tmp_path: Path) -> None:
     assert cfg.keybinding("normal", "ctrl+s") is not None
     assert len(cfg.macro_menu) == 1
     assert "DOUBLE" in cfg.functions
+
+
+# --- apply_user_functions: the frontends' opt-in merge ----------------------
+
+
+def test_apply_user_functions_end_to_end(tmp_path: Path) -> None:
+    """A UDF loaded from init.py and applied evaluates in a real workbook."""
+    from abax.core.functions import FUNCTIONS
+    from abax.core.workbook import Workbook
+    from abax.userconfig import apply_user_functions
+
+    init = _write(
+        tmp_path,
+        "init.py",
+        "def double(args):\n"
+        "    return (args[0] or 0) * 2\n"
+        "abax.register_function('UDFTESTDOUBLE', double)\n",
+    )
+    cfg = load_user_config(init)
+    assert not cfg.errors
+    # Loading alone must NOT touch the live registry.
+    assert "UDFTESTDOUBLE" not in FUNCTIONS
+    try:
+        merged = apply_user_functions(cfg)
+        assert merged == 1
+        assert "UDFTESTDOUBLE" in FUNCTIONS
+        wb = Workbook()
+        wb.sheet.set_cell(0, 0, "=UDFTESTDOUBLE(21)")
+        wb.recalculate()
+        assert wb.sheet.get_value(0, 0) == 42
+        # Idempotent re-apply.
+        assert apply_user_functions(cfg) == 1
+    finally:
+        FUNCTIONS.pop("UDFTESTDOUBLE", None)  # never pollute the count canary
+
+
+def test_apply_user_functions_empty_config_is_noop() -> None:
+    from abax.userconfig import apply_user_functions
+
+    assert apply_user_functions(UserConfig()) == 0

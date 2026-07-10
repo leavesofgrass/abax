@@ -82,9 +82,12 @@ class TuiEditor:
         # Power-user config: ~/.config/abax/init.py may rebind TUI keys and add
         # macro-menu entries. Loading never raises (a broken init.py is captured
         # as an error), so this can't block startup.
-        from ..userconfig import load_user_config
+        from ..userconfig import apply_user_functions, load_user_config
 
         self.user_config = load_user_config()
+        # Trusted path: merge any init.py-registered formula functions (UDFs)
+        # into the live registries so =DOUBLE(...) etc. evaluate in this session.
+        apply_user_functions(self.user_config)
         if self.user_config.errors:
             self.message = "init.py: " + self.user_config.errors[0][:100]
         # Accessibility knobs, read defensively off the Wave-1 settings contract
