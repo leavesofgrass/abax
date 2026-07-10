@@ -39,6 +39,8 @@ See also: [index](index.md) · [data science](data-science.md) ·
 | PivotTable fields (drag-drop) | Data → Analyze → PivotTable fields (drag-drop)… | [`core/pivotspec.py`](../abax/core/pivotspec.py) |
 | Curve fit | Data → Analyze → Curve fit… | [`gui/dialogs/curvefit_dialog.py`](../abax/gui/dialogs/curvefit_dialog.py), [`core/science/curvefit.py`](../abax/core/science/curvefit.py) |
 | Goal seek | Data → Analyze → Goal seek… | [`gui/dialogs/goalseek_dialog.py`](../abax/gui/dialogs/goalseek_dialog.py), [`core/goalseek.py`](../abax/core/goalseek.py) |
+| What-if analysis | Data → Analyze → What-if analysis… | [`gui/dialogs/whatif_dialog.py`](../abax/gui/dialogs/whatif_dialog.py), [`core/whatif.py`](../abax/core/whatif.py) |
+| Formula profiler | Data → Analyze → Formula profiler… | [`gui/dialogs/profile_dialog.py`](../abax/gui/dialogs/profile_dialog.py), [`core/profile.py`](../abax/core/profile.py) |
 | Compare workbook | Data → Compare workbook… | [`core/wbdiff.py`](../abax/core/wbdiff.py) |
 | Export as HTML report | File → Export as HTML report… | [`core/io/html_report.py`](../abax/core/io/html_report.py) |
 | Graph / chart | Data → Analyze → Graph / chart… (also Insert) | [`core/graphing.py`](../abax/core/graphing.py), [`core/science/chartsvg.py`](../abax/core/science/chartsvg.py) |
@@ -142,13 +144,16 @@ Excel's PivotTable Fields, over the same [`core/pivot.py`](../abax/core/pivot.py
 engine (routing in [`core/pivotspec.py`](../abax/core/pivotspec.py)). Set a data
 range, then drag columns — or use the `→` buttons — into four areas:
 
-- **Rows** — one or more group fields (multiple are joined into one composite
-  index when a Columns field is also set);
+- **Rows** — one or more group fields. With a Columns field also set, two or
+  more Row fields become **nested rows**: one leading column per field (e.g.
+  `Region` then `Product`), not a single joined label;
 - **Columns** — an optional pivot field across the top (omit it for a plain
   multi-field group-by);
 - **Values** — one or more measures; select a Values item and pick its
   aggregation from **Summarize**;
-- **Filters** — restrict the data to a field's value before pivoting.
+- **Filters** — restrict the data to a field's value before pivoting. Select a
+  Filters field and choose a **keep-value** from the picker; it defaults to
+  `(All)` (no restriction).
 
 **Grand totals** and **% of** (grand/row/col) mirror the classic dialog. A live
 preview updates on every change; **Insert into sheet** writes the full result at
@@ -266,6 +271,41 @@ is **restored to its original text** (the sheet is left untouched) and
 `GoalSeekError` is raised. In the console,
 `goalseek.goal_seek(sheet, target_ref, target_value, changing_ref)` runs the same
 solver over A1 cell references.
+
+## What-if analysis
+
+**Data → Analyze → What-if analysis…** (dialog
+[`gui/dialogs/whatif_dialog.py`](../abax/gui/dialogs/whatif_dialog.py), core
+[`core/whatif.py`](../abax/core/whatif.py)) bundles two classic what-if tools:
+
+- **Data tables** — sweep values through an input cell and tabulate what a
+  formula produces. A **one-variable** table takes a column (or row) of inputs,
+  an input cell, and a formula cell, and writes the input→result pairs; a
+  **two-variable** table sweeps a row of inputs against a column of inputs
+  through two input cells and fills the grid with one formula's result. Inputs
+  are always **restored** afterward, even if a formula errors mid-sweep.
+- **Scenario manager** — capture a named **scenario**: a set of input cells and
+  the values they should hold. Apply one to write those values (recomputing the
+  sheet), switch between them to compare outcomes, and undo to roll back.
+  Scenarios attach to the workbook (`workbook.scenarios`) and round-trip through
+  save/load.
+
+The dialog also exposes a headless programmatic API (`run_one_var` /
+`run_two_var`) that the tests drive directly.
+
+## Formula profiler
+
+**Data → Analyze → Formula profiler…** (dialog
+[`gui/dialogs/profile_dialog.py`](../abax/gui/dialogs/profile_dialog.py), core
+[`core/profile.py`](../abax/core/profile.py)) finds what makes a recalc slow.
+**Profile now** times every formula cell — all sheets, or just one — and ranks
+them slowest-first in a monospace report (rank, cell, ms, formula); set
+**Repeat** > 1 to average several passes for a steadier estimate on
+sub-millisecond timings. Pick a cell and **Draw graph** to render its
+**precedent** (what feeds it) or **dependent** (what it feeds) dependency graph
+as a layered SVG, with an optional **Save SVG…**. The measurement functions
+(`profile.profile_recalc`, `slowest`, `format_report`, `dependency_svg`) are
+plain stdlib and callable from the console.
 
 ## Compare workbook
 

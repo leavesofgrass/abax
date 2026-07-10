@@ -61,8 +61,10 @@ def to_top(ed):
     ed.row = 0
     ed._reclamp()
 
-# Rebind a normal-mode key (rebinds override the built-in bindings).
+# Rebind a key (rebinds override the built-in bindings). Works in every TUI
+# mode: "normal", "insert", "command", "rpn", "visual", "browser".
 abax.bind_key("normal", "K", to_top, desc="jump to top")
+abax.bind_key("insert", "ctrl+w", lambda ed: ed.delete_word(), desc="del word")
 
 # Register a named entry for the macro menu / palette.
 abax.register_macro_menu("Uppercase cell", lambda ed: ed.sheet.set_cell(
@@ -77,11 +79,17 @@ abax.register_function("DOUBLE", double)
 # may deliberately shadow a built-in of the same name.
 ```
 
-Keys are matched as the literal keystroke (e.g. `"K"`). The `action` is called
-with the editor. A broken `init.py` never blocks startup — the error is captured
-and surfaced in the status line, and abax carries on with its defaults. This is
-**not** the sandboxed code-execution path (console/macros); it is your own
-config, trusted by design.
+Bare keys are matched as the literal keystroke, so case matters (`"K"` ≠ `"k"`).
+Modifier chords are **normalized**, so `"Ctrl+S"`, `"ctrl+s"` and `"C-s"` all
+name the same binding. Rebinds fire in whichever `mode` you registered them for
+(the six modes above); in `insert` and `command` mode only non-printable chords
+like `ctrl+w` are intercepted, so ordinary typing is never captured. Run
+`:map` in the TUI to list all your rebinds, or `:map <mode>` for one mode.
+
+The `action` is called with the editor. A broken `init.py` never blocks
+startup — the error is captured and surfaced in the status line, and abax
+carries on with its defaults. This is **not** the sandboxed code-execution path
+(console/macros); it is your own config, trusted by design.
 
 ## Runtime directories
 

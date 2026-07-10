@@ -651,7 +651,8 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
   Recalculate sheet (`Shift+F9`), Calculation: auto/manual,
   Analyze → (Descriptive Statistics, Statistics / analysis, SQL query, Profile
   columns, Open selection in pandas, Recode / clean column, Pivot / group-by,
-  PivotTable fields (drag-drop), Curve fit, Goal seek).
+  PivotTable fields (drag-drop), Curve fit, Goal seek, What-if analysis,
+  Formula profiler).
 - **Sheet** — New sheet (`Shift+F11`), Duplicate sheet, Rename sheet, Delete
   sheet, Next sheet (`Ctrl+PgDown`), Previous sheet (`Ctrl+PgUp`).
 - **Tools** — Scientific → (Matrix tool, Numerical solver, Signal / data tool,
@@ -700,6 +701,11 @@ docs — this is the one-line "what it does" index.
   [formula reference](formula-reference.md).
 - **Goal Seek** (*Data → Analyze*) — find the input-cell value that makes a
   target cell equal a chosen value.
+- **What-if analysis** (*Data → Analyze*) — one/two-variable data tables and a
+  scenario manager (see [data & analysis](data-analysis.md#what-if-analysis)).
+- **Formula profiler** (*Data → Analyze*) — rank formula cells by recalc cost
+  and draw a cell's dependency graph
+  (see [data & analysis](data-analysis.md#formula-profiler)).
 - **Sort** and **Filter** (*Data*) — multi-column sort; multi-condition column
   filter that hides rows failing *all* conditions.
 - **Name manager** and **Data validation** (*Data*) — as described above.

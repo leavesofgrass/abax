@@ -44,6 +44,39 @@ _Development version 0.1.11 — accumulating until the next ship signal._
 - **Named connections** — a workbook-level registry of refreshable data sources
   (REST / SQL / web-table) storing only non-secret metadata; secrets stay
   session-only (a `secret_ref` names an in-memory credential, never serialized).
+- **What-if analysis** (**Data → Analyze → What-if analysis…**) — one- and
+  two-variable **data tables** (sweep an input cell, or a row × column pair, and
+  tabulate a formula's result, restoring the inputs afterward) plus a **scenario
+  manager** (capture named sets of input-cell values, switch between them, undo).
+  Scenarios attach to the workbook and round-trip through save/load.
+- **Formula profiler** (**Data → Analyze → Formula profiler…**) — time every
+  formula cell and rank the slowest, to find what makes a recalc drag; draw any
+  cell's **precedent / dependent dependency graph** as SVG (save it out). Same
+  measurement is available programmatically via `abax.core.profile`.
+- **Deeper pivots** — the drag-drop PivotTable Fields sidebar gains a **per-field
+  keep-value picker** for Filters fields (defaulting to `(All)` = no restriction)
+  and **true nested row fields**: two or more Row fields now split into one
+  leading column each (instead of a joined label) when a Columns field is present.
+- **Per-mode key rebinding** — `init.py` `abax.bind_key(mode, key, fn)` rebinds
+  now fire in **every** TUI mode (normal, insert, command, rpn, visual, browser),
+  not just normal; key specs are normalized (`Ctrl+S` = `ctrl+s` = `C-s`), and a
+  new `:map [MODE]` command lists what is bound.
+- **Cancellable, progress-reporting recalc** — a manual recalc of a large sheet
+  (≥ 20 000 cells) shows a progress dialog you can **cancel** (it stops between
+  cells and leaves the sheet marked dirty to finish later); the plain recalc path
+  is unchanged and results are identical when a run completes. `Workbook.recalculate`
+  gained optional `should_cancel=` / `progress=` callbacks for embedders.
+- **Intel macOS build** — the release now builds **both** a `.dmg` for Apple
+  Silicon (arm64) *and* one for Intel (x86_64), from a soft-decoupled CI matrix.
+  A code-signing + notarization scaffold (`packaging/macos/sign_and_notarize.sh`)
+  is wired in but inert until the Apple Developer secrets are set, so default
+  builds stay unsigned and unchanged.
+
+### Changed
+- **Pivot Filters default** — dropping a field into the pivot's Filters box now
+  defaults to `(All)` (no restriction). Previously it silently kept only the
+  first distinct value; a preset that relied on that will now show every row
+  until you pick a keep-value.
 
 ## [0.1.10] — 2026-07-09
 
