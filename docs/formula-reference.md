@@ -522,6 +522,7 @@ never phone home. URLs are limited to `http` / `https` / `ws` / `wss`.
 | `REST` | Poll a JSON endpoint every *interval* seconds (default 5) and show a value dug out by *path* | `REST(url, [path], [interval])` | `=REST("https://api.example/quote","data.last",2)` |
 | `WEBSOCKET` | Stream JSON text frames from a WebSocket, showing the latest *path* value | `WEBSOCKET(url, [path])` | `=WEBSOCKET("wss://api.example/ticks","[0].price")` |
 | `WEBSERVICE` | Fetch an HTTP(S) URL's text body **once** (cached for the session); typically fed to `FILTERXML` or text functions | `WEBSERVICE(url)` | `=WEBSERVICE("https://api.example/data.xml")` |
+| `RESTTABLE` | Spill a JSON record list into a range — header row + one row per record; shares a poller with scalar `REST` on the same URL | `RESTTABLE(url, [records_path], [columns], [interval])` | `=RESTTABLE("https://api.x/q","data.items",{"sym";"price"})` |
 
 `WEBSERVICE` is non-blocking and shares the live-data consent (`#OFF!` when
 disabled, `#N/A` until the fetch lands); it is restricted to http/https.
@@ -536,8 +537,11 @@ e.g. `data.tickers[0].price`; omit it to show the whole document. Many cells
 watching the same URL share one background connection. A cell shows `#OFF!` while
 live data is disabled, `#N/A` until the first value arrives, then the value
 (numbers stay numbers). The grid recalcs automatically when a source pushes an
-update. Connection secrets are never persisted — put credentials in the URL only
-for trusted, local endpoints.
+update. **`RESTTABLE`** spills a whole record list instead of one scalar.
+Connection secrets are never persisted; for authenticated APIs register a
+**session-only** request header per host with the TUI `:auth HOST HEADER VALUE`
+(cleared by `:noauth`) — it lives in memory only, never in the workbook,
+settings, or recent-files.
 
 ### Structured references (Tables)
 

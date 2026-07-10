@@ -109,6 +109,7 @@ keys**. Key features:
 | `:live [on\|off]` | Toggle network live data (`=REST`/`=WEBSOCKET` formulas); off by default |
 | `:extern [on\|off]` | Toggle closed-workbook external references (`=[Book.abax]Sheet1!A1`); off by default |
 | `:table [NAME]` | Name the current region as a structured table (top row = headers) so formulas can use `NAME[Column]`; no args lists tables |
+| `:auth HOST HEADER VALUE` | Set a **session-only** live-data request header for HOST (e.g. `:auth api.x Authorization Bearer tok`); `:auth` lists hosts, `:noauth [HOST]` clears. Never persisted |
 | `:` commands | `:w` `:q` write/quit, `:find`, `:rpn`, `:fmt`, `:py`, `:!cmd`, `:func`, `:sheet`, `:pivot`, `:describe`, `:trace`, `:live`, `:extern`, … |
 
 ### `view file [--sheet NAME]` — print a sheet

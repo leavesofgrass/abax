@@ -31,6 +31,19 @@ _Development version 0.1.11 — accumulating until the next ship signal._
 - **In-cell `SPARKLINE(range, [type], [color])`** — line / bar / win-loss
   micro-charts. The GUI paints crisp SVG in the cell; the TUI (and any text
   context) shows the same data as a unicode block-ramp sparkline (`▁▅▃█▆`).
+- **Live-data auth headers** — `=REST`/`=WEBSERVICE` can reach authenticated
+  APIs via **session-only** request headers (`:auth HOST HEADER VALUE`, cleared
+  with `:noauth`). Credentials live in memory only — never persisted to the
+  workbook, settings, or recent-files.
+- **`RESTTABLE(url, [records_path], [columns], [interval])`** — spill a JSON
+  record list into a range (header row + one row per record); shares one poller
+  with scalar `=REST` on the same URL.
+- **External references to `.xlsx` / `.csv` / `.tsv`** — `=[Data.xlsx]Sheet1!B2`
+  / `=[data.csv]!A1` now resolve (read-only, values only; an external
+  spreadsheet's formulas are never evaluated).
+- **Named connections** — a workbook-level registry of refreshable data sources
+  (REST / SQL / web-table) storing only non-secret metadata; secrets stay
+  session-only (a `secret_ref` names an in-memory credential, never serialized).
 
 ## [0.1.10] — 2026-07-09
 
