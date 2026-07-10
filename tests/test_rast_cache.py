@@ -21,11 +21,13 @@ def test_resolved_ast_is_cached_and_reused():
     wb.names.define("SALES", "B1")
     wb.invalidate_caches()
     assert sh.get("A1") == 42.0
-    # The resolved AST is now cached for A1 at the current names version.
+    # The resolved AST is now cached for A1 at the current registry versions.
+    # The key is (names_version, tables_version); the tables registry is empty
+    # here, so its slot is the -1 "absent registry" sentinel.
     key = (0, 0)
     assert key in sh._rast_cache
     ver, _ = sh._rast_cache[key]
-    assert ver == wb.names.version
+    assert ver == (wb.names.version, -1)
     # A second read reuses it (value cache) — and forcing a recompute keeps it.
     sh._value_cache.clear()
     assert sh.get("A1") == 42.0
