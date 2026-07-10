@@ -10,7 +10,16 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
-_Development version 0.1.11 — accumulating until the next ship signal._
+## [0.1.11] — 2026-07-10
+
+_Power-user release: the formula engine, connected data, analysis tooling, and
+customization all go deeper. **Structured references (Excel Tables)**, a public
+**Python automation API**, runtime **UDFs** and in-cell **`SPARKLINE`**;
+authenticated live data with **`RESTTABLE`**, external **`.xlsx`/`.csv`** refs,
+and a named-connection registry; **What-if** data tables + scenarios, a
+**formula profiler**, deeper pivots, and per-mode key rebinding; plus
+cancellable large-sheet recalc and an Intel macOS build. **637 formula
+functions.**_
 
 ### Added
 - **Structured references (Excel Tables)** — name a region as a table (GUI
