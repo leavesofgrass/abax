@@ -148,16 +148,91 @@ jobs:
           name: windows-binary
           path: dist/*.zip
 
+  # ── macOS app bundle (self-contained, PyInstaller → .app → .dmg) ────────────
+  # Builds Abax.app natively on macos-15 (Apple Silicon; PyInstaller can't
+  # cross-compile), packages it as a .dmg with create-dmg, and uploads it for the
+  # release job to attach. arm64-only — Intel Macs use pip / abax.pyz. On arm64
+  # the FULL `[all]` stack (incl. PyNEC + pymc) resolves from prebuilt wheels, so
+  # no minus-nec trimming is needed (unlike Windows). Unsigned: users clear the
+  # Gatekeeper quarantine once (see packaging/macos/README.md). Soft-decoupled
+  # from the release like windows-binary. See packaging/macos/README.md.
+  macos-binary:
+    name: Build macOS app (arm64)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            v=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+            echo "version=$v" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install abax + full stack + PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,all]" pyinstaller
+      - name: Generate the .icns icon from the SVG
+        run: |
+          set -e
+          ICONSET=packaging/macos/abax.iconset
+          mkdir -p "$ICONSET"
+          # Rasterize the source SVG to the largest size, then downscale with sips.
+          qlmanage -t -s 1024 -o packaging/macos packaging/appimage/abax.svg || true
+          BASE=packaging/macos/abax.svg.png
+          if [ ! -f "$BASE" ]; then
+            # Fallback: let sips read the SVG directly at 1024px.
+            sips -s format png packaging/appimage/abax.svg --out "$BASE" -Z 1024 || true
+          fi
+          if [ -f "$BASE" ]; then
+            for s in 16 32 64 128 256 512 1024; do
+              sips -z $s $s "$BASE" --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
+            done
+            # Retina @2x variants iconutil expects.
+            cp "$ICONSET/icon_32x32.png"   "$ICONSET/icon_16x16@2x.png"
+            cp "$ICONSET/icon_64x64.png"   "$ICONSET/icon_32x32@2x.png"
+            cp "$ICONSET/icon_256x256.png" "$ICONSET/icon_128x128@2x.png"
+            cp "$ICONSET/icon_512x512.png" "$ICONSET/icon_256x256@2x.png"
+            cp "$ICONSET/icon_1024x1024.png" "$ICONSET/icon_512x512@2x.png"
+            iconutil -c icns "$ICONSET" -o packaging/macos/abax.icns || true
+          fi
+          echo "icns present: $([ -f packaging/macos/abax.icns ] && echo yes || echo no)"
+      - name: Build the app bundle
+        run: python -m PyInstaller packaging/macos/abax.spec --noconfirm --distpath dist/macos
+      - name: Smoke-test the frozen build
+        run: dist/macos/Abax.app/Contents/MacOS/abax --version
+      - name: Package as a .dmg
+        run: |
+          set -e
+          brew install create-dmg
+          DMG="dist/abax-${{ steps.ver.outputs.version }}-macos-arm64.dmg"
+          create-dmg --volname "abax ${{ steps.ver.outputs.version }}" \
+            --app-drop-link 480 0 --icon "Abax.app" 120 0 \
+            "$DMG" "dist/macos/Abax.app" \
+            || hdiutil create -volname "abax" -srcfolder "dist/macos/Abax.app" -ov -format UDZO "$DMG"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-binary
+          path: dist/*.dmg
+
   # ── Publish the GitHub Release ──────────────────────────────────────────────
   # Tag pushes only. Collects every built artifact and attaches them to a release
-  # with auto-generated notes. The Windows binary is a SOFT dependency: it stays
-  # in `needs` so the release waits for it (attaching the zip when it built), but
-  # the `if` below only *requires* the core artifacts (wheel/pyz/AppImage) — a
-  # failed or unavailable Windows build never blocks the release; its zip is
-  # simply absent. `download-artifact` (no name) pulls whatever artifacts exist.
+  # with auto-generated notes. The Windows and macOS binaries are SOFT
+  # dependencies: they stay in `needs` so the release waits for them (attaching
+  # their assets when built), but the `if` below only *requires* the core
+  # artifacts (wheel/pyz/AppImage) — a failed or unavailable platform build never
+  # blocks the release; its asset is simply absent. `download-artifact` (no name)
+  # pulls whatever artifacts exist.
   release:
     name: Publish GitHub Release
-    needs: [wheel, pyz, appimage, windows-binary]
+    needs: [wheel, pyz, appimage, windows-binary, macos-binary]
     if: >-
       startsWith(github.ref, 'refs/tags/v') && !cancelled()
       && needs.wheel.result == 'success'

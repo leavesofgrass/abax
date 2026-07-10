@@ -31,7 +31,9 @@ python -m abax                # launch it
 ships ready-to-run downloads: a portable **Linux AppImage** of the full
 `abax[all]` (download, `chmod +x`, run), a self-contained **Windows build**
 (unzip; double-click `abaxw.exe` for the GUI, or run `abax.exe` for the full
-CLI), and a tiny cross-platform `abax.pyz` zipapp (needs only a Python 3.13
+CLI), a **macOS app** (`.dmg`, Apple Silicon — drag `Abax.app` to Applications;
+unsigned, so run `xattr -dr com.apple.quarantine /Applications/Abax.app` once),
+and a tiny cross-platform `abax.pyz` zipapp (needs only a Python 3.13
 interpreter: `python abax.pyz`).
 
 abax stays lean by default and **installs nothing on its own**: on first launch it

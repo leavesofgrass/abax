@@ -15,6 +15,10 @@ coverage.xml
 # Build artifacts
 build/
 dist/
+# macOS icon build artifacts (generated in CI from packaging/appimage/abax.svg)
+packaging/macos/abax.iconset/
+packaging/macos/abax.icns
+packaging/macos/*.svg.png
 # pyz build-staging dir (see make_pyz.py / just pyz)
 _stage/
 *.egg-info/

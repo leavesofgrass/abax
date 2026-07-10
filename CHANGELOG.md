@@ -13,6 +13,13 @@ All notable changes to abax are documented here. The format follows
 _Development version 0.1.10 — accumulating until the next ship signal._
 
 ### Added
+- **macOS app bundle** — a self-contained, arm64 (Apple Silicon) **`Abax.app`**
+  packaged as a `.dmg`, built by a new `macos-binary` CI job (`packaging/macos/`)
+  and attached to the GitHub Release alongside the Linux AppImage and Windows
+  zip. Ships the full `[all]` stack (PyNEC included — it has an arm64 wheel).
+  Unsigned for now: clear the Gatekeeper quarantine once with
+  `xattr -dr com.apple.quarantine /Applications/Abax.app` (see
+  `packaging/macos/README.md`). Intel Macs use `pip` / `abax.pyz`.
 - **`WEBSERVICE(url)`** — fetch the text body of an HTTP(S) URL into a cell.
   Non-blocking and consent-gated like the live-data formulas: it loads once in
   the background (shows `#N/A` until it arrives, `#OFF!` when live data is
