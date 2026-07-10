@@ -149,12 +149,20 @@ jobs:
           path: dist/*.zip
 
   # ── Publish the GitHub Release ──────────────────────────────────────────────
-  # Tag pushes only. Collects every built artifact (wheel, sdist, pyz, AppImage,
-  # Windows zip) and attaches them to a release with auto-generated notes.
+  # Tag pushes only. Collects every built artifact and attaches them to a release
+  # with auto-generated notes. The Windows binary is a SOFT dependency: it stays
+  # in `needs` so the release waits for it (attaching the zip when it built), but
+  # the `if` below only *requires* the core artifacts (wheel/pyz/AppImage) — a
+  # failed or unavailable Windows build never blocks the release; its zip is
+  # simply absent. `download-artifact` (no name) pulls whatever artifacts exist.
   release:
     name: Publish GitHub Release
     needs: [wheel, pyz, appimage, windows-binary]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') && !cancelled()
+      && needs.wheel.result == 'success'
+      && needs.pyz.result == 'success'
+      && needs.appimage.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Download all build artifacts
