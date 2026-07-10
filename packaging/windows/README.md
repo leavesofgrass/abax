@@ -26,6 +26,12 @@ py -m PyInstaller packaging/windows/abax.spec --noconfirm --distpath dist/window
 
 The result is `dist/windows/abax/` — zip that folder to distribute.
 
+**CI:** the `windows-binary` job in `.github/workflows/release.yml` runs exactly
+this on `windows-latest` for every `v*` tag, zips the bundle as
+`abax-<version>-windows-x64.zip`, and attaches it to the GitHub Release. It
+installs the components of the `all` extra **minus `nec`** (PyNEC has no Windows
+wheel — see below), so a clean runner can resolve every dependency.
+
 ## Frozen-app design notes (why the source has `sys.frozen` guards)
 
 - **Console worker.** Unfrozen, the bridge spawns `python -c "...console_worker..."`.

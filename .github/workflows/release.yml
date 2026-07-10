@@ -103,12 +103,57 @@ jobs:
           name: appimage
           path: dist/*.AppImage
 
+  # ── Windows binary (self-contained, PyInstaller) ───────────────────────────
+  # Builds the three-exe bundle (abax.exe / abaxw.exe / abax-worker.exe sharing
+  # one _internal/) natively on Windows — PyInstaller can't cross-compile. Ships
+  # the same optional stack as the AppImage EXCEPT PyNEC, which has no Windows
+  # wheel (the built-in Method-of-Moments antenna solver still works); so we
+  # install the components of the `all` extra minus `nec` rather than `[all]`,
+  # which would fail to resolve PyNEC on a clean runner. Zipped and uploaded for
+  # the release job to attach. See packaging/windows/README.md.
+  windows-binary:
+    name: Build Windows binary
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Resolve version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            v=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+            echo "version=$v" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install abax + full stack (minus PyNEC) + PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,thin,parquet,science,jupyter,bayes,stats-io,database,hdf5,satellite,tts,restricted]" pyinstaller pyttsx3 RestrictedPython "psycopg[binary]" PyMySQL
+      - name: Build the bundle
+        run: python -m PyInstaller packaging/windows/abax.spec --noconfirm --distpath dist/windows
+      - name: Smoke-test the frozen build
+        run: dist/windows/abax/abax.exe --version
+      - name: Zip the bundle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path dist/windows/abax/* -DestinationPath "dist/abax-${{ steps.ver.outputs.version }}-windows-x64.zip"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-binary
+          path: dist/*.zip
+
   # ── Publish the GitHub Release ──────────────────────────────────────────────
-  # Tag pushes only. Collects every built artifact (wheel, sdist, pyz, AppImage)
-  # and attaches them to a release with auto-generated notes.
+  # Tag pushes only. Collects every built artifact (wheel, sdist, pyz, AppImage,
+  # Windows zip) and attaches them to a release with auto-generated notes.
   release:
     name: Publish GitHub Release
-    needs: [wheel, pyz, appimage]
+    needs: [wheel, pyz, appimage, windows-binary]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
