@@ -13,11 +13,23 @@ A user's init file looks like::
     abax.bind_key("normal", "ctrl+s", save, desc="save")
     abax.register_macro_menu("Reformat", lambda ed: ...)
 
+    def my_double(args):
+        return (args[0] or 0) * 2
+    abax.register_function("DOUBLE", my_double)              # plain fn(args)
+    abax.register_function("MYIF", my_if, kind="lazy")       # fn(arg_nodes, ev)
+    abax.register_function("MYROW", my_row, kind="context")  # fn(arg_nodes, ctx)
+
 The ``abax`` name injected into the init file is a lightweight *facade*
 (:class:`_ConfigFacade`) — NOT the real :mod:`abax` package — so a user cannot
 accidentally clobber the package by assigning to it. The facade forwards
-``bind_key`` / ``register_macro_menu`` to a fresh :class:`UserConfig` and
-exposes ``abax.__version__`` for display.
+``bind_key`` / ``register_macro_menu`` / ``register_function`` to a fresh
+:class:`UserConfig` and exposes ``abax.__version__`` for display.
+
+Registered functions are only *collected* here — this module never touches the
+live engine registries in :mod:`abax.core.functions`. The integrator is
+responsible for merging a loaded config's ``functions`` / ``lazy_functions`` /
+``context_functions`` into ``FUNCTIONS`` / ``LAZY_FUNCTIONS`` /
+``CONTEXT_FUNCTIONS`` on the trusted init-file path.
 
 SECURITY
 --------
@@ -44,6 +56,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 __all__ = [
+    "FUNCTION_KINDS",
     "Binding",
     "MacroEntry",
     "UserConfig",
@@ -53,6 +66,13 @@ __all__ = [
 # An editor-facing action: called with the active editor/app object. The exact
 # object passed is the integrator's concern; the registry stays agnostic.
 Action = Callable[..., object]
+
+# Calling conventions a user-registered formula function may declare. These
+# mirror the three engine registries in :mod:`abax.core.functions`:
+#   "plain"   -> FUNCTIONS         : fn(args) -> value   (args already evaluated)
+#   "lazy"    -> LAZY_FUNCTIONS    : fn(arg_nodes, ev)   (control-flow; unevaluated)
+#   "context" -> CONTEXT_FUNCTIONS : fn(arg_nodes, ctx)  (sees refs + EvalContext)
+FUNCTION_KINDS: tuple[str, ...] = ("plain", "lazy", "context")
 
 
 @dataclass(frozen=True)
@@ -99,12 +119,21 @@ class UserConfig:
         keybindings: Map of ``(mode, key)`` to the :class:`Binding` recorded for it.
             A later ``bind_key`` for the same ``(mode, key)`` overrides an earlier one.
         macro_menu: Ordered list of :class:`MacroEntry`, in registration order.
+        functions: Map of ``NAME`` to a plain formula function ``fn(args) -> value``.
+            Merges into the engine's ``FUNCTIONS`` registry on the trusted path.
+        lazy_functions: Map of ``NAME`` to a control-flow function ``fn(arg_nodes, ev)``.
+            Merges into the engine's ``LAZY_FUNCTIONS`` registry.
+        context_functions: Map of ``NAME`` to a reference-aware function
+            ``fn(arg_nodes, ctx)``. Merges into the engine's ``CONTEXT_FUNCTIONS``.
         errors: Human-readable strings describing anything that went wrong while
             loading the init file (empty on success).
     """
 
     keybindings: dict[tuple[str, str], Binding] = field(default_factory=dict)
     macro_menu: list[MacroEntry] = field(default_factory=list)
+    functions: dict[str, Action] = field(default_factory=dict)
+    lazy_functions: dict[str, Action] = field(default_factory=dict)
+    context_functions: dict[str, Action] = field(default_factory=dict)
     errors: list[str] = field(default_factory=list)
 
     def bind_key(self, mode: str, key: str, action: Action, *, desc: str = "") -> None:
@@ -128,6 +157,52 @@ class UserConfig:
         """
         self.macro_menu.append(MacroEntry(name, action, desc))
 
+    def register_function(self, name: str, fn: Action, *, kind: str = "plain") -> None:
+        """Record a custom formula function under ``name``.
+
+        The function is only *collected* here; abax never mutates the live engine
+        registries from this module. On the trusted init-file path the integrator
+        merges :attr:`functions` / :attr:`lazy_functions` / :attr:`context_functions`
+        into the engine's ``FUNCTIONS`` / ``LAZY_FUNCTIONS`` / ``CONTEXT_FUNCTIONS``.
+
+        Args:
+            name: Formula name as used in a cell, e.g. ``"DOUBLE"`` or ``"MY.FUNC"``.
+                Must be a non-empty, UPPERCASE identifier; ``.`` is allowed between
+                identifier segments (so ``"MY.FUNC"`` is valid, ``"my.func"`` is not).
+            fn: The callable implementing the function. Its calling convention must
+                match ``kind`` (see below). Registering the same ``name`` again for
+                the same ``kind`` overrides the earlier one.
+            kind: Which calling convention/registry the function uses:
+
+                * ``"plain"`` (default) — ``fn(args) -> value``; args are already
+                  evaluated (a range arrives as a ``RangeValue``). Goes to
+                  :attr:`functions`.
+                * ``"lazy"`` — ``fn(arg_nodes, ev)``; receives unevaluated argument
+                  AST nodes for control flow (untaken branches never run). Goes to
+                  :attr:`lazy_functions`.
+                * ``"context"`` — ``fn(arg_nodes, ctx)``; receives the raw argument
+                  nodes plus an ``EvalContext`` so it can see references, not just
+                  values. Goes to :attr:`context_functions`.
+
+        Raises:
+            ValueError: If ``name`` is not a non-empty UPPERCASE identifier (dots
+                allowed between segments), ``fn`` is not callable, or ``kind`` is
+                not one of :data:`FUNCTION_KINDS`.
+        """
+        _validate_function_name(name)
+        if not callable(fn):
+            raise ValueError(f"register_function: fn must be callable, got {type(fn).__name__}")
+        registry = {
+            "plain": self.functions,
+            "lazy": self.lazy_functions,
+            "context": self.context_functions,
+        }.get(kind)
+        if registry is None:
+            raise ValueError(
+                f"register_function: kind must be one of {FUNCTION_KINDS}, got {kind!r}"
+            )
+        registry[name] = fn
+
     def keybinding(self, mode: str, key: str) -> Optional[Binding]:
         """Return the :class:`Binding` registered for ``(mode, key)``, or ``None``.
 
@@ -139,6 +214,30 @@ class UserConfig:
             The recorded :class:`Binding`, or ``None`` if nothing is bound.
         """
         return self.keybindings.get((mode, key))
+
+
+def _validate_function_name(name: str) -> None:
+    """Raise :class:`ValueError` unless ``name`` is a valid formula-function name.
+
+    A valid name is a non-empty string that is fully UPPERCASE and whose
+    ``.``-separated segments are each a Python identifier — so ``"DOUBLE"``,
+    ``"LOG10"`` and ``"MY.FUNC"`` pass, while ``""``, ``"my.func"`` (lowercase),
+    ``"MY..FUNC"`` (empty segment) and ``".FUNC"`` (leading dot) are rejected.
+
+    Args:
+        name: Candidate formula name to validate.
+
+    Raises:
+        ValueError: If ``name`` is not a non-empty UPPERCASE dotted identifier.
+    """
+    if not isinstance(name, str) or not name:
+        raise ValueError(f"register_function: name must be a non-empty string, got {name!r}")
+    if name != name.upper():
+        raise ValueError(f"register_function: name must be UPPERCASE, got {name!r}")
+    if any(not segment.isidentifier() for segment in name.split(".")):
+        raise ValueError(
+            f"register_function: name must be an identifier (dots allowed), got {name!r}"
+        )
 
 
 class _ConfigFacade:
@@ -161,6 +260,10 @@ class _ConfigFacade:
     def register_macro_menu(self, name: str, action: Action, *, desc: str = "") -> None:
         """Proxy to :meth:`UserConfig.register_macro_menu`."""
         self._config.register_macro_menu(name, action, desc=desc)
+
+    def register_function(self, name: str, fn: Action, *, kind: str = "plain") -> None:
+        """Proxy to :meth:`UserConfig.register_function`."""
+        self._config.register_function(name, fn, kind=kind)
 
 
 def _init_path(path: Optional[str]) -> Path:
