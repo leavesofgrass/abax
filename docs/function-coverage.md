@@ -1,14 +1,14 @@
-wrote D:\abax\docs\function-coverage.md  (98.4% coverage)
+wrote D:\abax\docs\function-coverage.md  (99.1% coverage)
 tion_coverage.py` — a read-only parity report of which spreadsheet functions abax implements versus a curated target set of common Excel/Gnumeric functions. Regenerate with `py scripts/function_coverage.py --markdown`.
 
 ## Summary
 
 | Metric | Value |
 | --- | --- |
-| Implemented (live registries) | 632 |
+| Implemented (live registries) | 635 |
 | Curated target set | 427 |
-| Target coverage | 420/427 |
-| Coverage % | 98.4% |
+| Target coverage | 423/427 |
+| Coverage % | 99.1% |
 
 ## Per-category coverage
 
@@ -18,7 +18,7 @@ tion_coverage.py` — a read-only parity report of which spreadsheet functions a
 | stats | 120 | 120 |
 | text | 33 | 37 |
 | date | 25 | 25 |
-| logical_info | 34 | 37 |
+| logical_info | 37 | 37 |
 | lookup | 22 | 22 |
 | financial | 55 | 55 |
 | engineering | 49 | 49 |
@@ -27,4 +27,3 @@ tion_coverage.py` — a read-only parity report of which spreadsheet functions a
 ## Missing target functions
 
 - **text**: `ASC`, `BAHTTEXT`, `DBCS`, `PHONETIC`
-- **logical_info**: `FILTERXML`, `GETPIVOTDATA`, `WEBSERVICE`

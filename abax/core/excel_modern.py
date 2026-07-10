@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import cmath
 import math
+import re
 from datetime import timedelta
 from typing import Any, Callable
 from urllib.parse import quote
@@ -616,10 +617,77 @@ def _hyperlink(args: list) -> Any:
     return friendly
 
 
+# --- FILTERXML ---------------------------------------------------------------
+
+
+def _xml_find(root, path: str) -> list:
+    """ElementTree findall with a few XPath conveniences normalized for the root.
+
+    ElementTree matches relative to the element it is called on and never matches
+    the root's own tag, so ``/root/item`` becomes ``item`` and ``//item`` becomes
+    ``.//item``. Namespaces are not resolved (a documented simplification).
+    """
+    p = path.strip()
+    if p.startswith("//"):
+        return root.findall(".//" + p[2:])
+    if p.startswith("/"):
+        p = p[1:]
+    head, _, tail = p.partition("/")
+    if head == root.tag:                 # strip a leading root-tag segment
+        p = tail
+    if p in ("", "."):
+        return [root]
+    try:
+        return root.findall(p)
+    except SyntaxError:                  # malformed ElementTree path
+        return []
+
+
+def _filterxml(args: list) -> Any:
+    """FILTERXML(xml, xpath) — spill the node/attribute values matching *xpath*.
+
+    A trailing ``/@attr`` selects attribute values. XML with a DOCTYPE/entity
+    declaration is refused (an entity-expansion guard). No match yields ``#N/A``;
+    malformed XML or XPath yields ``#VALUE!``.
+    """
+    xml_v, xpath_v = _arg(args, 0), _arg(args, 1)
+    if is_error(xml_v):
+        return xml_v
+    if is_error(xpath_v):
+        return xpath_v
+    xml_text = _text(xml_v)
+    xpath = _text(xpath_v).strip()
+    if not xml_text or not xpath:
+        return CellError(CellError.VALUE)
+    if "<!DOCTYPE" in xml_text or "<!ENTITY" in xml_text:
+        return CellError(CellError.VALUE)  # refuse DTDs/entities (billion-laughs)
+
+    import xml.etree.ElementTree as ET
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return CellError(CellError.VALUE)
+
+    attr = None
+    m = re.search(r"/@([A-Za-z_][\w.-]*)$", xpath)
+    if m:
+        attr = m.group(1)
+        xpath = xpath[: m.start()]
+    matched = _xml_find(root, xpath)
+    if attr is not None:
+        vals = [el.get(attr) for el in matched if el.get(attr) is not None]
+    else:
+        vals = [(el.text or "") for el in matched]
+    if not vals:
+        return CellError(CellError.NA)
+    return [[v] for v in vals]           # spill down a single column
+
+
 # --- registry ----------------------------------------------------------------
 
 _REGISTRY: dict[str, Callable[[list], Any]] = {
     "TEXTSPLIT": _textsplit,
+    "FILTERXML": _filterxml,
     "ARRAYTOTEXT": _arraytotext,
     "VALUETOTEXT": _valuetotext,
     "XMATCH": _xmatch,

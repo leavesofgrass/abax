@@ -86,9 +86,37 @@ def _websocket(args: list) -> Any:
     return _live("websocket", args, default_interval=0.0)
 
 
+def _webservice(args: list) -> Any:
+    """WEBSERVICE(url) — the URL's text body, fetched once in the background.
+
+    Restricted to http/https (no ws/wss). Returns the raw body text; typically
+    fed to FILTERXML or the text functions.
+    """
+    url_arg = _arg(args, 0)
+    if is_error(url_arg):
+        return url_arg
+    if isinstance(url_arg, (RangeValue, list)):
+        return CellError(CellError.VALUE)
+    url = _text(url_arg).strip()
+    scheme = url.split("://", 1)[0].lower() if "://" in url else ""
+    if scheme not in ("http", "https"):
+        return CellError(CellError.VALUE)
+    if not HUB.enabled:
+        return OFF_MARKER
+    try:
+        key = HUB.subscribe("webservice", url, "", 0.0)
+    except LiveError:
+        return CellError(CellError.VALUE)
+    value, _error = HUB.latest(key)
+    if value is None:
+        return CellError(CellError.NA)  # subscribed, fetch in flight
+    return value
+
+
 _REGISTRY = {
     "REST": _rest,
     "WEBSOCKET": _websocket,
+    "WEBSERVICE": _webservice,
 }
 
 

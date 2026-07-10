@@ -503,6 +503,7 @@ that composes inside aggregates (`=SUM(OFFSET(A1,0,0,3,1))`).
 | `CELL` | Cell info: `address` / `row` / `col` / `contents` / `type` / `filename` | `CELL(info_type, [reference])` | `=CELL("address",C4)` | `$C$4` |
 | `HYPERLINK` | A link's display value — the friendly name when given, else the link text (abax cells aren't clickable) | `HYPERLINK(link_location, [friendly_name])` | `=HYPERLINK("https://a.org","abax")` | `abax` |
 | `ENCODEURL` | Percent-encode text as a URL component (everything outside `A–Z a–z 0–9 - _ . ~`, UTF-8 first) | `ENCODEURL(text)` | `=ENCODEURL("a b")` | `a%20b` |
+| `GETPIVOTDATA` | Read a value from a written pivot/group-by block by its labels (the reference is the pivot's cell range; a `field,item` pair picks the row by the index field, else the `Total` row) | `GETPIVOTDATA(data_field, pivot_range, [field, item]…)` | `=GETPIVOTDATA("Q1", A1:D4, "region", "West")` | `13` |
 
 For `VLOOKUP`/`HLOOKUP` the 4th argument defaults to **TRUE** (approximate,
 assumes ascending order); pass `FALSE` for an exact match. `MATCH` defaults to
@@ -520,6 +521,15 @@ never phone home. URLs are limited to `http` / `https` / `ws` / `wss`.
 |---|---|---|---|
 | `REST` | Poll a JSON endpoint every *interval* seconds (default 5) and show a value dug out by *path* | `REST(url, [path], [interval])` | `=REST("https://api.example/quote","data.last",2)` |
 | `WEBSOCKET` | Stream JSON text frames from a WebSocket, showing the latest *path* value | `WEBSOCKET(url, [path])` | `=WEBSOCKET("wss://api.example/ticks","[0].price")` |
+| `WEBSERVICE` | Fetch an HTTP(S) URL's text body **once** (cached for the session); typically fed to `FILTERXML` or text functions | `WEBSERVICE(url)` | `=WEBSERVICE("https://api.example/data.xml")` |
+
+`WEBSERVICE` is non-blocking and shares the live-data consent (`#OFF!` when
+disabled, `#N/A` until the fetch lands); it is restricted to http/https.
+**`FILTERXML(xml, xpath)`** (no network, no consent) queries an XML string with
+an ElementTree XPath and **spills** the matching node text — a trailing `/@attr`
+selects attribute values, e.g. `=FILTERXML(WEBSERVICE(url), "//item/@id")`. XML
+with a DOCTYPE/entity declaration is refused (an entity-expansion guard);
+namespaces are not resolved.
 
 *path* is a small JSON path: dotted keys and `[i]` indices (negative allowed),
 e.g. `data.tickers[0].price`; omit it to show the whole document. Many cells

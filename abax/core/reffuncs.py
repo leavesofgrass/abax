@@ -282,10 +282,60 @@ SIGNATURES = {
 }
 
 
+def _coerce_num(v):
+    """A pivot writes cells as text; recover a number where the text is one."""
+    if isinstance(v, str):
+        try:
+            return float(v)
+        except ValueError:
+            return v
+    return v
+
+
+def _getpivotdata(args, ctx):
+    """GETPIVOTDATA(data_field, pivot_range, [field, item]…).
+
+    abax pivots are plain cell blocks, so *pivot_range* is the whole written
+    pivot (header row + body, top-left is the index field). *data_field* names a
+    column by its header; a ``[field, item]`` pair whose *field* matches the
+    index-field header picks the body row by its *item* label. With no pair the
+    grand-total row (labelled ``Total``, present when the pivot was built with
+    margins) is used. Returns ``#REF!`` when the field/row can't be located.
+    """
+    if len(args) < 2:
+        return CellError(CellError.VALUE)
+    data_field = _text(ctx.eval(args[0]))
+    if is_error(data_field):
+        return data_field
+    bounds = _ref_bounds(args[1])
+    if bounds is None:
+        return CellError(CellError.REF)
+    r1, c1, r2, c2 = bounds
+    grid = [[ctx.resolver("", r, c) for c in range(c1, c2 + 1)]
+            for r in range(r1, r2 + 1)]
+    if len(grid) < 2 or not grid[0]:
+        return CellError(CellError.REF)
+    header = [_text(v) for v in grid[0]]
+    try:
+        col = header.index(data_field)
+    except ValueError:
+        return CellError(CellError.REF)
+
+    rest = args[2:]
+    pairs = [(_text(ctx.eval(rest[k])), _text(ctx.eval(rest[k + 1])))
+             for k in range(0, len(rest) - 1, 2)]
+    target = next((it for f, it in pairs if f == header[0]), "Total")
+    for row in grid[1:]:
+        if _text(row[0]) == target:
+            return _coerce_num(row[col])
+    return CellError(CellError.REF)
+
+
 def register(context_functions: dict) -> None:
     context_functions.update({
         "ROW": _row, "COLUMN": _column, "ROWS": _rows, "COLUMNS": _columns,
         "OFFSET": _offset, "INDIRECT": _indirect, "ADDRESS": _address,
         "ISREF": _isref, "ISFORMULA": _isformula, "FORMULATEXT": _formulatext,
         "SHEET": _sheet_fn, "SHEETS": _sheets_fn, "CELL": _cell_fn,
+        "GETPIVOTDATA": _getpivotdata,
     })

@@ -8,6 +8,26 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
+## [Unreleased]
+
+_Development version 0.1.10 — accumulating until the next ship signal._
+
+### Added
+- **`WEBSERVICE(url)`** — fetch the text body of an HTTP(S) URL into a cell.
+  Non-blocking and consent-gated like the live-data formulas: it loads once in
+  the background (shows `#N/A` until it arrives, `#OFF!` when live data is
+  disabled), and reuses the same allow-listed/off-by-default network path.
+- **`FILTERXML(xml, xpath)`** — query an XML document with an ElementTree XPath
+  and spill the matching node/attribute values. Pairs with `WEBSERVICE`.
+- **`GETPIVOTDATA(field, pivot_anchor, [field, item]…)`** — read a value out of a
+  written pivot/group-by block by its labels (abax pivots are plain cell blocks,
+  so the anchor points at the pivot's top-left header cell).
+
+### Fixed
+- **GUI terminal** now exports the `$ABAX_*` selection context (`$ABAX_ACTIVE_CELL`,
+  `$ABAX_SELECTION_RANGE`/`_JSON`/`_TSV`) to the shell it spawns, matching the
+  TUI `:!` behaviour.
+
 ## [0.1.9] — 2026-07-09
 
 _The "Live & Connected" release: cells that update themselves. Formulas can now

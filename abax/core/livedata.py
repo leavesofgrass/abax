@@ -265,6 +265,8 @@ def _resolve_transport(kind: str) -> Transport:
         return rest_transport
     if kind == "websocket":
         return websocket_transport
+    if kind == "webservice":
+        return webservice_transport
     raise LiveError(f"unknown live-source kind: {kind}")
 
 
@@ -289,6 +291,28 @@ def rest_transport(url: str, *, interval: float, stop_event: threading.Event) ->
             yield (False, f"REST error: {exc}")
         if stop_event.wait(delay):
             break
+
+
+def webservice_transport(url: str, *, interval: float, stop_event: threading.Event) -> Iterator[tuple]:
+    """Fetch a URL's text body **once**, then idle — the engine behind WEBSERVICE.
+
+    Unlike ``rest_transport`` this does not poll: it yields the decoded body a
+    single time and then waits on the stop event, so the value is cached for the
+    session (use ``REST`` with an interval for a refreshing feed). The body is
+    delivered as a raw string, not parsed, so ``FILTERXML`` / text functions can
+    work on it.
+    """
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "abax-webservice/1"})
+        with urllib.request.urlopen(req, timeout=15) as resp:  # noqa: S310 — scheme checked
+            raw = resp.read()
+        yield (True, raw.decode("utf-8", "replace"))
+    except Exception as exc:  # noqa: BLE001 — report; the cell shows the error
+        yield (False, f"WEBSERVICE error: {exc}")
+    stop_event.wait()  # one-shot: hold the slot without re-fetching
 
 
 def websocket_transport(url: str, *, interval: float, stop_event: threading.Event) -> Iterator[tuple]:
