@@ -37,7 +37,10 @@ from .errors import CellError
 #: Shown when external refs are disabled (mirrors live data's marker).
 OFF_MARKER = "#OFF!"
 
-#: Workbook file extensions the hub is willing to load.
+#: Workbook file extensions the hub is willing to load. The native formats are
+#: listed here for the pure-core path; the full set (adding .xlsx/.csv/.tsv via
+#: the engine loaders) is ``engine.extloaders.SUPPORTED_SUFFIXES``, consulted
+#: lazily in ``_resolve_path`` so core stays import-clean when engine is absent.
 ALLOWED_SUFFIXES = (".abax", ".json")
 
 _EXTERNAL_RE = re.compile(r"^\[([^\]]+)\](.*)$")
@@ -61,10 +64,15 @@ def parse_external(sheet_name: str) -> "tuple[str, str] | None":
 
 
 def _default_loader(path: Path) -> Any:
-    """Load a workbook via the engine Document (imported lazily to stay in core)."""
-    from ..engine.document import Document
+    """Load a workbook via the engine loaders (imported lazily to stay in core).
 
-    return Document.open(str(path)).workbook
+    Routes by extension: native .abax/.json through Document, and .xlsx/.csv/.tsv
+    through the read-only external loaders (values only — an external xlsx's
+    formulas are never evaluated).
+    """
+    from ..engine.extloaders import load_external
+
+    return load_external(path)
 
 
 class _Book:
@@ -141,7 +149,13 @@ class ExternalRefHub:
             if base is None:
                 return None
             p = base / p
-        if p.suffix.lower() not in ALLOWED_SUFFIXES:
+        # Prefer the engine's full suffix set (native + xlsx/csv/tsv); fall back
+        # to the native-only tuple if engine is unavailable (pure-core install).
+        try:
+            from ..engine.extloaders import SUPPORTED_SUFFIXES as allowed
+        except Exception:  # noqa: BLE001
+            allowed = ALLOWED_SUFFIXES
+        if p.suffix.lower() not in allowed:
             return None
         return p
 
