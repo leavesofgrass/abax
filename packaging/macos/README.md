@@ -1,27 +1,20 @@
 # abax macOS app (self-contained, PyInstaller)
 
 Builds a self-contained **`Abax.app`** bundle — Python and the whole optional
-stack included, nothing to install. Built natively on macOS (PyInstaller can't
-cross-compile). The release CI builds **both** architectures, in two **separate**
-jobs with deliberately different coupling to the release:
+stack included, nothing to install. Built natively on `macos-15` (PyInstaller
+can't cross-compile), **arm64 (Apple Silicon) only**. The full `[all]` stack
+(incl. PyNEC + pymc) resolves from prebuilt arm64 wheels, so no trimming is
+needed. Artifact: `abax-<ver>-macos-arm64.dmg`.
 
-| Arch | Runner | Job | Stack | Blocks the Release? |
-|---|---|---|---|---|
-| **arm64** (Apple Silicon) | `macos-15` | `macos-binary` | full `[all]` (incl. PyNEC + pymc, all from wheels) | **Yes** — in `release.needs`; runners are plentiful/fast, so the arm64 `.dmg` is reliably attached |
-| **x86_64** (Intel) | `macos-13` | `macos-binary-intel` | `[all]` **minus PyNEC** (no Intel-mac wheel; built-in MoM solver still works) | **No** — best-effort |
+**Intel Macs?** No `.dmg` is built for x86_64 — the vast majority of Macs are
+Apple Silicon now, and Intel users have `pip install abax` or the portable
+`abax.pyz`. (A best-effort Intel `macos-13` leg was attempted in v0.1.11, but
+those GitHub-hosted runners are scarce and starved in the queue long enough to
+hold up the GitHub Release — not worth it for the shrinking Intel-Mac audience.)
 
-**Why two jobs, not one matrix.** GitHub-hosted `macos-13` (Intel) runners are
-scarce and can sit unassigned in the queue for a long time. If the Intel leg
-shared a `needs` edge with the release (as it did on v0.1.11, where it starved
-for 30+ min while every other artifact was ready), it would block the whole
-GitHub Release. So the Intel job is kept **out of `release.needs`** entirely and
-attaches its own `.dmg` to the release once built (`gh release upload`, tag
-pushes only). If no Intel runner ever frees up, the release simply ships without
-the Intel `.dmg` — Intel users still have `pip install abax` or `abax.pyz`.
-
-Both jobs share `packaging/macos/make_icns.sh` (icon generation) and
-`packaging/macos/sign_and_notarize.sh` (signing/notarization) so they stay
-identical.
+The job uses `packaging/macos/make_icns.sh` (icon generation) and
+`packaging/macos/sign_and_notarize.sh` (signing/notarization, a no-op until the
+Apple Developer secrets are set).
 
 ## Layout
 

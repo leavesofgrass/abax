@@ -17,9 +17,10 @@ abax is pure Python and works with no optional packages at all — the core spre
 > ships ready-to-run downloads: a portable **Linux AppImage** of the full
 > `abax[all]` (download, `chmod +x`, run), a self-contained **Windows build**
 > (unzip; double-click `abaxw.exe` for the GUI, or `abax.exe` for the full CLI),
-> a **macOS app** (`.dmg` for both Apple Silicon and Intel — drag `Abax.app` to
-> Applications; it's unsigned, so clear the quarantine once with
-> `xattr -dr com.apple.quarantine /Applications/Abax.app`), and the tiny
+> a **macOS app** (`.dmg`, Apple Silicon — drag `Abax.app` to Applications; it's
+> unsigned, so clear the quarantine once with
+> `xattr -dr com.apple.quarantine /Applications/Abax.app`; Intel Macs use `pip`
+> or `abax.pyz`), and the tiny
 > cross-platform `abax.pyz` zipapp (`python abax.pyz`, needs only a Python 3.13
 > interpreter).
 

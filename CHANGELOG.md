@@ -18,8 +18,8 @@ customization all go deeper. **Structured references (Excel Tables)**, a public
 authenticated live data with **`RESTTABLE`**, external **`.xlsx`/`.csv`** refs,
 and a named-connection registry; **What-if** data tables + scenarios, a
 **formula profiler**, deeper pivots, and per-mode key rebinding; plus
-cancellable large-sheet recalc and an Intel macOS build. **637 formula
-functions.**_
+cancellable large-sheet recalc and a macOS code-signing/notarization scaffold.
+**637 formula functions.**_
 
 ### Added
 - **Structured references (Excel Tables)** — name a region as a table (GUI
@@ -75,11 +75,11 @@ functions.**_
   cells and leaves the sheet marked dirty to finish later); the plain recalc path
   is unchanged and results are identical when a run completes. `Workbook.recalculate`
   gained optional `should_cancel=` / `progress=` callbacks for embedders.
-- **Intel macOS build** — the release now builds **both** a `.dmg` for Apple
-  Silicon (arm64) *and* one for Intel (x86_64), from a soft-decoupled CI matrix.
-  A code-signing + notarization scaffold (`packaging/macos/sign_and_notarize.sh`)
-  is wired in but inert until the Apple Developer secrets are set, so default
-  builds stay unsigned and unchanged.
+- **macOS code-signing + notarization scaffold** — `packaging/macos/sign_and_notarize.sh`
+  is wired into the release build; it codesigns (hardened runtime) and notarizes +
+  staples the `.dmg`, but only when the Apple Developer secrets are set, so default
+  builds stay unsigned and unchanged. (The macOS `.dmg` remains arm64-only — Apple
+  Silicon is now the overwhelming majority; Intel Macs use `pip` / `abax.pyz`.)
 
 ### Changed
 - **Pivot Filters default** — dropping a field into the pivot's Filters box now
