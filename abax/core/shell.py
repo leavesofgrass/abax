@@ -76,8 +76,12 @@ def run(command: str, cwd: str | None = None, timeout: float = 30.0,
 class ShellSession:
     """A stateful shell: tracks cwd (and inherited environment) across commands."""
 
-    def __init__(self, cwd: str | None = None) -> None:
+    def __init__(self, cwd: str | None = None,
+                 env: "dict[str, str] | None" = None) -> None:
         self._cwd = os.path.abspath(cwd if cwd is not None else os.getcwd())
+        # None -> the child inherits this process's environment. A dict replaces
+        # it (callers merge extras, e.g. the $ABAX_* selection context).
+        self._env = env
 
     @property
     def cwd(self) -> str:
@@ -119,4 +123,4 @@ class ShellSession:
             return self._cd(stripped[2:])
         if stripped == "pwd":
             return Result(stdout=self._cwd + "\n", stderr="", returncode=0)
-        return run(command, cwd=self._cwd)
+        return run(command, cwd=self._cwd, env=self._env)

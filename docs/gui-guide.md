@@ -586,7 +586,10 @@ launch.
   **true PTY** terminal (ConPTY on Windows, `pty` on POSIX) that renders a real
   `pyte` screen with full colour/SGR styling — interactive full-screen programs
   (vim, top, less) work — and falls back to a line-oriented terminal when a PTY
-  backend isn't available.
+  backend isn't available. On open it exports the current selection as
+  `$ABAX_ACTIVE_CELL`, `$ABAX_SELECTION_RANGE`, `$ABAX_SELECTION_JSON`, and
+  `$ABAX_SELECTION_TSV` (captured when the terminal starts), matching the TUI
+  `:!` drop-to-shell.
 
 The console and terminal both run **arbitrary code with your full privileges**,
 so the first time you open either one abax shows a one-time **consent gate**

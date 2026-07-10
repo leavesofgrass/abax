@@ -25,7 +25,10 @@ class Terminal(QDialog):
     def __init__(self, window) -> None:
         super().__init__(window)
         self._win = window
-        self._session = ShellSession()
+        # Capture the $ABAX_* selection context so commands see the active
+        # cell / selection (parity with the PTY terminal and the TUI `:!`).
+        getter = getattr(window, "_selection_env", None)
+        self._session = ShellSession(env=getter() if getter is not None else None)
         self._result = None
         self._timer = None  # one reused poll timer (not one per command)
         self.setWindowTitle("Terminal")

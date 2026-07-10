@@ -75,6 +75,7 @@ class PtyView(QWidget):
         self._ch = max(1.0, fm.height())
         self._ascent = fm.ascent()
 
+        self._window = parent
         self._term = PtyTerminal(cols=_COLS, rows=_ROWS)
         self._started = False
         self._cells: list = []
@@ -90,6 +91,12 @@ class PtyView(QWidget):
     def start(self) -> None:
         if self._started:
             return
+        # Export the $ABAX_* selection context to the shell (captured at spawn).
+        getter = getattr(self._window, "_selection_env", None)
+        if getter is not None:
+            env = getter()
+            if env is not None:
+                self._term.env = env
         self._term.start()           # may raise PtyError
         self._started = True
         self._timer.start(40)

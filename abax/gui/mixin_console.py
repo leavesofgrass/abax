@@ -127,6 +127,31 @@ class ConsoleMixin:
         nxt = order[(order.index(cur) + 1) % len(order)] if cur in order else "isolated"
         self.set_code_isolation(nxt)
 
+    def _selection_env(self) -> "dict[str, str] | None":
+        """``os.environ`` overlaid with the ``$ABAX_*`` selection context.
+
+        Mirrors the TUI ``:!`` drop-to-shell so a GUI terminal command can see
+        the active cell / selection (`$ABAX_ACTIVE_CELL`, `$ABAX_SELECTION_RANGE`
+        / `_JSON` / `_TSV`). Best-effort: returns ``None`` on any failure so the
+        terminal still opens. Captured when the terminal starts.
+        """
+        try:
+            from ..core.shellenv import merged_env
+
+            sheet = self._doc.workbook.sheet
+            table = self._table
+            r = max(0, table.currentRow())
+            c = max(0, table.currentColumn())
+            ranges = table.selectedRanges()
+            if ranges:
+                rg = ranges[0]
+                r1, c1, r2, c2 = rg.topRow(), rg.leftColumn(), rg.bottomRow(), rg.rightColumn()
+            else:
+                r1, c1, r2, c2 = r, c, r, c
+            return merged_env(None, sheet, r1, c1, r2, c2)
+        except Exception:  # noqa: BLE001 — env is optional; never block the terminal
+            return None
+
     def show_terminal(self) -> None:
         if not self._require_code_consent("The system terminal"):
             return
