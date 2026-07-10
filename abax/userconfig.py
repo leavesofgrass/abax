@@ -59,11 +59,13 @@ from pathlib import Path
 from typing import Callable, Optional
 
 __all__ = [
+    "BINDABLE_MODES",
     "FUNCTION_KINDS",
     "Binding",
     "MacroEntry",
     "UserConfig",
     "load_user_config",
+    "normalize_key",
 ]
 
 # An editor-facing action: called with the active editor/app object. The exact
@@ -77,14 +79,104 @@ Action = Callable[..., object]
 #   "context" -> CONTEXT_FUNCTIONS : fn(arg_nodes, ctx)  (sees refs + EvalContext)
 FUNCTION_KINDS: tuple[str, ...] = ("plain", "lazy", "context")
 
+# The TUI modes a user may rebind keys in. These mirror the mode handlers in
+# :mod:`abax.tui.keys` (``_handle_normal`` / ``_handle_insert`` /
+# ``_handle_command`` / ``_handle_rpn`` / ``_handle_visual`` / ``_handle_browser``).
+# Transient read-only panels (``help`` / ``describe`` / ``plot``) are deliberately
+# excluded — they have no user-facing actions worth rebinding. ``bind_key``
+# rejects anything not in this tuple so a typo'd mode fails loudly instead of
+# registering a binding that can never fire.
+BINDABLE_MODES: tuple[str, ...] = (
+    "normal",
+    "insert",
+    "command",
+    "rpn",
+    "visual",
+    "browser",
+)
+
+# Canonical modifier names, in the order they appear in a normalized key spec.
+_MODIFIER_ORDER: tuple[str, ...] = ("ctrl", "alt", "shift", "super")
+
+# Accepted spellings for each modifier, folded to its canonical name. Covers the
+# ``+``-joined words (``Ctrl+S``, ``control+s``) and the emacs single-letter
+# prefixes (``C-s``, ``M-x``, ``S-tab``) so every common spelling collapses to
+# one form.
+_MODIFIER_ALIASES: dict[str, str] = {
+    "ctrl": "ctrl", "control": "ctrl", "ctl": "ctrl", "c": "ctrl", "^": "ctrl",
+    "alt": "alt", "meta": "alt", "option": "alt", "opt": "alt", "m": "alt",
+    "shift": "shift", "s": "shift",
+    "super": "super", "cmd": "super", "command": "super", "win": "super",
+}
+
+
+def normalize_key(key: str) -> str:
+    """Fold a key spec to abax's canonical form so spellings compare equal.
+
+    The canonical form is **lowercase modifiers, then the lowercased base key,
+    joined by ``+``**, with modifiers in the fixed order ``ctrl, alt, shift,
+    super`` — e.g. ``"Ctrl+S"``, ``"ctrl+s"`` and ``"C-s"`` all normalize to
+    ``"ctrl+s"``. Modifiers may be written with ``+`` (``Ctrl+Alt+Del``) or with
+    emacs-style single-letter prefixes (``C-M-x``); duplicates are dropped.
+
+    A **plain single keystroke carrying no modifier is returned unchanged**, so
+    case-significant vi keys stay distinct (``"K"`` is *not* the same binding as
+    ``"k"``, and the literal ``"+"`` / ``"-"`` keys survive). Anything that does
+    not parse as a modifier chord (an unrecognized modifier token, or a key name
+    that merely contains ``-``) is likewise left as the trimmed input.
+
+    Args:
+        key: The key spec as the user wrote it in ``init.py``. Non-strings are
+            returned untouched (the integrator may pass raw curses ints).
+
+    Returns:
+        The canonical key spec, suitable as a stable lookup key.
+    """
+    if not isinstance(key, str):
+        return key
+    raw = key.strip()
+    if not raw:
+        return key
+
+    # Choose the separator. '+' wins when present; otherwise fall back to the
+    # emacs '-' form, but only when '-' genuinely separates recognized modifiers
+    # from a base key — this keeps the literal '-' key and hyphenated names intact.
+    if "+" in raw:
+        parts = [p.strip() for p in raw.split("+")]
+    elif "-" in raw:
+        candidate = [p.strip() for p in raw.split("-")]
+        looks_chorded = len(candidate) >= 2 and all(
+            p.lower() in _MODIFIER_ALIASES for p in candidate[:-1]
+        )
+        if not looks_chorded:
+            return raw
+        parts = candidate
+    else:
+        return raw  # bare key — preserve case so K != k
+
+    *mod_tokens, base = parts
+    if not base:
+        return raw  # malformed (e.g. trailing separator) — leave it alone
+
+    canon_mods: list[str] = []
+    for tok in mod_tokens:
+        canon = _MODIFIER_ALIASES.get(tok.lower())
+        if canon is None:
+            return raw  # unknown modifier token — don't mangle the user's spec
+        if canon not in canon_mods:
+            canon_mods.append(canon)
+    canon_mods.sort(key=_MODIFIER_ORDER.index)
+    return "+".join([*canon_mods, base.lower()])
+
 
 @dataclass(frozen=True)
 class Binding:
     """A single keybinding recorded by the user's ``init.py``.
 
     Attributes:
-        mode: TUI mode the binding applies to, e.g. ``"normal"`` or ``"insert"``.
-        key: Key spec as a string, e.g. ``"ctrl+s"`` or ``"K"``.
+        mode: TUI mode the binding applies to, one of :data:`BINDABLE_MODES`.
+        key: Key spec in canonical form (see :func:`normalize_key`), e.g.
+            ``"ctrl+s"`` or ``"K"``.
         action: Callable invoked when the key fires (typically ``action(editor)``).
         desc: Optional human-readable description for help/menus.
     """
@@ -119,8 +211,10 @@ class UserConfig:
     :func:`load_user_config` this holds whatever the init file registered.
 
     Attributes:
-        keybindings: Map of ``(mode, key)`` to the :class:`Binding` recorded for it.
-            A later ``bind_key`` for the same ``(mode, key)`` overrides an earlier one.
+        keybindings: Map of ``(mode, canonical_key)`` to the :class:`Binding`
+            recorded for it. ``mode`` is one of :data:`BINDABLE_MODES`; the key is
+            normalized (see :func:`normalize_key`). A later ``bind_key`` for the
+            same normalized ``(mode, key)`` overrides an earlier one.
         macro_menu: Ordered list of :class:`MacroEntry`, in registration order.
         functions: Map of ``NAME`` to a plain formula function ``fn(args) -> value``.
             Merges into the engine's ``FUNCTIONS`` registry on the trusted path.
@@ -140,15 +234,30 @@ class UserConfig:
     errors: list[str] = field(default_factory=list)
 
     def bind_key(self, mode: str, key: str, action: Action, *, desc: str = "") -> None:
-        """Record a keybinding for ``(mode, key)``.
+        """Record a keybinding for ``(mode, key)`` in any :data:`BINDABLE_MODES`.
+
+        The ``key`` is folded to canonical form (see :func:`normalize_key`) so a
+        binding written ``"Ctrl+S"``, ``"ctrl+s"`` or ``"C-s"`` is stored — and
+        later found — under the one spec ``"ctrl+s"``. A later ``bind_key`` for
+        the same normalized ``(mode, key)`` overrides an earlier one.
 
         Args:
-            mode: TUI mode, e.g. ``"normal"`` / ``"insert"``.
+            mode: TUI mode; must be one of :data:`BINDABLE_MODES`.
             key: Key spec string, e.g. ``"ctrl+s"`` or ``"K"``.
             action: Callable invoked when the key fires.
             desc: Optional description for help/menus.
+
+        Raises:
+            ValueError: If ``mode`` is not a bindable TUI mode. The message lists
+                the valid modes. The registry is left unchanged.
         """
-        self.keybindings[(mode, key)] = Binding(mode, key, action, desc)
+        if mode not in BINDABLE_MODES:
+            raise ValueError(
+                f"unknown mode {mode!r}; valid modes are: "
+                f"{', '.join(BINDABLE_MODES)}"
+            )
+        norm = normalize_key(key)
+        self.keybindings[(mode, norm)] = Binding(mode, norm, action, desc)
 
     def register_macro_menu(self, name: str, action: Action, *, desc: str = "") -> None:
         """Record a named macro-menu entry.
@@ -209,6 +318,11 @@ class UserConfig:
     def keybinding(self, mode: str, key: str) -> Optional[Binding]:
         """Return the :class:`Binding` registered for ``(mode, key)``, or ``None``.
 
+        ``key`` is normalized the same way :meth:`bind_key` normalizes it, so a
+        lookup matches regardless of how the binding was spelled. Unknown modes
+        simply miss (return ``None``) rather than raising — this is the hot
+        key-handling path and must never throw.
+
         Args:
             mode: TUI mode to look up.
             key: Key spec string to look up.
@@ -216,7 +330,40 @@ class UserConfig:
         Returns:
             The recorded :class:`Binding`, or ``None`` if nothing is bound.
         """
-        return self.keybindings.get((mode, key))
+        return self.keybindings.get((mode, normalize_key(key)))
+
+    def bindings_for(self, mode: str) -> dict[str, Binding]:
+        """Return all rebinds for ``mode`` as a ``{canonical_key: Binding}`` map.
+
+        Handy for a ``:map <mode>`` command or a help screen. An unknown mode (or
+        one with no rebinds) yields an empty dict rather than raising.
+
+        Args:
+            mode: TUI mode to collect bindings for.
+
+        Returns:
+            A fresh dict mapping each bound canonical key to its :class:`Binding`.
+        """
+        return {
+            key: binding
+            for (m, key), binding in self.keybindings.items()
+            if m == mode
+        }
+
+    def all_bindings(self) -> dict[str, dict]:
+        """Return every rebind grouped by mode: ``{mode: {key: Binding}}``.
+
+        Only modes that actually have rebinds appear. Useful for a bare ``:map``
+        listing or help output.
+
+        Returns:
+            A fresh nested dict; each inner dict maps canonical key to
+            :class:`Binding`.
+        """
+        result: dict[str, dict[str, Binding]] = {}
+        for (mode, key), binding in self.keybindings.items():
+            result.setdefault(mode, {})[key] = binding
+        return result
 
 
 def _validate_function_name(name: str) -> None:
