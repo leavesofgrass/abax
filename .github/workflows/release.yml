@@ -149,16 +149,42 @@ jobs:
           path: dist/*.zip
 
   # ── macOS app bundle (self-contained, PyInstaller → .app → .dmg) ────────────
-  # Builds Abax.app natively on macos-15 (Apple Silicon; PyInstaller can't
-  # cross-compile), packages it as a .dmg with create-dmg, and uploads it for the
-  # release job to attach. arm64-only — Intel Macs use pip / abax.pyz. On arm64
-  # the FULL `[all]` stack (incl. PyNEC + pymc) resolves from prebuilt wheels, so
-  # no minus-nec trimming is needed (unlike Windows). Unsigned: users clear the
-  # Gatekeeper quarantine once (see packaging/macos/README.md). Soft-decoupled
-  # from the release like windows-binary. See packaging/macos/README.md.
+  # Builds Abax.app natively on macOS (PyInstaller can't cross-compile), packages
+  # it as a .dmg with create-dmg, and uploads it for the release job to attach.
+  # A 2-leg matrix covers BOTH architectures:
+  #   • arm64  on macos-15 — the FULL `[all]` stack (incl. PyNEC + pymc) resolves
+  #     from prebuilt wheels, so no trimming is needed.
+  #   • x86_64 on macos-13 (Intel) — PyNEC has no reliable Intel-mac wheel (it
+  #     needs a Fortran toolchain), so we install the same minus-nec set as the
+  #     Windows build; the built-in Method-of-Moments antenna solver still works.
+  # `fail-fast: false` keeps one arch's failure from cancelling the other, and the
+  # whole job is soft-decoupled from the release (see the `release` job's `if`),
+  # so a flaky platform build never blocks a tag. Each leg calls
+  # packaging/macos/sign_and_notarize.sh, which codesigns + notarizes ONLY when
+  # the Apple Developer secrets are set and is otherwise a no-op — the build stays
+  # unsigned by default. See packaging/macos/README.md.
   macos-binary:
-    name: Build macOS app (arm64)
-    runs-on: macos-15
+    name: Build macOS app (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+            extras: "dev,all"
+          - runner: macos-13
+            arch: x86_64
+            extras: "dev,thin,parquet,science,jupyter,bayes,stats-io,database,hdf5,satellite,tts,restricted"
+    runs-on: ${{ matrix.runner }}
+    # Signing/notarization secrets, surfaced as env so the shared script (and its
+    # skip-when-empty guard) can see them. Absent secrets → unsigned build.
+    env:
+      MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
+      MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
+      MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -175,10 +201,10 @@ jobs:
             v=$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
             echo "version=$v" >> "$GITHUB_OUTPUT"
           fi
-      - name: Install abax + full stack + PyInstaller
+      - name: Install abax + stack (${{ matrix.extras }}) + PyInstaller
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev,all]" pyinstaller
+          pip install -e ".[${{ matrix.extras }}]" pyinstaller
       - name: Generate the .icns icon from the SVG
         run: |
           set -e
@@ -208,18 +234,22 @@ jobs:
         run: python -m PyInstaller packaging/macos/abax.spec --noconfirm --distpath dist/macos
       - name: Smoke-test the frozen build
         run: dist/macos/Abax.app/Contents/MacOS/abax --version
+      - name: Codesign the app (no-op without signing secrets)
+        run: bash packaging/macos/sign_and_notarize.sh sign dist/macos/Abax.app
       - name: Package as a .dmg
         run: |
           set -e
           brew install create-dmg
-          DMG="dist/abax-${{ steps.ver.outputs.version }}-macos-arm64.dmg"
+          DMG="dist/abax-${{ steps.ver.outputs.version }}-macos-${{ matrix.arch }}.dmg"
           create-dmg --volname "abax ${{ steps.ver.outputs.version }}" \
             --app-drop-link 480 0 --icon "Abax.app" 120 0 \
             "$DMG" "dist/macos/Abax.app" \
             || hdiutil create -volname "abax" -srcfolder "dist/macos/Abax.app" -ov -format UDZO "$DMG"
+      - name: Notarize + staple the .dmg (no-op without notary secrets)
+        run: bash packaging/macos/sign_and_notarize.sh notarize "$(ls dist/*.dmg)"
       - uses: actions/upload-artifact@v7
         with:
-          name: macos-binary
+          name: macos-binary-${{ matrix.arch }}
           path: dist/*.dmg
 
   # ── Publish the GitHub Release ──────────────────────────────────────────────

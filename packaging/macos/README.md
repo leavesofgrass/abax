@@ -2,8 +2,16 @@
 
 Builds a self-contained **`Abax.app`** bundle — Python and the whole optional
 stack included, nothing to install. Built natively on macOS (PyInstaller can't
-cross-compile), **arm64 (Apple Silicon) only**; Intel Macs use `pip install abax`
-or the portable `abax.pyz`.
+cross-compile). The release CI builds **both** architectures from a 2-leg matrix:
+
+| Arch | Runner | Stack | Artifact |
+|---|---|---|---|
+| **arm64** (Apple Silicon) | `macos-15` | full `[all]` (incl. PyNEC + pymc, all from wheels) | `abax-<ver>-macos-arm64.dmg` |
+| **x86_64** (Intel) | `macos-13` | `[all]` **minus PyNEC** (no Intel-mac wheel; built-in MoM solver still works) | `abax-<ver>-macos-x86_64.dmg` |
+
+Both legs are soft-decoupled from the release, so a flaky platform build never
+blocks a tag. You can still `pip install abax` or run the portable `abax.pyz` on
+either architecture.
 
 ## Layout
 
@@ -35,16 +43,18 @@ into a `.dmg` with `create-dmg`.
 - **TTS**: pyttsx3's macOS driver is `nsss` (NSSpeechSynthesizer via pyobjc), so
   the hidden imports pull `pyobjc` (`objc` / `Foundation` / `AppKit`) instead of
   the Windows SAPI5 `comtypes` / `win32com`.
-- **PyNEC is included**: on Apple Silicon it (and pymc/pytensor) resolve from
-  prebuilt wheels, so the full `[all]` set installs with no compiler — unlike the
-  Windows build, which drops PyNEC for lack of a wheel.
+- **PyNEC**: on Apple Silicon it (and pymc/pytensor) resolve from prebuilt
+  wheels, so the arm64 leg installs the full `[all]` set with no compiler. The
+  Intel leg drops PyNEC (no x86_64-mac wheel, and no Fortran toolchain on the
+  runner) — exactly like the Windows build; the built-in Method-of-Moments
+  antenna solver still ships.
 
-## Gatekeeper: opening an unsigned build
+## Code signing & notarization (scaffolded, off by default)
 
-The app is **not code-signed or notarized** (a hobby/OSS project — no Apple
-Developer account yet), so macOS quarantines it on download and may say *"abax is
-damaged and can't be opened."* That message means *unsigned*, not corrupt. Clear
-the quarantine flag once, then it opens normally:
+By default the app is **not code-signed or notarized** (a hobby/OSS project), so
+macOS quarantines it on download and may say *"abax is damaged and can't be
+opened."* That message means *unsigned*, not corrupt. Clear the quarantine flag
+once, then it opens normally:
 
 ```sh
 xattr -dr com.apple.quarantine /Applications/Abax.app
@@ -52,7 +62,26 @@ xattr -dr com.apple.quarantine /Applications/Abax.app
 
 Or, via the GUI: try to open it once, then **System Settings → Privacy &
 Security → Open Anyway** (macOS Sequoia removed the old right-click → Open
-one-click bypass). Notarization is a planned follow-up.
+one-click bypass).
+
+The release job already runs `sign_and_notarize.sh`, which **codesigns the app
+with a hardened runtime and notarizes + staples the `.dmg`** — but only when the
+signing secrets below are present. Absent them it is a clean no-op, so unsigned
+builds keep shipping unchanged. To turn signing on, add these repository secrets
+(an Apple Developer Program membership is required):
+
+| Secret | What it is |
+|---|---|
+| `MACOS_CERTIFICATE_P12` | base64 of a *Developer ID Application* `.p12` |
+| `MACOS_CERTIFICATE_PASSWORD` | that `.p12`'s export password |
+| `MACOS_SIGN_IDENTITY` | e.g. `Developer ID Application: Your Name (TEAMID1234)` |
+| `MACOS_NOTARY_APPLE_ID` | Apple ID e-mail for `notarytool` |
+| `MACOS_NOTARY_TEAM_ID` | 10-character Team ID |
+| `MACOS_NOTARY_PASSWORD` | an app-specific password for that Apple ID |
+
+With the certificate secrets but no notary credentials the build is **signed but
+not notarized**; with all six it is signed, notarized, and stapled so it opens
+with no quarantine prompt.
 
 ## What's in / out
 
