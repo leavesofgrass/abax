@@ -46,6 +46,10 @@ class PaletteMixin:
     def show_about(self) -> None:
         from ._qtcompat import QMessageBox
         from .. import __version__
+        from ..core.functions import CONTEXT_FUNCTIONS, FUNCTIONS, LAZY_FUNCTIONS
+
+        # Count distinct formula-function names live so the figure never drifts.
+        n_functions = len(set(FUNCTIONS) | set(LAZY_FUNCTIONS) | set(CONTEXT_FUNCTIONS))
 
         QMessageBox.about(
             self,
@@ -58,8 +62,8 @@ class PaletteMixin:
             "the root from which <i>abacus</i> descends. However far its arithmetic "
             "now reaches, abax belongs to that lineage: a counting tablet, made "
             "modern.<br><br>"
-            "A scriptable spreadsheet with 600+ formula functions (incl. dynamic "
-            "arrays with true spill and LET/LAMBDA), built-in statistics, "
+            f"A scriptable spreadsheet with {n_functions} formula functions (incl. "
+            "dynamic arrays with true spill and LET/LAMBDA), built-in statistics, "
             "signal processing, machine learning, and RF / antenna modeling — "
             "plus a Python console, macros, and a Jupyter kernel. Reads and "
             "writes CSV, Excel, Parquet, SQLite, JSON, R, ODS, Markdown, and "

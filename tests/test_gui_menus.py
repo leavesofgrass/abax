@@ -119,6 +119,10 @@ def test_about_is_concise_and_current(win, monkeypatch):
         assert keyword in text, keyword
     # Concise: the old multi-paragraph blurb is gone.
     assert text.count("<br><br>") <= 3
+    # The function count must reflect the live registries exactly (no stale figure).
+    from abax.core.functions import CONTEXT_FUNCTIONS, FUNCTIONS, LAZY_FUNCTIONS
+    n = len(set(FUNCTIONS) | set(LAZY_FUNCTIONS) | set(CONTEXT_FUNCTIONS))
+    assert f"{n} formula functions" in text
 
 
 def test_report_and_compare_moved(win):
