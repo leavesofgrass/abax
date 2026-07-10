@@ -148,6 +148,11 @@ class _Parser:
             self.next()
             sheet, ref = _split_sheet(t.value)
             return A.SpillRef(ref, sheet)
+        if t.kind == "STRUCTREF":
+            # A structured (table) reference — carried verbatim; the Sheet
+            # rewrites it against the workbook's TableRegistry pre-evaluation.
+            self.next()
+            return A.StructRef(t.value)
         if t.kind == "NAME":
             name = self.next().value
             nxt = self.peek()

@@ -35,6 +35,19 @@ class Name:
 
 
 @dataclass(frozen=True, slots=True)
+class StructRef:
+    """A structured (table) reference, e.g. ``Table1[Col]`` or ``[@Col]``.
+
+    Carried verbatim from the tokenizer; the Sheet rewrites it to a ``Ref`` /
+    ``Range`` against the workbook's :class:`~abax.core.tables.TableRegistry`
+    just before evaluation (like defined names). One that survives to the
+    evaluator (no registry / unknown table) yields ``#NAME?``.
+    """
+
+    text: str  # the raw structured-reference text, brackets included
+
+
+@dataclass(frozen=True, slots=True)
 class Ref:
     """A single-cell reference, e.g. ``B3`` or ``Sheet2!B3``."""
 

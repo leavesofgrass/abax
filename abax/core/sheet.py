@@ -110,7 +110,8 @@ class Sheet:
         # Name-resolved AST cache: key -> (names_version, resolved_ast). Resolving
         # defined names rewrites the whole tree, so we memoize the result and only
         # redo it when the cell's formula or the name registry actually changes.
-        self._rast_cache: dict[tuple[int, int], tuple[int, Any]] = {}
+        # (row, col) -> ((names_version, tables_version), resolved_ast)
+        self._rast_cache: dict[tuple[int, int], tuple[tuple[int, int], Any]] = {}
         self._value_cache: dict[tuple[int, int], Any] = {}
         self._computing: set[tuple[int, int]] = set()
         # --- dynamic-array spill state ---
@@ -400,6 +401,51 @@ class Sheet:
                     continue
                 names.remove(display) if newt == REF_ERROR else names.define(display, newt)
 
+        # Shift table bounds on this sheet the same way. Inserts move any bound
+        # at/after the edit point by delta. Deletes: a *start* bound inside the
+        # deleted span clamps to the span start, an *end* bound to just before
+        # it; a deleted header row dissolves the table (its labels are gone), a
+        # deleted totals row simply clears ``totals_row``, and a table whose
+        # data rows (or columns) all vanish is dropped.
+        tables = getattr(self.workbook, "tables", None) if self.workbook is not None else None
+        if tables is not None and len(tables):
+            cut_end = index - delta  # delta < 0: span [index, cut_end) removed
+
+            def _shift(v: int, *, end: bool = False) -> int:
+                if delta > 0:
+                    return v + delta if v >= index else v
+                if v >= cut_end:
+                    return v + delta
+                if v >= index:  # inside the deleted span — clamp
+                    return index - 1 if end else index
+                return v
+
+            changed = False
+            for table in list(tables):
+                if table.sheet != self.name:
+                    continue
+                changed = True
+                if axis == "row":
+                    if delta < 0 and index <= table.header_row < cut_end:
+                        tables.remove(table.name)  # header labels deleted
+                        continue
+                    if table.totals_row is not None:
+                        if delta < 0 and index <= table.totals_row < cut_end:
+                            table.totals_row = None
+                        else:
+                            table.totals_row = _shift(table.totals_row)
+                    table.header_row = _shift(table.header_row)
+                    table.first_data_row = _shift(table.first_data_row)
+                    table.last_data_row = _shift(table.last_data_row, end=True)
+                else:
+                    table.first_col = _shift(table.first_col)
+                    table.last_col = _shift(table.last_col, end=True)
+                if (table.last_data_row < table.first_data_row
+                        or table.last_col < table.first_col):
+                    tables.remove(table.name)
+            if changed:
+                tables.touch()
+
         # Rewrite formula references everywhere that targets THIS sheet (within
         # the workbook, other sheets may hold ``ThisSheet!A1`` references).
         targets = self.workbook.sheets if self.workbook is not None else [self]
@@ -515,15 +561,24 @@ class Sheet:
                 ast = parse(cell.formula)
                 self._ast_cache[key] = ast
             names = getattr(self.workbook, "names", None)
-            if names:  # O(1) — empty/absent registry skips name resolution
-                # Name resolution rewrites the whole AST; memoize the result and
-                # only redo it when the formula or the name registry changes.
-                ver = names.version
+            tables = getattr(self.workbook, "tables", None)
+            has_names = bool(names)
+            has_tables = tables is not None and len(tables) > 0
+            if has_names or has_tables:  # O(1) — empty/absent registries skip
+                # Name/table resolution rewrites the whole AST; memoize the
+                # result and only redo it when the formula or either registry
+                # changes. (Table resolution is per-cell anyway: `[@Col]` binds
+                # to the evaluating row, and the cache key IS the cell.)
+                ver = (names.version if has_names else -1,
+                       tables.version if has_tables else -1)
                 cached = self._rast_cache.get(key)
                 if cached is not None and cached[0] == ver:
                     ast = cached[1]
                 else:
-                    ast = _resolve_names(ast, names)
+                    if has_names:
+                        ast = _resolve_names(ast, names)
+                    if has_tables:
+                        ast = _resolve_tables(ast, tables, self.name, row, col)
                     self._rast_cache[key] = (ver, ast)
             val = evaluate(ast, self._resolve,
                            EvalContext(self._resolve, row, col, self._resolve_spill,
@@ -944,4 +999,52 @@ def _resolve_names(node, registry, seen=frozenset()):
     if isinstance(node, A.ArrayLiteral):
         return A.ArrayLiteral(tuple(
             tuple(_resolve_names(el, registry, seen) for el in row) for row in node.rows))
+    return node
+
+
+def _resolve_tables(node, tables, sheet_name: str, row: int, col: int):
+    """Rewrite ``StructRef`` nodes (``Table1[Col]`` etc.) to ``Ref``/``Range``.
+
+    Mirrors :func:`_resolve_names`: a per-cell AST transform run just before
+    evaluation, memoized by ``tables.version`` in the caller. ``[@Col]`` and the
+    bare implicit forms bind to the evaluating cell — ``current_row`` is the
+    cell's row and ``current_table`` the table containing the cell (if any).
+    An unknown table/column (or ``@`` outside a table) rewrites to an
+    ``Error('#NAME?')`` node so the failure is a value, not a crash.
+    """
+    from . import ast_nodes as A
+    from .reference import to_a1
+    from .tables import TableError, parse_structured_ref, resolve_structured_ref
+
+    if isinstance(node, A.StructRef):
+        try:
+            ref = parse_structured_ref(node.text)
+            if ref is None:
+                return A.Error("#NAME?")
+            current = tables.table_at(sheet_name, row, col)
+            tsheet, r1, c1, r2, c2 = resolve_structured_ref(
+                ref, tables, current_table=current, current_row=row)
+        except TableError:
+            return A.Error("#NAME?")
+        qual = "" if tsheet == sheet_name else tsheet
+        if (r1, c1) == (r2, c2):
+            return A.Ref(to_a1(r1, c1), qual)
+        return A.Range(f"{to_a1(r1, c1)}:{to_a1(r2, c2)}", qual)
+    if isinstance(node, A.Func):
+        return A.Func(node.name, tuple(
+            _resolve_tables(a, tables, sheet_name, row, col) for a in node.args))
+    if isinstance(node, A.Call):
+        return A.Call(
+            _resolve_tables(node.callee, tables, sheet_name, row, col),
+            tuple(_resolve_tables(a, tables, sheet_name, row, col) for a in node.args))
+    if isinstance(node, A.Unary):
+        return A.Unary(node.op, _resolve_tables(node.operand, tables, sheet_name, row, col))
+    if isinstance(node, A.Binary):
+        return A.Binary(node.op,
+                        _resolve_tables(node.left, tables, sheet_name, row, col),
+                        _resolve_tables(node.right, tables, sheet_name, row, col))
+    if isinstance(node, A.ArrayLiteral):
+        return A.ArrayLiteral(tuple(
+            tuple(_resolve_tables(el, tables, sheet_name, row, col) for el in row)
+            for row in node.rows))
     return node

@@ -474,6 +474,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         m_data.addSeparator()
         self._act(m_data, "&Name range...", self.define_name)
         self._act(m_data, "Name &manager...", self.show_name_manager)
+        self._act(m_data, "Format as &table...", self.format_as_table)
         self._act(m_data, "Data &validation...", self.show_validation_dialog)
         self._act(m_data, "&Compare workbook...", self.compare_workbook)
         m_data.addSeparator()

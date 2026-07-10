@@ -160,6 +160,10 @@ def evaluate(node: Any, resolver: Resolver, ctx: "EvalContext | None" = None) ->
         if node.text == "FALSE":
             return False
         return CellError(CellError.NAME, node.text)
+    if isinstance(node, A.StructRef):
+        # A structured ref that survived to evaluation was never resolved
+        # against a TableRegistry (bare evaluator, or an unknown table).
+        return CellError(CellError.NAME, node.text)
     if isinstance(node, A.Unary):
         if node.op == "@":
             return _implicit_intersection(node.operand, resolver, ctx)

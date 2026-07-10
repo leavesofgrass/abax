@@ -474,6 +474,43 @@ class ToolsMixin:
 
         PivotDialog(self).exec()
 
+    def format_as_table(self) -> None:
+        """Name the selected region (header row on top) as a structured table,
+        enabling ``Table1[Column]`` / ``Table1[@Column]`` references."""
+        from ._qtcompat import QInputDialog, QMessageBox
+        from ..core.reference import to_a1
+        from ..core.tables import TableError, detect_table
+
+        wb = self._doc.workbook
+        sheet = wb.sheet
+        ranges = self._table.selectedRanges()
+        if ranges:
+            rg = ranges[0]
+            r1, c1, r2, c2 = rg.topRow(), rg.leftColumn(), rg.bottomRow(), rg.rightColumn()
+        else:
+            r1 = r2 = max(0, self._table.currentRow())
+            c1 = c2 = max(0, self._table.currentColumn())
+        if r2 <= r1:
+            QMessageBox.warning(self, "Format as Table",
+                                "Select a region with a header row plus at least one data row.")
+            return
+        default = f"Table{len(wb.tables) + 1}"
+        name, ok = QInputDialog.getText(
+            self, "Format as Table",
+            f"Table name for {to_a1(r1, c1)}:{to_a1(r2, c2)} (top row = headers):",
+            text=default)
+        if not ok or not name.strip():
+            return
+        headers = ["" if sheet.get_value(r1, c) is None else str(sheet.get_value(r1, c))
+                   for c in range(c1, c2 + 1)]
+        try:
+            wb.tables.add(detect_table(sheet.name, r1, c1, r2, c2, name.strip(), headers))
+        except (TableError, ValueError) as exc:
+            QMessageBox.warning(self, "Format as Table", str(exc))
+            return
+        self._doc.mark_dirty()
+        self._set_status(f"table {name.strip()}: use ={name.strip()}[{headers[0]}] in formulas")
+
     def show_pivot_sidebar(self) -> None:
         """Toggle the drag-drop PivotTable Fields dock (create once, reuse)."""
         from ._qtcompat import Qt

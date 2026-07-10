@@ -58,6 +58,7 @@ HELP_ENTRIES: list[tuple[str, str]] = [
     (":!<cmd>", "run a shell command"),
     (":live [on|off]", "toggle network live data (REST/WEBSOCKET)"),
     (":extern [on|off]", "toggle closed-workbook external references"),
+    (":table [NAME]", "name the current region as a table (Table1[Col] refs) / list tables"),
     (":func [filter]", "browse function names"),
     (":rpn [tokens]", "RPN calculator (REPL or one-shot)"),
     (":plot <expr|range>", "plot an expression or cell range(s)"),
@@ -385,8 +386,39 @@ class TuiEditor:
             self._handle_live(args)
         elif cmd == "extern":
             self._handle_extern(args)
+        elif cmd == "table":
+            self._handle_table(args)
         else:
             self.message = f"unknown command: {cmd}"
+
+    def _handle_table(self, args: list) -> None:
+        """``:table NAME`` — name the current region as a structured table
+        (header row = its top row), so formulas can use ``NAME[Column]``.
+        ``:table`` with no args lists the workbook's tables."""
+        from ..core.navigation import current_region
+        from ..core.tables import TableError, detect_table
+
+        wb = self.doc.workbook
+        if not args:
+            names = sorted(t.name for t in wb.tables)
+            self.message = "tables: " + (", ".join(names) if names else "none — :table NAME")
+            return
+        name = args[0]
+        populated = set(self.sheet._cells.keys())
+        r1, c1, r2, c2 = current_region(populated, self.row, self.col)
+        if r2 <= r1:
+            self.message = "table needs a header row plus at least one data row"
+            return
+        headers = ["" if self.sheet.get_value(r1, c) is None else str(self.sheet.get_value(r1, c))
+                   for c in range(c1, c2 + 1)]
+        try:
+            wb.tables.add(detect_table(self.sheet.name, r1, c1, r2, c2, name, headers))
+        except (TableError, ValueError) as exc:
+            self.message = f"table: {exc}"
+            return
+        from ..core.reference import to_a1
+        self.message = (f"table {name}: {to_a1(r1, c1)}:{to_a1(r2, c2)} "
+                        f"({len(headers)} column(s)) — use {name}[{headers[0]}]")
 
     def _handle_extern(self, args: list) -> None:
         """``:extern [on|off]`` — toggle/report closed-workbook external refs."""

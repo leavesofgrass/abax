@@ -20,10 +20,12 @@ SCHEMA_VERSION = 2
 class Workbook:
     def __init__(self) -> None:
         from .names import NameRegistry
+        from .tables import TableRegistry
 
         self.sheets: list[Sheet] = []
         self.active: int = 0
         self.names = NameRegistry()
+        self.tables = TableRegistry()
         # Calculation mode: "auto" recomputes dependents on every edit (via the
         # incremental dependency graph); "manual" defers all dependent recalc
         # until recalculate() (the GUI's F9), for very large/slow sheets.
@@ -222,17 +224,20 @@ class Workbook:
         self.sheets = other.sheets
         self.active = other.active
         self.names = other.names
+        self.tables = other.tables
         self._link_sheets()
         self._reset_depgraph()  # sheet set replaced — rebuild the index lazily
 
     @classmethod
     def from_sheets(cls, sheets, active: int = 0) -> "Workbook":
         from .names import NameRegistry
+        from .tables import TableRegistry
 
         wb = cls.__new__(cls)
         wb.sheets = list(sheets)
         wb.active = active
         wb.names = NameRegistry()
+        wb.tables = TableRegistry()
         wb._add_default_if_empty()
         wb.active = min(max(wb.active, 0), len(wb.sheets) - 1)
         return wb
@@ -290,6 +295,8 @@ class Workbook:
             "data": {
                 "active": self.active,
                 "names": self.names.to_dict(),
+                # Omitted when empty to keep files lean (older readers ignore it).
+                **({"tables": self.tables.to_dict()} if len(self.tables) else {}),
                 "sheets": [
                     {
                         "name": s.name,
@@ -329,10 +336,12 @@ class Workbook:
         from .format.cellstyle import CellStyle
         from .format.condformat import CondRule
         from .names import NameRegistry
+        from .tables import TableRegistry
 
         wb = cls.__new__(cls)
         wb.sheets = []
         wb.names = NameRegistry.from_dict(data.get("names", {}))
+        wb.tables = TableRegistry.from_dict(data.get("tables", {}))
         for s in data.get("sheets", []):
             sheet = Sheet.from_dict(s["name"], s.get("cells", {}))
             sheet.cond_rules = [CondRule.from_dict(d) for d in s.get("cond_rules", [])]

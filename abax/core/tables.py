@@ -202,6 +202,15 @@ class TableRegistry:
         """A counter bumped on every mutation (add/remove/rename)."""
         return self._version
 
+    def touch(self) -> None:
+        """Bump :attr:`version` after mutating a table's fields in place.
+
+        The registry can't observe direct ``Table`` attribute writes (structural
+        row/column shifts edit bounds directly), so such callers bump explicitly
+        to invalidate memoized structured-ref resolutions.
+        """
+        self._version += 1
+
     def __len__(self) -> int:
         return len(self._by_upper)
 

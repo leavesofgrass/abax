@@ -156,6 +156,8 @@ def analyze(raw: str, owner: str, sheet_names) -> Analysis:
             rects.append((name, r1, c1, r2, c2))
         elif isinstance(node, A.SpillRef):
             dirty[0] = True  # runtime-sized block; true deps unknown statically
+        elif isinstance(node, A.StructRef):
+            dirty[0] = True  # table bounds are runtime state (auto-expand); like a name
         elif isinstance(node, A.Name):
             if node.text not in _CONSTANT_NAMES:
                 dirty[0] = True  # a defined-name reference — resolved at runtime

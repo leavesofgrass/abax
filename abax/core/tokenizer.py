@@ -64,11 +64,61 @@ def _next_nonspace(s: str, i: int) -> str:
     return s[i] if i < len(s) else ""
 
 
+_STRUCT_HEAD = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*\[|\[")
+
+
+def _match_structref(formula: str, pos: int) -> "str | None":
+    """Match a structured (table) reference starting at *pos*, or None.
+
+    Regex alone can't balance the nested brackets of ``Table1[[#Data],[Col]]``,
+    so this scans for the matching ``]`` by depth and validates the candidate
+    with :func:`abax.core.tables.parse_structured_ref` (imported lazily — no
+    cycle: ``tables`` only imports ``reference``). Two guards keep existing
+    syntax intact: the bare-``[`` form must not swallow an external-workbook
+    qualifier (``[Book.abax]Sheet1!A1`` — after its ``]`` comes an identifier
+    or a quote), and any candidate ``parse_structured_ref`` rejects falls
+    through to the ordinary regex path untouched.
+    """
+    m = _STRUCT_HEAD.match(formula, pos)
+    if m is None:
+        return None
+    depth = 0
+    j = formula.index("[", pos)
+    n = len(formula)
+    while j < n:
+        ch = formula[j]
+        if ch == "'" and depth > 0 and j + 1 < n and formula[j + 1] in "[]'":
+            j += 2  # escaped bracket/quote inside a name ('[ / '] / '') — skip it
+            continue
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0:
+                end = j + 1
+                after = formula[end] if end < n else ""
+                # `[...]ident`, `[...]'`, `[...]!` — an external-workbook sheet
+                # qualifier, never a structured ref.
+                if after.isalnum() or after in ("_", "'", "!"):
+                    return None
+                candidate = formula[pos:end]
+                from .tables import parse_structured_ref
+
+                return candidate if parse_structured_ref(candidate) is not None else None
+        j += 1
+    return None  # unbalanced -> not a structured ref
+
+
 def tokenize(formula: str) -> list[Token]:
     tokens: list[Token] = []
     pos = 0
     n = len(formula)
     while pos < n:
+        struct = _match_structref(formula, pos)
+        if struct is not None:
+            tokens.append(Token("STRUCTREF", struct))
+            pos += len(struct)
+            continue
         m = _TOKEN_RE.match(formula, pos)
         if not m:
             raise FormulaError(f"unexpected character at {pos}: {formula[pos]!r}")
