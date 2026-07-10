@@ -10,7 +10,17 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
-_Development version 0.1.10 — accumulating until the next ship signal._
+_Development version 0.1.11 — accumulating until the next ship signal._
+
+### Added
+- **Power-user batch (in progress):** structured references / Tables, a public
+  Python automation API, runtime UDF registration in `init.py`, in-cell
+  `SPARKLINE`, connected-data depth (auth headers, `.xlsx`/`.csv` external refs,
+  array-spilling live data, refreshable connections), what-if Data Tables +
+  Scenario Manager, pivot refinements, deeper keybinding customization, a formula
+  profiler, and threaded recalc.
+
+## [0.1.10] — 2026-07-09
 
 ### Added
 - **macOS app bundle** — a self-contained, arm64 (Apple Silicon) **`Abax.app`**
