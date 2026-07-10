@@ -86,6 +86,27 @@ def _handle_key(editor: TuiEditor, ch) -> None:
         _handle_command(editor, ch)
 
 
+def _user_binding(editor: TuiEditor, mode: str, key) -> bool:
+    """Fire a user init.py rebind for (mode, key); True if it handled the key.
+
+    Rebinds win over built-ins; an unbound key returns False so it falls through
+    to the default handler. Only string keys are looked up (raw curses ints have
+    no user-facing spelling). Errors can't crash the loop — the draw loop
+    contains them.
+    """
+    if not isinstance(key, str):
+        return False
+    uc = getattr(editor, "user_config", None)
+    if uc is None:
+        return False
+    binding = uc.keybinding(mode, key)
+    if binding is None:
+        return False
+    editor.message = ""
+    binding.action(editor)
+    return True
+
+
 def _handle_normal(editor: TuiEditor, ch) -> None:
     """Normal-mode dispatch, incl. the ``g``-prefixed two-key sheet motions.
 
@@ -109,16 +130,9 @@ def _handle_normal(editor: TuiEditor, ch) -> None:
     key = ch if isinstance(ch, str) else _arrow_vi(ch)
     if key is None:
         return
-    # User rebinds from ~/.config/abax/init.py win over built-ins. Keys are the
-    # literal keystroke (e.g. "K"); the action is called with the editor. Errors
-    # can't crash the loop — the draw loop contains them.
-    uc = getattr(editor, "user_config", None)
-    if uc is not None and isinstance(key, str):
-        binding = uc.keybinding("normal", key)
-        if binding is not None:
-            editor.message = ""
-            binding.action(editor)
-            return
+    # User rebinds from ~/.config/abax/init.py win over built-ins.
+    if _user_binding(editor, "normal", key):
+        return
     if editor.pending_g:  # resolve a previously-pressed 'g'
         editor.pending_g = False
         if key == "t":
@@ -146,6 +160,8 @@ def _handle_visual(editor: TuiEditor, ch) -> None:
     # Movement (h/j/k/l AND arrow keys) extends the selection from the anchor;
     # the cursor moves while the anchor stays put. Operations act on the range.
     key = ch if isinstance(ch, str) else _arrow_vi(ch)
+    if _user_binding(editor, "visual", key):
+        return
     if key in ("h", "j", "k", "l"):
         editor.move(*{"h": (0, -1), "l": (0, 1),
                       "j": (1, 0), "k": (-1, 0)}[key])
@@ -159,6 +175,8 @@ def _handle_visual(editor: TuiEditor, ch) -> None:
 
 
 def _handle_rpn(editor: TuiEditor, ch) -> None:
+    if isinstance(ch, str) and _user_binding(editor, "rpn", ch):
+        return
     if _is_enter(ch):
         editor.rpn_eval()
     elif ch == "\x1b":
@@ -176,6 +194,8 @@ def _handle_plot(editor: TuiEditor, ch) -> None:
 
 def _handle_browser(editor: TuiEditor, ch) -> None:
     ch = _arrow_vi(ch) or ch   # arrows move the list like j/k (h/l are no-ops here)
+    if isinstance(ch, str) and _user_binding(editor, "browser", ch):
+        return
     if _is_enter(ch):
         editor.browser_insert()
     elif ch == "\x1b" or ch == "q":
@@ -219,6 +239,9 @@ def _handle_describe(editor: TuiEditor, ch) -> None:
 
 
 def _handle_insert(editor: TuiEditor, ch) -> None:
+    # A bound chord (e.g. ctrl+w) fires; unbound printables still type normally.
+    if isinstance(ch, str) and not ch.isprintable() and _user_binding(editor, "insert", ch):
+        return
     if _is_enter(ch):
         # Excel-style: commit the value and drop to the cell below, ready for
         # the next entry. (Esc cancels the edit; Tab autocompletes.)
@@ -238,6 +261,8 @@ def _handle_insert(editor: TuiEditor, ch) -> None:
 
 
 def _handle_command(editor: TuiEditor, ch) -> None:
+    if isinstance(ch, str) and not ch.isprintable() and _user_binding(editor, "command", ch):
+        return
     if _is_enter(ch):
         editor.run_command()
     elif ch == "\x1b":

@@ -60,6 +60,7 @@ HELP_ENTRIES: list[tuple[str, str]] = [
     (":extern [on|off]", "toggle closed-workbook external references"),
     (":table [NAME]", "name the current region as a table (Table1[Col] refs) / list tables"),
     (":auth HOST HEADER VALUE", "set a session-only live-data request header (:noauth to clear)"),
+    (":map [MODE]", "list init.py key rebinds (all modes, or one mode)"),
     (":func [filter]", "browse function names"),
     (":rpn [tokens]", "RPN calculator (REPL or one-shot)"),
     (":plot <expr|range>", "plot an expression or cell range(s)"),
@@ -391,8 +392,30 @@ class TuiEditor:
             self._handle_table(args)
         elif cmd in ("auth", "noauth"):
             self._handle_auth(cmd, args)
+        elif cmd == "map":
+            self._handle_map(args)
         else:
             self.message = f"unknown command: {cmd}"
+
+    def _handle_map(self, args: list) -> None:
+        """``:map`` lists key rebinds (all modes); ``:map MODE`` lists one mode's.
+        Rebinding stays init.py's job (actions are Python callables)."""
+        from ..userconfig import BINDABLE_MODES
+
+        uc = self.user_config
+        if not args:
+            allb = uc.all_bindings()
+            pairs = [f"{m}:{k}={b.desc or 'bound'}"
+                     for m, binds in allb.items() for k, b in binds.items()]
+            self.message = ("keymaps: " + ("  ".join(pairs) if pairs else "none — set them in init.py"))
+            return
+        mode = args[0]
+        if mode not in BINDABLE_MODES:
+            self.message = f"unknown mode {mode!r}; modes: {', '.join(BINDABLE_MODES)}"
+            return
+        binds = uc.bindings_for(mode)
+        pairs = [f"{k}={b.desc or 'bound'}" for k, b in binds.items()]
+        self.message = f"{mode} maps: " + ("  ".join(pairs) if pairs else "none")
 
     def _handle_auth(self, cmd: str, args: list) -> None:
         """``:auth HOST HEADER VALUE...`` sets a **session-only** request header
