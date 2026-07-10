@@ -494,6 +494,8 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._act(m_analyze, "&Curve fit...", self.show_curve_fit)
         m_analyze.addSeparator()
         self._act(m_analyze, "&Goal seek...", self.show_goal_seek)
+        self._act(m_analyze, "&What-if analysis...", self.show_what_if)
+        self._reg_icon(self._act(m_analyze, "Formula pro&filer...", self.show_formula_profiler), "stats")
 
         # --- Sheet (multi-sheet management) -------------------------------
         m_sheet = mb.addMenu("S&heet")

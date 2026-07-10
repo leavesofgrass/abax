@@ -553,6 +553,18 @@ class ToolsMixin:
 
         CurveFitDialog(self).exec()
 
+    def show_what_if(self) -> None:
+        """One/two-variable data tables + a scenario manager over the sheet."""
+        from .dialogs.whatif_dialog import WhatIfDialog
+
+        WhatIfDialog(self).exec()
+
+    def show_formula_profiler(self) -> None:
+        """Rank formula cells by recalc cost and draw a cell's dependency graph."""
+        from .dialogs.profile_dialog import ProfileDialog
+
+        ProfileDialog(self).exec()
+
     def show_graph(self) -> None:
         from .dialogs.graph_dialog import GraphDialog
 
