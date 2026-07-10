@@ -539,6 +539,33 @@ live data is disabled, `#N/A` until the first value arrives, then the value
 update. Connection secrets are never persisted — put credentials in the URL only
 for trusted, local endpoints.
 
+### Structured references (Tables)
+
+Name a region as a **table** — GUI **Data → Format as table…** or TUI
+`:table NAME` (the top row supplies the column headers) — then reference it by
+name instead of coordinates:
+
+```
+=SUM(Sales[sales])          a whole column (data rows only)
+=Sales[@sales] * 1.1        this-row: the column's cell on the formula's row
+=Sales[#Headers]            special regions: #All, #Data, #Headers, #Totals
+=SUM(Sales[[qty]:[price]])  a span of adjacent columns
+```
+
+Inside the table's own cells the bare forms `[Column]` / `[@Column]` work too.
+Tables persist in the workbook, **auto-grow** when rows are inserted inside the
+data range, shrink coherently on deletes (deleting the header row dissolves the
+table), and an unknown table or column evaluates to `#NAME?`. Table lookups are
+case-insensitive.
+
+### In-cell sparklines
+
+`SPARKLINE(range, [type], [color])` draws a micro-chart in the cell — *type* is
+`"line"` (default), `"bar"`, or `"winloss"`. The GUI renders crisp SVG scaled to
+the cell; the TUI and any text export show the same data as a unicode
+block-ramp (`▁▅▃█▆`; win/loss uses `▀`/`▄`/`·`). Blanks and text in the range
+are skipped; an all-blank range yields `#VALUE!`.
+
 ### External workbook references
 
 Reference a cell in another, **closed** workbook by qualifying the sheet with a

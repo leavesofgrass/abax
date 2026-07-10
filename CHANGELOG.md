@@ -13,12 +13,24 @@ All notable changes to abax are documented here. The format follows
 _Development version 0.1.11 — accumulating until the next ship signal._
 
 ### Added
-- **Power-user batch (in progress):** structured references / Tables, a public
-  Python automation API, runtime UDF registration in `init.py`, in-cell
-  `SPARKLINE`, connected-data depth (auth headers, `.xlsx`/`.csv` external refs,
-  array-spilling live data, refreshable connections), what-if Data Tables +
-  Scenario Manager, pivot refinements, deeper keybinding customization, a formula
-  profiler, and threaded recalc.
+- **Structured references (Excel Tables)** — name a region as a table (GUI
+  **Data → Format as table…**, TUI `:table NAME`; top row = headers) and
+  reference it by column: `=SUM(Sales[sales])`, `Sales[@sales]` (this-row),
+  `[#Headers]`/`[#Data]`/`[#All]`/`[#Totals]`, nested `[[#Data],[Col]]`, and
+  column spans. Tables persist in the workbook, auto-grow when rows are
+  inserted inside the data, shrink/dissolve coherently on deletes, and an
+  unknown table/column degrades to `#NAME?`.
+- **Public Python automation API** — `import abax; book = abax.open("b.abax")`;
+  `book["Sheet1"]["A1"] = "=SUM(B1:B3)"`, scalar/range reads, `book.recalc()`,
+  `book.save()`, context-manager support. Exposed lazily at the package top
+  level (`import abax` stays ~3 ms). Guide: `docs/automation.md`.
+- **Runtime UDFs from `init.py`** — `abax.register_function("DOUBLE", fn)`
+  (plus `kind="lazy"|"context"`) registers custom formula functions on the
+  trusted power-user path; both GUI and TUI apply them at startup, and the GUI
+  now loads `init.py` at all (its macro-menu entries reach the macro manager).
+- **In-cell `SPARKLINE(range, [type], [color])`** — line / bar / win-loss
+  micro-charts. The GUI paints crisp SVG in the cell; the TUI (and any text
+  context) shows the same data as a unicode block-ramp sparkline (`▁▅▃█▆`).
 
 ## [0.1.10] — 2026-07-09
 

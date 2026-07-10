@@ -108,6 +108,7 @@ keys**. Key features:
 | `:!cmd` | Run a shell command; the current cell is exported as `$ABAX_ACTIVE_CELL` / `$ABAX_SELECTION_RANGE` / `$ABAX_SELECTION_JSON` / `$ABAX_SELECTION_TSV` |
 | `:live [on\|off]` | Toggle network live data (`=REST`/`=WEBSOCKET` formulas); off by default |
 | `:extern [on\|off]` | Toggle closed-workbook external references (`=[Book.abax]Sheet1!A1`); off by default |
+| `:table [NAME]` | Name the current region as a structured table (top row = headers) so formulas can use `NAME[Column]`; no args lists tables |
 | `:` commands | `:w` `:q` write/quit, `:find`, `:rpn`, `:fmt`, `:py`, `:!cmd`, `:func`, `:sheet`, `:pivot`, `:describe`, `:trace`, `:live`, `:extern`, … |
 
 ### `view file [--sheet NAME]` — print a sheet

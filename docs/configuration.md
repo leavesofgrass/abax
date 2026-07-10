@@ -49,10 +49,10 @@ You can edit `settings.json` by hand while abax is closed, but you rarely need t
 ## Startup script (`init.py`)
 
 For power users, abax runs an optional Python script at `CONFIG_DIR/init.py`
-(e.g. `~/.config/abax/init.py`) when the TUI starts. It's your own trusted
-config — like a `.vimrc` or `.pythonrc`, executed with your privileges — and it
-receives an `abax` facade for **rebinding keys** and **adding macro-menu
-entries**:
+(e.g. `~/.config/abax/init.py`) when the GUI or TUI starts. It's your own
+trusted config — like a `.vimrc` or `.pythonrc`, executed with your privileges —
+and it receives an `abax` facade for **rebinding keys**, **adding macro-menu
+entries**, and **registering custom formula functions**:
 
 ```python
 # ~/.config/abax/init.py
@@ -67,6 +67,14 @@ abax.bind_key("normal", "K", to_top, desc="jump to top")
 # Register a named entry for the macro menu / palette.
 abax.register_macro_menu("Uppercase cell", lambda ed: ed.sheet.set_cell(
     ed.row, ed.col, ed.sheet.get_raw(ed.row, ed.col).upper()))
+
+# Register a custom formula function — usable in cells as =DOUBLE(A1).
+def double(args):
+    return (args[0] or 0) * 2
+abax.register_function("DOUBLE", double)
+# kind="lazy" receives unevaluated argument nodes (control-flow functions);
+# kind="context" receives (arg_nodes, ctx) like ROW/OFFSET. A user function
+# may deliberately shadow a built-in of the same name.
 ```
 
 Keys are matched as the literal keystroke (e.g. `"K"`). The `action` is called
