@@ -14,22 +14,22 @@ See also: [index](index.md) · [formula reference](formula-reference.md) ·
 | Format | Extensions | Read | Write | Optional dep | Fallback when absent |
 | --- | --- | :---: | :---: | --- | --- |
 | Native workbook | `.json` `.abax` | yes | yes | — (stdlib `json`) | always available |
+| ADIF logbook | `.adi` `.adif` | yes | yes | — | always available |
 | CSV | `.csv` | yes | yes | — | always available |
-| TSV / tab | `.tsv` `.tab` | yes | yes | — | always available |
 | Excel | `.xlsx` `.xlsm` | yes | yes | `openpyxl` | error with install hint |
+| Feather | `.feather` `.ft` | yes | yes | `pandas` + `pyarrow`/`fastparquet` | error with install hint |
+| Fixed-width | `.fixed` | yes | yes | — | always available |
+| HDF5 | `.h5` `.hdf5` | yes | no | `h5py` (`abax[hdf5]`) | error with install hint |
+| JSON Lines | `.jsonl` `.ndjson` | yes | yes | — | always available |
+| Jupyter notebook | `.ipynb` | yes | yes | — (no `nbformat` needed) | always available |
+| Markdown (GFM) | `.md` `.markdown` | yes | yes | — | always available |
 | OpenDocument | `.ods` | yes | yes | — (stdlib `zipfile`+`xml`) | always available |
 | Parquet | `.parquet` `.pq` | yes | yes | `pandas` + `pyarrow`/`fastparquet` | error with install hint |
-| Feather | `.feather` `.ft` | yes | yes | `pandas` + `pyarrow`/`fastparquet` | error with install hint |
-| XML Spreadsheet | `.xml` | yes | yes | — | always available |
-| Markdown (GFM) | `.md` `.markdown` | yes | yes | — | always available |
-| Jupyter notebook | `.ipynb` | yes | yes | — (no `nbformat` needed) | always available |
 | R data.frame | `.r` `.rdata` | yes | yes | — | always available |
-| JSON Lines | `.jsonl` `.ndjson` | yes | yes | — | always available |
-| Fixed-width | `.fixed` | yes | yes | — | always available |
-| ADIF logbook | `.adi` `.adif` | yes | yes | — | always available |
 | SQLite | `.db` `.sqlite` `.sqlite3` | yes | yes | — (stdlib `sqlite3`) | always available |
 | Stata / SPSS | `.dta` `.sav` `.zsav` `.por` | yes | no | `pyreadstat` (`abax[stats-io]`) | error with install hint |
-| HDF5 | `.h5` `.hdf5` | yes | no | `h5py` (`abax[hdf5]`) | error with install hint |
+| TSV / tab | `.tsv` `.tab` | yes | yes | — | always available |
+| XML Spreadsheet | `.xml` | yes | yes | — | always available |
 | 7-Zip archive | `.7z` | yes | yes | `py7zr` (`abax[sevenzip]`) | `.zip`/`.tar` still work; 7z shows a hint |
 
 **Excel**, **Parquet/Feather**, **Stata/SPSS**, **HDF5**, and **7-Zip** each need
