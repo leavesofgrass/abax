@@ -509,16 +509,48 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
 
         # --- Tools (scientific - macros/scripts - calculator art) ---------
         m_tools = mb.addMenu("&Tools")
+
+        # -- Domain tool suites --------------------------------------------
         m_sci = m_tools.addMenu("&Scientific")
         self._act(m_sci, "&Matrix tool...", self.show_matrix_tool)
         self._act(m_sci, "Numerical &solver...", self.show_solver)
         self._act(m_sci, "Si&gnal / data tool...", self.show_signal_tool)
         self._act(m_sci, "&ODE solver...", self.show_ode_solver)
         self._act(m_sci, "M&L tool (PCA / k-means / regression)...", self.show_ml_tool)
+
+        # Radio (amateur / RF suite) — a Tools submenu.
+        m_radio = m_tools.addMenu("&Radio")
+        self._act(m_radio, "&RF toolkit...", self.show_rf_tool)
+        self._act(m_radio, "Smith &chart...", self.show_smith_chart)
+        self._act(m_radio, "&Antenna pattern...", self.show_antenna_pattern)
+        self._act(m_radio, "Antenna &modeler...", self.show_antenna_modeler)
+        self._act(m_radio, "Open &logbook (ADIF)...", self.show_adif_logbook)
+        self._act(m_radio, "&Activation log (POTA/SOTA)...", self.show_hamlog)
+        self._act(m_radio, "&Satellite passes (SGP4)...", self.show_satellite)
+        m_radio.addSeparator()
+        self._act(m_radio, "RF re&ference (bands / CTCSS)...", self.show_rf_reference)
+        self._act(m_radio, "&I/Q constellation -> SVG", self.export_iq_svg)
+        self._act(m_radio, "Smith chart -> S&VG...", self.export_smith_svg)
+        self._act(m_radio, "Solve &NEC deck (PyNEC)...", self.solve_nec_pynec)
         m_tools.addSeparator()
-        self._act(m_tools, "Install optional features now", self.install_optional_features)
-        self._act(m_tools, "&Budget wizard...", self.show_budget_wizard)
-        self._act(m_tools, "&Hex viewer...", self.show_hex_viewer)
+
+        # -- Automation & scripting ----------------------------------------
+        self._macros_menu = m_tools.addMenu("&Macros")
+        self._rebuild_macros_menu()
+        self._act(m_tools, "Manage &macros...", self.show_macro_manager)
+        m_rec = m_tools.addMenu("&Recording")
+        self._act(m_rec, "Start/stop recording", self._toggle_recording)
+        self._act(m_rec, "Start relative recording", self._start_relative_recording)
+        self._act(m_rec, "Save recorded macro...", self._save_recording)
+        self._act(m_rec, "Replay recording", self._replay_recording)
+        self._act(m_tools, "&Load macro / UDF file...", self.load_macros)
+        self._act(m_tools, "Run Python &script...", self.run_script)
+        m_tools.addSeparator()
+
+        # -- Security & data-access consent --------------------------------
+        # Code-execution isolation (sandbox) level — checkable submenu.
+        m_iso = m_tools.addMenu("Code &isolation (sandbox)")
+        self._build_isolation_menu(m_iso)
         # Consent toggle for network live-data formulas (REST / WEBSOCKET).
         act_live = QAction("Enable &live data (network)", self)
         act_live.setCheckable(True)
@@ -535,48 +567,28 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         act_ext.toggled.connect(self._toggle_external_refs)
         m_tools.addAction(act_ext)
         self._external_refs_action = act_ext
+        m_tools.addSeparator()
+
+        # -- Utilities ------------------------------------------------------
+        self._act(m_tools, "&Budget wizard...", self.show_budget_wizard)
+        self._act(m_tools, "&Hex viewer...", self.show_hex_viewer)
         self._act(m_tools, "&File manager...", self.show_file_manager, "Ctrl+Shift+F")
-        m_tools.addSeparator()
-        self._macros_menu = m_tools.addMenu("&Macros")
-        self._rebuild_macros_menu()
-        self._act(m_tools, "Manage &macros...", self.show_macro_manager)
-        m_rec = m_tools.addMenu("&Recording")
-        self._act(m_rec, "Start/stop recording", self._toggle_recording)
-        self._act(m_rec, "Start relative recording", self._start_relative_recording)
-        self._act(m_rec, "Save recorded macro...", self._save_recording)
-        self._act(m_rec, "Replay recording", self._replay_recording)
-        self._act(m_tools, "&Load macro / UDF file...", self.load_macros)
-        self._act(m_tools, "Run Python &script...", self.run_script)
-        # Code-execution isolation (sandbox) level — checkable submenu.
-        m_iso = m_tools.addMenu("Code &isolation (sandbox)")
-        self._build_isolation_menu(m_iso)
+        self._act(m_tools, "Copy selection as &Markdown", self._copy_as_markdown)
         m_tools.addSeparator()
 
-        # Radio (amateur / RF suite) — a Tools submenu.
-        m_radio = m_tools.addMenu("&Radio")
-        self._act(m_radio, "&RF toolkit...", self.show_rf_tool)
-        self._act(m_radio, "Smith &chart...", self.show_smith_chart)
-        self._act(m_radio, "&Antenna pattern...", self.show_antenna_pattern)
-        self._act(m_radio, "Antenna &modeler...", self.show_antenna_modeler)
-        self._act(m_radio, "Open &logbook (ADIF)...", self.show_adif_logbook)
-        self._act(m_radio, "&Activation log (POTA/SOTA)...", self.show_hamlog)
-        self._act(m_radio, "&Satellite passes (SGP4)...", self.show_satellite)
-        m_radio.addSeparator()
-        self._act(m_radio, "RF re&ference (bands / CTCSS)...", self.show_rf_reference)
-        self._act(m_radio, "&I/Q constellation -> SVG", self.export_iq_svg)
-        self._act(m_radio, "Smith chart -> S&VG...", self.export_smith_svg)
-        self._act(m_radio, "Solve &NEC deck (PyNEC)...", self.solve_nec_pynec)
-
-        m_tools.addSeparator()
+        # -- Setup / configuration -----------------------------------------
+        self._act(m_tools, "&Install optional features now", self.install_optional_features)
         m_face = m_tools.addMenu("Calculator &faceplates")
         self._act(m_face, "Set image folder...", self.set_faceplate_folder)
-        self._act(m_tools, "Copy selection as &Markdown", self._copy_as_markdown)
 
         # --- Help ---------------------------------------------------------
         m_help = mb.addMenu("&Help")
         self._act(m_help, "&Keyboard shortcuts", self.show_shortcuts, "F1")
         self._reg_icon(self._act(m_help, "&Command palette — all commands...",
                                  self.show_command_palette), "palette")
+        m_help.addSeparator()
+        self._act(m_help, "&Documentation (online)...", self.open_docs_website)
+        m_help.addSeparator()
         self._act(m_help, "&About abax", self.show_about)
 
     def _setup_toolbar(self) -> None:

@@ -72,6 +72,20 @@ class PaletteMixin:
             "GPL-3.0-or-later.",
         )
 
+    def open_docs_website(self) -> None:
+        """Open the online documentation (GitHub Pages) in the default browser."""
+        from ._qtcompat import QDesktopServices, QUrl
+
+        url = "https://leavesofgrass.github.io/abax/"
+        if QDesktopServices is not None and QUrl is not None:
+            QDesktopServices.openUrl(QUrl(url))
+            self._set_status(f"opened documentation: {url}")
+        else:  # stripped build without QtGui URL handling — fall back to the OS
+            import webbrowser
+
+            webbrowser.open(url)
+            self._set_status(f"opened documentation: {url}")
+
     def show_command_palette(self) -> None:
         from .command_palette import CommandPalette
 

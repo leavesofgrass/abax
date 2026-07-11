@@ -218,7 +218,7 @@ class VoyagerFaceplate(QWidget):
         self._pressed: "_Key | None" = None
 
         self.setObjectName("voyagerFaceplate")
-        self.setAccessibleName(f"HP-{model_name} calculator")
+        self.setAccessibleName(f"{model_name} RPN calculator")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         self._lcd = QLabel(self)

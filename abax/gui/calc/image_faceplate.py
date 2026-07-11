@@ -147,7 +147,7 @@ class ImageFaceplate(QWidget):
                         if legends else {})
 
         self.setObjectName("voyagerImageFaceplate")
-        self.setAccessibleName("HP Voyager calculator")
+        self.setAccessibleName("Voyager-style RPN calculator")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         self._lcd = QLabel(self)

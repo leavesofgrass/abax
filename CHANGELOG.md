@@ -25,12 +25,21 @@ All notable changes to abax are documented here. The format follows
 - **Published documentation site.** The `docs/` tree is now built with
   MkDocs-Material and deployed to GitHub Pages, with GitHub-compatible heading
   anchors so intra-doc links resolve identically on GitHub and the site.
+- **Help → Documentation (online)** opens the published docs site
+  (<https://leavesofgrass.github.io/abax/>) in the default browser.
 
 ### Changed
 - **CI** now also tests on Python 3.14, ratchets `abax/engine` coverage
   (floor 55) alongside `abax/core` (floor 81), adds a memory-regression
   dimension to the benchmark gate, and gates PyPI publishing to tagged
   releases only.
+- **Tools menu reorganized** into logical groups — domain suites (Scientific,
+  Radio), automation & scripting, security & data-access consent, utilities,
+  and setup — separated by dividers, so related actions sit together.
+- **Calculator faceplate widgets no longer carry the "HP" name** in their own
+  labels (the vector faceplate's own `qv` mark is unchanged); the HP model
+  names remain on the calculator model list, where they identify the emulated
+  hardware.
 
 ## [0.1.11] — 2026-07-10
 
