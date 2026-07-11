@@ -38,7 +38,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python: ["3.11", "3.12", "3.13"]
+        python: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v5
 
@@ -68,12 +68,19 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
 
-  # ── Coverage ratchet on abax/core ──────────────────────────────────────────
-  # A floor, not an aspiration: --cov-fail-under is set just under the current
+  # ── Coverage ratchet on abax/core (+ engine, reported) ─────────────────────
+  # A floor, not an aspiration: the core floor is set just under the current
   # measured coverage, so the gate only ratchets upward. Runs once (Linux /
-  # 3.13) — coverage of pure-Python logic is platform-independent.
+  # 3.13) — coverage of pure-Python logic is platform-independent. One suite run
+  # collects BOTH abax/core and abax/engine; we then report per-package so the
+  # core ratchet stays a hard gate while engine coverage is surfaced (not yet
+  # gated). NOTE: this job installs only `[dev,thin]`, so engine adapters that
+  # need the heavy optional deps (numpy/pandas/pymc/…) are importorskip'd and
+  # don't execute here — engine coverage is therefore the THIN-env number.
+  # Add `--fail-under=<N>` to the engine report to turn it into a ratchet once
+  # you've read the real thin-env % from a CI run.
   coverage:
-    name: coverage (abax/core ratchet)
+    name: coverage (abax/core ratchet + engine reported)
     runs-on: ubuntu-latest
     env:
       QT_QPA_PLATFORM: offscreen
@@ -89,13 +96,22 @@ jobs:
       - name: Install project (dev + thin extras)
         run: python -m pip install -e ".[dev,thin]"
 
-      # Floor = current measured coverage (81.49%) rounded DOWN to 81. This is a
-      # ratchet: raise it when coverage rises, never a number to chase.
-      - name: pytest --cov=abax/core (fail under the ratchet floor)
+      # One suite run collects both packages into .coverage; the report steps
+      # below apply per-package floors.
+      - name: Run tests with coverage (collect core + engine)
         run: >
           xvfb-run -a python -m pytest -n auto
-          --cov=abax/core --cov-report=term-missing
-          --cov-fail-under=81
+          --cov=abax/core --cov=abax/engine --cov-report=
+
+      # Floor = current measured coverage (81.49%) rounded DOWN to 81. This is a
+      # ratchet: raise it when coverage rises, never a number to chase.
+      - name: abax/core coverage ratchet (fail under the floor)
+        run: python -m coverage report --include="abax/core/*" --fail-under=81
+
+      # Reported, not yet gated — see the note above. Surfaces the thin-env
+      # engine coverage number in the CI log so it can become a ratchet later.
+      - name: abax/engine coverage (reported)
+        run: python -m coverage report --include="abax/engine/*"
 
   # ── Benchmark regression gate ──────────────────────────────────────────────
   # Runs the recalc throughput gate against scripts/bench_baseline.json and
