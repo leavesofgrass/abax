@@ -1,8 +1,9 @@
 {
-  "schema": 1,
+  "schema": 2,
   "metrics": {
     "cold_cells_per_sec": 18683.012058859258,
-    "warm_cells_per_sec": 41690.67354859936
+    "warm_cells_per_sec": 41690.67354859936,
+    "mem_bytes_per_cell": 1394.6
   },
   "workload": {
     "rows": 200,
@@ -13,6 +14,7 @@
     "python": "3.13.14",
     "platform": "Windows-11-10.0.26200-SP0",
     "processor": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
-    "captured": "2026-07-02 10:41:22"
+    "captured": "2026-07-02 10:41:22",
+    "mem_captured": "2026-07-11"
   }
 }

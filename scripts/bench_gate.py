@@ -6,13 +6,19 @@ profiler (``benchmarks/profile_abax.py``) uses, compares them to a committed
 baseline (``scripts/bench_baseline.json``), and exits non-zero only if a metric
 regresses beyond a lenient threshold. Prints a clear before/after table.
 
-The "metric" here is *throughput* (cells/sec) for two phases:
+Three metrics are checked — two *throughput* (cells/sec, higher is better) and
+one *memory* (bytes/cell, lower is better):
 
 * ``cold`` — first recalc: parse + eval for every formula (no AST cache warm).
 * ``warm`` — second recalc: eval only (AST cache populated). This isolates the
   hot path a user hits on every edit-driven recalc.
+* ``memory`` — peak Python heap per cell for a built + recalculated workbook.
+  This is the dimension the windowed/lazy sheet-store work targets: the store
+  sits under every read/write/recalc, so a regression here means it got fatter
+  per cell. Far more stable run-to-run than timing (object-graph size, not CPU).
 
-A regression = throughput dropped below ``baseline * (1 - threshold)``. The
+A *throughput* regression = it dropped below ``baseline * (1 - threshold)``; a
+*memory* regression = it rose above ``baseline * (1 + threshold)``. The
 default threshold is lenient (30%) so ordinary run-to-run timing noise and
 slower CI runners don't fail the build — the gate exists to catch a *real*
 algorithmic regression, not to police jitter.
@@ -37,6 +43,7 @@ import json
 import platform
 import sys
 import time
+import tracemalloc
 from pathlib import Path
 
 # Make ``abax`` and the ``benchmarks`` package importable from anywhere.
@@ -99,7 +106,30 @@ def measure(rows: int, cols: int, repeat: int) -> dict:
         "repeat": repeat,
         "cold_cells_per_sec": cold_rates[mid],
         "warm_cells_per_sec": warm_rates[mid],
+        "mem_bytes_per_cell": measure_memory(rows, cols),
     }
+
+
+def measure_memory(rows: int, cols: int) -> float:
+    """Peak Python heap **bytes per cell** for a built + recalculated workbook.
+
+    Measured in a separate pass from the timing loop (tracemalloc perturbs
+    timing) and only once — memory is far more stable run-to-run and
+    machine-to-machine than wall-clock time (it's object-graph size, not CPU
+    speed). This is the dimension the windowed/lazy sheet-store work targets:
+    the in-memory footprint of the cell store, which sits under every read,
+    write, and recalc. A regression here = the store got fatter per cell.
+    """
+    gc.collect()
+    tracemalloc.start()
+    try:
+        wb = build_recalc_workbook(rows, cols)
+        wb.recalculate()
+        n_cells = sum(1 for _ in wb.sheet.iter_cells())
+        _current, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    return peak / n_cells if n_cells else 0.0
 
 
 def _machine() -> dict:
@@ -114,10 +144,11 @@ def _machine() -> dict:
 
 def write_baseline(result: dict, path: Path = BASELINE_PATH) -> None:
     payload = {
-        "schema": 1,
+        "schema": 2,
         "metrics": {
             "cold_cells_per_sec": result["cold_cells_per_sec"],
             "warm_cells_per_sec": result["warm_cells_per_sec"],
+            "mem_bytes_per_cell": result["mem_bytes_per_cell"],
         },
         "workload": {
             "rows": result["rows"],
@@ -135,10 +166,13 @@ def load_baseline(path: Path = BASELINE_PATH) -> dict | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-# Metrics the gate checks. name -> (result key, baseline key, label).
+# Metrics the gate checks: (label, result/baseline key, direction, unit).
+# direction "higher" = throughput, so a regression is a DROP below the floor;
+# "lower" = memory, so a regression is a RISE above the ceiling.
 _METRICS = [
-    ("cold recalc (parse+eval)", "cold_cells_per_sec"),
-    ("warm recalc (eval only)", "warm_cells_per_sec"),
+    ("cold recalc (parse+eval)", "cold_cells_per_sec", "higher", "cells/sec"),
+    ("warm recalc (eval only)", "warm_cells_per_sec", "higher", "cells/sec"),
+    ("memory (peak)", "mem_bytes_per_cell", "lower", "bytes/cell"),
 ]
 
 
@@ -171,18 +205,26 @@ def compare_and_report(result: dict, baseline: dict, threshold: float) -> bool:
     print("-" * len(header))
 
     all_ok = True
-    for label, key in _METRICS:
-        cur = result[key]
+    for label, key, direction, unit in _METRICS:
+        cur = result.get(key)
         base = base_metrics.get(key)
+        if cur is None:
+            continue  # metric not measured (shouldn't happen) — skip cleanly
         if base is None:
             print(f"{label:<28}{'n/a':>16}{_fmt(cur):>16}{'--':>10}  (new)")
             continue
-        # Throughput ratio: <1 means we got slower. delta_pct is signed
-        # (positive = faster, negative = slower).
+        # delta_pct is signed change of the raw number (positive = the metric
+        # went up). Whether "up" is good or bad depends on direction.
         ratio = cur / base if base > 0 else float("inf")
         delta_pct = (ratio - 1.0) * 100.0
-        floor = base * (1.0 - threshold)
-        ok = cur >= floor
+        if direction == "higher":  # throughput — regression is a drop
+            limit = base * (1.0 - threshold)
+            ok = cur >= limit
+            limit_desc = f"below floor {_fmt(limit)} {unit}"
+        else:  # "lower" — memory — regression is a rise
+            limit = base * (1.0 + threshold)
+            ok = cur <= limit
+            limit_desc = f"above ceiling {_fmt(limit)} {unit}"
         all_ok = all_ok and ok
         status = "OK" if ok else "REGRESSED"
         sign = "+" if delta_pct >= 0 else ""
@@ -192,8 +234,8 @@ def compare_and_report(result: dict, baseline: dict, threshold: float) -> bool:
         )
         if not ok:
             print(
-                f"    -> below floor {_fmt(floor)} cells/sec "
-                f"(baseline {_fmt(base)} - {threshold * 100:.0f}%)"
+                f"    -> {limit_desc} "
+                f"(baseline {_fmt(base)} {threshold * 100:.0f}%)"
             )
 
     print("-" * len(header))
@@ -233,7 +275,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Wrote baseline -> {BASELINE_PATH}")
         print(
             f"  cold {_fmt(result['cold_cells_per_sec'])} cells/sec, "
-            f"warm {_fmt(result['warm_cells_per_sec'])} cells/sec"
+            f"warm {_fmt(result['warm_cells_per_sec'])} cells/sec, "
+            f"mem {_fmt(result['mem_bytes_per_cell'])} bytes/cell"
         )
         if args.json:
             print(json.dumps(result, indent=2))

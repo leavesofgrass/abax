@@ -119,10 +119,13 @@ jobs:
       - name: abax/core coverage ratchet (fail under the floor)
         run: python -m coverage report --include="abax/core/*" --fail-under=81
 
-      # Reported, not yet gated — see the note above. Surfaces the thin-env
-      # engine coverage number in the CI log so it can become a ratchet later.
-      - name: abax/engine coverage (reported)
-        run: python -m coverage report --include="abax/engine/*"
+      # Engine ratchet. Thin-env coverage measured at 59% (adapters that need
+      # the heavy optional deps — numpy/pandas/pymc/… — are importorskip'd here,
+      # so npkernel/parquet/statfiles/… stay low). Floor is a conservative 55,
+      # with headroom against env drift; raise it when engine coverage rises,
+      # never a number to chase.
+      - name: abax/engine coverage ratchet (fail under the floor)
+        run: python -m coverage report --include="abax/engine/*" --fail-under=55
 
   # ── Benchmark regression gate ──────────────────────────────────────────────
   # Runs the recalc throughput gate against scripts/bench_baseline.json and
