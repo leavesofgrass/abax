@@ -264,6 +264,18 @@ class Workbook:
     def sheet(self) -> Sheet:
         return self.sheets[self.active]
 
+    def use_windowed_stores(self, capacity: int) -> None:
+        """Bound every sheet's resident cells to ``capacity`` (0 = off).
+
+        Called once by a front-end after a large workbook is opened, when the
+        ``windowed_store_capacity`` setting is on. Per-sheet detail:
+        :meth:`Sheet.use_windowed_store`.
+        """
+        if not capacity or capacity <= 0:
+            return
+        for sheet in self.sheets:
+            sheet.use_windowed_store(capacity)
+
     def add_sheet(self, name: str | None = None) -> Sheet:
         name = name or f"Sheet{len(self.sheets) + 1}"
         if any(s.name == name for s in self.sheets):

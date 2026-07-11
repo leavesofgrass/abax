@@ -45,7 +45,8 @@ def run_tui(file: str | None = None, registry=None) -> int:
     HUB.set_enabled(bool(getattr(settings, "live_data_enabled", False)))
     EXT.set_enabled(bool(getattr(settings, "external_refs_enabled", False)))
 
-    doc = Document.open(file) if file else Document()
+    doc = (Document.open(file, windowed_capacity=getattr(settings, "windowed_store_capacity", 0))
+           if file else Document())
     # Anchor external-ref paths at the open workbook's directory.
     EXT.set_base_dir(doc.path.parent if getattr(doc, "path", None) else None)
     # Pass settings so the editor can honour the Wave-1 accessibility flags

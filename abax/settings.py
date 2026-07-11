@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ._runtime import _HAS_MSGSPEC
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 def _migrate_settings(data: dict) -> dict:
@@ -54,6 +54,11 @@ def _migrate_settings(data: dict) -> dict:
         # closed-workbook external references (=[Book.abax]Sheet1!A1). Defaults
         # off, so an opened workbook never reads other files on its own.
         data["schema_version"] = 7
+    if v < 8:
+        # v7 -> v8: new 'windowed_store_capacity' (0 = off). Bounds resident
+        # cells per sheet by spilling the rest to a temp file — for very large
+        # data imports. Additive/default-off, so nothing changes for existing users.
+        data["schema_version"] = 8
     return data
 
 
@@ -105,6 +110,12 @@ if _HAS_MSGSPEC:
         # read other workbook files (consent). Off by default so an opened file
         # cannot pull in other files on its own.
         external_refs_enabled: bool = False
+        # Windowed cell store: keep at most this many cells resident per sheet and
+        # spill the rest to a private temp file (0 = off, the default — every cell
+        # stays in RAM). A memory/latency trade-off worth enabling ONLY for very
+        # large *data* imports (lots of literal cells); formula-heavy sheets see
+        # little benefit. See docs/configuration.md.
+        windowed_store_capacity: int = 0
         schema_version: int = SCHEMA_VERSION
 
     _encoder = msgspec.json.Encoder()
@@ -166,6 +177,12 @@ else:
         # read other workbook files (consent). Off by default so an opened file
         # cannot pull in other files on its own.
         external_refs_enabled: bool = False
+        # Windowed cell store: keep at most this many cells resident per sheet and
+        # spill the rest to a private temp file (0 = off, the default — every cell
+        # stays in RAM). A memory/latency trade-off worth enabling ONLY for very
+        # large *data* imports (lots of literal cells); formula-heavy sheets see
+        # little benefit. See docs/configuration.md.
+        windowed_store_capacity: int = 0
         schema_version: int = SCHEMA_VERSION
 
     def load_settings(path: Path) -> "Settings":

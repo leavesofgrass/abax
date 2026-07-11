@@ -71,7 +71,13 @@ class Document:
         return self._undo.can_redo
 
     @classmethod
-    def open(cls, path: str | Path) -> "Document":
+    def open(cls, path: str | Path, windowed_capacity: int = 0) -> "Document":
+        """Load a file into a Document.
+
+        ``windowed_capacity`` > 0 re-homes every sheet into a bounded,
+        disk-spilling cell store after loading (the ``windowed_store_capacity``
+        setting) — for very large data imports. Default 0 keeps every cell in RAM.
+        """
         path = Path(path)
         ext = path.suffix.lower()
         if ext in (".json", ".abax"):
@@ -123,6 +129,8 @@ class Document:
             wb = hdf5_io.load_hdf5(path)
         else:
             raise ValueError(f"unsupported file type: {ext!r}")
+        if windowed_capacity and windowed_capacity > 0:
+            wb.use_windowed_stores(windowed_capacity)
         return cls(wb, path)
 
     def save(self, path: str | Path | None = None) -> None:

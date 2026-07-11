@@ -55,6 +55,10 @@ class DocumentIOMixin:
                      busy_msg=f"opening {Path(path).name}...")
 
     def _open_succeeded(self, doc) -> None:
+        # Opt-in windowed cell store for very large data imports (0 = off).
+        cap = getattr(self._settings, "windowed_store_capacity", 0)
+        if cap and cap > 0:
+            doc.workbook.use_windowed_stores(cap)
         self._doc = doc
         if doc.path:
             self._remember_recent(str(doc.path))

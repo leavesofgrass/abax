@@ -220,3 +220,40 @@ def test_default_sheet_uses_plain_unbounded_caches():
     sh = Sheet()
     assert type(sh._ast_cache) is dict
     assert type(sh._rast_cache) is dict
+
+
+# --------------------------------------------------------------------------- #
+# Opt-in wiring: Workbook.use_windowed_stores + the setting
+# --------------------------------------------------------------------------- #
+
+
+def test_workbook_use_windowed_stores_rehomes_and_preserves_values():
+    from abax.core.workbook import Workbook
+    wb = Workbook()
+    sh = wb.sheet
+    sh.set_cell(0, 0, "100")
+    for r in range(1, 60):
+        sh.set_cell(r, 0, f"=$A$1 + {r}")     # depth-1 formulas (no deep chain)
+    wb.recalculate()
+    before = {r: sh.get_value(r, 0) for r in range(60)}
+    assert isinstance(sh._cells, DictCellStore) and not isinstance(sh._cells, WindowedCellStore)
+
+    wb.use_windowed_stores(10)                # opt in
+    assert isinstance(sh._cells, WindowedCellStore)
+    assert sh._cells.resident_count() <= 10
+    wb.recalculate()
+    assert {r: sh.get_value(r, 0) for r in range(60)} == before   # values identical
+    sh._cells.close()
+
+
+def test_use_windowed_stores_zero_is_a_no_op():
+    from abax.core.workbook import Workbook
+    wb = Workbook()
+    wb.sheet.set_cell(0, 0, "1")
+    wb.use_windowed_stores(0)
+    assert type(wb.sheet._cells) is DictCellStore   # unchanged
+
+
+def test_windowed_store_capacity_setting_defaults_off():
+    from abax.settings import Settings
+    assert Settings().windowed_store_capacity == 0

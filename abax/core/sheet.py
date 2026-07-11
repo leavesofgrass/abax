@@ -153,6 +153,33 @@ class Sheet:
         self._iterating: bool = False
         self._iter_values: dict[tuple[int, int], Any] = {}
 
+    def use_windowed_store(self, capacity: int) -> None:
+        """Migrate this sheet's cells into a windowed, disk-spilling store.
+
+        Opt-in memory bound for very large *data* sheets — keep at most
+        ``capacity`` cells resident, spill the rest (``capacity <= 0`` is a
+        no-op). Moves every populated cell into a :class:`WindowedCellStore` and
+        re-caps the parsed-AST caches to match; the (recomputable) value cache is
+        dropped and repopulates on the next recalc. Re-homing again swaps in a
+        fresh store. See ``docs/configuration.md`` for when this helps.
+        """
+        if not capacity or capacity <= 0:
+            return
+        from .cellstore import BoundedCache, WindowedCellStore
+
+        new = WindowedCellStore(capacity=capacity)
+        for key, cell in list(self._cells.items()):
+            new[key] = cell
+        old = self._cells
+        self._cells = new
+        close = getattr(old, "close", None)
+        if close is not None:
+            close()  # free a previous windowed store's spill file
+        self._ast_cache = BoundedCache(capacity)
+        self._rast_cache = BoundedCache(capacity)
+        self._value_cache = {}
+        self._bounds_dirty = True
+
     # --- editing ----------------------------------------------------------
 
     def set(self, ref: str, raw: str) -> None:
