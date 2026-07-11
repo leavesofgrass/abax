@@ -176,3 +176,20 @@ def test_windowed_store_cleans_up_its_spill_file():
     w.close()
     assert not os.path.exists(path)
     w.close()                                    # idempotent
+
+
+def test_windowed_eviction_is_lru():
+    """Reading a cell keeps it resident; the least-recently-used one is evicted."""
+    w = WindowedCellStore(capacity=3)
+    try:
+        for i in range(3):
+            w[(i, 0)] = Cell(str(i))         # resident: 0, 1, 2
+        _ = w[(0, 0)]                        # touch 0 -> most-recently-used
+        w[(3, 0)] = Cell("3")               # overflow -> evict LRU, which is 1
+        assert (1, 0) in w._spilled          # least-recently-used was spilled
+        assert w.resident_count() == 3
+        for k in [(0, 0), (2, 0), (3, 0)]:   # these stayed resident
+            assert k not in w._spilled
+        assert w[(1, 0)].raw == "1"          # and it still pages back correctly
+    finally:
+        w.close()

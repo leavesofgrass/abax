@@ -149,11 +149,16 @@ class WindowedCellStore(DictCellStore):
     are computed differs. (A cross-check test drives a windowed and a plain sheet
     through identical random edits and asserts identical values.)
 
+    **Eviction is LRU.** Reading a cell (``store[key]`` / ``get``) moves it to the
+    most-recently-used end; an insert that overflows evicts from the
+    least-recently-used front. Bulk iteration (``items`` / ``keys`` / a full scan)
+    deliberately does **not** count as a use, so scanning the whole sheet never
+    churns the window.
+
     **Scope / honesty.** This windows the *cell store*. ``Sheet`` also holds
     per-cell recompute caches (``_ast_cache`` / ``_rast_cache`` / ``_value_cache``)
     and format maps keyed by ``(row, col)``; bounding those too is the follow-up
-    that makes the memory win complete. FIFO eviction (not LRU) is used for
-    simplicity — a correctness-first prototype.
+    that makes the memory win complete.
 
     Not thread-safe across *different* stores sharing a file; each store owns its
     own private temp spill, guarded by a lock for the background-thread callers.
@@ -208,10 +213,16 @@ class WindowedCellStore(DictCellStore):
         row = cur.fetchone()
         return row[0] if row else ""
 
+    def _touch(self, key: _Key) -> Cell:
+        """Move a resident key to the MRU end (dict preserves insertion order)."""
+        cell = dict.pop(self, key)
+        dict.__setitem__(self, key, cell)
+        return cell
+
     def _evict_if_full(self) -> None:
-        """Evict oldest-inserted resident cells until within capacity (FIFO)."""
+        """Evict least-recently-used resident cells until within capacity."""
         while dict.__len__(self) > self.capacity:
-            okey = next(iter(dict.__iter__(self)))   # oldest resident key
+            okey = next(iter(dict.__iter__(self)))   # LRU = front (oldest touched)
             ocell = dict.pop(self, okey)
             self._spill_put(okey, ocell.raw)
             self._spilled.add(okey)
@@ -228,14 +239,20 @@ class WindowedCellStore(DictCellStore):
             dict.__setitem__(self, key, cell)
             self._evict_if_full()
 
+    def __getitem__(self, key: _Key) -> Cell:
+        with self._lock:
+            if dict.__contains__(self, key):
+                return self._touch(key)      # MRU on read
+        return dict.__getitem__(self, key)   # absent -> __missing__ (spilled / KeyError)
+
     def __missing__(self, key: _Key) -> Cell:
-        # Called by ``self[key]`` when key is not resident.
+        # Called by ``dict.__getitem__`` when key is not resident.
         with self._lock:
             if key in self._spilled:
                 raw = self._spill_take(key)
                 self._spilled.discard(key)
                 cell = Cell(raw)
-                dict.__setitem__(self, key, cell)
+                dict.__setitem__(self, key, cell)   # paged in = MRU end
                 self._evict_if_full()
                 return cell
         raise KeyError(key)
@@ -243,7 +260,7 @@ class WindowedCellStore(DictCellStore):
     def get(self, key: _Key, default=None):
         with self._lock:
             if dict.__contains__(self, key):
-                return dict.__getitem__(self, key)
+                return self._touch(key)      # MRU on read
             if key in self._spilled:
                 return self[key]             # triggers __missing__ (pages in)
             return default
