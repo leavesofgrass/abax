@@ -22,7 +22,8 @@ def test_registry_sizes():
     # 601 built-in packs (incl. ENCODEURL/HYPERLINK) + 2 from the ham-logging
     # pack (ISDUPE, QSOPOINTS) + 4 live-data formulas (REST, WEBSOCKET,
     # WEBSERVICE, RESTTABLE) + FILTERXML + SPARKLINE. GETPIVOTDATA is CONTEXT.
-    assert len(FUNCTIONS) == 609
+    # +5 for the curated-coverage tail: ASC, DBCS, JIS, PHONETIC, BAHTTEXT (100%).
+    assert len(FUNCTIONS) == 614
     assert len(LAZY_FUNCTIONS) == 6
 
 

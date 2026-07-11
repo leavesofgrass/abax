@@ -73,3 +73,14 @@ def test_headline_functions_evaluate():
     assert _val("=EOMONTH(\"2026-01-15\",1)") == "2026-02-28"
     assert _val("=TEXTJOIN(\"-\",TRUE,\"a\",\"\",\"b\")") == "a-b"
     assert math.isclose(_val("=BINOMDIST(6,10,0.5,FALSE)"), 0.205078, rel_tol=1e-4)
+
+
+def test_cjk_thai_text_functions():
+    # The curated-coverage tail: full-/half-width conversion, furigana, Thai baht.
+    assert _val('=ASC("Ａ１！")') == "A1!"           # full-width -> half-width
+    assert _val('=DBCS("A1")') == "Ａ１"             # half-width -> full-width
+    assert _val('=JIS("A1")') == "Ａ１"              # JIS is the DBCS alias
+    assert _val('=PHONETIC("ทดสอบ")') == "ทดสอบ"    # no furigana -> text unchanged
+    assert _val("=BAHTTEXT(21)") == "ยี่สิบเอ็ดบาทถ้วน"
+    assert _val("=BAHTTEXT(1000000)") == "หนึ่งล้านบาทถ้วน"
+    assert _val("=BAHTTEXT(1234.5)") == "หนึ่งพันสองร้อยสามสิบสี่บาทห้าสิบสตางค์"

@@ -35,6 +35,14 @@ def test_report_runs_and_returns_coverage_number():
     assert report["target_total"] > 0
 
 
+def test_curated_coverage_is_complete():
+    # The whole curated Excel/Gnumeric target set is implemented — 100%, no
+    # missing functions. This is a ratchet: it must never regress.
+    report = function_coverage.build_report()
+    assert report["coverage"] == 100.0, report.get("missing")
+    assert report["covered"] == report["target_total"]
+
+
 def test_every_target_is_a_plausible_uppercase_token():
     for category, names in function_coverage.TARGETS.items():
         assert names, f"empty target category: {category}"

@@ -10,6 +10,14 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **100% curated Excel/Gnumeric function coverage.** The final CJK/Thai text
+  functions: `ASC` / `DBCS` / `JIS` (full-width ↔ half-width conversion),
+  `PHONETIC` (furigana — abax stores none, so it returns the text), and
+  `BAHTTEXT` (a number as Thai baht text, e.g. `=BAHTTEXT(21)` →
+  `ยี่สิบเอ็ดบาทถ้วน`). The coverage dashboard now reports 100% with no missing
+  targets.
+
 ## [0.1.11] — 2026-07-10
 
 _Power-user release: the formula engine, connected data, analysis tooling, and

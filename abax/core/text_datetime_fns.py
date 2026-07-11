@@ -17,6 +17,7 @@ carries one help-string entry per registered name.
 
 from __future__ import annotations
 
+import unicodedata
 from datetime import date, datetime, timedelta
 
 from .errors import CellError
@@ -484,9 +485,128 @@ def _is_leap(year: int) -> bool:
     return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
 
 
+# --- CJK / Thai text (the curated-coverage tail) ---------------------------
+
+def _asc(args):
+    """ASC(text) — full-width (double-byte) → half-width (single-byte).
+
+    Converts full-width ASCII letters/digits/symbols (U+FF01–FF5E) and the
+    ideographic space (U+3000) to their half-width forms, and full-width →
+    half-width katakana where a mapping exists. Other characters pass through.
+    """
+    s = _text(_arg(args, 0))
+    out = []
+    for ch in s:
+        o = ord(ch)
+        if o == 0x3000:                       # ideographic space → ASCII space
+            out.append(" ")
+        elif 0xFF01 <= o <= 0xFF5E:           # full-width ASCII → half-width
+            out.append(chr(o - 0xFEE0))
+        elif 0x30A0 <= o <= 0x30FF:           # katakana → its NFKD half-width, if any
+            dec = unicodedata.normalize("NFKD", ch)
+            out.append(dec if all(ord(c) <= 0xFFDC for c in dec) else ch)
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def _dbcs(args):
+    """DBCS(text) — half-width (single-byte) → full-width (double-byte).
+
+    The inverse of :func:`_asc`: half-width ASCII (U+0021–007E) → full-width
+    (U+FF01–FF5E), ASCII space → ideographic space, and half-width katakana
+    (U+FF61–FF9F) → full-width katakana. Other characters pass through.
+    """
+    s = _text(_arg(args, 0))
+    out = []
+    for ch in s:
+        o = ord(ch)
+        if o == 0x20:                         # ASCII space → ideographic space
+            out.append("　")
+        elif 0x21 <= o <= 0x7E:               # half-width ASCII → full-width
+            out.append(chr(o + 0xFEE0))
+        elif 0xFF61 <= o <= 0xFF9F:           # half-width katakana → full-width
+            out.append(unicodedata.normalize("NFKC", ch))
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def _phonetic(args):
+    """PHONETIC(text) — the phonetic (furigana) guide for a string.
+
+    abax does not store per-cell furigana (there is no phonetic run to read),
+    so — matching Excel's behaviour when a cell carries no phonetic guide — this
+    returns the source text unchanged.
+    """
+    return _text(_arg(args, 0))
+
+
+# Thai numeral reading for BAHTTEXT.
+_THAI_DIGIT = ["", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"]
+_THAI_PLACE = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน"]
+
+
+def _thai_read_group(n: int) -> str:
+    """Read an integer 0..999999 as Thai text (no leading ``ศูนย์``)."""
+    if n == 0:
+        return ""
+    digits = str(n)
+    length = len(digits)
+    out = []
+    for i, dch in enumerate(digits):
+        d = int(dch)
+        place = length - i - 1               # 0 = units, 1 = tens, …
+        if d == 0:
+            continue
+        if place == 0:                       # units
+            out.append("เอ็ด" if (d == 1 and length > 1) else _THAI_DIGIT[d])
+        elif place == 1:                     # tens
+            out.append("สิบ" if d == 1 else ("ยี่สิบ" if d == 2 else _THAI_DIGIT[d] + "สิบ"))
+        else:
+            out.append(_THAI_DIGIT[d] + _THAI_PLACE[place])
+    return "".join(out)
+
+
+def _thai_read_int(n: int) -> str:
+    """Read a non-negative integer as Thai text (``ศูนย์`` for zero)."""
+    if n == 0:
+        return "ศูนย์"
+    parts = []
+    if n >= 1_000_000:
+        parts.append(_thai_read_int(n // 1_000_000) + "ล้าน")
+        n %= 1_000_000
+    parts.append(_thai_read_group(n))
+    return "".join(parts)
+
+
+def _bahttext(args):
+    """BAHTTEXT(number) — a number as Thai baht text (บาท / สตางค์)."""
+    num = _try_num(_arg(args, 0))
+    if num is None:
+        return CellError(CellError.VALUE)
+    negative = num < 0
+    num = abs(float(num))
+    baht = int(num)
+    satang = int(round((num - baht) * 100))
+    if satang >= 100:                        # rounding carried into the baht
+        baht += 1
+        satang = 0
+    text = _thai_read_int(baht) + "บาท"
+    text += "ถ้วน" if satang == 0 else (_thai_read_int(satang) + "สตางค์")
+    if negative and (baht or satang):
+        text = "ลบ" + text
+    return text
+
+
 # --- registration ----------------------------------------------------------
 
 _IMPLS = {
+    "ASC": _asc,
+    "DBCS": _dbcs,
+    "JIS": _dbcs,                            # JIS is DBCS's Excel-JP alias
+    "PHONETIC": _phonetic,
+    "BAHTTEXT": _bahttext,
     "TEXTJOIN": _textjoin,
     "TEXTBEFORE": _textbefore,
     "TEXTAFTER": _textafter,
@@ -509,6 +629,11 @@ _IMPLS = {
 }
 
 SIGNATURES = {
+    "ASC": "ASC(text)",
+    "DBCS": "DBCS(text)",
+    "JIS": "JIS(text)",
+    "PHONETIC": "PHONETIC(text)",
+    "BAHTTEXT": "BAHTTEXT(number)",
     "TEXTJOIN": "TEXTJOIN(delimiter, ignore_empty, text1, ...)",
     "TEXTBEFORE": "TEXTBEFORE(text, delimiter, [instance_num])",
     "TEXTAFTER": "TEXTAFTER(text, delimiter, [instance_num])",

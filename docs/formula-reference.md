@@ -741,6 +741,10 @@ and only the cells that actually error take the fallback.
 | `DOLLAR` | Format as currency text | `DOLLAR(num, [decimals])` | `=DOLLAR(1234.567)` | `$1,234.57` |
 | `FIXED` | Fixed-decimal text | `FIXED(num, [decimals], [no_commas])` | `=FIXED(1234.567,1)` | `1,234.6` |
 | `NUMBERVALUE` | Parse localized number text | `NUMBERVALUE(text, [dec_sep], [grp_sep])` | `=NUMBERVALUE("1,234.5")` | `1234.5` |
+| `ASC` | Full-width (double-byte) → half-width | `ASC(text)` | `=ASC("Ａ１")` | `A1` |
+| `DBCS` / `JIS` | Half-width (single-byte) → full-width | `DBCS(text)` | `=DBCS("A1")` | `Ａ１` |
+| `PHONETIC` | Furigana of a string (abax stores none → the text itself) | `PHONETIC(text)` | `=PHONETIC("東京")` | `東京` |
+| `BAHTTEXT` | A number as Thai baht text | `BAHTTEXT(number)` | `=BAHTTEXT(21)` | `ยี่สิบเอ็ดบาทถ้วน` |
 | `TEXTSPLIT` | Split text into a spilled array (row and/or column delimiters, each a string or array of strings) | `TEXTSPLIT(text, col_delim, [row_delim], [ignore_empty], [match_mode], [pad_with])` | `=TEXTSPLIT("a,b;c,d",",",";")` | 2×2 spill |
 | `ARRAYTOTEXT` | Render an array as text (`format` 1 = strict `{…}`) | `ARRAYTOTEXT(array, [format])` | `=ARRAYTOTEXT({1,2;3,4})` | `1, 2, 3, 4` |
 | `VALUETOTEXT` | Render a value as text (`format` 1 quotes strings) | `VALUETOTEXT(value, [format])` | `=VALUETOTEXT("hi",1)` | `"hi"` |
