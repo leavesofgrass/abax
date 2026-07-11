@@ -83,7 +83,6 @@ nav:
       - Data science overview: data-science.md
       - Data & analysis tools: data-analysis.md
       - Formula reference: formula-reference.md
-      - Function coverage: function-coverage.md
       - Calculators: calculators.md
   - Domains:
       - RF toolkit: rf-toolkit.md
