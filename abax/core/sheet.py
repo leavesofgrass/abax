@@ -72,7 +72,8 @@ def _rects_overlap(a: tuple, b: tuple) -> bool:
 
 
 class Sheet:
-    def __init__(self, name: str = "Sheet1") -> None:
+    def __init__(self, name: str = "Sheet1",
+                 cell_store: "CellStore | None" = None) -> None:
         self.name = name
         # Set by the owning Workbook so cross-sheet refs (Sheet2!A1) resolve.
         self.workbook = None
@@ -100,11 +101,12 @@ class Sheet:
         # Merged regions as (r1, c1, r2, c2); the top-left is the anchor (its value
         # shows across the block), interior cells are cleared on merge.
         self.merges: list[tuple[int, int, int, int]] = []
-        # The cell store — the swap point for a future windowed/lazy backing
-        # store. Default is DictCellStore (a dict subclass): every populated cell
-        # resident, identical behaviour to the bare dict used before. See
-        # abax/core/cellstore.py.
-        self._cells: CellStore = DictCellStore()
+        # The cell store — the swap point for the windowed/lazy backing store.
+        # Default is DictCellStore (a dict subclass): every populated cell
+        # resident, identical behaviour to the bare dict used before. Pass a
+        # WindowedCellStore to bound resident memory on very large sheets (opt-in).
+        # See abax/core/cellstore.py.
+        self._cells: CellStore = cell_store if cell_store is not None else DictCellStore()
         # Incremental extent of ``_cells`` (excludes spills): adds bump the maxes
         # in O(1); a delete of a boundary cell marks it dirty for a lazy rescan.
         # Keeps used_bounds() — called on every render/export — off the full scan.
@@ -339,10 +341,10 @@ class Sheet:
                 return None
             return (nc, c) if axis == "row" else (r, nc)
 
-        # Relocate populated cells and per-cell formats (new dict avoids any
-        # overwrite collisions during the shift).
-        self._cells = DictCellStore({nk: cell for k, cell in self._cells.items()
-                                     if (nk := move(k)) is not None})
+        # Relocate populated cells and per-cell formats (remap builds the new
+        # mapping first, so keys moving past each other never collide). remap is
+        # polymorphic, so a windowed store keeps its type + spill across the shift.
+        self._cells.remap(move)
         self.cell_formats = {nk: spec for k, spec in self.cell_formats.items()
                              if (nk := move(k)) is not None}
         self.cell_styles = {nk: st for k, st in self.cell_styles.items()

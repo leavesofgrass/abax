@@ -47,12 +47,18 @@ It is the foundation the windowed store builds on.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterator, Protocol, runtime_checkable
+import os
+import sqlite3
+import tempfile
+import threading
+from typing import Callable, Iterator, Optional, Protocol, runtime_checkable
 
-if TYPE_CHECKING:  # avoid importing Cell at module load (keeps this light)
-    from .cells import Cell
+from .cells import Cell
 
 _Key = "tuple[int, int]"
+
+# Sentinel so pop() can distinguish "no default given" (raise) from `default=None`.
+_MISSING = object()
 
 
 @runtime_checkable
@@ -100,3 +106,235 @@ class DictCellStore(dict):
     """
 
     __slots__ = ()
+
+    def remap(self, move: Callable[[_Key], "Optional[_Key]"]) -> None:
+        """Relocate every key through ``move(key) -> newkey | None`` (drop ``None``).
+
+        Used by ``Sheet`` when rows/columns are inserted or deleted. Builds the
+        remapped mapping first, then swaps it in, so a shift that moves keys past
+        each other can never overwrite a not-yet-moved cell. Polymorphic: a
+        windowed store overrides this to remap its spilled index too, so the store
+        keeps its type + configuration across a structural shift.
+        """
+        remapped = {}
+        for key, cell in list(self.items()):
+            nk = move(key)
+            if nk is not None:
+                remapped[nk] = cell
+        self.clear()
+        self.update(remapped)
+
+
+class WindowedCellStore(DictCellStore):
+    """A cell store that keeps a bounded **resident window** and spills the rest.
+
+    Same mapping contract as :class:`DictCellStore` (it *is* a ``dict`` subclass,
+    so ``items()`` / ``keys()`` / ``len()`` / ``in`` all span resident **and**
+    spilled cells for every consumer), but only up to ``capacity`` ``Cell``
+    objects are held in memory at once. When an insert pushes the resident set
+    over capacity the oldest-inserted cell is **evicted**: its source text is
+    written to a small on-disk SQLite spill and the ``Cell`` object is dropped.
+    Touching an evicted key (``store[key]`` / ``get``) **pages it back in** via
+    ``__missing__``, evicting another if needed. A full ``items()`` scan yields
+    spilled cells transiently (without making them resident), so iterating the
+    whole sheet — save, a cold recalc — never blows the window.
+
+    **Opt-in, off by default.** ``Sheet`` uses :class:`DictCellStore` unless a
+    ``WindowedCellStore`` is passed in, so nothing changes for existing users.
+
+    **What is spilled.** Only ``Cell.raw`` (the source text — the single source of
+    truth). ``Cell.value`` / ``_dirty`` are a recompute cache; a paged-in cell is
+    fresh + dirty and recomputes on next read, exactly as a just-loaded workbook
+    would. So results are identical to :class:`DictCellStore`; only *when* values
+    are computed differs. (A cross-check test drives a windowed and a plain sheet
+    through identical random edits and asserts identical values.)
+
+    **Scope / honesty.** This windows the *cell store*. ``Sheet`` also holds
+    per-cell recompute caches (``_ast_cache`` / ``_rast_cache`` / ``_value_cache``)
+    and format maps keyed by ``(row, col)``; bounding those too is the follow-up
+    that makes the memory win complete. FIFO eviction (not LRU) is used for
+    simplicity — a correctness-first prototype.
+
+    Not thread-safe across *different* stores sharing a file; each store owns its
+    own private temp spill, guarded by a lock for the background-thread callers.
+    """
+
+    # A generous default: the window only matters for very large sheets, and a
+    # small window would thrash. Callers tune it for their memory budget.
+    DEFAULT_CAPACITY = 50_000
+
+    # dict subclasses can't declare __slots__ meaningfully here (we add attrs).
+    def __init__(
+        self,
+        initial=None,
+        *,
+        capacity: "int | None" = None,
+        spill_dir: "str | None" = None,
+    ) -> None:
+        super().__init__()
+        self.capacity = max(1, int(capacity)) if capacity else self.DEFAULT_CAPACITY
+        self._spill_dir = spill_dir
+        self._spilled: set = set()          # keys currently on disk (in-memory index)
+        self._lock = threading.RLock()
+        fd, self._spill_path = tempfile.mkstemp(
+            prefix="abax-cellspill-", suffix=".db", dir=spill_dir
+        )
+        os.close(fd)
+        self._db: "sqlite3.Connection | None" = sqlite3.connect(
+            self._spill_path, check_same_thread=False
+        )
+        self._db.execute("CREATE TABLE spill (r INT, c INT, raw TEXT, PRIMARY KEY (r, c))")
+        self._db.commit()
+        if initial:
+            for key, cell in dict(initial).items():
+                self[key] = cell
+
+    # --- spill I/O (raw text only) ----------------------------------------
+
+    def _spill_put(self, key: _Key, raw: str) -> None:
+        self._db.execute(
+            "INSERT OR REPLACE INTO spill (r, c, raw) VALUES (?, ?, ?)",
+            (key[0], key[1], raw),
+        )
+
+    def _spill_take(self, key: _Key) -> str:
+        cur = self._db.execute("SELECT raw FROM spill WHERE r = ? AND c = ?", key)
+        row = cur.fetchone()
+        self._db.execute("DELETE FROM spill WHERE r = ? AND c = ?", key)
+        return row[0] if row else ""
+
+    def _spill_peek(self, key: _Key) -> str:
+        cur = self._db.execute("SELECT raw FROM spill WHERE r = ? AND c = ?", key)
+        row = cur.fetchone()
+        return row[0] if row else ""
+
+    def _evict_if_full(self) -> None:
+        """Evict oldest-inserted resident cells until within capacity (FIFO)."""
+        while dict.__len__(self) > self.capacity:
+            okey = next(iter(dict.__iter__(self)))   # oldest resident key
+            ocell = dict.pop(self, okey)
+            self._spill_put(okey, ocell.raw)
+            self._spilled.add(okey)
+
+    # --- mapping surface (spans resident + spilled) -----------------------
+
+    def __setitem__(self, key: _Key, cell: Cell) -> None:
+        with self._lock:
+            if key in self._spilled:
+                self._db.execute("DELETE FROM spill WHERE r = ? AND c = ?", key)
+                self._spilled.discard(key)
+            elif dict.__contains__(self, key):
+                dict.pop(self, key)          # re-insert at end (keep FIFO order sane)
+            dict.__setitem__(self, key, cell)
+            self._evict_if_full()
+
+    def __missing__(self, key: _Key) -> Cell:
+        # Called by ``self[key]`` when key is not resident.
+        with self._lock:
+            if key in self._spilled:
+                raw = self._spill_take(key)
+                self._spilled.discard(key)
+                cell = Cell(raw)
+                dict.__setitem__(self, key, cell)
+                self._evict_if_full()
+                return cell
+        raise KeyError(key)
+
+    def get(self, key: _Key, default=None):
+        with self._lock:
+            if dict.__contains__(self, key):
+                return dict.__getitem__(self, key)
+            if key in self._spilled:
+                return self[key]             # triggers __missing__ (pages in)
+            return default
+
+    def pop(self, key: _Key, default=_MISSING):
+        with self._lock:
+            if dict.__contains__(self, key):
+                return dict.pop(self, key)
+            if key in self._spilled:
+                raw = self._spill_take(key)
+                self._spilled.discard(key)
+                return Cell(raw)
+            if default is _MISSING:
+                raise KeyError(key)
+            return default
+
+    def __contains__(self, key: object) -> bool:
+        return dict.__contains__(self, key) or key in self._spilled
+
+    def __len__(self) -> int:
+        return dict.__len__(self) + len(self._spilled)
+
+    def __iter__(self) -> Iterator[_Key]:
+        yield from dict.__iter__(self)
+        yield from list(self._spilled)
+
+    def keys(self):
+        return iter(self)
+
+    def values(self):
+        for _key, cell in self.items():
+            yield cell
+
+    def items(self):
+        # Resident cells directly; spilled cells transiently (peek, don't page
+        # in) so a full scan keeps the window bounded.
+        for key in list(dict.__iter__(self)):
+            yield key, dict.__getitem__(self, key)
+        for key in list(self._spilled):
+            yield key, Cell(self._spill_peek(key))
+
+    def clear(self) -> None:
+        with self._lock:
+            dict.clear(self)
+            self._spilled.clear()
+            if self._db is not None:
+                self._db.execute("DELETE FROM spill")
+                self._db.commit()
+
+    def update(self, other=(), /, **kwds) -> None:  # noqa: D401 - dict override
+        pairs = other.items() if hasattr(other, "items") else other
+        for key, cell in pairs:
+            self[key] = cell
+        for key, cell in kwds.items():
+            self[key] = cell
+
+    def copy(self) -> "DictCellStore":
+        """A plain resident snapshot (all cells paged in) — semantics unambiguous."""
+        return DictCellStore(dict(self.items()))
+
+    def remap(self, move: Callable[[_Key], "Optional[_Key]"]) -> None:
+        with self._lock:
+            pairs = []
+            for key, cell in list(self.items()):
+                nk = move(key)
+                if nk is not None:
+                    pairs.append((nk, cell))
+            self.clear()
+            for nk, cell in pairs:
+                self[nk] = cell
+
+    # --- lifecycle --------------------------------------------------------
+
+    def resident_count(self) -> int:
+        """How many cells are currently in memory (for tests / diagnostics)."""
+        return dict.__len__(self)
+
+    def close(self) -> None:
+        """Close the spill DB and delete its temp file. Idempotent."""
+        db, self._db = self._db, None
+        if db is not None:
+            try:
+                db.close()
+            finally:
+                try:
+                    os.unlink(self._spill_path)
+                except OSError:
+                    pass
+
+    def __del__(self) -> None:  # best-effort cleanup
+        try:
+            self.close()
+        except Exception:
+            pass
