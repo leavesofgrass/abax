@@ -15,7 +15,7 @@ import re
 from typing import Any, Iterator
 
 from .cells import Cell
-from .cellstore import CellStore, DictCellStore
+from .cellstore import BoundedCache, CellStore, DictCellStore
 from .errors import CellError, FormulaError
 from .evaluator import EvalContext, evaluate
 from .lambda_fns import LambdaValue
@@ -113,12 +113,26 @@ class Sheet:
         self._cells_max_row = -1
         self._cells_max_col = -1
         self._bounds_dirty = True
-        self._ast_cache: dict[tuple[int, int], Any] = {}
+        # The parsed-AST caches are the biggest per-cell memory. When the store
+        # windows cells to disk (it exposes a `capacity`), cap these caches to the
+        # same working-set size so they can't grow to O(all cells) during a full
+        # recalc that scans every cell — a re-parse on a cache miss is cheap and
+        # non-recursive. Otherwise (the default DictCellStore) they are plain,
+        # unbounded dicts — zero overhead, unchanged behaviour. `_value_cache` is
+        # deliberately left UNBOUNDED even when windowed: a cached value is tiny
+        # next to an AST, and keeping it shallowly resolves reads of already-
+        # computed precedents.
+        _cap = getattr(self._cells, "capacity", None)
         # Name-resolved AST cache: key -> (names_version, resolved_ast). Resolving
         # defined names rewrites the whole tree, so we memoize the result and only
         # redo it when the cell's formula or the name registry actually changes.
         # (row, col) -> ((names_version, tables_version), resolved_ast)
-        self._rast_cache: dict[tuple[int, int], tuple[tuple[int, int], Any]] = {}
+        if _cap is None:
+            self._ast_cache: dict[tuple[int, int], Any] = {}
+            self._rast_cache: dict[tuple[int, int], tuple[tuple[int, int], Any]] = {}
+        else:
+            self._ast_cache = BoundedCache(_cap)
+            self._rast_cache = BoundedCache(_cap)
         self._value_cache: dict[tuple[int, int], Any] = {}
         self._computing: set[tuple[int, int]] = set()
         # --- dynamic-array spill state ---

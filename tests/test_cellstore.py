@@ -193,3 +193,30 @@ def test_windowed_eviction_is_lru():
         assert w[(1, 0)].raw == "1"          # and it still pages back correctly
     finally:
         w.close()
+
+
+def test_windowed_sheet_bounds_its_ast_caches():
+    """A windowed sheet caps _ast_cache/_rast_cache to the window, so they can't
+    grow to O(all cells) during a full recalc. Uses depth-1 formulas (each reads
+    only A1) so there is no deep-chain recursion — just many cached ASTs."""
+    from abax.core.cellstore import BoundedCache
+    sh = Sheet(cell_store=WindowedCellStore(capacity=100))
+    try:
+        sh.set_cell(0, 0, "10")
+        for i in range(1, 1000):
+            sh.set_cell(i, 0, f"=$A$1 + {i}")
+        sh.recalculate()
+        assert isinstance(sh._ast_cache, BoundedCache)
+        assert len(sh._ast_cache) <= 100          # capped to the window
+        assert sh.get_value(999, 0) == 10 + 999   # values still correct
+        assert sh.get_value(500, 0) == 10 + 500
+    finally:
+        sh._cells.close()
+
+
+def test_default_sheet_uses_plain_unbounded_caches():
+    """The default (non-windowed) sheet keeps plain dict caches — zero overhead,
+    unchanged behaviour on the hot recalc path."""
+    sh = Sheet()
+    assert type(sh._ast_cache) is dict
+    assert type(sh._rast_cache) is dict

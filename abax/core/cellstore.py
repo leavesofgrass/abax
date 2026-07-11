@@ -107,22 +107,55 @@ class DictCellStore(dict):
 
     __slots__ = ()
 
-    def remap(self, move: Callable[[_Key], "Optional[_Key]"]) -> None:
-        """Relocate every key through ``move(key) -> newkey | None`` (drop ``None``).
+    def remap(self, move: Callable[[_Key], "Optional[_Key]"]) -> None:  # noqa: D401
+        return _dict_remap(self, move)
 
-        Used by ``Sheet`` when rows/columns are inserted or deleted. Builds the
-        remapped mapping first, then swaps it in, so a shift that moves keys past
-        each other can never overwrite a not-yet-moved cell. Polymorphic: a
-        windowed store overrides this to remap its spilled index too, so the store
-        keeps its type + configuration across a structural shift.
-        """
-        remapped = {}
-        for key, cell in list(self.items()):
-            nk = move(key)
-            if nk is not None:
-                remapped[nk] = cell
-        self.clear()
-        self.update(remapped)
+
+def _dict_remap(store: dict, move: Callable[[_Key], "Optional[_Key]"]) -> None:
+    """Relocate every key of ``store`` through ``move(key) -> newkey | None``.
+
+    Builds the remapped mapping first, then swaps it in, so a shift that moves
+    keys past each other can never overwrite a not-yet-moved cell. Shared by
+    :meth:`DictCellStore.remap` (used by ``Sheet`` on row/column insert/delete).
+    """
+    remapped = {}
+    for key, cell in list(store.items()):
+        nk = move(key)
+        if nk is not None:
+            remapped[nk] = cell
+    store.clear()
+    store.update(remapped)
+
+
+class BoundedCache(dict):
+    """A size-capped ``dict`` for per-cell *recompute* memoization.
+
+    Only for caches whose entries can be dropped freely — a parsed AST, a
+    resolved AST — where dropping one costs at most a re-parse of a single
+    formula (no recursion, no cascade). NOT for value caches: dropping a cached
+    *value* can force a deep recompute cascade that blows the recursion limit.
+
+    With ``capacity=None`` it is a plain unbounded ``dict`` (the default, used
+    with :class:`DictCellStore` — zero behaviour change). With a capacity it
+    evicts the oldest-inserted entry whenever an insert pushes it over, so a
+    windowed sheet's AST caches stay bounded to roughly the working-set size
+    regardless of how a full recalc scans cells. Reinserting an existing key
+    refreshes its position (so a re-parse after a miss counts as recent).
+    """
+
+    __slots__ = ("_cap",)
+
+    def __init__(self, capacity: "int | None" = None) -> None:
+        super().__init__()
+        self._cap = None if capacity is None else max(1, int(capacity))
+
+    def __setitem__(self, key, value) -> None:
+        if dict.__contains__(self, key):
+            dict.__delitem__(self, key)          # refresh insertion order
+        dict.__setitem__(self, key, value)
+        if self._cap is not None:
+            while dict.__len__(self) > self._cap:
+                dict.__delitem__(self, next(iter(dict.__iter__(self))))
 
 
 class WindowedCellStore(DictCellStore):
@@ -155,10 +188,21 @@ class WindowedCellStore(DictCellStore):
     deliberately does **not** count as a use, so scanning the whole sheet never
     churns the window.
 
-    **Scope / honesty.** This windows the *cell store*. ``Sheet`` also holds
-    per-cell recompute caches (``_ast_cache`` / ``_rast_cache`` / ``_value_cache``)
-    and format maps keyed by ``(row, col)``; bounding those too is the follow-up
-    that makes the memory win complete.
+    **Cache windowing.** When a ``Sheet`` is backed by a windowed store it also
+    caps its parsed-AST caches (``_ast_cache`` / ``_rast_cache``) to the same
+    ``capacity`` via :class:`BoundedCache` — those are the biggest per-cell
+    memory and re-parse cheaply on a miss. It deliberately leaves ``_value_cache``
+    unbounded: a value is tiny next to an AST, and keeping values shallowly
+    resolves reads of already-computed precedents. Formatting maps
+    (cell_formats/styles/borders) are sparse and stay resident.
+
+    **Known limitation — deep dependency chains.** A single reference chain
+    *deeper than the window* (e.g. ``A2=A1+1, … A400=A399+1`` with capacity 50)
+    can recurse through page-ins far enough to trip the evaluator's recursion
+    guard and yield ``#CIRC!``. Real sheets are shallow; the guidance is simply to
+    set ``capacity`` comfortably above the deepest dependency chain (which also
+    keeps the whole chain resident). This is inherent to on-demand paging, not
+    specific to the cache windowing.
 
     Not thread-safe across *different* stores sharing a file; each store owns its
     own private temp spill, guarded by a lock for the background-thread callers.
