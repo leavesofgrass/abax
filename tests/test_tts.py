@@ -209,14 +209,12 @@ def test_stop_drains_pending(monkeypatch):
 
 # --- real backend smoke test (only when installed) -------------------------
 
-def test_real_backend_available_and_speaks():
+def test_real_backend_is_detected_when_installed():
     pytest.importorskip("pyttsx3")
     tts._have_pyttsx3 = None
-    # On a machine with pyttsx3, available() should be True and speak() should
-    # accept the phrase without raising. We don't assert audible output.
+    # With pyttsx3 installed, the real backend is detected. We deliberately do
+    # NOT call speak() against the genuine engine here: that would drive the
+    # actual system voice and speak aloud during every test run. The full
+    # speak/enqueue path is covered above with fake engines (silent). Detection
+    # is the only thing that needs the real dependency.
     assert tts.available() is True
-    # speak() returns True (enqueued) as long as a worker can start; even if the
-    # platform has no voice, engine-init failure is swallowed by the worker.
-    result = tts.speak("abax accessibility self test")
-    assert result is True
-    tts.shutdown()
