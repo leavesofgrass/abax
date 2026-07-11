@@ -5,6 +5,13 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.dmypy.json
+dmypy.json
+.tox/
+.nox/
+.hypothesis/
+# Jupyter (abax ships a kernel; notebooks can drop checkpoints beside the tree)
+.ipynb_checkpoints/
 
 # Coverage.py data + reports (see [tool.coverage] in pyproject / CI coverage job)
 .coverage
@@ -40,10 +47,24 @@ ENV/
 .idea/
 *.swp
 *~
+# Merge / patch leftovers
+*.orig
+*.rej
+*.bak
 
 # OS files
 .DS_Store
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Secrets / local environment — never commit credentials or API keys.
+# (Connection secrets are kept out of the workbook at runtime; this is a
+# belt-and-suspenders guard against a stray dotenv landing in the tree.)
+.env
+.env.*
+!.env.example
+.envrc
 
 # abax runtime data that may appear if run from the source tree
 # (config/cache/logs normally live in the platform dirs, not here)

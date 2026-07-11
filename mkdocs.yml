@@ -3,6 +3,7 @@ site_description: >-
   abax — a keyboard-first statistics, data-science, and RF/amateur-radio
   workstation built on a fast, scriptable spreadsheet.
 site_author: leavesofgrass
+site_url: https://leavesofgrass.github.io/abax/
 repo_url: https://github.com/leavesofgrass/abax
 repo_name: leavesofgrass/abax
 edit_uri: edit/main/docs/
