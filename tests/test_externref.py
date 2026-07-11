@@ -87,7 +87,10 @@ def test_hub_loads_in_background_then_serves_value(tmp_path):
     try:
         g0 = hub.generation()
         first = hub.lookup("Book.abax", "Sheet1", 1, 1)
-        assert is_error(first) and first.code == CellError.NA   # loading
+        # First lookup is either the #N/A loading placeholder or — if the
+        # background load already finished (fast runner) — the value. Both are
+        # valid; the eventual value below is the real contract.
+        assert (is_error(first) and first.code == CellError.NA) or first == 40
         assert _wait_for(lambda: not is_error(hub.lookup("Book.abax", "Sheet1", 1, 1)))
         assert hub.lookup("Book.abax", "Sheet1", 1, 1) == 40
         assert hub.generation() > g0
