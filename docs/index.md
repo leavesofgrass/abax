@@ -2,7 +2,7 @@
 
 abax is a keyboard-first **statistics and data-science workstation** — an
 integrated environment for data work, built on a fast, scriptable spreadsheet.
-Import a dataset, explore it with **630+ formula functions** (statistics and
+Import a dataset, explore it with **642 formula functions** (statistics and
 distributions, financial, engineering, database, and RF/amateur-radio), run built-in
 analyses, reshape and visualize it, hand a
 selection to pandas, and script everything with Python — over CSV, Excel, Parquet,

@@ -53,7 +53,7 @@ straight in the GUI.
 
 - **Selection statistics** — select a range and the status bar shows Sum,
   Average, Min, Max, and Count instantly (see the [GUI guide](gui-guide.md)).
-- **Formula functions** — 630+ of them (637 distinct names at this release),
+- **Formula functions** — 642 of them (100% of the curated Excel/Gnumeric target),
   including the full aggregate and statistics families (`AVERAGE`, `MEDIAN`,
   `STDEV`, `VAR`, `PERCENTILE`, `QUARTILE`, `CORREL`, `COVAR`, `SKEW`, `KURT`,
   `RANK`, …) and statistical distributions (`NORMDIST`, `TDIST`, `FDIST`,
