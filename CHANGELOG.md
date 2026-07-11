@@ -8,7 +8,7 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
-## [Unreleased]
+## [0.1.12] — 2026-07-11
 
 ### Added
 - **100% curated Excel/Gnumeric function coverage.** The final CJK/Thai text
