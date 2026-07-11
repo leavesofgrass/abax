@@ -75,6 +75,8 @@ nav:
       - CLI: cli.md
       - Configuration: configuration.md
       - Macros & scripting: macros-and-scripting.md
+      - Python console: python-console.md
+      - Terminal: terminal.md
       - Automation API: automation.md
       - Jupyter: jupyter.md
   - Data & analysis:

@@ -582,6 +582,8 @@ launch.
   data-science toolkits when installed; Tab-completes those plus Python keywords
   and builtins. The console's title bar shows the active **code-isolation level**
   — cycle it (off / restricted / isolated / strict) from the command palette.
+  See the [Python console guide](python-console.md) for the full namespace and
+  worked data/file recipes.
 - **Terminal** (`` Ctrl+` ``, *View → Terminal*) — a dockable shell. It prefers a
   **true PTY** terminal (ConPTY on Windows, `pty` on POSIX) that renders a real
   `pyte` screen with full colour/SGR styling — interactive full-screen programs
@@ -589,7 +591,8 @@ launch.
   backend isn't available. On open it exports the current selection as
   `$ABAX_ACTIVE_CELL`, `$ABAX_SELECTION_RANGE`, `$ABAX_SELECTION_JSON`, and
   `$ABAX_SELECTION_TSV` (captured when the terminal starts), matching the TUI
-  `:!` drop-to-shell.
+  `:!` drop-to-shell. See the [Terminal guide](terminal.md) for the `$ABAX_*`
+  reference and shell recipes.
 
 The console and terminal both run **arbitrary code with your full privileges**,
 so the first time you open either one abax shows a one-time **consent gate**

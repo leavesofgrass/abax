@@ -56,7 +56,11 @@ opt-in from a first-run chooser (nothing is installed until you choose it).
 ## Extend & contribute
 
 - [Macros & scripting](macros-and-scripting.md) — command macros, UDFs, recording,
-  and the embedded Python console.
+  and the extension model.
+- [Python console](python-console.md) — the REPL wired to the live workbook: read
+  and write cells, the pandas hand-off, SQL across sheets, and loading files.
+- [Terminal](terminal.md) — the in-app system shell, with the current selection
+  exported to commands as `$ABAX_*` environment variables.
 - [Architecture](architecture.md) — the three-layer seam, invariants, the Qt
   binding shim, the virtualized grid, and the build.
 - [Licensing & notices](licensing.md) — GPL, third-party components, trademarks,

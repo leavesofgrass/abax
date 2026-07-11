@@ -6,7 +6,8 @@ callable inside formulas — plus a *macro recorder* that turns your edits into 
 runnable macro. Everything is written to ordinary `.py` files: code stays code
 and is never embedded in a JSON data file.
 
-See also: [index](index.md) · [architecture](architecture.md) · [licensing](licensing.md).
+See also: [Python console](python-console.md) · [Terminal](terminal.md) ·
+[index](index.md) · [architecture](architecture.md) · [licensing](licensing.md).
 
 > **Security — read this first.** Macros, the embedded Python console, the script
 > runner, and the system terminal all run **arbitrary code with your full user
@@ -168,6 +169,10 @@ def mysum(args):
 ```
 
 ## The embedded Python console
+
+> This section is a summary; the **[Python console guide](python-console.md)** has
+> the full namespace reference plus worked recipes for pandas, SQL, and loading or
+> exporting files.
 
 Beyond macros and UDFs, abax carries a full **Python REPL wired to the live
 workbook** — a GUI dock (part of the default workspace, or `` Ctrl+` ``-adjacent
