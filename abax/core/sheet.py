@@ -15,6 +15,7 @@ import re
 from typing import Any, Iterator
 
 from .cells import Cell
+from .cellstore import CellStore, DictCellStore
 from .errors import CellError, FormulaError
 from .evaluator import EvalContext, evaluate
 from .lambda_fns import LambdaValue
@@ -99,7 +100,11 @@ class Sheet:
         # Merged regions as (r1, c1, r2, c2); the top-left is the anchor (its value
         # shows across the block), interior cells are cleared on merge.
         self.merges: list[tuple[int, int, int, int]] = []
-        self._cells: dict[tuple[int, int], Cell] = {}
+        # The cell store — the swap point for a future windowed/lazy backing
+        # store. Default is DictCellStore (a dict subclass): every populated cell
+        # resident, identical behaviour to the bare dict used before. See
+        # abax/core/cellstore.py.
+        self._cells: CellStore = DictCellStore()
         # Incremental extent of ``_cells`` (excludes spills): adds bump the maxes
         # in O(1); a delete of a boundary cell marks it dirty for a lazy rescan.
         # Keeps used_bounds() — called on every render/export — off the full scan.
@@ -336,8 +341,8 @@ class Sheet:
 
         # Relocate populated cells and per-cell formats (new dict avoids any
         # overwrite collisions during the shift).
-        self._cells = {nk: cell for k, cell in self._cells.items()
-                       if (nk := move(k)) is not None}
+        self._cells = DictCellStore({nk: cell for k, cell in self._cells.items()
+                                     if (nk := move(k)) is not None})
         self.cell_formats = {nk: spec for k, spec in self.cell_formats.items()
                              if (nk := move(k)) is not None}
         self.cell_styles = {nk: st for k, st in self.cell_styles.items()
