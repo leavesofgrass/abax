@@ -151,8 +151,11 @@ def test_formula_resolves_external_ref(tmp_path):
         wb = Workbook()
         wb.sheet.set_cell(0, 0, "=[ext.abax]Data!C3 + 1")
         wb.recalculate()
-        first = wb.sheet.get_value(0, 0)   # loading -> #N/A propagates
-        assert is_error(first)
+        # First read is either the loading placeholder (#N/A, background load
+        # still pending) or — on a fast machine where the load already finished —
+        # the resolved value. Both are valid; don't race on the transient state.
+        first = wb.sheet.get_value(0, 0)
+        assert is_error(first) or first == 8
         assert _wait_for(lambda: hub.lookup("ext.abax", "Data", 2, 2) == 7)
         wb.recalculate()                   # external sheet is always-dirty
         assert wb.sheet.get_value(0, 0) == 8
