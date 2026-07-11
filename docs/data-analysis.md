@@ -99,7 +99,7 @@ clear "… requires *pkg*" message when their optional dependency is absent.
 
 Because these overlap the statistical stack, the **full test-by-test table,
 effect sizes, engines, and worked examples live in the
-[data science](data-science.md#the-statistics-analysis-tool) page.** Use this
+[data science](data-science.md#the-statistics--analysis-tool) page.** Use this
 page for the reshaping/cleaning/reporting tools around it.
 
 ## Pivot / group-by

@@ -3,8 +3,9 @@ name: CI
 # Runs on every push and pull request. Three concerns, three jobs:
 #   check    — lint + test + pyz build across the OS x Python matrix (mirrors
 #              `just check`).
-#   coverage — engine coverage ratchet on abax/core (single runner).
-#   bench    — recalc throughput regression gate vs a committed baseline.
+#   coverage — one suite run measuring abax/core + abax/engine; ratchets both
+#              (core floor 81, engine floor 55) on a single runner.
+#   bench    — recalc throughput + memory regression gate vs a committed baseline.
 on:
   push:
   pull_request:

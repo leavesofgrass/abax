@@ -152,9 +152,10 @@ removes.
   repaints the visible viewport — while dropping the per-cell fill cache so
   edited values re-color correctly.
 
-## Async I/O workers (`workers.py`)
+## Async I/O workers
 
-File open/save and other potentially slow work run off the main thread using the
+File open/save and other potentially slow work run off the main thread (in
+`workers.py`) using the
 `QObject` + `moveToThread` pattern. `workers.py` is imported only on the GUI
 path, so importing Qt there is fine.
 

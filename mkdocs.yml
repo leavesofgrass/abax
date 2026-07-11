@@ -49,6 +49,12 @@ markdown_extensions:
   - tables
   - toc:
       permalink: true
+      # GitHub-compatible heading slugs (e.g. "Statistics / analysis" ->
+      # "statistics--analysis"), so intra-doc anchors written for GitHub's
+      # rendering also resolve on the published site.
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
