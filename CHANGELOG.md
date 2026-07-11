@@ -17,6 +17,20 @@ All notable changes to abax are documented here. The format follows
   `BAHTTEXT` (a number as Thai baht text, e.g. `=BAHTTEXT(21)` →
   `ยี่สิบเอ็ดบาทถ้วน`). The coverage dashboard now reports 100% with no missing
   targets.
+- **Opt-in windowed cell store for very large sheets.** A bounded-memory
+  `WindowedCellStore` (LRU eviction, bounded per-cell AST caches) sits behind
+  the existing dict store via a seam, enabled by the `windowed_store_capacity`
+  setting — sheets keep only the hottest cells resident instead of the whole
+  grid. Off by default; the classic in-memory store is unchanged.
+- **Published documentation site.** The `docs/` tree is now built with
+  MkDocs-Material and deployed to GitHub Pages, with GitHub-compatible heading
+  anchors so intra-doc links resolve identically on GitHub and the site.
+
+### Changed
+- **CI** now also tests on Python 3.14, ratchets `abax/engine` coverage
+  (floor 55) alongside `abax/core` (floor 81), adds a memory-regression
+  dimension to the benchmark gate, and gates PyPI publishing to tagged
+  releases only.
 
 ## [0.1.11] — 2026-07-10
 
