@@ -234,7 +234,7 @@ security boundary; consent is the gate.
 ## Incremental recalculation
 
 Editing a cell once cleared every sheet's value cache. A workbook-scoped
-**reverse-dependents index** ([`core/depgraph.py`](../abax/core/depgraph.py))
+**reverse-dependents index** ([`core/depgraph.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/depgraph.py))
 inverts a formula's precedents, so an edit now invalidates only the edited cell
 and the transitive closure that references it — cross-sheet edges included. The
 contract is **over-approximation**: volatiles (`NOW`/`RAND`), dynamic references

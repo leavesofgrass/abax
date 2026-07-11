@@ -10,7 +10,7 @@ SQLite, JSON, R, and more. It runs as a Qt desktop GUI (the default), a vim-styl
 terminal UI, or a headless CLI. The core is dependency-free; optional features are
 opt-in from a first-run chooser (nothing is installed until you choose it).
 
-- License: **GPL-3.0-or-later** — see [LICENSE](../LICENSE) and
+- License: **GPL-3.0-or-later** — see [LICENSE](https://github.com/leavesofgrass/abax/blob/main/LICENSE) and
   [licensing.md](licensing.md).
 - Default Qt binding: **PySide6** (LGPL); PyQt6 is also supported.
 

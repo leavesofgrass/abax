@@ -29,21 +29,21 @@ See also: [index](index.md) · [data science](data-science.md) ·
 
 | Tool | Menu | Backed by |
 | --- | --- | --- |
-| Descriptive Statistics | Data → Analyze → Descriptive Statistics… | [`gui/dialogs/describe_dialog.py`](../abax/gui/dialogs/describe_dialog.py), [`core/science/descriptive.py`](../abax/core/science/descriptive.py) |
-| Statistics / analysis | Data → Analyze → Statistics / analysis… | [`engine/analysis.py`](../abax/engine/analysis.py), [`core/science/stats.py`](../abax/core/science/stats.py) |
-| SQL query | Data → Analyze → SQL query… | [`core/sqlsheets.py`](../abax/core/sqlsheets.py) |
-| Profile columns | Data → Analyze → Profile columns | [`core/profile.py`](../abax/core/profile.py) |
-| Open selection in pandas | Data → Analyze → Open selection in pandas… | [`gui/dialogs/dataframe_dialog.py`](../abax/gui/dialogs/dataframe_dialog.py) |
-| Recode / clean column | Data → Analyze → Recode / clean column… | [`core/recode.py`](../abax/core/recode.py) |
-| Pivot / group-by | Data → Analyze → Pivot / group-by… | [`core/pivot.py`](../abax/core/pivot.py) |
-| PivotTable fields (drag-drop) | Data → Analyze → PivotTable fields (drag-drop)… | [`core/pivotspec.py`](../abax/core/pivotspec.py) |
-| Curve fit | Data → Analyze → Curve fit… | [`gui/dialogs/curvefit_dialog.py`](../abax/gui/dialogs/curvefit_dialog.py), [`core/science/curvefit.py`](../abax/core/science/curvefit.py) |
-| Goal seek | Data → Analyze → Goal seek… | [`gui/dialogs/goalseek_dialog.py`](../abax/gui/dialogs/goalseek_dialog.py), [`core/goalseek.py`](../abax/core/goalseek.py) |
-| What-if analysis | Data → Analyze → What-if analysis… | [`gui/dialogs/whatif_dialog.py`](../abax/gui/dialogs/whatif_dialog.py), [`core/whatif.py`](../abax/core/whatif.py) |
-| Formula profiler | Data → Analyze → Formula profiler… | [`gui/dialogs/profile_dialog.py`](../abax/gui/dialogs/profile_dialog.py), [`core/profile.py`](../abax/core/profile.py) |
-| Compare workbook | Data → Compare workbook… | [`core/wbdiff.py`](../abax/core/wbdiff.py) |
-| Export as HTML report | File → Export as HTML report… | [`core/io/html_report.py`](../abax/core/io/html_report.py) |
-| Graph / chart | Data → Analyze → Graph / chart… (also Insert) | [`core/graphing.py`](../abax/core/graphing.py), [`core/science/chartsvg.py`](../abax/core/science/chartsvg.py) |
+| Descriptive Statistics | Data → Analyze → Descriptive Statistics… | [`gui/dialogs/describe_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/describe_dialog.py), [`core/science/descriptive.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/descriptive.py) |
+| Statistics / analysis | Data → Analyze → Statistics / analysis… | [`engine/analysis.py`](https://github.com/leavesofgrass/abax/blob/main/abax/engine/analysis.py), [`core/science/stats.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/stats.py) |
+| SQL query | Data → Analyze → SQL query… | [`core/sqlsheets.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/sqlsheets.py) |
+| Profile columns | Data → Analyze → Profile columns | [`core/profile.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/profile.py) |
+| Open selection in pandas | Data → Analyze → Open selection in pandas… | [`gui/dialogs/dataframe_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/dataframe_dialog.py) |
+| Recode / clean column | Data → Analyze → Recode / clean column… | [`core/recode.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/recode.py) |
+| Pivot / group-by | Data → Analyze → Pivot / group-by… | [`core/pivot.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/pivot.py) |
+| PivotTable fields (drag-drop) | Data → Analyze → PivotTable fields (drag-drop)… | [`core/pivotspec.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/pivotspec.py) |
+| Curve fit | Data → Analyze → Curve fit… | [`gui/dialogs/curvefit_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/curvefit_dialog.py), [`core/science/curvefit.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/curvefit.py) |
+| Goal seek | Data → Analyze → Goal seek… | [`gui/dialogs/goalseek_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/goalseek_dialog.py), [`core/goalseek.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/goalseek.py) |
+| What-if analysis | Data → Analyze → What-if analysis… | [`gui/dialogs/whatif_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/whatif_dialog.py), [`core/whatif.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/whatif.py) |
+| Formula profiler | Data → Analyze → Formula profiler… | [`gui/dialogs/profile_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/profile_dialog.py), [`core/profile.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/profile.py) |
+| Compare workbook | Data → Compare workbook… | [`core/wbdiff.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/wbdiff.py) |
+| Export as HTML report | File → Export as HTML report… | [`core/io/html_report.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/io/html_report.py) |
+| Graph / chart | Data → Analyze → Graph / chart… (also Insert) | [`core/graphing.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/graphing.py), [`core/science/chartsvg.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/chartsvg.py) |
 | ML tool | Tools → Scientific → ML tool… | see [data science](data-science.md) |
 | Matrix / solver / signal / ODE tools | Tools → Scientific → … | see [data science](data-science.md) |
 
@@ -68,8 +68,8 @@ row as column names** and the rest as data; blank cells are treated as missing.
 ## Descriptive Statistics
 
 A one-click summary of a range (**Data → Analyze → Descriptive Statistics…**),
-backed by [`gui/dialogs/describe_dialog.py`](../abax/gui/dialogs/describe_dialog.py)
-and the pure-stdlib [`core/science/descriptive.py`](../abax/core/science/descriptive.py).
+backed by [`gui/dialogs/describe_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/describe_dialog.py)
+and the pure-stdlib [`core/science/descriptive.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/descriptive.py).
 It reads the selected range (any shape — cells are pooled row-major), drops blank
 and non-numeric cells, and fills a read-only two-column *statistic / value* table
 with the full spread of measures: **count, sum, mean, median, mode, min, Q1, Q3,
@@ -89,7 +89,7 @@ a numeric range (a non-numeric first row is read as column names), pick an
 analysis, choose where to write the output, and run. The dialog shows a
 **summary** — statistic, p-value, an effect size, and a one-line plain-English
 interpretation — and writes a result **table** back into the grid. Backed by
-[`abax/engine/analysis.py`](../abax/engine/analysis.py).
+[`abax/engine/analysis.py`](https://github.com/leavesofgrass/abax/blob/main/abax/engine/analysis.py).
 
 The registry (`analysis.ANALYSES`) drives the menu: descriptive statistics,
 two-column t-test, one-way ANOVA, correlation matrix, OLS linear regression, a
@@ -105,7 +105,7 @@ page for the reshaping/cleaning/reporting tools around it.
 ## Pivot / group-by
 
 Reshape and summarise a table (**Data → Analyze → Pivot / group-by…**), powered
-by [`abax/core/pivot.py`](../abax/core/pivot.py). Select a range (first row =
+by [`abax/core/pivot.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/pivot.py). Select a range (first row =
 column names) and choose a mode:
 
 - **Group by** (`pivot.group_by`) — group rows by one or more columns and
@@ -122,7 +122,7 @@ from the pooled raw cells — so a `mean`/`median` total is the true aggregate o
 all rows, not an average of the cell aggregates. **Display as** re-expresses each
 body cell as a **percent of the grand total, of its row, or of its column**
 (`pct_of="grand"|"row"|"col"`); combined with margins, the margin cells show
-`100`. The core [`pivot.pivot_table`](../abax/core/pivot.py) also supports
+`100`. The core [`pivot.pivot_table`](https://github.com/leavesofgrass/abax/blob/main/abax/core/pivot.py) also supports
 **multiple value fields** at once (`value_cols=` with an optional matching `aggs=`
 list — one sub-column per value field per column key); this is scriptable from
 the console today rather than exposed in the dialog.
@@ -140,8 +140,8 @@ blank-padded (ragged-tolerant). The result block is written back into the sheet.
 ### PivotTable Fields (drag-drop)
 
 **Data → Analyze → PivotTable fields (drag-drop)…** opens a dockable pane like
-Excel's PivotTable Fields, over the same [`core/pivot.py`](../abax/core/pivot.py)
-engine (routing in [`core/pivotspec.py`](../abax/core/pivotspec.py)). Set a data
+Excel's PivotTable Fields, over the same [`core/pivot.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/pivot.py)
+engine (routing in [`core/pivotspec.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/pivotspec.py)). Set a data
 range, then drag columns — or use the `→` buttons — into four areas:
 
 - **Rows** — one or more group fields. With a Columns field also set, two or
@@ -176,7 +176,7 @@ a `Region | Q1 | Q2` grid.
 ## Recode / clean column
 
 Column-at-a-time cleaning (**Data → Analyze → Recode / clean column…**), powered
-by [`abax/core/recode.py`](../abax/core/recode.py). Each operation transforms
+by [`abax/core/recode.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/recode.py). Each operation transforms
 every column in the selected range (raw text in, recoded text out) and writes the
 result back in place. A single *Options* field is interpreted per operation, with
 a live hint. The operations come from `recode.OPERATIONS`:
@@ -203,7 +203,7 @@ column. `standardize_dates` accepts a dozen common forms (ISO, US `m/d/y`,
 
 **Data → Analyze → Profile columns** writes a per-column *describe* of the active
 sheet to a fresh **`Profile`** sheet, powered by
-[`abax/core/profile.py`](../abax/core/profile.py). For every used column it
+[`abax/core/profile.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/profile.py). For every used column it
 infers a dtype (`bool` → `int` → `float`, else `text`, or `empty`) and reports
 `count` (non-missing), `missing`, and `unique`. Numeric columns add
 `min / max / mean / median / std` (population std) plus quartiles; text columns
@@ -215,7 +215,7 @@ console returns the same list of stat dicts.)
 ## SQL query
 
 **Data → Analyze → SQL query…** runs SQL over the workbook's sheets, powered by
-[`abax/core/sqlsheets.py`](../abax/core/sqlsheets.py) and the stdlib `sqlite3`.
+[`abax/core/sqlsheets.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/sqlsheets.py) and the stdlib `sqlite3`.
 Each sheet is loaded into an in-memory SQLite table named after the sheet (the
 first used row supplies column names). Column affinity is inferred per column
 (`INTEGER` / `REAL` / `TEXT`), so numeric columns **aggregate as numbers**, not
@@ -237,8 +237,8 @@ clear `SqlError` message rather than a crash. In the console, `sql("…")` retur
 ## Curve fit
 
 Fit a model to XY data (**Data → Analyze → Curve fit…**), powered by
-[`gui/dialogs/curvefit_dialog.py`](../abax/gui/dialogs/curvefit_dialog.py) and the
-pure-stdlib [`core/science/curvefit.py`](../abax/core/science/curvefit.py). Point
+[`gui/dialogs/curvefit_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/curvefit_dialog.py) and the
+pure-stdlib [`core/science/curvefit.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/curvefit.py). Point
 it at an **X range** and a **Y range** (the dialog guesses the first two selected
 columns) and pick one of four models:
 
@@ -258,12 +258,12 @@ see [data science](data-science.md#regression-forecasting--curve-fitting-pure-st
 ## Goal seek
 
 **Data → Analyze → Goal seek…** answers "what input makes this cell hit this
-target?", powered by [`gui/dialogs/goalseek_dialog.py`](../abax/gui/dialogs/goalseek_dialog.py)
-and [`core/goalseek.py`](../abax/core/goalseek.py). You name a **Set cell** (a
+target?", powered by [`gui/dialogs/goalseek_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/goalseek_dialog.py)
+and [`core/goalseek.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/goalseek.py). You name a **Set cell** (a
 formula cell), a **To value** target, and a **By changing cell** to vary; the
 solver finds the input that drives the target to the goal. It hands the problem
 to the self-bracketing hybrid secant/bisection root-finder in
-[`core/science/numeric.py`](../abax/core/science/numeric.py) (`solve_root`), so it
+[`core/science/numeric.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/numeric.py) (`solve_root`), so it
 is robust on awkward or poorly-seeded problems. On success the changing cell keeps
 the solution and the sheet recomputes; on failure — no bracketable root, no
 convergence, or a target cell that never evaluates to a number — the changing cell
@@ -275,8 +275,8 @@ solver over A1 cell references.
 ## What-if analysis
 
 **Data → Analyze → What-if analysis…** (dialog
-[`gui/dialogs/whatif_dialog.py`](../abax/gui/dialogs/whatif_dialog.py), core
-[`core/whatif.py`](../abax/core/whatif.py)) bundles two classic what-if tools:
+[`gui/dialogs/whatif_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/whatif_dialog.py), core
+[`core/whatif.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/whatif.py)) bundles two classic what-if tools:
 
 - **Data tables** — sweep values through an input cell and tabulate what a
   formula produces. A **one-variable** table takes a column (or row) of inputs,
@@ -296,8 +296,8 @@ The dialog also exposes a headless programmatic API (`run_one_var` /
 ## Formula profiler
 
 **Data → Analyze → Formula profiler…** (dialog
-[`gui/dialogs/profile_dialog.py`](../abax/gui/dialogs/profile_dialog.py), core
-[`core/profile.py`](../abax/core/profile.py)) finds what makes a recalc slow.
+[`gui/dialogs/profile_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/profile_dialog.py), core
+[`core/profile.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/profile.py)) finds what makes a recalc slow.
 **Profile now** times every formula cell — all sheets, or just one — and ranks
 them slowest-first in a monospace report (rank, cell, ms, formula); set
 **Repeat** > 1 to average several passes for a steadier estimate on
@@ -310,7 +310,7 @@ plain stdlib and callable from the console.
 ## Compare workbook
 
 **Data → Compare workbook…** diffs the current workbook against another file,
-powered by [`abax/core/wbdiff.py`](../abax/core/wbdiff.py). It compares the
+powered by [`abax/core/wbdiff.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/wbdiff.py). It compares the
 **raw text you typed** (not computed values) cell-by-cell over the union of used
 bounds, classifying each change as `added` (empty→non-empty), `removed`
 (non-empty→empty), or `changed`. Results land in a new **`Diff`** sheet: a
@@ -324,7 +324,7 @@ workbook are listed by name. In the console, `wbdiff.diff_workbooks(a, b)` and
 **File → Export as HTML report…** writes a standalone `<!DOCTYPE html>` document
 — one bordered `<table>` per sheet, with column-letter headers, row numbers, and
 each cell's *displayed* value (all escaped) — powered by
-[`abax/core/io/html_report.py`](../abax/core/io/html_report.py). Pure stdlib
+[`abax/core/io/html_report.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/io/html_report.py). Pure stdlib
 (`html` only), no external template engine. Large sheets are bounded (default
 1000 rows × 100 columns) with a note recording what was omitted. In the console,
 `html_report.workbook_to_html(wb)` and `html_report.sheet_to_html(sheet)` return
@@ -336,8 +336,8 @@ abax has **two** complementary charting paths, both **without matplotlib**:
 
 **1. The interactive grapher** (**Data → Analyze → Graph / chart…**, also under
 Insert) — a live plot painted with QPainter
-([`gui/dialogs/graph_dialog.py`](../abax/gui/dialogs/graph_dialog.py), backed by
-[`core/graphing.py`](../abax/core/graphing.py)). It can:
+([`gui/dialogs/graph_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/graph_dialog.py), backed by
+[`core/graphing.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/graphing.py)). It can:
 
 - **Plot** a math expression of `x` over a range. The evaluator is sandboxed
   (empty `__builtins__`, only safe math names in scope, `^`→`**`), so a stray
@@ -353,7 +353,7 @@ In the curses TUI, `:plot <expr> [xmin xmax]` renders a **braille** plot
 (`graphing.braille_plot`) of an expression or the selected column right in the
 terminal.
 
-**2. Exportable SVG charts** — [`core/science/chartsvg.py`](../abax/core/science/chartsvg.py)
+**2. Exportable SVG charts** — [`core/science/chartsvg.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/chartsvg.py)
 is a pure-stdlib generator of complete, self-contained `<svg>…</svg>` strings
 (bordered plot area, axes with numeric tick labels, optional title and legend).
 Reach it from the [console](#the-console-namespace) as `chartsvg`:
@@ -378,7 +378,7 @@ save it to a file, or embed it anywhere — no rendering backend required.
 ## Open selection in pandas
 
 A DataFrame viewer (**Data → Analyze → Open selection in pandas…**,
-[`gui/dialogs/dataframe_dialog.py`](../abax/gui/dialogs/dataframe_dialog.py))
+[`gui/dialogs/dataframe_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/dataframe_dialog.py))
 that loads the selected range as a **typed** pandas DataFrame — each column is
 coerced to its inferred type (int / float / bool / date / text) via
 `abax.core.typeinfer`. It displays the shape, dtypes, `describe()`, and a head
@@ -391,7 +391,7 @@ pandas-eye view of a block without leaving the app — and the
 ## The console namespace
 
 The embedded Python console (and the console worker, however isolated) is wired
-to the live workbook via [`abax/core/console_ns.py`](../abax/core/console_ns.py). Every
+to the live workbook via [`abax/core/console_ns.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/console_ns.py). Every
 engine on this page is exposed by name, so anything a dialog does you can script:
 
 | Name(s) | What it gives you |

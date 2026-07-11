@@ -4,7 +4,7 @@ abax ships a set of **radio-frequency engineering functions** — power/level
 conversions, transmission-line and matching math, link-budget and propagation
 formulas, antenna helpers, and the **Maidenhead grid locator** — so you can build a
 link budget, antenna, or matching spreadsheet natively. They are backed by
-[`abax/core/science/rf.py`](../abax/core/science/rf.py) (pure standard library;
+[`abax/core/science/rf.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/rf.py) (pure standard library;
 no third-party dependency).
 
 See also: [formula reference](formula-reference.md) ·
@@ -69,7 +69,7 @@ directly and show results in both metric and imperial.
 
 Resonant-circuit component values, loaded-Q / bandwidth, inductor design, and
 antenna dimensions, backed by
-[`abax/core/science/rf_math.py`](../abax/core/science/rf_math.py). All SI units
+[`abax/core/science/rf_math.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/rf_math.py). All SI units
 (farads, henries, metres, hertz) except `TOROIDL`/`TOROIDN`, which take the
 manufacturer's **AL** value in nH/turn².
 
@@ -162,7 +162,7 @@ table.
 ## ADIF logbook (.adi / .adif)
 
 abax reads and writes **ADIF** (Amateur Data Interchange Format) logbooks, backed by
-[`abax/core/io/adif_io.py`](../abax/core/io/adif_io.py) (pure standard library):
+[`abax/core/io/adif_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/io/adif_io.py) (pure standard library):
 
 - **Open** a `.adi`/`.adif` file (*File → Open*) and abax loads it into a sheet named
   **Log** — the header row is the union of ADIF field names (in first-seen order) and
@@ -181,7 +181,7 @@ callsigns — to annotate the entities you've worked.
 ## POTA/SOTA & contest logging
 
 abax has a small logging layer for **Parks/Summits On The Air** activations and
-contest operating, backed by [`abax/core/science/hamlog.py`](../abax/core/science/hamlog.py)
+contest operating, backed by [`abax/core/science/hamlog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/hamlog.py)
 (pure standard library). It gives the grid two spreadsheet functions and a live
 GUI logger, both built on the same dupe / scoring primitives.
 
@@ -223,7 +223,7 @@ worksheet (with a summary block), where the ADIF logbook tools can export it.
 ## Satellite passes (SGP4)
 
 abax predicts **satellite passes** from a two-line element set (TLE) and an
-observer, backed by [`abax/engine/satellite.py`](../abax/engine/satellite.py).
+observer, backed by [`abax/engine/satellite.py`](https://github.com/leavesofgrass/abax/blob/main/abax/engine/satellite.py).
 Given a TLE plus an observer (latitude, longitude, altitude) it computes, for
 each pass over a time window, the **rise**, **culmination** and **set** times,
 the **azimuth** at each of those moments, and the **maximum elevation** at

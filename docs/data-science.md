@@ -28,7 +28,7 @@ and unit-conversion engines all run headless, offline, with nothing installed.
 Optional packages are upgrades, not requirements, and abax tells you (and falls
 back) when one is missing:
 
-- The **Statistics / analysis GUI tool** ([`abax/engine/analysis.py`](../abax/engine/analysis.py))
+- The **Statistics / analysis GUI tool** ([`abax/engine/analysis.py`](https://github.com/leavesofgrass/abax/blob/main/abax/engine/analysis.py))
   prefers `scipy` / `statsmodels` / `pingouin` / `lifelines` for a few tests but
   keeps stdlib fallbacks where it can.
 - When `numpy` is present it **accelerates large aggregate reductions**
@@ -136,7 +136,7 @@ Save to any supported format (computed values or formulas), export an
 ## The Statistics / analysis tool
 
 The GUI tool at **Data → Analyze → Statistics / analysis…** is backed by
-[`abax/engine/analysis.py`](../abax/engine/analysis.py). Select a numeric range
+[`abax/engine/analysis.py`](https://github.com/leavesofgrass/abax/blob/main/abax/engine/analysis.py). Select a numeric range
 (non-numeric first row = column names), pick an analysis, choose an output cell,
 and run. The dialog shows a **summary** (statistic, p-value, effect size, and a
 plain-English interpretation) and writes a result **table** back into the grid.
@@ -170,7 +170,7 @@ functions and returns real p-values.
 
 ## Descriptive statistics & distributions (pure stdlib)
 
-[`abax/core/science/stats.py`](../abax/core/science/stats.py) is a
+[`abax/core/science/stats.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/stats.py) is a
 dependency-free statistics toolkit computed entirely in IEEE doubles via
 `math` — leaning on `math.erf` (normal CDF), `math.lgamma` (incomplete beta),
 and `math.fsum` (compensated summation). It underpins the spreadsheet stats/
@@ -211,7 +211,7 @@ chi2, p = stats.chi_square([[12, 5], [3, 20]])   # 2x2 independence test
 
 ## Nonparametric & rank statistics (pure stdlib)
 
-[`abax/core/science/nonparam.py`](../abax/core/science/nonparam.py) (`nonparam`
+[`abax/core/science/nonparam.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/nonparam.py) (`nonparam`
 in the console) is a dependency-free companion to `stats.py` that fills the
 rank-based gap — the distribution-free tests you reach for when normality is in
 doubt. Everything is computed in IEEE doubles via `math` only (no scipy), reusing
@@ -243,7 +243,7 @@ rho, p = nonparam.spearman_rho(x, y)                 # rank correlation
 
 ## Regression, forecasting & curve fitting (pure stdlib)
 
-[`abax/core/science/regression.py`](../abax/core/science/regression.py) mirrors
+[`abax/core/science/regression.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/regression.py) mirrors
 the familiar spreadsheet trend/forecast/linest family, hand-solved with the
 standard library:
 
@@ -259,7 +259,7 @@ or the OLS analysis tool. These functions back `SLOPE`, `INTERCEPT`, `RSQ`,
 `CORREL`, `FORECAST`, `TREND`, and the polynomial helpers in the
 [formula reference](formula-reference.md).
 
-**Curve fitting** — [`abax/core/science/curvefit.py`](../abax/core/science/curvefit.py)
+**Curve fitting** — [`abax/core/science/curvefit.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/curvefit.py)
 builds on the same least-squares machinery to fit named models and report their
 goodness-of-fit, and is what the [Curve fit tool](data-analysis.md#curve-fit)
 calls:
@@ -281,7 +281,7 @@ for a log model, or a singular system) raises `RegressionError`.
 ## The machine-learning stack
 
 The **ML tool** at **Tools → Scientific → ML tool…**
-([`gui/dialogs/ml_dialog.py`](../abax/gui/dialogs/ml_dialog.py)) works over a
+([`gui/dialogs/ml_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/ml_dialog.py)) works over a
 numeric samples × features matrix and writes scores/labels/coefficients back to
 the grid. Its operations are: **PCA** (param = #components), **K-means**
 (param = k), **Suggest #clusters** (param = max k), **GMM cluster**
@@ -293,7 +293,7 @@ per-*k* table of inertia, mean silhouette, and (when the GMM fits) BIC/AIC, then
 reports the recommended *k* — see [choosing the cluster count](#choosing-the-cluster-count)
 below. The same engines are in the console:
 
-**`ml`** ([`ml.py`](../abax/core/science/ml.py)) — `standardize` (column z-score),
+**`ml`** ([`ml.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/ml.py)) — `standardize` (column z-score),
 `pca` (covariance eigendecomposition via the in-house symmetric eigensolver,
 returning components, explained-variance ratios, and the projected data),
 `linear_regression`/`predict_linear`/`r_squared` (multiple OLS via the normal
@@ -301,7 +301,7 @@ equations), `knn_classify`/`knn_predict` (k-nearest-neighbours voting), and
 `logistic_regression`/`logistic_predict[_proba]` (binary logistic regression by
 gradient descent, features standardised internally then mapped back).
 
-**`cluster`** ([`cluster.py`](../abax/core/science/cluster.py)) — `kmeans`
+**`cluster`** ([`cluster.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/cluster.py)) — `kmeans`
 (Lloyd's iteration with **k-means++** seeding, returning labels, centroids, and
 inertia; empty clusters re-seeded), `kmeans_predict`, `agglomerative`
 (bottom-up hierarchical with single/complete/average linkage), `dbscan`
@@ -312,7 +312,7 @@ Two helpers pick the cluster count: `elbow(points, k_range)` returns the
 maximises the mean silhouette (each `k ≥ 2`). Randomness flows through a seeded
 `random.Random`, so results are reproducible.
 
-**`gmm`** ([`gmm.py`](../abax/core/science/gmm.py)) — `GaussianMixture`, a
+**`gmm`** ([`gmm.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/gmm.py)) — `GaussianMixture`, a
 diagonal-covariance mixture fitted by **Expectation-Maximization** (E-step in log
 space with per-row max subtraction for stability, k-means++-style init). Exposes
 `means_`, `covariances_`, `weights_`, `converged_`, `predict[_proba]`, `score`,
@@ -320,13 +320,13 @@ and `bic`/`aic` for model selection (choosing the number of components).
 `gmm_model_selection(points, k_range)` fits a mixture at every `k` and returns the
 per-`k` BIC/AIC scores together with the `k` each criterion prefers.
 
-**`trees`** ([`trees.py`](../abax/core/science/trees.py)) —
+**`trees`** ([`trees.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/trees.py)) —
 `DecisionTreeClassifier` (CART greedy binary splits on `x[f] <= threshold`,
 Gini or entropy impurity, majority-class leaves) and `RandomForestClassifier`
 (bagged ensemble: each tree on a bootstrap row sample and a random feature
 subset, combined by majority vote). Fully deterministic under a `seed`.
 
-**`bayes`** ([`bayes.py`](../abax/core/science/bayes.py)) — `GaussianNB`
+**`bayes`** ([`bayes.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/bayes.py)) — `GaussianNB`
 (continuous features as per-class Gaussians, with variance smoothing) and
 `MultinomialNB` (non-negative counts / bag-of-words with Laplace smoothing).
 Both work in log-space and softmax-normalise; `predict`, `predict_proba`, and
@@ -361,7 +361,7 @@ silhouette peak, and the information criteria usually agree on a sensible count.
 
 ## Model evaluation (pure stdlib)
 
-[`abax/core/science/metrics.py`](../abax/core/science/metrics.py) (`metrics` in
+[`abax/core/science/metrics.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/metrics.py) (`metrics` in
 the console) covers the common evaluation chores, all from raw counts — no numpy
 or sklearn — and seedable for reproducible splits:
 
@@ -377,7 +377,7 @@ or sklearn — and seedable for reproducible splits:
 ## Distribution & diagnostic charts
 
 Beyond the line/bar/scatter/histogram charts, the pure-stdlib SVG generator
-[`abax/core/science/chartsvg.py`](../abax/core/science/chartsvg.py) (`chartsvg`
+[`abax/core/science/chartsvg.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/chartsvg.py) (`chartsvg`
 in the console) renders the diagnostic plots a statistician reaches for — each a
 complete, self-contained `<svg>…</svg>` string with no rendering backend:
 
@@ -407,34 +407,34 @@ svg = chartsvg.heatmap_svg(stats.correlation_matrix(cols),
 ## Linear algebra & the engineering toolkit
 
 The **Matrix tool** at **Tools → Scientific → Matrix tool…**
-([`gui/dialogs/matrix_dialog.py`](../abax/gui/dialogs/matrix_dialog.py)) reads
+([`gui/dialogs/matrix_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/matrix_dialog.py)) reads
 numeric ranges and computes transpose, inverse, determinant, multiply (A·B),
 solve (A·x = b), eigenvalues, Cholesky factor, QR (Q and R), and condition
 number. Matrix results are written back from a target cell; scalars (determinant,
 condition number) go to the status line. Two engines back it, both **no-numpy**:
 
-- **`matrix`** ([`matrix.py`](../abax/core/science/matrix.py)) — `shape`,
+- **`matrix`** ([`matrix.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/matrix.py)) — `shape`,
   `identity`, `transpose`, `trace`, `add`/`sub`/`scalar_mul`/`matmul`,
   `determinant` (LU with partial pivoting), `inverse` (Gauss–Jordan), and `solve`
   for `A x = b`. Singular/mismatched inputs raise `MatrixError`.
-- **`eigen`** ([`eigen.py`](../abax/core/science/eigen.py)) — `eigenvalues`
+- **`eigen`** ([`eigen.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/eigen.py)) — `eigenvalues`
   (Wilkinson-shifted QR algorithm), `eigen_symmetric` (eigenpairs via cyclic
   **Jacobi** rotation), `lu` (P·A = L·U), `qr` (Householder reflections),
   `cholesky` (for symmetric positive-definite A), and `condition_number` (2-norm
   σmax/σmin).
 
 **Numerical solver** — **Tools → Scientific → Numerical solver…**
-([`solver_dialog.py`](../abax/gui/dialogs/solver_dialog.py)) solves an expression
+([`solver_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/solver_dialog.py)) solves an expression
 `f(x)`: **root** by bisection `[a,b]` or **Newton** (`x₀`), definite **integral**
 over `[a,b]`, or **derivative** at `x₀`. Backed by
-[`numeric.py`](../abax/core/science/numeric.py): `bisection`, `newton` (analytic
+[`numeric.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/numeric.py): `bisection`, `newton` (analytic
 or auto central-difference derivative), `secant`, `integrate` (composite Simpson
 / trapezoid), `trapz` (over sampled columns), and `derivative`. All guard against
 non-finite intermediates and raise `NumericError` rather than returning garbage.
 
 **Unit conversion** — the `CONVERT` **formula function**
-([`core/functions`](../abax/core/functions), engine
-[`units.py`](../abax/core/science/units.py)) converts a value between two units in
+([`core/functions`](https://github.com/leavesofgrass/abax/blob/main/abax/core/functions), engine
+[`units.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/units.py)) converts a value between two units in
 one physical category: length, mass, time, area, volume, energy, power, pressure,
 speed, angle, temperature, and data. Scale categories use a base-unit factor;
 temperature is affine (offset + scale) and special-cased. Canonical symbols are
@@ -444,35 +444,35 @@ cross-category pair raises `UnitError`.
 ## Signal processing & DSP
 
 The **Signal / data tool** at **Tools → Scientific → Signal / data tool…**
-([`signal_dialog.py`](../abax/gui/dialogs/signal_dialog.py)) applies a chosen
+([`signal_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/signal_dialog.py)) applies a chosen
 operation to the selected column(s): FFT magnitude / phase, power spectrum,
 moving average, exponential smoothing, min-max / z-score normalize, detrend,
 cumulative sum, autocorrelation, a Hann window, Butterworth low/high-pass, FIR
 low-pass, a spectrogram (dB), a Welch PSD (dB; two columns = I/Q), and RMS. All
 pure-stdlib, drawn from these engines (also in the console):
 
-- **`signal`** ([`signal.py`](../abax/core/science/signal.py)) —
+- **`signal`** ([`signal.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/signal.py)) —
   `moving_average`, `exponential_smoothing`, `cumulative_sum`, `diff`,
   `hann`/`hamming`/`blackman` windows + `apply_window`, `normalize`
   (minmax/zscore/peak), `detrend`, `rms`, `autocorrelation`. (This is a package
   submodule, so it does not shadow the stdlib `signal` module.)
-- **`fft`** ([`fft.py`](../abax/core/science/fft.py)) — `dft`, radix-2
+- **`fft`** ([`fft.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/fft.py)) — `dft`, radix-2
   Cooley–Tukey `fft` (falling back to `dft` for non-power-of-two lengths),
   `ifft`, plus `magnitude`, `phase`, `power_spectrum`, `frequencies`,
   `rfft_magnitude` (one-sided real spectrum), and `convolve`. Works in Python
   `complex` via `cmath` — no numpy.
-- **`spectral`** ([`spectral.py`](../abax/core/science/spectral.py)) — `stft`
+- **`spectral`** ([`spectral.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/spectral.py)) — `stft`
   and `spectrogram` (power in dB) over sliding windowed frames, `fft_convolve`
   (FFT-based linear convolution), and `next_pow2`.
-- **`filters`** ([`filters.py`](../abax/core/science/filters.py)) — Butterworth
+- **`filters`** ([`filters.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/filters.py)) — Butterworth
   IIR design (`butter_lowpass`/`butter_highpass`/`butter_bandpass` via the analog
   prototype + bilinear transform), `lfilter` (direct-form-II transposed),
   `filtfilt` (zero-phase forward-then-reverse), and windowed-sinc FIR
   (`fir_lowpass`, `fir_filter`).
-- **`interp`** ([`interp.py`](../abax/core/science/interp.py)) — 1-D `linear`,
+- **`interp`** ([`interp.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/interp.py)) — 1-D `linear`,
   `nearest`, `lagrange`, and natural cubic spline
   (`cubic_spline_coeffs`/`cubic_spline`), plus `resample`.
-- **`resynth`** ([`resynth.py`](../abax/core/science/resynth.py)) — the full
+- **`resynth`** ([`resynth.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/resynth.py)) — the full
   complex STFT (`stft_complex`), inverse STFT by weighted overlap-add (`istft`),
   round-trip `reconstruct`, and `griffin_lim` (recover a signal from
   magnitude-only spectra by alternating projection).
@@ -480,14 +480,14 @@ pure-stdlib, drawn from these engines (also in the console):
 ## ODE solvers (including stiff)
 
 The **ODE solver** at **Tools → Scientific → ODE solver…**
-([`ode_dialog.py`](../abax/gui/dialogs/ode_dialog.py)) integrates an
+([`ode_dialog.py`](https://github.com/leavesofgrass/abax/blob/main/abax/gui/dialogs/ode_dialog.py)) integrates an
 initial-value problem `dy/dt = f(t, y)` and writes the trajectory to the sheet,
 choosing an explicit or a stiff method:
 
-- **`ode`** ([`ode.py`](../abax/core/science/ode.py)) — fixed-step `euler` and
+- **`ode`** ([`ode.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/ode.py)) — fixed-step `euler` and
   classic 4th-order `rk4`, plus adaptive `rk45` (Runge–Kutta–Fehlberg with
   step-size control that lands exactly on `t1`). `solve(...)` dispatches by name.
-- **`ode_implicit`** ([`ode_implicit.py`](../abax/core/science/ode_implicit.py))
+- **`ode_implicit`** ([`ode_implicit.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/ode_implicit.py))
   — implicit/**stiff** solvers for problems where explicit steps must be
   absurdly tiny to stay stable: `backward_euler` (L-stable, 1st order),
   `implicit_trapezoid` (Crank–Nicolson, A-stable, 2nd order), and `bdf2`. Each

@@ -2,8 +2,8 @@
 
 abax is free software, licensed under the **GNU General Public License,
 version 3.0 or later** (GPL-3.0-or-later). The full text is in
-[`LICENSE`](../LICENSE), and the per-component attributions and trademark
-disclaimers are in [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md). This
+[`LICENSE`](https://github.com/leavesofgrass/abax/blob/main/LICENSE), and the per-component attributions and trademark
+disclaimers are in [`THIRD_PARTY_NOTICES.md`](https://github.com/leavesofgrass/abax/blob/main/THIRD_PARTY_NOTICES.md). This
 page is a plain-language summary of what that means in practice.
 
 See also: [index](index.md) · [architecture](architecture.md) · [macros and scripting](macros-and-scripting.md).
@@ -14,7 +14,7 @@ You may use, study, modify, and redistribute abax, including modified versions,
 provided you keep it under the GPL and pass the same freedoms on. "Or later"
 means you may also comply with any later version of the GPL the Free Software
 Foundation publishes. For the exact terms — including the source-availability
-and notice requirements — read [`LICENSE`](../LICENSE).
+and notice requirements — read [`LICENSE`](https://github.com/leavesofgrass/abax/blob/main/LICENSE).
 
 ## Third-party components
 
@@ -83,7 +83,7 @@ only descriptively, to identify the emulated functionality.
 
 ## Where to look
 
-- [`LICENSE`](../LICENSE) — the full GPL-3.0-or-later text and binding terms.
-- [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) — the authoritative
+- [`LICENSE`](https://github.com/leavesofgrass/abax/blob/main/LICENSE) — the full GPL-3.0-or-later text and binding terms.
+- [`THIRD_PARTY_NOTICES.md`](https://github.com/leavesofgrass/abax/blob/main/THIRD_PARTY_NOTICES.md) — the authoritative
   component table, fetched-on-demand notes, trademark disclaimers, and
   attribution.

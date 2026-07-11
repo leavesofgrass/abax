@@ -2,7 +2,7 @@
 
 abax is JSON-first but reads and writes many tabular formats. Every open and
 save is dispatched purely by **file extension** in
-[`abax/engine/document.py`](../abax/engine/document.py) — the single façade the
+[`abax/engine/document.py`](https://github.com/leavesofgrass/abax/blob/main/abax/engine/document.py) — the single façade the
 GUI, TUI, and CLI all call. This page lists every supported format, what import
 and export actually do, and which formats need an optional dependency.
 
@@ -54,7 +54,7 @@ format below.
 ## Native workbook (`.json` / `.abax`)
 
 abax's own format is a self-describing JSON **envelope** produced by
-`Workbook.to_envelope` ([`abax/core/workbook.py`](../abax/core/workbook.py)):
+`Workbook.to_envelope` ([`abax/core/workbook.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/workbook.py)):
 
 ```json
 {
@@ -111,7 +111,7 @@ nothing in an older file is rewritten or lost.
 ### `.json` auto-detects native vs foreign
 
 A `.json` (or `.abax`) file is opened through
-[`abax/core/io/exchange_io.py`](../abax/core/io/exchange_io.py), which inspects the
+[`abax/core/io/exchange_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/io/exchange_io.py), which inspects the
 payload shape and does the right thing:
 
 - **abax workbook envelope** (`data.sheets` present) → loaded losslessly.
@@ -140,7 +140,7 @@ native files *are* valid interchange envelopes.
 
 ## CSV / TSV / tab (`.csv`, `.tsv`, `.tab`)
 
-Implemented in [`abax/core/io/csv_io.py`](../abax/core/io/csv_io.py) on the stdlib
+Implemented in [`abax/core/io/csv_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/io/csv_io.py) on the stdlib
 `csv` module. Import places each field as raw cell text (a field starting with
 `=` becomes a formula); empty fields are skipped. `.tsv`/`.tab` use a tab
 delimiter. Export writes **computed values** by default (`values=True`); the API
@@ -153,7 +153,7 @@ python -m abax view data.csv
 
 ### Streaming large CSVs
 
-[`abax/core/io/csv_stream.py`](../abax/core/io/csv_stream.py) imports big CSVs
+[`abax/core/io/csv_stream.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/io/csv_stream.py) imports big CSVs
 without loading the whole file into memory. It provides:
 
 - `sniff_csv(path)` — a fast **preview**: delimiter and header detection, a
@@ -168,7 +168,7 @@ without loading the whole file into memory. It provides:
 
 ## Excel (`.xlsx`, `.xlsm`) — needs `openpyxl`
 
-[`abax/engine/excel_io.py`](../abax/engine/excel_io.py) uses `openpyxl`. Every
+[`abax/engine/excel_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/engine/excel_io.py) uses `openpyxl`. Every
 worksheet becomes a sheet. The workbook is loaded with `data_only=False`, so
 Excel formulas are kept **as text** and re-evaluated by abax rather than read as
 cached values. On export the default writes **raw cell text** (so formulas
@@ -185,7 +185,7 @@ pip install openpyxl
 
 ## OpenDocument spreadsheet (`.ods`)
 
-[`abax/engine/ods_io.py`](../abax/engine/ods_io.py) is **pure stdlib** — it
+[`abax/engine/ods_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/engine/ods_io.py) is **pure stdlib** — it
 reads and writes the ODF `content.xml` directly with `zipfile` and
 `xml.etree.ElementTree`, so it needs no `odfpy`/`ezodf`. Import reads the **first**
 sheet, honouring `number-columns-repeated` / `number-rows-repeated` (repeats are
@@ -196,7 +196,7 @@ parse as numbers are written as `float`; everything else as `string`.
 
 ## Parquet / Feather (`.parquet`, `.pq`, `.feather`, `.ft`) — needs `pandas` + engine
 
-[`abax/engine/parquet_io.py`](../abax/engine/parquet_io.py) uses `pandas` plus
+[`abax/engine/parquet_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/engine/parquet_io.py) uses `pandas` plus
 a columnar engine (`pyarrow` or `fastparquet`). The DataFrame's column names
 become the header row; every value is stringified (nulls → empty cells). Export
 treats row 0 as the header and writes the **active sheet** only, using displayed
@@ -212,19 +212,19 @@ pip install pandas pyarrow
 
 ## XML Spreadsheet / SpreadsheetML (`.xml`)
 
-[`abax/core/io/xml_io.py`](../abax/core/io/xml_io.py) reads and writes the Excel 2003
+[`abax/core/io/xml_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/io/xml_io.py) reads and writes the Excel 2003
 "XML Spreadsheet" dialect (`<Worksheet>/<Table>/<Row>/<Cell>/<Data>`), which both
 Excel and gnumeric understand — pure stdlib. Notable details:
 
 - Formulas are stored in **R1C1** in the `ss:Formula` attribute and converted
-  to/from A1 via [`abax/core/r1c1.py`](../abax/core/r1c1.py).
+  to/from A1 via [`abax/core/r1c1.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/r1c1.py).
 - Sparse rows and cells use `ss:Index` (so gaps don't bloat the file).
 - `ss:Type` is written/read as `Number`, `String`, or `Boolean`.
 - Cell errors are emitted as strings.
 
 ## Markdown GFM tables (`.md`, `.markdown`)
 
-[`abax/core/io/markdown_io.py`](../abax/core/io/markdown_io.py) treats GitHub-Flavored
+[`abax/core/io/markdown_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/io/markdown_io.py) treats GitHub-Flavored
 Markdown tables as a first-class format. Export produces a padded,
 alignment-aware table (per-column `l`/`c`/`r`), using the first row as the header
 (or column letters if you turn headers off), and renders **computed values**.
@@ -243,7 +243,7 @@ The GUI command palette also offers **Copy selection as Markdown**.
 
 ## Jupyter notebook (`.ipynb`)
 
-[`abax/core/io/notebook_io.py`](../abax/core/io/notebook_io.py) reads and writes
+[`abax/core/io/notebook_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/io/notebook_io.py) reads and writes
 valid **nbformat 4.5** (per-cell `id`s) with **no `nbformat` dependency**, and
 **round-trips the whole workbook losslessly**: the full workbook envelope
 (formulas, multiple sheets, defined names, styles) is embedded in the notebook
@@ -257,7 +257,7 @@ the nbformat schema when it's installed.
 
 ## R data.frame (`.r`, `.rdata`)
 
-[`abax/core/io/r_io.py`](../abax/core/io/r_io.py) exports each sheet as a
+[`abax/core/io/r_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/io/r_io.py) exports each sheet as a
 `name <- data.frame(col = c(...), ...)` block (first row supplies the column
 names, `stringsAsFactors = FALSE`). Import is a **best-effort** parser for that
 same shape and for bare `name <- c(...)` vectors. Strings are quoted/escaped,
@@ -265,7 +265,7 @@ same shape and for bare `name <- c(...)` vectors. Strings are quoted/escaped,
 
 ## JSON Lines (`.jsonl`, `.ndjson`)
 
-[`abax/core/io/flatfile_io.py`](../abax/core/io/flatfile_io.py) — one JSON object per
+[`abax/core/io/flatfile_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/io/flatfile_io.py) — one JSON object per
 line. On import, row 0 is the ordered union of all object keys (first-seen
 order); each later row holds that object's values as strings, with a missing key
 left blank. On export, row 0 supplies the field names and each later row becomes
@@ -274,14 +274,14 @@ skipped).
 
 ## Fixed-width text (`.fixed`)
 
-Also in [`abax/core/io/flatfile_io.py`](../abax/core/io/flatfile_io.py). Import either
+Also in [`abax/core/io/flatfile_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/io/flatfile_io.py). Import either
 slices each line by explicit character widths or, by default, splits on runs of
 two-or-more spaces (the layout of `column -t` output). Export renders each column
 left-aligned and padded to its widest value plus a gap.
 
 ## ADIF amateur-radio logbook (`.adi`, `.adif`)
 
-[`abax/core/io/adif_io.py`](../abax/core/io/adif_io.py) reads and writes ADIF
+[`abax/core/io/adif_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/io/adif_io.py) reads and writes ADIF
 (Amateur Data Interchange Format), the standard interchange format for
 amateur-radio logbooks — pure stdlib. A logbook is text whose fields are written
 as `<FIELDNAME:LENGTH>value` (the length is the value's **UTF-8 byte** count, so
@@ -299,7 +299,7 @@ Maidenhead grid, and the `DXCC` prefix lookup) that pair with a logbook sheet.
 
 ## SQLite (`.db`, `.sqlite`, `.sqlite3`)
 
-[`abax/core/io/sqlite_io.py`](../abax/core/io/sqlite_io.py) uses the stdlib `sqlite3`
+[`abax/core/io/sqlite_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/io/sqlite_io.py) uses the stdlib `sqlite3`
 module. Opening a database loads **every user table** (excluding `sqlite_*`
 internals) into its own sheet; row 0 is the column names and rows 1.. are the
 data, all stored as text. Saving writes the active sheet to one table: row 0
@@ -314,7 +314,7 @@ already exists.
 
 ## Statistical formats: Stata / SPSS (`.dta`, `.sav`) — needs `pyreadstat`
 
-[`abax/engine/statfiles.py`](../abax/engine/statfiles.py) reads Stata (`.dta`),
+[`abax/engine/statfiles.py`](https://github.com/leavesofgrass/abax/blob/main/abax/engine/statfiles.py) reads Stata (`.dta`),
 SPSS (`.sav`, `.zsav`) and SAS-transport-adjacent (`.por`) files via the optional
 `pyreadstat` package. Variable names become the header row and values are
 converted to abax's cell types (dates/datetimes render as ISO strings). Import
@@ -327,7 +327,7 @@ pip install "abax[stats-io]"   # or the full-fat: pip install "abax[all]"
 
 ## HDF5 (`.h5`, `.hdf5`) — needs `h5py`
 
-[`abax/engine/hdf5_io.py`](../abax/engine/hdf5_io.py) walks an HDF5 file's group
+[`abax/engine/hdf5_io.py`](https://github.com/leavesofgrass/abax/blob/main/abax/engine/hdf5_io.py) walks an HDF5 file's group
 tree and loads each **tabular** (1-D/2-D) dataset into its own sheet (the
 dataset's path becomes the sheet name); structured/compound arrays use their
 field names as the header. Scalar, 3-D+, and empty datasets are skipped. Import
