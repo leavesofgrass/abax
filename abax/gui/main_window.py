@@ -405,6 +405,15 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         m_view.addSeparator()
         self._act(m_view, "Toggle &vim mode", self.toggle_vim_mode)
         self._act(m_view, "Toggle &OpenDyslexic font", self.toggle_dyslexic_font)
+        m_theme = m_view.addMenu("&Theme")
+        for label, key in [
+            ("Obsidian", "obsidian"), ("Dark One", "dark_one"), ("Nord", "nord"),
+            ("Solarized", "solarized"), ("CRT green", "crt_green"),
+            ("CRT amber", "crt_amber"), ("Light", "light"),
+            ("High contrast", "high_contrast"),
+        ]:
+            self._act(m_theme, label, lambda checked=False, k=key: self.set_theme(k))
+        self._act(m_view, "Choose th&eme...", self.choose_theme, "Ctrl+T")
         m_view.addSeparator()
         self._act(m_view, "Zoom &in", self.zoom_in, "Ctrl+=")
         self._act(m_view, "Zoom &out", self.zoom_out, "Ctrl+-")
@@ -453,16 +462,6 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
             self._act(m_num, label, lambda checked=False, s=spec: self.set_number_format(s))
         self._reg_icon(self._act(m_format, "&Conditional format...", self.add_conditional_format), "condformat")
         self._act(m_format, "Clear conditional formats", self.clear_conditional_formats)
-        m_format.addSeparator()
-        m_theme = m_format.addMenu("&Theme")
-        for label, key in [
-            ("Obsidian", "obsidian"), ("Dark One", "dark_one"), ("Nord", "nord"),
-            ("Solarized", "solarized"), ("CRT green", "crt_green"),
-            ("CRT amber", "crt_amber"), ("Light", "light"),
-            ("High contrast", "high_contrast"),
-        ]:
-            self._act(m_theme, label, lambda checked=False, k=key: self.set_theme(k))
-        self._act(m_format, "Choose th&eme...", self.choose_theme, "Ctrl+T")
 
         # --- Data (sort/filter - names - recalc - analyze) ----------------
         m_data = mb.addMenu("&Data")

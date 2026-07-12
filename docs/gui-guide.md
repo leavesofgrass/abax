@@ -300,10 +300,10 @@ sheet.
 
 ## Themes, zoom, and fonts
 
-abax ships several built-in themes under *Format → Theme*: Obsidian, Dark One,
+abax ships several built-in themes under *View → Theme*: Obsidian, Dark One,
 Nord, Solarized, CRT green, CRT amber, Light, and High contrast. Pick one
 directly from the submenu, or open the chooser (with a live preview) via `Ctrl+T`
-(*Format → Choose theme…*). Your choice is remembered in settings.
+(*View → Choose theme…*). Your choice is remembered in settings.
 
 **Zoom** scales the whole UI font under the *View* menu:
 
@@ -425,7 +425,7 @@ toggles, all off by default and persisted to `settings.json`:
   present.
 - **High-contrast mode** (`high_contrast`) — a persisted accessibility
   preference for a bolder, higher-contrast presentation. Note this is a separate
-  knob from the **High contrast** *theme* under *Format → Theme* (a
+  knob from the **High contrast** *theme* under *View → Theme* (a
   ready-to-apply black-on-white palette with a yellow accent): pick that theme
   directly whenever you want the high-contrast look now.
 - **Screen-reader-friendly TUI** (`tui_screen_reader`) — when abax runs in the
@@ -640,8 +640,8 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
   `Ctrl+Shift+H`), Terminal (`` Ctrl+` ``), Python console (`Ctrl+Shift+Y`),
   Clipboard history (`Ctrl+Shift+V`), Manage clipboard, Open default workspace,
   Show toolbar, Show formula precedents (`Ctrl+[`), Formula dependency trace,
-  Toggle vim mode, Toggle OpenDyslexic font, Zoom in (`Ctrl+=`), Zoom out
-  (`Ctrl+-`), Reset zoom (`Ctrl+0`).
+  Toggle vim mode, Toggle OpenDyslexic font, Theme (submenu), Choose theme
+  (`Ctrl+T`), Zoom in (`Ctrl+=`), Zoom out (`Ctrl+-`), Reset zoom (`Ctrl+0`).
 - **Insert** — Rows / columns (row above `Ctrl++`, row below, column left, column
   right, append row/column, delete row(s) `Ctrl+-`, delete column(s)), Function
   (`Shift+F3`), Equation, Chart / graph, **Business chart** (waterfall / sunburst
@@ -649,8 +649,7 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
 - **Format** — Bold (`Ctrl+B`), Italic (`Ctrl+I`), Underline (`Ctrl+U`), Align
   (left/center/right), Text colour, Fill colour, Clear cell styles, Copy / Paste
   format (the format painter), Borders, Merge cells, Unmerge cells, Number
-  (preset list), Conditional format, Clear conditional formats, Theme (submenu),
-  Choose theme (`Ctrl+T`).
+  (preset list), Conditional format, Clear conditional formats.
 - **Data** — Sort, Sort ascending, Sort descending, Filter, Clear filter, Name
   range, Name manager, Data validation, Compare workbook, Recalculate (`F9`),
   Recalculate sheet (`Shift+F9`), Calculation: auto/manual,
