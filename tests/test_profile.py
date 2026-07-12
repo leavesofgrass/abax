@@ -276,3 +276,49 @@ def _a1(ref: str) -> tuple[int, int]:
     from abax.core.reference import parse_a1
 
     return parse_a1(ref)
+
+
+# --- the `abax profile` CLI subcommand ---------------------------------------
+
+
+def _write_book(tmp_path):
+    """A tiny .json workbook with two formula cells; returns its path."""
+    from abax.engine.document import Document
+
+    wb = Workbook()
+    sh = wb.sheet
+    sh.set_cell(0, 0, "3")
+    sh.set_cell(0, 1, "=A1*2")
+    sh.set_cell(1, 1, "=SUM(A1:B1)")
+    path = tmp_path / "book.json"
+    Document(wb).save(str(path))
+    return str(path)
+
+
+def test_cli_profile_reports_formula_cells(tmp_path, capsys):
+    from abax.app import main
+
+    rc = main(["profile", _write_book(tmp_path), "--limit", "5"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    # Header + both formula cells appear, timed.
+    assert "Time (ms)" in out
+    assert "B1" in out and "B2" in out
+    assert "=A1*2" in out
+
+
+def test_cli_profile_unknown_sheet_errors(tmp_path, capsys):
+    from abax.app import main
+
+    rc = main(["profile", _write_book(tmp_path), "--sheet", "Nope"])
+    err = capsys.readouterr().err
+    assert rc == 2
+    assert "no such sheet" in err
+
+
+def test_cli_profile_missing_file_errors(capsys):
+    from abax.app import main
+
+    rc = main(["profile", "does_not_exist.abax"])
+    assert rc == 2
+    assert "cannot open" in capsys.readouterr().err

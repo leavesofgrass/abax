@@ -201,6 +201,25 @@ $ printf 'a,b\n1,2\n' | abax pipe Sheet1!A1 book.abax
 wrote 4 cell(s) across 2 row(s) at Sheet1!A1
 ```
 
+### `profile file [--sheet NAME] [--repeat N] [--limit N]` — slowest formula cells
+
+Time every populated formula cell in a workbook and print them slowest-first —
+the headless twin of the GUI formula profiler (same `core.profile` engine). Use
+it to find which formulas dominate a slow recalc. `--sheet` restricts to one
+sheet (default: all); `--repeat N` averages N passes for a steadier estimate on
+sub-millisecond timings; `--limit N` caps the rows (default 20, `0` = all). Exit
+codes: **0** = report printed, **2** = file can't be opened or the sheet is
+unknown.
+
+```bash
+$ abax profile model.abax --limit 3
+  #  Cell         Time (ms)  Formula
+------------------------------------
+  1  Sheet1!D200     1.9420  =SUMPRODUCT(A2:A200,B2:B200)
+  2  Sheet1!C2       0.4110  =VLOOKUP(A2,Rates!A:B,2,0)
+  3  Sheet1!E2       0.0900  =C2*(1+tax)
+```
+
 ### `deps` — install optional dependencies
 
 Install every optional dependency (the "full-fat" set: the data-science stack,

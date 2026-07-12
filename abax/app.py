@@ -86,12 +86,20 @@ def _build_parser() -> argparse.ArgumentParser:
     pp.add_argument("--tsv", action="store_true", help="force tab-separated columns")
     pp.add_argument("--csv", action="store_true", help="force comma-separated columns")
 
+    pr = sub.add_parser("profile", help="report the slowest formula cells in a workbook")
+    pr.add_argument("file", help="workbook to profile (.abax/.json/.xlsx/…)")
+    pr.add_argument("--sheet", help="restrict to one sheet (default: every sheet)")
+    pr.add_argument("--repeat", type=int, default=1, metavar="N",
+                    help="average N timing passes for a steadier estimate (default: 1)")
+    pr.add_argument("--limit", type=int, default=20, metavar="N",
+                    help="show at most N rows (default: 20; 0 = all)")
+
     return p
 
 
 _SUBCOMMANDS = frozenset(
     {"gui", "tui", "view", "convert", "get", "macro", "deps", "doctor", "notebook",
-     "fetch", "sql", "diff", "pipe"})
+     "fetch", "sql", "diff", "pipe", "profile"})
 
 
 def _normalize_argv(argv: list[str]) -> list[str]:
@@ -167,6 +175,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_diff(args.old, args.new)
     if cmd == "pipe":
         return _cmd_pipe(args)
+    if cmd == "profile":
+        return _cmd_profile(args)
 
     # No subcommand: prefer GUI, fall back to TUI, then help.
     from . import _runtime as rt
@@ -226,6 +236,29 @@ def _cmd_pipe(args) -> int:
         print(f"pipe: cannot save {args.file}: {exc}", file=sys.stderr)
         return 2
     print(f"wrote {cells} cell(s) across {rows} row(s) at {args.target}")
+    return 0
+
+
+def _cmd_profile(args) -> int:
+    """``abax profile FILE`` — time every formula cell and print the slowest.
+
+    Mirrors the GUI formula profiler headlessly (same `core.profile` engine).
+    Exit codes: 0 = report printed, 2 = open error / unknown sheet.
+    """
+    from .core import profile
+    from .engine.document import Document
+
+    try:
+        doc = Document.open(args.file)
+    except Exception as exc:  # noqa: BLE001 — surface any open failure cleanly
+        print(f"profile: cannot open {args.file}: {exc}", file=sys.stderr)
+        return 2
+    if args.sheet is not None and doc.workbook.get_sheet(args.sheet) is None:
+        print(f"profile: no such sheet: {args.sheet!r}", file=sys.stderr)
+        return 2
+    timings = profile.profile_recalc(
+        doc.workbook, sheet=args.sheet, repeat=max(1, args.repeat))
+    print(profile.format_report(timings, limit=args.limit))
     return 0
 
 

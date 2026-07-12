@@ -10,6 +10,11 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **`abax profile <file>` CLI** — a headless formula profiler that times every
+  formula cell and prints them slowest-first (`--sheet`, `--repeat`, `--limit`),
+  mirroring the GUI profiler for scripts and CI.
+
 ### Fixed
 - **Python 3.14 ctypes deprecation** — the Linux Landlock `Structure` set
   `_pack_` without an explicit `_layout_`, which 3.14 deprecates; it now
