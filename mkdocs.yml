@@ -82,6 +82,7 @@ nav:
   - Data & analysis:
       - Data science overview: data-science.md
       - Data & analysis tools: data-analysis.md
+      - Conditional formatting: conditional-formatting.md
       - Formula reference: formula-reference.md
       - Calculators: calculators.md
   - Domains:

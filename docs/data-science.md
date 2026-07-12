@@ -85,8 +85,9 @@ straight in the GUI.
 ### 4. Reshape & clean
 
 - **Pivot / group-by**, **Recode / clean column**, **SQL query**, sort, filter,
-  fill, and conditional formatting for fast tidying — all in
-  [data & analysis](data-analysis.md).
+  and fill for fast tidying — all in [data & analysis](data-analysis.md) — plus
+  [conditional formatting](conditional-formatting.md) to highlight values by
+  rule (comparisons, regex, duplicates, ranking, colour scales, CSS).
 
 ### 5. Visualize
 

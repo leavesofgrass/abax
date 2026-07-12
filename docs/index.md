@@ -21,6 +21,9 @@ opt-in from a first-run chooser (nothing is installed until you choose it).
 - [Data & analysis tools](data-analysis.md) — descriptive statistics, regression,
   t-tests, ANOVA, correlation, pivot/group-by, recode, the pandas hand-off,
   graphing, and the ML tools.
+- [Conditional formatting](conditional-formatting.md) — colour cells by value:
+  comparisons, text/regex matches, duplicates, ranking, colour scales, and CSS
+  styling, with worked examples.
 - [Formula reference](formula-reference.md) — every built-in function, including
   the statistical distributions (normal, t, F, chi-square) and regression helpers.
 - [Calculators](calculators.md) — RPN, graphing, and algebraic calculators with
