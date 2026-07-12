@@ -22,6 +22,10 @@ from abax.core.pm.taskmodel import Task
 
 # ── helpers ─────────────────────────────────────────────────────────
 
+def _parse(s: str) -> date | None:
+    return date.fromisoformat(s) if s else None
+
+
 def _task(
     id: str = "",
     title: str = "",
@@ -31,15 +35,17 @@ def _task(
     percent_done: int = 0,
     effort: float | None = None,
     depends: list[str] | None = None,
+    row: int = 0,
     **kw,
 ) -> Task:
     """Shorthand for building a Task with sane defaults."""
     return Task(
+        row=row,
         id=id,
         title=title,
         status=status,
-        start=start,
-        due=due,
+        start=_parse(start),
+        due=_parse(due),
         percent_done=percent_done,
         effort=effort,
         depends=depends or [],

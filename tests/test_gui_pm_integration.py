@@ -52,6 +52,9 @@ class TestProjectMenu:
                 assert "Open project views..." in actions
                 assert "Kanban board" in actions
                 assert "Gantt chart" in actions
+                assert "Dashboard" in actions
+                assert "Roadmap" in actions
+                assert "Export report..." in actions
                 return
         pytest.fail("Project menu not found")
 
@@ -63,6 +66,9 @@ class TestPalette:
         assert "Project: Kanban board" in actions
         assert "Project: Gantt chart" in actions
         assert "Project: Timeline" in actions
+        assert "Project: Dashboard" in actions
+        assert "Project: Roadmap" in actions
+        assert "Project: export report..." in actions
 
 
 class TestViewHost:
@@ -74,9 +80,10 @@ class TestViewHost:
     def test_view_host_tabs(self, win):
         win._pm_ensure_host()
         host = win._pm_host
-        assert host._tabs.count() == 5
+        assert host._tabs.count() == 7
         labels = [host._tabs.tabText(i) for i in range(host._tabs.count())]
-        assert labels == ["Kanban", "Card", "Calendar", "Gantt", "Timeline"]
+        assert labels == ["Kanban", "Card", "Calendar", "Gantt", "Timeline",
+                          "Dashboard", "Roadmap"]
 
     def test_view_host_reload_empty(self, win):
         win._pm_ensure_host()

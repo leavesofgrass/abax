@@ -23,6 +23,10 @@ class PMMixin:
         self._act(m_proj, "Ca&lendar", lambda: self._pm_show_view("calendar"))
         self._act(m_proj, "&Gantt chart", lambda: self._pm_show_view("gantt"))
         self._act(m_proj, "&Timeline", lambda: self._pm_show_view("timeline"))
+        m_proj.addSeparator()
+        self._act(m_proj, "&Dashboard", lambda: self._pm_show_view("dashboard"))
+        self._act(m_proj, "&Roadmap", lambda: self._pm_show_view("roadmap"))
+        self._act(m_proj, "Export &report...", self.pm_export_report)
 
     # -- palette entries (merged by _palette_actions) -----------------------
 
@@ -38,6 +42,9 @@ class PMMixin:
             "Project: Calendar": lambda: self._pm_show_view("calendar"),
             "Project: Gantt chart": lambda: self._pm_show_view("gantt"),
             "Project: Timeline": lambda: self._pm_show_view("timeline"),
+            "Project: Dashboard": lambda: self._pm_show_view("dashboard"),
+            "Project: Roadmap": lambda: self._pm_show_view("roadmap"),
+            "Project: export report...": self.pm_export_report,
         }
 
     # -- actions ------------------------------------------------------------
@@ -127,6 +134,46 @@ class PMMixin:
         self._doc.mark_dirty()
         self._set_status(f"{len(milestones)} milestone(s) saved for '{proj.name}'")
 
+    def pm_export_report(self) -> None:
+        from ._qtcompat import QFileDialog
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export PM report", "", "HTML files (*.html);;All files (*)"
+        )
+        if not path:
+            return
+        from datetime import date
+
+        from abax.core.pm.report import report_html
+
+        wb = self._doc.workbook
+        projects = []
+        from abax.core.pm.taskmodel import parse_tasks
+
+        for proj in wb.projects:
+            for s in wb.sheets:
+                if s.name == proj.sheet:
+                    hr = proj.header_row
+                    fc = proj.first_col
+                    lc = proj.last_col
+                    if lc < 0:
+                        _, nc = s.used_bounds()
+                        lc = nc - 1
+                    width = lc - fc + 1
+                    if width <= 0:
+                        continue
+                    tasks = parse_tasks(
+                        s, header_row=hr, first_col=fc, last_col=lc,
+                        first_data_row=proj.first_data_row if proj.first_data_row >= 0 else None,
+                        last_data_row=proj.last_data_row if proj.last_data_row >= 0 else None,
+                    )
+                    projects.append((proj, tasks))
+                    break
+        html = report_html(projects, date.today())
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
+        self._set_status(f"PM report exported to {path}")
+
     # -- helpers ------------------------------------------------------------
 
     def _pm_pick_project(self, title: str):
@@ -160,6 +207,8 @@ class PMMixin:
         self._pm_ensure_host()
         self._pm_host.show()
         self._pm_host.raise_()
-        tab_keys = ["kanban", "card", "calendar", "gantt", "timeline"]
+        from .pm.view_host import _VIEW_DEFS
+
+        tab_keys = [k for k, _ in _VIEW_DEFS]
         if view_key in tab_keys:
             self._pm_host._tabs.setCurrentIndex(tab_keys.index(view_key))

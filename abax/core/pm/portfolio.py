@@ -30,12 +30,16 @@ def _is_done(task: Task) -> bool:
     return task.status.lower().strip() in _DONE_STATUSES
 
 
-def _parse_date(s: str) -> date | None:
-    """Parse an ISO date string, returning *None* on failure or empty."""
-    if not s:
+def _parse_date(v: str | date | None) -> date | None:
+    """Coerce a string or date to a date, returning *None* on failure."""
+    if v is None:
+        return None
+    if isinstance(v, date):
+        return v
+    if not v:
         return None
     try:
-        return date.fromisoformat(s)
+        return date.fromisoformat(v)
     except ValueError:
         return None
 
@@ -354,7 +358,7 @@ def slip_impact(
     # Shift the task's start forward by slip_days
     orig_start = _parse_date(slipped_task.start)
     if orig_start is not None:
-        slipped_task.start = (orig_start + timedelta(days=slip_days)).isoformat()
+        slipped_task.start = orig_start + timedelta(days=slip_days)
     else:
         # If no start date, add effort to simulate a delay
         if slipped_task.effort is not None:
@@ -428,10 +432,9 @@ def slip_impact(
             continue
         ds_start = _parse_date(ds_target.start)
         if ds_start is not None:
-            ds_target.start = (ds_start + timedelta(days=finish_slip)).isoformat()
+            ds_target.start = ds_start + timedelta(days=finish_slip)
         else:
-            # Give it a start date based on the upstream finish + slip
-            ds_target.start = (from_new.early_finish + timedelta(days=1)).isoformat()
+            ds_target.start = from_new.early_finish + timedelta(days=1)
 
         downstream_new_cpm = compute_cpm(
             shifted_downstream, hours_per_day=hours_per_day,

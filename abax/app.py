@@ -86,6 +86,11 @@ def _build_parser() -> argparse.ArgumentParser:
     pp.add_argument("--tsv", action="store_true", help="force tab-separated columns")
     pp.add_argument("--csv", action="store_true", help="force comma-separated columns")
 
+    prp = sub.add_parser("report", help="export a PM report (HTML) for a workbook")
+    prp.add_argument("file", help="workbook with project definitions (.abax/.json/.xlsx/…)")
+    prp.add_argument("-o", "--output", default="report.html", metavar="FILE",
+                     help="output path (default: report.html)")
+
     pr = sub.add_parser("profile", help="report the slowest formula cells in a workbook")
     pr.add_argument("file", help="workbook to profile (.abax/.json/.xlsx/…)")
     pr.add_argument("--sheet", help="restrict to one sheet (default: every sheet)")
@@ -99,7 +104,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 _SUBCOMMANDS = frozenset(
     {"gui", "tui", "view", "convert", "get", "macro", "deps", "doctor", "notebook",
-     "fetch", "sql", "diff", "pipe", "profile"})
+     "fetch", "sql", "diff", "pipe", "report", "profile"})
 
 
 def _normalize_argv(argv: list[str]) -> list[str]:
@@ -175,6 +180,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_diff(args.old, args.new)
     if cmd == "pipe":
         return _cmd_pipe(args)
+    if cmd == "report":
+        return _cmd_report(args)
     if cmd == "profile":
         return _cmd_profile(args)
 
@@ -236,6 +243,48 @@ def _cmd_pipe(args) -> int:
         print(f"pipe: cannot save {args.file}: {exc}", file=sys.stderr)
         return 2
     print(f"wrote {cells} cell(s) across {rows} row(s) at {args.target}")
+    return 0
+
+
+def _cmd_report(args) -> int:
+    """``abax report FILE`` — export a PM HTML report for a workbook."""
+    from datetime import date
+
+    from .core.pm.report import report_html
+    from .core.pm.taskmodel import parse_tasks
+    from .engine.document import Document
+
+    try:
+        doc = Document.open(args.file)
+    except Exception as exc:  # noqa: BLE001
+        print(f"report: cannot open {args.file}: {exc}", file=sys.stderr)
+        return 2
+    wb = doc.workbook
+    projects = []
+    for proj in wb.projects:
+        for s in wb.sheets:
+            if s.name == proj.sheet:
+                hr = proj.header_row
+                fc = proj.first_col
+                lc = proj.last_col
+                if lc < 0:
+                    _, nc = s.used_bounds()
+                    lc = nc - 1
+                tasks = parse_tasks(
+                    s, header_row=hr, first_col=fc, last_col=lc,
+                    first_data_row=proj.first_data_row if proj.first_data_row >= 0 else None,
+                    last_data_row=proj.last_data_row if proj.last_data_row >= 0 else None,
+                )
+                projects.append((proj, tasks))
+                break
+    if not projects:
+        print("report: no projects defined in this workbook", file=sys.stderr)
+        return 2
+    html = report_html(projects, date.today())
+    out = args.output
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"report written to {out}")
     return 0
 
 

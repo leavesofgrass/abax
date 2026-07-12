@@ -31,6 +31,8 @@ _VIEW_DEFS = [
     ("calendar", "Calendar"),
     ("gantt", "Gantt"),
     ("timeline", "Timeline"),
+    ("dashboard", "Dashboard"),
+    ("roadmap", "Roadmap"),
 ]
 
 
@@ -136,6 +138,12 @@ class PMViewHost(QDockWidget):
         if key == "timeline":
             from .timeline_view import TimelineView
             return TimelineView(parent=self)
+        if key == "dashboard":
+            from .dashboard import PMDashboard
+            return PMDashboard(parent=self)
+        if key == "roadmap":
+            from .roadmap_view import RoadmapView
+            return RoadmapView(parent=self)
         return None
 
     def _get_sheet(self) -> Any | None:
@@ -214,6 +222,37 @@ class PMViewHost(QDockWidget):
                     first_col=proj.first_col if proj else 0,
                     on_set=on_set,
                 )
+        elif key == "dashboard":
+            from datetime import date as _date
+
+            all_data = self._all_project_data()
+            view.setData(all_data, _date.today())
+        elif key == "roadmap":
+            from datetime import date as _date
+
+            all_data = self._all_project_data()
+            view.setProjects(all_data)
+            view.setToday(_date.today())
+            all_links = []
+            for p, _ in all_data:
+                all_links.extend(p.cross_links)
+            if all_links:
+                view.setCrossLinks(all_links)
+
+    def _all_project_data(self) -> list[tuple[Any, list]]:
+        """Gather (Project, tasks) for every registered project."""
+        wb = self._win._doc.workbook
+        result: list[tuple[Any, list]] = []
+        for proj in wb.projects:
+            for s in wb.sheets:
+                if s.name == proj.sheet:
+                    old_project = self._project
+                    self._project = proj
+                    _, tasks = self._parse_project_tasks(s)
+                    self._project = old_project
+                    result.append((proj, tasks))
+                    break
+        return result
 
     def _refresh_views(self) -> None:
         for key, view in self._views.items():

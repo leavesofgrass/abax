@@ -25,6 +25,17 @@ All notable changes to abax are documented here. The format follows
   detects task columns from sheet headers (case-insensitive aliases) and
   registers the project in the workbook envelope.  Every view mutation flows
   through the undo/commit path as a single undo step.
+- **Project management — Wave 2.** Portfolio analytics engine
+  (`core/pm/portfolio.py`) with per-project and cross-project roll-ups:
+  progress (effort-weighted or unweighted), status counts, overdue/at-risk
+  detection, project health (green/amber/red), portfolio KPIs, cross-project
+  dependency resolution, and slip-impact analysis.  Roll-up HTML report
+  renderer (`core/pm/report.py`) with `abax report FILE` CLI subcommand.
+  Interactive **Dashboard** widget showing KPI tiles, per-project health
+  table, and upcoming milestones.  Multi-project **Roadmap** view with
+  milestone diamonds, Gantt-style task bars, cross-project dependency arrows,
+  day/week/month/quarter zoom, and critical-path highlighting.  All new views
+  integrated into the Project menu, command palette, and dockable view host.
 - **A tested examples tree** under `docs/examples/` — twelve examples across
   getting-started, formulas, data, analysis, charts, scripting-and-CLI, and
   radio. Each is one folder with a README (showing the exact expected output)
