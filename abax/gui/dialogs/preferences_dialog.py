@@ -279,6 +279,28 @@ class PreferencesDialog(QDialog):
         dep_hint.setWordWrap(True)
         dep_form.addRow(dep_hint)
         outer.addWidget(dep_box)
+
+        perf_box = QGroupBox("Performance", page)
+        perf_form = QFormLayout(perf_box)
+        self._windowed_capacity = QSpinBox(perf_box)
+        self._windowed_capacity.setRange(0, 100_000_000)
+        self._windowed_capacity.setSingleStep(10_000)
+        self._windowed_capacity.setGroupSeparatorShown(True)
+        # value 0 shows as the "off" label instead of "0"
+        self._windowed_capacity.setSpecialValueText("Off — keep every cell in RAM")
+        self._windowed_capacity.setSuffix(" cells / sheet")
+        perf_form.addRow("Windowed cell store:", self._windowed_capacity)
+        perf_hint = QLabel(
+            "Keep at most this many cells resident per sheet and spill the rest to a "
+            "temp file — trades memory for latency, worth it only for very large data "
+            "imports (applies to files opened afterwards). Set it comfortably above your "
+            "deepest formula-dependency chain: a chain longer than the capacity can "
+            "surface #CIRC!. Leave it Off unless you actually hit a memory ceiling.",
+            perf_box)
+        perf_hint.setWordWrap(True)
+        perf_form.addRow(perf_hint)
+        outer.addWidget(perf_box)
+
         outer.addStretch(1)
         return page
 
@@ -310,6 +332,7 @@ class PreferencesDialog(QDialog):
         self._code_consent.setChecked(bool(getattr(s, "code_consent", False)))
         self._select(self._isolation, getattr(s, "code_isolation", "isolated"))
         self._auto_install.setChecked(bool(getattr(s, "auto_install", True)))
+        self._windowed_capacity.setValue(int(getattr(s, "windowed_store_capacity", 0) or 0))
 
     @staticmethod
     def _select(combo: QComboBox, key) -> None:
@@ -372,6 +395,10 @@ class PreferencesDialog(QDialog):
         s.autosave_interval = int(self._autosave_interval.value())
         if hasattr(win, "restart_autosave"):
             win.restart_autosave()
+
+        # Windowed cell store: persist-only — it's applied when a file is opened,
+        # so a change here takes effect on the next open (no live remap).
+        s.windowed_store_capacity = int(self._windowed_capacity.value())
 
         level = self._isolation.currentData()
         if level != getattr(s, "code_isolation", None):
