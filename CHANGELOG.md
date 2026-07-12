@@ -11,6 +11,10 @@ All notable changes to abax are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Four more GUI themes** inspired by popular open-source editors — **Dracula**,
+  **Tokyo Night**, **Gruvbox Dark**, and **Monokai** — under *View → Theme* (a
+  dozen themes total). All are token-based, so they also drive the custom-painted
+  widgets, not just standard controls.
 - **Richer conditional formatting.** New rule kinds beyond the value
   comparisons and 2-colour scale: **Top N / Bottom N** items, **Top N% /
   Bottom N%**, **Above / Below average**, **Duplicate / Unique values**, **Text

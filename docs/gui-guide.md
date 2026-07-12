@@ -300,10 +300,12 @@ sheet.
 
 ## Themes, zoom, and fonts
 
-abax ships several built-in themes under *View → Theme*: Obsidian, Dark One,
-Nord, Solarized, CRT green, CRT amber, Light, and High contrast. Pick one
-directly from the submenu, or open the chooser (with a live preview) via `Ctrl+T`
-(*View → Choose theme…*). Your choice is remembered in settings.
+abax ships a dozen built-in themes under *View → Theme*: Obsidian, Dark One,
+**Dracula**, **Tokyo Night**, **Gruvbox Dark**, **Monokai**, Nord, Solarized,
+CRT green, CRT amber, Light, and High contrast — mostly dark, with light and
+high-contrast options. Pick one directly from the submenu, or open the chooser
+(with a live preview) via `Ctrl+T` (*View → Choose theme…*). Your choice is
+remembered in settings.
 
 **Zoom** scales the whole UI font under the *View* menu:
 

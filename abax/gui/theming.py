@@ -91,6 +91,32 @@ CRT_AMBER = Theme(  # P3 amber phosphor
     border="#5c3f00", success="#ffb000", warning="#ffd633", error="#ff6b3d",
 )
 
+# Popular open-source IDE / editor palettes, mapped onto the token set. All render
+# through obsidian.qss (token-based), so no per-theme .qss is needed.
+DRACULA = Theme(  # dracula-theme.com
+    bg_primary="#282a36", bg_secondary="#21222c", bg_tertiary="#343746",
+    fg_primary="#f8f8f2", fg_secondary="#6272a4", accent="#bd93f9",
+    border="#44475a", success="#50fa7b", warning="#f1fa8c", error="#ff5555",
+)
+
+TOKYO_NIGHT = Theme(  # folke/tokyonight
+    bg_primary="#1a1b26", bg_secondary="#16161e", bg_tertiary="#292e42",
+    fg_primary="#c0caf5", fg_secondary="#565f89", accent="#7aa2f7",
+    border="#3b4261", success="#9ece6a", warning="#e0af68", error="#f7768e",
+)
+
+GRUVBOX_DARK = Theme(  # morhetz/gruvbox (dark, medium)
+    bg_primary="#282828", bg_secondary="#1d2021", bg_tertiary="#3c3836",
+    fg_primary="#ebdbb2", fg_secondary="#928374", accent="#83a598",
+    border="#504945", success="#b8bb26", warning="#fabd2f", error="#fb4934",
+)
+
+MONOKAI = Theme(  # classic Sublime/TextMate Monokai
+    bg_primary="#272822", bg_secondary="#1e1f1c", bg_tertiary="#3e3d32",
+    fg_primary="#f8f8f2", fg_secondary="#75715e", accent="#66d9ef",
+    border="#49483e", success="#a6e22e", warning="#e6db74", error="#f92672",
+)
+
 PRESETS = {
     "obsidian": Theme(),
     "light": LIGHT,
@@ -100,6 +126,10 @@ PRESETS = {
     "solarized": SOLARIZED,
     "crt_green": CRT_GREEN,
     "crt_amber": CRT_AMBER,
+    "dracula": DRACULA,
+    "tokyo_night": TOKYO_NIGHT,
+    "gruvbox_dark": GRUVBOX_DARK,
+    "monokai": MONOKAI,
 }
 
 

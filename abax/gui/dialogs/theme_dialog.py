@@ -21,6 +21,10 @@ from ..theming import PRESETS, theme_for
 _NICE = {
     "obsidian": "Obsidian (default)",
     "dark_one": "Dark One",
+    "dracula": "Dracula",
+    "tokyo_night": "Tokyo Night",
+    "gruvbox_dark": "Gruvbox Dark",
+    "monokai": "Monokai",
     "nord": "Nord",
     "solarized": "Solarized",
     "crt_green": "CRT — green",

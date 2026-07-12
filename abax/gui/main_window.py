@@ -407,10 +407,12 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._act(m_view, "Toggle &OpenDyslexic font", self.toggle_dyslexic_font)
         m_theme = m_view.addMenu("&Theme")
         for label, key in [
-            ("Obsidian", "obsidian"), ("Dark One", "dark_one"), ("Nord", "nord"),
-            ("Solarized", "solarized"), ("CRT green", "crt_green"),
-            ("CRT amber", "crt_amber"), ("Light", "light"),
-            ("High contrast", "high_contrast"),
+            ("Obsidian", "obsidian"), ("Dark One", "dark_one"),
+            ("Dracula", "dracula"), ("Tokyo Night", "tokyo_night"),
+            ("Gruvbox Dark", "gruvbox_dark"), ("Monokai", "monokai"),
+            ("Nord", "nord"), ("Solarized", "solarized"),
+            ("CRT green", "crt_green"), ("CRT amber", "crt_amber"),
+            ("Light", "light"), ("High contrast", "high_contrast"),
         ]:
             self._act(m_theme, label, lambda checked=False, k=key: self.set_theme(k))
         self._act(m_view, "Choose th&eme...", self.choose_theme, "Ctrl+T")
