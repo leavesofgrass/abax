@@ -8,7 +8,8 @@ link budget, antenna, or matching spreadsheet natively. They are backed by
 no third-party dependency).
 
 See also: [formula reference](formula-reference.md) ·
-[data analysis](data-analysis.md) · [index](index.md).
+[data analysis](data-analysis.md) · [index](index.md) ·
+[contest log scoring example](examples/radio/contest-log-scoring/README.md).
 
 ## Units
 

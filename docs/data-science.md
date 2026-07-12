@@ -525,4 +525,8 @@ be confused with the stdlib-only naive-Bayes `bayes` engine above.)*
 
 See also: [data & analysis](data-analysis.md) for the reshaping/reporting tools
 and the console namespace · [formula reference](formula-reference.md) for the
-function-level detail · [gui guide](gui-guide.md) for menu navigation.
+function-level detail · [gui guide](gui-guide.md) for menu navigation ·
+worked examples:
+[descriptive statistics](examples/formulas/descriptive-statistics/README.md),
+[dynamic arrays](examples/formulas/dynamic-arrays/README.md),
+[goal seek](examples/analysis/goal-seek/README.md).

@@ -13,7 +13,9 @@ model and style you last used.
 
 See also: the [Desktop GUI guide](gui-guide.md), [Getting
 started](getting-started.md), the [Formula reference](formula-reference.md),
-and [Configuration](configuration.md). The docs index is [here](index.md).
+[Configuration](configuration.md), and the
+[goal-seek example](examples/analysis/goal-seek/README.md) (tested script).
+The docs index is [here](index.md).
 
 ## Choosing a model
 

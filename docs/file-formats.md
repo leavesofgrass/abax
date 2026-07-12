@@ -7,7 +7,8 @@ GUI, TUI, and CLI all call. This page lists every supported format, what import
 and export actually do, and which formats need an optional dependency.
 
 See also: [index](index.md) · [formula reference](formula-reference.md) ·
-[command-line interface](cli.md).
+[command-line interface](cli.md) ·
+[CSV clean & export example](examples/data/csv-clean-and-export/README.md).
 
 ## At a glance
 

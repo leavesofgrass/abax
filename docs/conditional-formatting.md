@@ -8,7 +8,8 @@ opens.
 
 See also: [GUI guide](gui-guide.md) (cell styles, number formats) · [Data &
 analysis tools](data-analysis.md) · [Formula reference](formula-reference.md) ·
-[Python console](python-console.md) (scripting rules).
+[Python console](python-console.md) (scripting rules) ·
+[worked example](examples/analysis/conditional-formatting/README.md) (tested script you can run).
 
 ## Opening the dialog
 

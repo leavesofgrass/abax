@@ -12,13 +12,15 @@ Launch it with:
 The default Qt binding is **PySide6** (PyQt6 also works; bindings are isolated
 in one place — `abax/gui/_qtcompat.py` — so the rest of the app is unchanged).
 
-New to abax? Start with [Getting started](getting-started.md). For the formula
-language, see the [Formula reference](formula-reference.md). For paths, themes,
-and persisted options, see [Configuration](configuration.md). For the built-in
-calculators, see [Calculators](calculators.md). For the analysis dialogs, see
-[Data analysis](data-analysis.md) and [Data science](data-science.md); for the
-RF suite, see the [RF toolkit](rf-toolkit.md). The docs index is
-[here](index.md).
+New to abax? Start with [Getting started](getting-started.md) or walk through
+the [sixty-second tour](examples/getting-started/sixty-second-tour/README.md).
+For the formula language, see the [Formula reference](formula-reference.md). For
+paths, themes, and persisted options, see [Configuration](configuration.md). For
+the built-in calculators, see [Calculators](calculators.md). For the analysis
+dialogs, see [Data analysis](data-analysis.md) and [Data
+science](data-science.md); for the RF suite, see the [RF
+toolkit](rf-toolkit.md). The [examples catalog](examples/README.md) has tested,
+runnable scripts for most features. The docs index is [here](index.md).
 
 ## Launching the GUI
 

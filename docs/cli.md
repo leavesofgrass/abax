@@ -2,6 +2,10 @@
 
 The `abax` command is the single entry point for every interface: the desktop GUI, the terminal UI, and a set of headless subcommands for viewing, converting, and querying spreadsheets without opening a window. This page documents every subcommand and flag, with example invocations and the output you can expect. Everything below works equally as `abax …` (the installed script) or `python -m abax …`.
 
+See also: [getting started](getting-started.md) · [examples catalog](examples/README.md) ·
+[headless CLI example](examples/scripting-and-cli/headless-cli/README.md) (a tested script
+you can run).
+
 ## Synopsis
 
 ```

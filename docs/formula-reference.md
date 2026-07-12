@@ -5,8 +5,12 @@ formulas, the value and error model, and every built-in function grouped by
 family. It tracks the authoritative registries `FUNCTIONS`, `LAZY_FUNCTIONS` and
 `CONTEXT_FUNCTIONS` in the `abax/core/functions/` package.
 
-See also: [Documentation index](index.md) and
-[Macros and scripting](macros-and-scripting.md).
+See also: [Documentation index](index.md) ·
+[Macros and scripting](macros-and-scripting.md) ·
+worked examples:
+[descriptive statistics](examples/formulas/descriptive-statistics/README.md),
+[dynamic arrays](examples/formulas/dynamic-arrays/README.md),
+[business days](examples/formulas/business-days/README.md).
 
 > abax is free software licensed under **GPL-3.0-or-later**.
 

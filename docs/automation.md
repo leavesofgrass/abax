@@ -12,7 +12,10 @@ page requires an optional extra (opening a *foreign* format like `.xlsx` still u
 that format's adapter, exactly as the GUI does).
 
 See also: [index](index.md) · [macros & scripting](macros-and-scripting.md) ·
-[architecture](architecture.md) · [file formats](file-formats.md).
+[architecture](architecture.md) · [file formats](file-formats.md) ·
+worked examples:
+[first workbook](examples/getting-started/first-workbook/README.md),
+[headless CLI](examples/scripting-and-cli/headless-cli/README.md).
 
 ## A first script
 

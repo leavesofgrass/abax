@@ -23,7 +23,12 @@ implementations or tell you exactly which package to install.
 
 See also: [index](index.md) · [data science](data-science.md) ·
 [formula reference](formula-reference.md) · [gui guide](gui-guide.md) ·
-[file formats](file-formats.md) · [command-line interface](cli.md).
+[file formats](file-formats.md) · [command-line interface](cli.md) ·
+worked examples:
+[CSV clean & export](examples/data/csv-clean-and-export/README.md),
+[structured tables](examples/data/structured-tables/README.md),
+[goal seek](examples/analysis/goal-seek/README.md),
+[conditional formatting](examples/analysis/conditional-formatting/README.md).
 
 ## Where to find each tool
 
