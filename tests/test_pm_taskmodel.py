@@ -5,14 +5,13 @@ from __future__ import annotations
 from datetime import date
 
 from abax.core.pm.taskmodel import (
-    Task,
     STATUS_ORDER,
+    Task,
     detect_columns,
     parse_tasks,
     write_task,
 )
 from abax.core.sheet import Sheet
-
 
 # ---------------------------------------------------------------------------
 # Helpers
