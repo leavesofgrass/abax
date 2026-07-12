@@ -14,6 +14,14 @@ opt-in from a first-run chooser (nothing is installed until you choose it).
   [licensing.md](licensing.md).
 - Default Qt binding: **PySide6** (LGPL); PyQt6 is also supported.
 
+> **This documentation is published online** at
+> <https://leavesofgrass.github.io/abax/> — that's where the app's *Help →
+> Documentation (online)* link goes. Its source lives in the repository under
+> `docs/`, so a source checkout has it locally; a binary install does not, and
+> reads it here. The application itself runs fully offline — only the docs site
+> and a few opt-in features (live-data formulas, optional-dependency install,
+> pandoc-based document conversion) use the network.
+
 ## Data science with abax
 
 - [Data science overview](data-science.md) — the end-to-end workflow: import →
