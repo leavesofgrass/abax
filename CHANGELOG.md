@@ -11,6 +11,20 @@ All notable changes to abax are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Project management — Wave 1.** A new *Project* menu (between Sheet and
+  Tools) and command-palette entries for task-based project management.
+  Core engines: CPM scheduling with critical-path analysis and business-day
+  awareness (`core/pm/schedule.py`), self-contained SVG renderers for Gantt,
+  timeline, and calendar views (`core/pm/pmsvg.py`). Five interactive Qt
+  views — **Kanban board** (drag cards between status columns), **Card /
+  gallery** (responsive grid with sort/filter), **Calendar** (month grid
+  with drag-to-reschedule and milestone diamonds), **Gantt chart** (draggable
+  bars with dependency arrows, critical-path highlight, zoom), and
+  **Timeline** (swim-lane view by assignee/project) — all hosted in a
+  dockable tabbed panel with a project selector.  A project setup dialog
+  detects task columns from sheet headers (case-insensitive aliases) and
+  registers the project in the workbook envelope.  Every view mutation flows
+  through the undo/commit path as a single undo step.
 - **A tested examples tree** under `docs/examples/` — twelve examples across
   getting-started, formulas, data, analysis, charts, scripting-and-CLI, and
   radio. Each is one folder with a README (showing the exact expected output)

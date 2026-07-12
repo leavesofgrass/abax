@@ -192,4 +192,7 @@ class PaletteMixin:
         if registry:
             for name in sorted(registry.macros):
                 actions[f"Macro: {name}"] = lambda n=name: self._run_macro(n)
+        pm_palette = getattr(self, "_pm_palette_actions", None)
+        if pm_palette is not None:
+            actions.update(pm_palette())
         return actions

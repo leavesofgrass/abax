@@ -114,7 +114,7 @@ class TestCalendarView:
 
     def test_set_context(self, win):
         cal = CalendarView(parent=win)
-        callback = lambda r, c, v: None  # noqa: E731
+        callback = lambda s, r, c, v: None  # noqa: E731
         cal.setContext(
             sheet="mock_sheet",
             col_map={"due": 4},
@@ -194,7 +194,7 @@ class TestCalendarView:
         tasks = _sample_tasks()
         on_set_calls: list[tuple] = []
 
-        def mock_on_set(row, col, value):
+        def mock_on_set(sheet, row, col, value):
             on_set_calls.append((row, col, value))
 
         cal.setTasks(tasks)
@@ -216,7 +216,7 @@ class TestCalendarView:
 
         # on_set callback should have been called
         assert len(on_set_calls) == 1
-        assert on_set_calls[0] == (1, 4, date(2026, 7, 22))
+        assert on_set_calls[0] == (1, 4, "2026-07-22")
 
     def test_accessible_names(self, win):
         cal = CalendarView(parent=win)

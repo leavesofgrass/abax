@@ -442,6 +442,7 @@ class CalendarView(QWidget):
         task = self._find_task_by_row(task_row)
         if task is None:
             return
+        task.due = new_date
         write_task(
             self._sheet,
             task,

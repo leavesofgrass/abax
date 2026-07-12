@@ -24,6 +24,7 @@ from ._qtcompat import (
 from .mixin_document import DocumentMixin
 from .mixin_io import DocumentIOMixin
 from .mixin_navigation import NavigationMixin
+from .mixin_pm import PMMixin
 from .mixin_settings import SettingsMixin
 from ..core.reference import to_a1
 
@@ -49,7 +50,7 @@ def _fmt_num(x: float) -> str:
     return f"{x:,.6g}"
 
 
-class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin, QMainWindow):
+class MainWindow(PMMixin, NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin, QMainWindow):
     def __init__(self, settings, state=None, registry=None) -> None:
         super().__init__()
         self._settings = settings
@@ -507,6 +508,9 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         m_sheet.addSeparator()
         self._act(m_sheet, "Ne&xt sheet", self.next_sheet, "Ctrl+PgDown")
         self._act(m_sheet, "&Previous sheet", self.prev_sheet, "Ctrl+PgUp")
+
+        # --- Project (PM views, milestones) --------------------------------
+        self._setup_project_menu(mb)
 
         # --- Tools (scientific - macros/scripts - calculator art) ---------
         m_tools = mb.addMenu("&Tools")
