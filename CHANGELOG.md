@@ -21,7 +21,11 @@ All notable changes to abax are documented here. The format follows
 - **A Quick start atop the README** — `pipx install "abax[all]"`, launch
   commands for GUI/TUI/CLI, a "first minute" key guide, and pointers to the
   examples and the online docs. (Also refreshed stale claims: twelve themes,
-  Theme under the *View* menu.)
+  Theme under the *View* menu.) The README was then condensed from ~390 to
+  ~110 lines around that quick start: one install story, a short formula
+  taste, and a linked "What's inside" overview — the feature depth now lives
+  in the docs site and the examples tree, and every guide cross-links to its
+  worked example.
 - **Four more GUI themes** inspired by popular open-source editors — **Dracula**,
   **Tokyo Night**, **Gruvbox Dark**, and **Monokai** — under *View → Theme* (a
   dozen themes total). All are token-based, so they also drive the custom-painted
