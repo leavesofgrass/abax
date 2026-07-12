@@ -33,6 +33,9 @@ _VIEW_DEFS = [
     ("timeline", "Timeline"),
     ("dashboard", "Dashboard"),
     ("roadmap", "Roadmap"),
+    ("resource", "Resources"),
+    ("finance", "Budget"),
+    ("okr", "OKRs"),
 ]
 
 
@@ -144,6 +147,15 @@ class PMViewHost(QDockWidget):
         if key == "roadmap":
             from .roadmap_view import RoadmapView
             return RoadmapView(parent=self)
+        if key == "resource":
+            from .resource_view import ResourceView
+            return ResourceView(parent=self)
+        if key == "finance":
+            from .finance_view import FinanceView
+            return FinanceView(parent=self)
+        if key == "okr":
+            from .okr_view import OkrView
+            return OkrView(parent=self)
         return None
 
     def _get_sheet(self) -> Any | None:
@@ -238,6 +250,26 @@ class PMViewHost(QDockWidget):
                 all_links.extend(p.cross_links)
             if all_links:
                 view.setCrossLinks(all_links)
+        elif key == "resource":
+            from abax.core.pm.capacity import aggregate_workload
+
+            workload = aggregate_workload(tasks)
+            view.setData(workload)
+            view.setTasks(tasks)
+            view.setContext(
+                sheet=sheet,
+                col_map=col_map,
+                first_col=proj.first_col if proj else 0,
+                on_set=on_set,
+            )
+        elif key == "finance":
+            from abax.core.pm.finance import budget_rollup, evm
+
+            bd = budget_rollup(tasks)
+            ev = evm(tasks)
+            view.setData(bd, ev)
+        elif key == "okr":
+            pass
 
     def _all_project_data(self) -> list[tuple[Any, list]]:
         """Gather (Project, tasks) for every registered project."""

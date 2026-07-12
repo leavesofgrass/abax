@@ -26,6 +26,9 @@ class PMMixin:
         m_proj.addSeparator()
         self._act(m_proj, "&Dashboard", lambda: self._pm_show_view("dashboard"))
         self._act(m_proj, "&Roadmap", lambda: self._pm_show_view("roadmap"))
+        self._act(m_proj, "Re&sources", lambda: self._pm_show_view("resource"))
+        self._act(m_proj, "Bud&get / OKRs", lambda: self._pm_show_view("finance"))
+        self._act(m_proj, "Sce&narios...", self.pm_scenarios)
         self._act(m_proj, "Export &report...", self.pm_export_report)
 
     # -- palette entries (merged by _palette_actions) -----------------------
@@ -44,6 +47,9 @@ class PMMixin:
             "Project: Timeline": lambda: self._pm_show_view("timeline"),
             "Project: Dashboard": lambda: self._pm_show_view("dashboard"),
             "Project: Roadmap": lambda: self._pm_show_view("roadmap"),
+            "Project: Resources": lambda: self._pm_show_view("resource"),
+            "Project: Budget / OKRs": lambda: self._pm_show_view("finance"),
+            "Project: Scenarios...": self.pm_scenarios,
             "Project: export report...": self.pm_export_report,
         }
 
@@ -173,6 +179,20 @@ class PMMixin:
         with open(path, "w", encoding="utf-8") as f:
             f.write(html)
         self._set_status(f"PM report exported to {path}")
+
+    def pm_scenarios(self) -> None:
+        proj = self._pm_pick_project("Scenarios")
+        if proj is None:
+            return
+        self._pm_ensure_host()
+        sheet = self._pm_host._get_sheet()
+        if sheet is None:
+            return
+        _, tasks = self._pm_host._parse_project_tasks(sheet)
+        from .dialogs.pm_scenario_dialog import PmScenarioDialog
+
+        dlg = PmScenarioDialog(self, tasks)
+        dlg.exec()
 
     # -- helpers ------------------------------------------------------------
 

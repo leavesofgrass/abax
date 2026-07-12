@@ -36,6 +36,17 @@ All notable changes to abax are documented here. The format follows
   milestone diamonds, Gantt-style task bars, cross-project dependency arrows,
   day/week/month/quarter zoom, and critical-path highlighting.  All new views
   integrated into the Project menu, command palette, and dockable view host.
+- **Project management — Wave 3.** Resource capacity engine
+  (`core/pm/capacity.py`) with workload aggregation, overallocation detection,
+  skill matching, and rebalancing suggestions.  Financial analytics engine
+  (`core/pm/finance.py`) with budget roll-up, earned-value management (EVM
+  lite: PV, EV, AC, SPI, CPI, EAC), scenario modelling (`PmScenario`), and
+  `scenario_delta` comparison.  Interactive **Resources** heatmap view
+  (people x weeks, click-to-inspect, right-click reassign).  **Budget** view
+  with budget-vs-actual progress bars, EVM KPI tiles, and forecast label.
+  **OKRs** panel with objective/key-result progress table.  **Scenario
+  editor** dialog for what-if task-field overrides.  All new views wired into
+  the Project menu, command palette, and dockable view host (now 10 tabs).
 - **A tested examples tree** under `docs/examples/` — twelve examples across
   getting-started, formulas, data, analysis, charts, scripting-and-CLI, and
   radio. Each is one folder with a README (showing the exact expected output)
