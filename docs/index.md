@@ -49,6 +49,10 @@ opt-in from a first-run chooser (nothing is installed until you choose it).
 ## Working in abax
 
 - [Getting started](getting-started.md) — install, launch, and a 5-minute walkthrough.
+- [Examples](examples/README.md) — tested, copy-paste examples: each is a folder
+  with a `run.py` and the exact output you should see, covering formulas, data
+  cleaning, tables, goal seek, conditional formatting, charts, the CLI, and
+  contest logging.
 - [GUI guide](gui-guide.md) — the grid, Excel-style keyboard navigation, selection
   statistics, formatting, cell borders and merged cells, freeze panes, find/replace,
   themes, and accessibility options (high-contrast mode, spoken active-cell readout).

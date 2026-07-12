@@ -9,6 +9,10 @@ abax, the ways to launch it, and a five-minute walkthrough from an empty grid to
 saved spreadsheet with a working formula. For the end-to-end data workflow, see the
 [data science overview](data-science.md).
 
+Prefer copy-paste? The [examples catalog](examples/README.md) has a tested,
+runnable example for most of what abax does — each one prints the exact output
+you should see.
+
 ## Installing
 
 abax is pure Python and works with no optional packages at all — the core spreadsheet engine is stdlib-only. The graphical interfaces and the data/format features are pulled in through *extras*, each with a graceful stdlib fallback. Install only what you need.

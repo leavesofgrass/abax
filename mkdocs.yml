@@ -10,9 +10,12 @@ edit_uri: edit/main/docs/
 copyright: Copyright &copy; abax contributors — GPL-3.0-or-later
 
 docs_dir: docs
-# Private working notes live under docs/roadmaps/ (gitignored) — never publish them.
+# Private working notes live under docs/roadmaps/ (gitignored) — never publish
+# them. Example output dirs (docs/examples/*/*/out/, also gitignored) appear
+# whenever someone runs an example in place; keep them out of the site too.
 exclude_docs: |
   roadmaps/
+  examples/*/*/out/
 
 theme:
   name: material
@@ -70,6 +73,7 @@ plugins:
 nav:
   - Home: index.md
   - Getting started: getting-started.md
+  - Examples: examples/README.md
   - Guides:
       - GUI guide: gui-guide.md
       - CLI: cli.md

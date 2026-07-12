@@ -81,5 +81,8 @@ AGENTS.md
 dev/
 docs/roadmaps/
 
+# Output files written by the runnable examples (docs/examples/*/*/run.py)
+docs/examples/*/*/out/
+
 # MkDocs build output
 site/
