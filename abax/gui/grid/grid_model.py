@@ -130,10 +130,14 @@ class AbaxTableModel(QAbstractTableModel):
         fg = bg = None
         bold = italic = underline = False
         align = None
-        hexc = self._cond_color(r, c)
-        if hexc:
-            bg = hexc
-            fg = "#111111"  # readable on a conditional fill
+        cs = self._cond_style(r, c)
+        if cs is not None:
+            if cs.fill:
+                bg = cs.fill
+                fg = cs.text or "#111111"  # readable on a conditional fill
+            elif cs.text:
+                fg = cs.text
+            bold, italic, underline = cs.bold, cs.italic, cs.underline
         style = sheet.cell_styles.get((r, c))
         if style is not None and not style.is_empty():
             bold, italic, underline = style.bold, style.italic, style.underline
@@ -172,11 +176,12 @@ class AbaxTableModel(QAbstractTableModel):
 
     # -- refresh / extent --------------------------------------------------
 
-    def _cond_color(self, r: int, c: int) -> str | None:
-        """Conditional-format fill for one cell, computed on demand + cached.
+    def _cond_style(self, r: int, c: int):
+        """Conditional-format style for one cell, computed on demand + cached.
 
-        Only cells the view actually paints ever hit ``color_at``, so a rule over
-        a 20k-cell range costs nothing until those cells scroll into view.
+        Returns a ``CondStyle`` (fill + text colour + bold/italic/underline) or
+        None. Only cells the view actually paints ever hit ``style_at``, so a rule
+        over a 20k-cell range costs nothing until those cells scroll into view.
         """
         rules = self._cond_rules
         if not rules:
@@ -185,9 +190,9 @@ class AbaxTableModel(QAbstractTableModel):
         key = (r, c)
         hit = cache.get(key, _MISS)
         if hit is _MISS:
-            from ...core.format.condformat import color_at
+            from ...core.format.condformat import style_at
 
-            hit = color_at(self._sheet(), rules, r, c, self._scale_ctx)
+            hit = style_at(self._sheet(), rules, r, c, self._scale_ctx)
             cache[key] = hit
         return hit
 

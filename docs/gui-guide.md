@@ -221,7 +221,7 @@ its value(s) and colour, and click **OK**; the rule applies immediately.
 | Group | Conditions | Uses |
 |-------|-----------|------|
 | **Compare** | Greater than, Less than, ≥, ≤, Equal to, Not equal to, **Between** | a value (Between takes low + high) |
-| **Text** | Text contains, Text begins with, Text ends with | a substring (case-insensitive) |
+| **Text** | Text contains, Text begins with, Text ends with, **Matches regex** | a substring, or a regular expression |
 | **Presence** | Is blank, Is not blank | — |
 | **Duplicates** | Duplicate values, Unique values | — (scans the range) |
 | **Ranking** | Above average, Below average, **Top N** / **Bottom N** items, **Top N%** / **Bottom N%** | a count or percent (ranking scans the range) |
@@ -239,6 +239,27 @@ its value(s) and colour, and click **OK**; the rule applies immediately.
   every SKU that appears more than once lights up.
 - **Heat-map a metric** — range `E2:E200`, *3-colour scale*, min = blue,
   midpoint = white, max = red, to shade low→mid→high across the column.
+- **Match a pattern** — range `A2:A500`, *Matches regex*, pattern
+  `^\d{3}-\d{4}$` to flag anything that looks like a phone number. Matching is
+  case-sensitive; prefix the pattern with `(?i)` for case-insensitive (e.g.
+  `(?i)^err`). An invalid pattern simply never matches.
+
+### Beyond a fill colour: CSS styling
+
+Every match-based rule (all but the colour scales) has an optional **Style
+(CSS)** field. Fill it in to apply a full style instead of just a background —
+text colour, bold, italic, underline, and/or a background — using familiar CSS:
+
+```css
+color: white; background: #c00; font-weight: bold
+```
+
+Understood properties are `color`, `background` / `background-color`,
+`font-weight` (`bold` or `600`+), `font-style` (`italic`), and
+`text-decoration` (`underline`); colours may be `#rgb`, `#rrggbb`, or a basic
+CSS name (`red`, `navy`, …). Unknown properties are ignored. When two rules
+colour the same cell, their styles **layer** — a fill from one rule and bold red
+text from another combine — with later rules winning on any conflict.
 
 ### How it performs
 

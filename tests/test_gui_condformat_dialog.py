@@ -78,3 +78,26 @@ def test_accept_three_color_scale_uses_three_colors(win):
     assert rule.value == "#111111"    # min colour
     assert rule.value2 == "#222222"   # max colour
     assert rule.color == "#333333"    # midpoint colour
+
+
+def test_accept_regex_with_css(win):
+    sheet = win._doc.workbook.sheet
+    sheet.cond_rules.clear()
+    dlg = _dialog(win)
+    dlg._kind.setCurrentIndex(dlg._kind.findData("regex"))
+    dlg._value.setText(r"^\d+$")
+    dlg._css.setText("color: white; background: #c00; font-weight: bold")
+    dlg._accept()
+
+    rule = sheet.cond_rules[0]
+    assert rule.kind == "regex"
+    assert rule.value == r"^\d+$"
+    assert rule.css == "color: white; background: #c00; font-weight: bold"
+
+
+def test_css_row_hidden_for_scale_visible_otherwise(win):
+    dlg = _dialog(win)
+    dlg._kind.setCurrentIndex(dlg._kind.findData("colorscale"))
+    assert not dlg._css.isVisibleTo(dlg)
+    dlg._kind.setCurrentIndex(dlg._kind.findData("regex"))
+    assert dlg._css.isVisibleTo(dlg)

@@ -14,7 +14,11 @@ All notable changes to abax are documented here. The format follows
 - **Richer conditional formatting.** New rule kinds beyond the value
   comparisons and 2-colour scale: **Top N / Bottom N** items, **Top N% /
   Bottom N%**, **Above / Below average**, **Duplicate / Unique values**, **Text
-  begins with / ends with**, and a **3-colour scale** (min → midpoint → max).
+  begins with / ends with**, **Matches regex** (a full regular-expression rule,
+  `(?i)` for case-insensitive), and a **3-colour scale** (min → midpoint → max).
+  Any match-based rule can also apply **CSS styling** — a `color` / `background`
+  / `font-weight` / `font-style` / `text-decoration` declaration that sets text
+  colour, bold, italic, underline, and fill together (overlapping rules layer).
   The *Conditional format…* dialog now reshapes to the chosen rule — showing
   only the fields it needs, with a one-line description — so the larger rule set
   stays easy to use. Rules still evaluate lazily per painted cell (one cached

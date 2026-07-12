@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from abax.core.format.condformat import (
     CondRule,
+    CondStyle,
     _lerp_color,
     _parse_hex,
     color_at,
     evaluate,
+    parse_css,
     scale_context,
+    style_at,
 )
 from abax.core.sheet import Sheet
 
@@ -264,4 +267,71 @@ def test_color_at_parity_for_range_kinds() -> None:
 
 def test_top_n_roundtrip() -> None:
     rule = CondRule(range="A1:A6", kind="top_n", value=10, color="#a6e3a1")
+    assert CondRule.from_dict(rule.to_dict()) == rule
+
+
+# --- regex + CSS styling -----------------------------------------------------
+
+
+def test_regex_matches() -> None:
+    sheet = Sheet()
+    for i, w in enumerate(["ABC-123", "xyz", "A1B2", "12-99"]):
+        sheet.set(f"A{i + 1}", w)
+    rule = CondRule(range="A1:A4", kind="regex", value=r"^[A-Z]+-\d+$", color="#ff0000")
+    assert set(_col(rule, sheet)) == {(0, 0)}   # ABC-123 only
+
+
+def test_regex_inline_ignorecase_flag() -> None:
+    sheet = Sheet()
+    for i, w in enumerate(["Apple", "apricot", "Banana"]):
+        sheet.set(f"A{i + 1}", w)
+    # (?i)^a matches an initial A or a — case-sensitive would only catch "apricot".
+    rule = CondRule(range="A1:A3", kind="regex", value=r"(?i)^a", color="#00ff00")
+    assert set(_col(rule, sheet)) == {(0, 0), (1, 0)}   # Apple, apricot
+
+
+def test_invalid_regex_never_matches_and_does_not_raise() -> None:
+    sheet = Sheet()
+    sheet.set("A1", "anything")
+    rule = CondRule(range="A1", kind="regex", value=r"[", color="#000000")
+    assert _col(rule, sheet) == {}
+
+
+def test_parse_css_subset() -> None:
+    st = parse_css("color: white; background: #c00; font-weight: bold; text-decoration: underline")
+    assert st == CondStyle(fill="#cc0000", text="#ffffff", bold=True,
+                           italic=False, underline=True)
+    # named colours and a 3-digit hex both normalise to #rrggbb
+    assert parse_css("color: red; background-color: #0f0") == CondStyle(
+        fill="#00ff00", text="#ff0000")
+    # unknown property / colour is ignored, not fatal
+    assert parse_css("float: left; color: not-a-colour") == CondStyle()
+
+
+def test_style_at_applies_css() -> None:
+    sheet = Sheet()
+    sheet.set("A1", "urgent")
+    sheet.set("A2", "ok")
+    rule = CondRule(range="A1:A2", kind="contains", value="urgent",
+                    css="color: white; background: #cc0000; font-weight: bold")
+    st = style_at(sheet, [rule], 0, 0)
+    assert st == CondStyle(fill="#cc0000", text="#ffffff", bold=True)
+    assert style_at(sheet, [rule], 1, 0) is None   # "ok" doesn't match
+
+
+def test_style_at_merges_fill_and_text_rules() -> None:
+    sheet = Sheet()
+    sheet.set("A1", "hello world")
+    rules = [
+        CondRule(range="A1", kind="notblank", color="#eeeeee"),           # a fill
+        CondRule(range="A1", kind="regex", value="world",
+                 css="color: #ff0000; font-weight: bold"),                # text + bold
+    ]
+    st = style_at(sheet, rules, 0, 0)
+    assert st == CondStyle(fill="#eeeeee", text="#ff0000", bold=True)
+
+
+def test_css_survives_roundtrip() -> None:
+    rule = CondRule(range="A1:A9", kind="regex", value=r"\d+",
+                    css="font-style: italic; color: #123456")
     assert CondRule.from_dict(rule.to_dict()) == rule

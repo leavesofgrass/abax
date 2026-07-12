@@ -35,6 +35,7 @@ _KINDS: list[tuple[str, str]] = [
     ("contains", "Text contains"),
     ("beginswith", "Text begins with"),
     ("endswith", "Text ends with"),
+    ("regex", "Matches regex"),
     ("blank", "Is blank"),
     ("notblank", "Is not blank"),
     ("duplicate", "Duplicate values"),
@@ -62,6 +63,7 @@ _VALUE: dict[str, tuple[str, str]] = {
     "contains": ("Text", "substring to find"),
     "beginswith": ("Text", "prefix"),
     "endswith": ("Text", "suffix"),
+    "regex": ("Pattern", r"regex, e.g. ^\d{3}-\d{4}$  ((?i) for case-insensitive)"),
     "top_n": ("How many", "e.g. 10"),
     "bottom_n": ("How many", "e.g. 10"),
     "top_pct": ("Percent", "e.g. 25"),
@@ -75,6 +77,8 @@ _HELP: dict[str, str] = {
     "contains": "Highlights cells whose text contains this substring (case-insensitive).",
     "beginswith": "Highlights cells whose text starts with this prefix (case-insensitive).",
     "endswith": "Highlights cells whose text ends with this suffix (case-insensitive).",
+    "regex": "Highlights cells whose text matches this regular expression "
+             "(case-sensitive; prefix with (?i) for case-insensitive).",
     "blank": "Highlights empty cells.",
     "notblank": "Highlights cells that have any value.",
     "duplicate": "Highlights values that appear more than once in the range.",
@@ -128,6 +132,12 @@ class CondFormatDialog(QDialog):
         self._paint(self._color2_btn, self._color2)
         self._paint(self._color3_btn, self._color3)
 
+        # Optional CSS: overrides the plain fill with a full style (text colour,
+        # bold/italic/underline, background) when the rule matches.
+        self._css = QLineEdit(self)
+        self._css.setPlaceholderText("optional, e.g. color: white; background: #c00; font-weight: bold")
+        self._css_label = QLabel("Style (CSS):", self)
+
         self._help = QLabel(self)
         self._help.setWordWrap(True)
         self._help.setStyleSheet("color: palette(mid); font-size: 11px;")
@@ -139,6 +149,7 @@ class CondFormatDialog(QDialog):
         form.addRow(self._color_label, self._color_btn)
         form.addRow(self._color2_label, self._color2_btn)
         form.addRow(self._color3_label, self._color3_btn)
+        form.addRow(self._css_label, self._css)
         form.addRow("", self._help)
         self._form = form
 
@@ -170,6 +181,8 @@ class CondFormatDialog(QDialog):
             self._color_label.setText("Fill colour:")
             self._row_visible(self._color2_label, self._color2_btn, False)
             self._row_visible(self._color3_label, self._color3_btn, False)
+        # CSS styling applies to any match-based rule, not to the colour scales.
+        self._row_visible(self._css_label, self._css, kind not in _SCALE_KINDS)
         self._help.setText(_HELP.get(kind, ""))
 
     @staticmethod
@@ -196,6 +209,7 @@ class CondFormatDialog(QDialog):
 
     def _accept(self) -> None:
         kind = self._kind.currentData()
+        css = ""
         if kind in _SCALE_KINDS:
             value = self._color            # scale min colour
             value2 = self._color2          # scale max colour
@@ -204,12 +218,14 @@ class CondFormatDialog(QDialog):
             value = self._value.text().strip() or None if kind in _VALUE else None
             value2 = self._value2.text().strip() or None if kind in _VALUE2_KINDS else None
             color = self._color
+            css = self._css.text().strip()
         rule = CondRule(
             range=self._range.text().strip() or self._default_range(),
             kind=kind,
             value=value,
             value2=value2,
             color=color,
+            css=css,
         )
         self._win._doc.workbook.sheet.cond_rules.append(rule)
         self._win._doc.mark_dirty()
