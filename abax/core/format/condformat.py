@@ -11,6 +11,7 @@ This module is part of the stdlib-only ``core`` package.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -105,43 +106,97 @@ def _coerce_number(v: object) -> float | None:
 
 # --- evaluation -----------------------------------------------------------
 
+# Kinds whose match depends on an aggregate over the *whole* range (not just the
+# one cell): the min/max for a colour scale, the mean for above/below-average,
+# a top/bottom cut-off, or duplicate/unique counts. `scale_context` precomputes
+# that once per rule so a virtualized grid never rescans the range per cell.
+_RANGE_KINDS = frozenset({
+    "colorscale", "colorscale3", "above_avg", "below_avg",
+    "top_n", "bottom_n", "top_pct", "bottom_pct", "duplicate", "unique",
+})
 
-def _scale_bounds(sheet: Sheet, rule: CondRule) -> tuple[float, float] | None:
-    """``(lo, hi)`` over the numeric cells in a colorscale rule's range, or None."""
-    vals = [x for row, col in iter_range(rule.range)
+
+def _range_numbers(sheet: Sheet, rng: str) -> list[float]:
+    """Every real number in ``rng`` (bools/errors/blanks excluded)."""
+    return [x for row, col in iter_range(rng)
             if (x := _numeric(sheet.get_value(row, col))) is not None]
-    return (min(vals), max(vals)) if vals else None
+
+
+def _rule_context(sheet: Sheet, rule: CondRule) -> Any:
+    """Precompute the range-aggregate a range-aware ``rule`` needs, or None.
+
+    Returns, by kind: ``(lo, hi)`` bounds (colour scales), the mean (above/below
+    average), a numeric cut-off threshold (top/bottom N or %), or a
+    ``{value: count}`` map (duplicate/unique). Non-range kinds return None.
+    """
+    kind = rule.kind
+    if kind in ("colorscale", "colorscale3"):
+        nums = _range_numbers(sheet, rule.range)
+        return (min(nums), max(nums)) if nums else None
+    if kind in ("above_avg", "below_avg"):
+        nums = _range_numbers(sheet, rule.range)
+        return sum(nums) / len(nums) if nums else None
+    if kind in ("top_n", "bottom_n", "top_pct", "bottom_pct"):
+        nums = _range_numbers(sheet, rule.range)
+        n = _coerce_number(rule.value)
+        if not nums or n is None:
+            return None
+        if kind in ("top_pct", "bottom_pct"):
+            pct = max(0.0, min(100.0, n))
+            count = max(1, math.ceil(len(nums) * pct / 100.0))
+        else:
+            count = int(n)
+        count = max(1, min(count, len(nums)))
+        # Threshold = the count-th value from the top (or bottom); ties at the
+        # boundary are all included (Excel-style), so the set can exceed `count`.
+        ordered = sorted(nums, reverse=kind.startswith("top"))
+        return ordered[count - 1]
+    if kind in ("duplicate", "unique"):
+        counts: dict[str, int] = {}
+        for row, col in iter_range(rule.range):
+            disp = sheet.display(row, col)
+            if disp != "":
+                key = disp.casefold()
+                counts[key] = counts.get(key, 0) + 1
+        return counts
+    return None
 
 
 def _cell_color(
-    sheet: Sheet, rule: CondRule, row: int, col: int,
-    scale: tuple[float, float] | None,
+    sheet: Sheet, rule: CondRule, row: int, col: int, ctx: Any,
 ) -> str | None:
     """The fill color *rule* gives cell ``(row, col)``, or None if it doesn't match.
 
-    ``scale`` is the precomputed ``(lo, hi)`` for a colorscale rule (range-
-    aggregate); pass None for the per-cell predicate kinds.
+    ``ctx`` is the precomputed range-aggregate for a range-aware kind (see
+    :func:`_rule_context`); pass None for the per-cell predicate kinds.
     """
     kind = rule.kind
 
-    if kind == "colorscale":
-        if scale is None:
-            scale = _scale_bounds(sheet, rule)
-        if scale is None:
+    if kind in ("colorscale", "colorscale3"):
+        bounds = ctx if ctx is not None else _rule_context(sheet, rule)
+        if bounds is None:
             return None
         x = _numeric(sheet.get_value(row, col))
         if x is None:
             return None
-        lo, hi = scale
+        lo, hi = bounds
         span = hi - lo
         t = 0.0 if span == 0 else (x - lo) / span
-        return _lerp_color(_parse_hex(str(rule.value)), _parse_hex(str(rule.value2)), t)
+        lo_c = _parse_hex(str(rule.value))
+        hi_c = _parse_hex(str(rule.value2))
+        if kind == "colorscale":
+            return _lerp_color(lo_c, hi_c, t)
+        # 3-colour scale: lo -> mid (rule.color) -> hi, mid pinned at the midpoint.
+        mid_c = _parse_hex(str(rule.color))
+        return (_lerp_color(lo_c, mid_c, t * 2) if t <= 0.5
+                else _lerp_color(mid_c, hi_c, (t - 0.5) * 2))
 
     color = rule.color.lower()
     thresh = _coerce_number(rule.value)
     thresh2 = _coerce_number(rule.value2)
     val = sheet.get_value(row, col)
     disp = sheet.display(row, col)
+    is_value = val is not None and not isinstance(val, CellError)
 
     if kind in (">", "<", ">=", "<="):
         x = _numeric(val)
@@ -172,8 +227,15 @@ def _cell_color(
             return color
 
     elif kind == "contains":
-        if val is not None and not isinstance(val, CellError) \
-                and str(rule.value).casefold() in disp.casefold():
+        if is_value and str(rule.value).casefold() in disp.casefold():
+            return color
+
+    elif kind == "beginswith":
+        if is_value and disp.casefold().startswith(str(rule.value).casefold()):
+            return color
+
+    elif kind == "endswith":
+        if is_value and disp.casefold().endswith(str(rule.value).casefold()):
             return color
 
     elif kind == "blank":
@@ -184,16 +246,34 @@ def _cell_color(
         if disp != "":
             return color
 
+    elif kind in ("above_avg", "below_avg"):
+        x = _numeric(val)
+        if x is not None and ctx is not None:
+            if (kind == "above_avg" and x > ctx) or (kind == "below_avg" and x < ctx):
+                return color
+
+    elif kind in ("top_n", "top_pct", "bottom_n", "bottom_pct"):
+        x = _numeric(val)
+        if x is not None and ctx is not None:
+            if (kind.startswith("top") and x >= ctx) or (kind.startswith("bottom") and x <= ctx):
+                return color
+
+    elif kind in ("duplicate", "unique"):
+        if ctx and disp != "":
+            n = ctx.get(disp.casefold(), 0)
+            if (kind == "duplicate" and n > 1) or (kind == "unique" and n == 1):
+                return color
+
     return None
 
 
-def scale_context(sheet: Sheet, rules: list[CondRule]) -> dict[int, tuple[float, float] | None]:
-    """Precompute the ``(lo, hi)`` bounds for each colorscale rule (keyed by id).
+def scale_context(sheet: Sheet, rules: list[CondRule]) -> dict[int, Any]:
+    """Precompute each range-aware rule's aggregate (keyed by ``id(rule)``).
 
     Pass the result to :func:`color_at` so per-cell lookups over a viewport reuse
-    one range scan instead of rescanning per cell.
+    one range scan instead of rescanning per cell. Non-range kinds are omitted.
     """
-    return {id(r): _scale_bounds(sheet, r) for r in rules if r.kind == "colorscale"}
+    return {id(r): _rule_context(sheet, r) for r in rules if r.kind in _RANGE_KINDS}
 
 
 def color_at(
@@ -225,9 +305,9 @@ def evaluate(sheet: Sheet, rules: list[CondRule]) -> dict[tuple[int, int], str]:
     """
     out: dict[tuple[int, int], str] = {}
     for rule in rules:
-        scale = _scale_bounds(sheet, rule) if rule.kind == "colorscale" else None
+        ctx = _rule_context(sheet, rule) if rule.kind in _RANGE_KINDS else None
         for row, col in iter_range(rule.range):
-            hit = _cell_color(sheet, rule, row, col, scale)
+            hit = _cell_color(sheet, rule, row, col, ctx)
             if hit is not None:
                 out[(row, col)] = hit
     return out

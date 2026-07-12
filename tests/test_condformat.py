@@ -174,3 +174,94 @@ def test_helpers() -> None:
     assert _parse_hex("00ff00") == (0, 255, 0)
     assert _lerp_color((0, 0, 0), (255, 255, 255), 0.0) == "#000000"
     assert _lerp_color((0, 0, 0), (255, 255, 255), 1.0) == "#ffffff"
+
+
+# --- richer rule kinds (0.1.13) ----------------------------------------------
+
+
+def _num_sheet() -> Sheet:
+    sheet = Sheet()
+    for i, v in enumerate([5, 20, 8, 20, 3, 50]):  # rows A1..A6
+        sheet.set(f"A{i + 1}", str(v))
+    return sheet
+
+
+def _text_sheet() -> Sheet:
+    sheet = Sheet()
+    for i, w in enumerate(["apple", "Banana", "apple", "cherry"]):  # B1..B4
+        sheet.set(f"B{i + 1}", w)
+    return sheet
+
+
+def test_top_n_includes_boundary_ties() -> None:
+    # top 2 of [5,20,8,20,3,50]: threshold is the 2nd-largest (20), so both 20s
+    # and the 50 all qualify — Excel-style tie inclusion.
+    sheet = _num_sheet()
+    rule = CondRule(range="A1:A6", kind="top_n", value=2, color="#ff0000")
+    assert set(_col(rule, sheet)) == {(1, 0), (3, 0), (5, 0)}
+
+
+def test_bottom_n() -> None:
+    sheet = _num_sheet()
+    rule = CondRule(range="A1:A6", kind="bottom_n", value=1, color="#00ff00")
+    assert set(_col(rule, sheet)) == {(4, 0)}  # the 3
+
+
+def test_top_pct() -> None:
+    sheet = _num_sheet()  # 6 values; top 50% = 3 largest (50, 20, 20)
+    rule = CondRule(range="A1:A6", kind="top_pct", value=50, color="#123456")
+    assert set(_col(rule, sheet)) == {(1, 0), (3, 0), (5, 0)}
+
+
+def test_above_and_below_average() -> None:
+    sheet = _num_sheet()  # mean = 106/6 = 17.67
+    above = CondRule(range="A1:A6", kind="above_avg", color="#aa0000")
+    below = CondRule(range="A1:A6", kind="below_avg", color="#0000aa")
+    assert set(_col(above, sheet)) == {(1, 0), (3, 0), (5, 0)}      # 20,20,50
+    assert set(_col(below, sheet)) == {(0, 0), (2, 0), (4, 0)}      # 5,8,3
+
+
+def test_duplicate_and_unique() -> None:
+    sheet = _text_sheet()  # apple (x2, case-insensitive), Banana, cherry
+    dup = CondRule(range="B1:B4", kind="duplicate", color="#abc123")
+    uniq = CondRule(range="B1:B4", kind="unique", color="#321cba")
+    assert set(_col(dup, sheet)) == {(0, 1), (2, 1)}
+    assert set(_col(uniq, sheet)) == {(1, 1), (3, 1)}
+
+
+def test_beginswith_endswith_case_insensitive() -> None:
+    sheet = _text_sheet()
+    begins = CondRule(range="B1:B4", kind="beginswith", value="BA", color="#111111")
+    ends = CondRule(range="B1:B4", kind="endswith", value="RY", color="#222222")
+    assert set(_col(begins, sheet)) == {(1, 1)}   # Banana
+    assert set(_col(ends, sheet)) == {(3, 1)}     # cherry
+
+
+def test_colorscale3_endpoints_and_midpoint() -> None:
+    sheet = Sheet()
+    for i, v in enumerate([0, 5, 10]):
+        sheet.set(f"A{i + 1}", str(v))
+    rule = CondRule(range="A1:A3", kind="colorscale3",
+                    value="#000000", value2="#ffffff", color="#ff0000")
+    result = _col(rule, sheet)
+    assert result[(0, 0)] == "#000000"   # min -> value (low)
+    assert result[(2, 0)] == "#ffffff"   # max -> value2 (high)
+    assert result[(1, 0)] == "#ff0000"   # midpoint -> the mid colour
+
+
+def test_color_at_parity_for_range_kinds() -> None:
+    """color_at (viewport) must agree with evaluate() for the range-aware kinds."""
+    sheet = _num_sheet()
+    rules = [
+        CondRule(range="A1:A6", kind="above_avg", color="#0000ff"),
+        CondRule(range="A1:A6", kind="top_n", value=2, color="#ff0000"),
+    ]
+    full = evaluate(sheet, rules)
+    ctx = scale_context(sheet, rules)
+    for r in range(6):
+        assert color_at(sheet, rules, r, 0, ctx) == full.get((r, 0))
+
+
+def test_top_n_roundtrip() -> None:
+    rule = CondRule(range="A1:A6", kind="top_n", value=10, color="#a6e3a1")
+    assert CondRule.from_dict(rule.to_dict()) == rule

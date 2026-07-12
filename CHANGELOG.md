@@ -11,9 +11,19 @@ All notable changes to abax are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Richer conditional formatting.** New rule kinds beyond the value
+  comparisons and 2-colour scale: **Top N / Bottom N** items, **Top N% /
+  Bottom N%**, **Above / Below average**, **Duplicate / Unique values**, **Text
+  begins with / ends with**, and a **3-colour scale** (min → midpoint → max).
+  The *Conditional format…* dialog now reshapes to the chosen rule — showing
+  only the fields it needs, with a one-line description — so the larger rule set
+  stays easy to use. Rules still evaluate lazily per painted cell (one cached
+  range scan for the range-aware kinds) and render in the TUI.
 - **`abax profile <file>` CLI** — a headless formula profiler that times every
   formula cell and prints them slowest-first (`--sheet`, `--repeat`, `--limit`),
   mirroring the GUI profiler for scripts and CI.
+- **Windowed cell-store control** in Preferences → System → Performance (the
+  `windowed_store_capacity` setting is no longer edit-`settings.json`-only).
 
 ### Fixed
 - **Python 3.14 ctypes deprecation** — the Linux Landlock `Structure` set

@@ -203,9 +203,10 @@ class AbaxTableModel(QAbstractTableModel):
 
         sheet = self._sheet()
         self._cond_rules = sheet.cond_rules or []
-        # Only a colorscale rule needs a range scan; per-cell rules cost nothing.
-        self._scale_ctx = (scale_context(sheet, self._cond_rules)
-                           if any(r.kind == "colorscale" for r in self._cond_rules) else {})
+        # Range-aware rules (colour scales, top/bottom, above-average, duplicate…)
+        # need a one-time range scan; scale_context skips the per-cell kinds itself,
+        # so passing every rule is cheap and always correct.
+        self._scale_ctx = scale_context(sheet, self._cond_rules)
         self._cf_cache = {}
         self._populated = None
         used_r, used_c = sheet.used_bounds()

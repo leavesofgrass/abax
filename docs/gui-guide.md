@@ -207,14 +207,49 @@ functions and the `A1#` spilled-range reference syntax.
 ## Conditional formatting
 
 *Format → Conditional format…* opens a dialog where you define rules that colour
-cell backgrounds based on their values (including colour-scale rules). Rules are
-stored **per sheet** and saved in the workbook, so they travel with the file.
-The grid evaluates them **lazily, per painted cell, and caches the result** for
+cell backgrounds based on their values. Rules are stored **per sheet** and saved
+in the workbook, so they travel with the file. The dialog **reshapes itself to
+the rule you pick** — it shows only the fields that rule needs (a value, two
+values, a count, a percentage, or colours) with a one-line description — so the
+long list of rule types stays approachable.
+
+Pick a range (it defaults to your current selection), choose a condition, set
+its value(s) and colour, and click **OK**; the rule applies immediately.
+
+### Rule types
+
+| Group | Conditions | Uses |
+|-------|-----------|------|
+| **Compare** | Greater than, Less than, ≥, ≤, Equal to, Not equal to, **Between** | a value (Between takes low + high) |
+| **Text** | Text contains, Text begins with, Text ends with | a substring (case-insensitive) |
+| **Presence** | Is blank, Is not blank | — |
+| **Duplicates** | Duplicate values, Unique values | — (scans the range) |
+| **Ranking** | Above average, Below average, **Top N** / **Bottom N** items, **Top N%** / **Bottom N%** | a count or percent (ranking scans the range) |
+| **Colour scales** | 2-colour scale, 3-colour scale | a min + max colour (3-colour adds a midpoint) |
+
+### Worked examples
+
+- **Flag failing scores** — range `B2:B200`, *Less than*, value `60`, a red fill.
+- **Highlight the top 10 deals** — range `D2:D500`, *Top N items*, value `10`.
+  Ties at the cut-off are all included (Excel-style), so you may see a few more
+  than 10.
+- **Spot above-average performers** — range `C2:C100`, *Above average* (no value
+  needed — abax reads the range's mean for you), a green fill.
+- **Find duplicate SKUs** — range `A2:A1000`, *Duplicate values*, an amber fill;
+  every SKU that appears more than once lights up.
+- **Heat-map a metric** — range `E2:E200`, *3-colour scale*, min = blue,
+  midpoint = white, max = red, to shade low→mid→high across the column.
+
+### How it performs
+
+The grid evaluates rules **lazily, per painted cell, and caches the result** for
 the current refresh — so even a rule spanning tens of thousands of cells is
-cheap, because only the cells actually on screen are ever coloured. Only a
-colour-scale rule triggers a range scan (to find its min/max). Text on a
-conditional fill is drawn dark for readability. Clear them with *Format → Clear
-conditional formats*.
+cheap, because only the cells on screen are ever coloured. Range-aware rules
+(colour scales, ranking, above/below average, duplicate/unique) do **one** range
+scan per refresh, cached and reused across the viewport. Later rules win where
+two rules colour the same cell, and text on a conditional fill is drawn dark for
+readability. Rules render in the **TUI** too (nearest-ANSI approximation). Clear
+them all with *Format → Clear conditional formats*.
 
 ## Cell styles and number formats
 
