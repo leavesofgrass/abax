@@ -353,6 +353,13 @@ class ToolsMixin:
         self._file_manager.show()
         self._file_manager.raise_()
 
+    def show_convert(self, paths: "list[str] | None" = None) -> None:
+        """Batch file-conversion dialog — tabular via the engine, documents via
+        pandoc. Optionally pre-filled with ``paths`` (e.g. a file-manager selection)."""
+        from .dialogs.convert_dialog import ConvertDialog
+
+        ConvertDialog(self, paths).exec()
+
     def show_solver(self) -> None:
         from .dialogs.solver_dialog import SolverDialog
 

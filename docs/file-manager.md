@@ -28,6 +28,7 @@ pane into the other).
 | **Zip** / **Tar.gz** / **7z** | compress the selection to a `.zip`, `.tar.gz`, or `.7z` archive |
 | **Extract** | extract the selected archive into the other pane (path-traversal safe) |
 | **Open in archive** | list a `.zip`/`.tar`/`.7z`'s contents and open a supported file (CSV, Excel, Parquet, ODS, JSON/`.abax`, …) straight into the grid |
+| **Convert** | open the [batch file-conversion](file-formats.md#converting-files) dialog pre-filled with the selection — tabular formats via the engine, documents (Word/HTML/Markdown/…) via pandoc |
 | **Find** | recursive search from the active folder |
 
 Archive creation supports `.zip`, `.tar`, `.tar.gz`/`.tgz`, `.tar.bz2`,

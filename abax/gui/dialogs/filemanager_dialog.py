@@ -219,6 +219,7 @@ class FileManagerDialog(QDialog):
         )))
         col.addLayout(self._button_row((
             ("Rename", self._rename, None),
+            ("Convert", self._convert, None),
             ("Zip", lambda: self._archive(".zip"), None),
             ("Tar.gz", lambda: self._archive(".tar.gz"), None),
             ("7z", lambda: self._archive(".7z"), None),
@@ -469,6 +470,11 @@ class FileManagerDialog(QDialog):
             except OSError as exc:
                 QMessageBox.warning(self, "Rename", str(exc))
             self._active.refresh()
+
+    def _convert(self) -> None:
+        """Open the batch file-conversion dialog, pre-filled with the selection."""
+        sel = [p for p in self._active.selected_paths() if not os.path.isdir(p)]
+        self._win.show_convert(sel)
 
     def _archive(self, ext: str) -> None:
         sel = self._active.selected_paths()

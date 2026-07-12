@@ -573,6 +573,7 @@ class MainWindow(NavigationMixin, DocumentMixin, DocumentIOMixin, SettingsMixin,
         self._act(m_tools, "&Budget wizard...", self.show_budget_wizard)
         self._act(m_tools, "&Hex viewer...", self.show_hex_viewer)
         self._act(m_tools, "&File manager...", self.show_file_manager, "Ctrl+Shift+F")
+        self._act(m_tools, "Con&vert files...", self.show_convert)
         self._act(m_tools, "Copy selection as &Markdown", self._copy_as_markdown)
         m_tools.addSeparator()
 

@@ -51,6 +51,36 @@ On export, most formats write **computed values** by default (what you see in th
 grid), while a few write **raw text** so formulas survive a round-trip — see each
 format below.
 
+## Converting files
+
+Beyond opening and saving, abax has a **batch file-conversion tool** for turning
+files from one format into another — including **non-tabular documents**. It has
+two backends, chosen automatically by extension:
+
+- **Tabular data** (CSV/TSV, Excel, ODS, Parquet, JSON, Markdown tables) is
+  converted by abax's own workbook engine — no extra software needed.
+- **Documents** (Markdown ↔ **Word `.docx`**, **HTML**, **reStructuredText**,
+  **LaTeX**, **EPUB**, **RTF**, **plain text**, and **PDF**) go through
+  [**pandoc**](https://pandoc.org/), an optional dependency. If pandoc isn't
+  installed, a document conversion reports a clear message; install it from
+  *Tools → Install optional features* (or `pip install pypandoc_binary`). PDF
+  output additionally needs a LaTeX engine on your system.
+
+**Two ways in:**
+
+- **Tools → Convert files…** opens the dialog directly. Click *Add files…* to
+  choose one or many inputs, pick a **Convert to** format, set an **Output
+  folder** (defaults to the inputs' folder), and click **Convert**. Each file's
+  result — success or the reason it failed — is listed, and one bad file never
+  stops the rest.
+- **File manager → Convert** ([File manager](file-manager.md)) opens the same
+  dialog **pre-filled with the files you've selected**, so you can convert
+  straight from the browser.
+
+Examples: turn a folder of `.csv` exports into `.xlsx`; convert a `.md` report to
+`.docx` or `.html`; flatten `.docx` notes to plain Markdown; or produce a `.pdf`
+from Markdown (with a LaTeX engine installed).
+
 ## Native workbook (`.json` / `.abax`)
 
 abax's own format is a self-describing JSON **envelope** produced by

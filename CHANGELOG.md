@@ -23,6 +23,12 @@ All notable changes to abax are documented here. The format follows
   only the fields it needs, with a one-line description — so the larger rule set
   stays easy to use. Rules still evaluate lazily per painted cell (one cached
   range scan for the range-aware kinds) and render in the TUI.
+- **Batch file conversion** — *Tools → Convert files…* (and a **Convert** button
+  in the file manager, pre-filled with the selection) converts many files to
+  another format at once. Tabular formats (CSV/Excel/ODS/Parquet/JSON/Markdown
+  tables) use the built-in engine; **documents** (Markdown ↔ Word/HTML/RST/
+  LaTeX/EPUB/RTF/plain-text/PDF, even non-tabular ones) go through the optional
+  **pandoc**. One bad file never stops the rest; each result is reported.
 - **`abax profile <file>` CLI** — a headless formula profiler that times every
   formula cell and prints them slowest-first (`--sheet`, `--repeat`, `--limit`),
   mirroring the GUI profiler for scripts and CI.
