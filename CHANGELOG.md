@@ -8,6 +8,13 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
+## [Unreleased]
+
+### Fixed
+- **Python 3.14 ctypes deprecation** — the Linux Landlock `Structure` set
+  `_pack_` without an explicit `_layout_`, which 3.14 deprecates; it now
+  declares `_layout_ = "ms"` (same memory layout).
+
 ## [0.1.12] — 2026-07-11
 
 ### Added

@@ -266,6 +266,10 @@ class _landlock_path_beneath_attr(ctypes.Structure):
     """
 
     _pack_ = 1
+    # Python 3.14 deprecates setting `_pack_` without an explicit `_layout_`
+    # (slated to become an error). `_pack_` already implies the MSVC-compatible
+    # layout, so state it — same memory layout, no more warning.
+    _layout_ = "ms"
     _fields_ = [
         ("allowed_access", ctypes.c_uint64),
         ("parent_fd", ctypes.c_int32),
