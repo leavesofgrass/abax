@@ -11,6 +11,17 @@ All notable changes to abax are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **A tested examples tree** under `docs/examples/` — twelve examples across
+  getting-started, formulas, data, analysis, charts, scripting-and-CLI, and
+  radio. Each is one folder with a README (showing the exact expected output)
+  and a uniform `run.py`; a catalog page maps every feature area to an example
+  or the relevant guide. All runnable examples are executed by a new
+  `tests/test_examples.py` smoke gate so they can never silently rot, and the
+  catalog is published on the docs site (nav: **Examples**).
+- **A Quick start atop the README** — `pipx install "abax[all]"`, launch
+  commands for GUI/TUI/CLI, a "first minute" key guide, and pointers to the
+  examples and the online docs. (Also refreshed stale claims: twelve themes,
+  Theme under the *View* menu.)
 - **Four more GUI themes** inspired by popular open-source editors — **Dracula**,
   **Tokyo Night**, **Gruvbox Dark**, and **Monokai** — under *View → Theme* (a
   dozen themes total). All are token-based, so they also drive the custom-painted

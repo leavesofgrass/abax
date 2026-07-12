@@ -20,6 +20,38 @@ CLI. The core is pure-stdlib Python; every heavier capability is an optional
 dependency with a graceful fallback. When a behaviour is ambiguous, abax follows
 **gnumeric**.
 
+## Quick start
+
+The fastest way in — an isolated install with **every** optional feature:
+
+```sh
+pipx install "abax[all]"      # pipx puts abax in its own virtual env
+abax                          # launch the desktop GUI
+```
+
+No pipx? `python -m pip install "abax[all]"` inside a venv is equivalent
+(then `abax` or `python -m abax`). Other front-ends, same install:
+
+```sh
+abax tui                      # the vim-style terminal UI (SSH-friendly)
+abax view data.csv            # headless: print any spreadsheet as a table
+```
+
+**Your first minute in the GUI:**
+
+- Arrow keys move (vim `h j k l` works too); just type into a cell and
+  press `Enter`.
+- Type `=SUM(A1:A5)` — anything starting with `=` computes, with
+  autocomplete and argument hints as you go.
+- `Ctrl+Shift+P` (or `:`) opens the command palette — every action lives
+  there. `F1` lists the shortcuts.
+- `Ctrl+S` saves — `.abax`, `.csv`, `.xlsx`, `.md`, whatever the
+  extension says.
+
+**Where next:** tested, copy-paste **[examples for most of abax](docs/examples/README.md)**
+· the [online documentation](https://leavesofgrass.github.io/abax/) ·
+no Python? grab a ready-to-run binary (below).
+
 ## Install
 
 ```sh
@@ -153,8 +185,9 @@ palette lists every action — including any loaded macros.
 |---|---|
 | **File** | New `Ctrl+N`, Open `Ctrl+O`, Save `Ctrl+S`, Save As `Ctrl+Shift+S`, Quit `Ctrl+Q` |
 | **Edit** | Copy `Ctrl+C`, Paste `Ctrl+V`, Clear `Del`, Fill `Ctrl+D`/`Ctrl+R`, Find/Replace `Ctrl+F`, Palette `Ctrl+Shift+P` |
+| **View** | Theme `Ctrl+T` (twelve presets, live preview), Choose theme… |
 | **Insert** | Sheet `Shift+F11`, Function `Shift+F3` |
-| **Format** | Theme `Ctrl+T`, OpenDyslexic font, conditional formatting, Borders, Merge / Unmerge cells, vim mode |
+| **Format** | OpenDyslexic font, conditional formatting, Borders, Merge / Unmerge cells, vim mode |
 | **Data** | Sort, Fill series, Recalculate `F9` |
 | **Sheet** | Next `Ctrl+PgDn`, Previous `Ctrl+PgUp`, Rename (or use the **tabs**) |
 | **Tools** | Calculator `Ctrl+K`, Python console `Ctrl+Shift+Y`, Clipboard `Ctrl+Shift+V`, **File manager `Ctrl+Shift+F`**, **Budget wizard**, **Scientific** (Matrix / Signal / ODE / ML / **RF toolkit / Smith chart / Antenna pattern**), Install optional features, Macros, recording |
@@ -162,8 +195,9 @@ palette lists every action — including any loaded macros.
 
 Vim navigation works in the grid too (`j/k/h/l`, `g`/`G`, `/`). **Sheet tabs** sit
 at the bottom (click to switch, double-click to rename). The formula bar
-autocompletes function names and shows a live argument-hint tooltip. **Eight
-themes** ship — Obsidian, Dark One, Nord, Solarized, CRT green/amber, Light, and
+autocompletes function names and shows a live argument-hint tooltip. **Twelve
+themes** ship — Obsidian, Dark One, Dracula, Tokyo Night, Gruvbox Dark, Monokai,
+Nord, Solarized, CRT green/amber, Light, and
 High-contrast (≥7:1) — matching the star/qv palettes; an **OpenDyslexic** font can
 be fetched on demand. Widgets are screen-reader labelled, and an
 **accessibility** layer can announce the active cell aloud as the cursor moves
