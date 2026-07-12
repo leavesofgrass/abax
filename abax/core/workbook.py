@@ -29,12 +29,14 @@ class Workbook:
     def __init__(self) -> None:
         from .connections import ConnectionRegistry
         from .names import NameRegistry
+        from .pm.projects import ProjectRegistry
         from .tables import TableRegistry
 
         self.sheets: list[Sheet] = []
         self.active: int = 0
         self.names = NameRegistry()
         self.tables = TableRegistry()
+        self.projects = ProjectRegistry()
         # Named, refreshable data sources (REST/SQL/web-table). Only non-secret
         # metadata is stored here / persisted; credentials live session-only in
         # sandbox.SecretsHolder keyed by Connection.secret_ref.
@@ -238,6 +240,7 @@ class Workbook:
         self.active = other.active
         self.names = other.names
         self.tables = other.tables
+        self.projects = other.projects
         self.connections = other.connections
         self._link_sheets()
         self._reset_depgraph()  # sheet set replaced — rebuild the index lazily
@@ -246,6 +249,7 @@ class Workbook:
     def from_sheets(cls, sheets, active: int = 0) -> "Workbook":
         from .connections import ConnectionRegistry
         from .names import NameRegistry
+        from .pm.projects import ProjectRegistry
         from .tables import TableRegistry
 
         wb = cls.__new__(cls)
@@ -253,6 +257,7 @@ class Workbook:
         wb.active = active
         wb.names = NameRegistry()
         wb.tables = TableRegistry()
+        wb.projects = ProjectRegistry()
         wb.connections = ConnectionRegistry()
         wb._add_default_if_empty()
         wb.active = min(max(wb.active, 0), len(wb.sheets) - 1)
@@ -365,6 +370,7 @@ class Workbook:
                 "names": self.names.to_dict(),
                 # Omitted when empty to keep files lean (older readers ignore it).
                 **({"tables": self.tables.to_dict()} if len(self.tables) else {}),
+                **({"projects": self.projects.to_dict()} if len(self.projects) else {}),
                 # Non-secret connection metadata only (credentials never persist).
                 **({"connections": self.connections.to_dict()}
                    if len(self.connections) else {}),
@@ -408,12 +414,14 @@ class Workbook:
         from .format.cellstyle import CellStyle
         from .format.condformat import CondRule
         from .names import NameRegistry
+        from .pm.projects import ProjectRegistry
         from .tables import TableRegistry
 
         wb = cls.__new__(cls)
         wb.sheets = []
         wb.names = NameRegistry.from_dict(data.get("names", {}))
         wb.tables = TableRegistry.from_dict(data.get("tables", {}))
+        wb.projects = ProjectRegistry.from_dict(data.get("projects", {}))
         wb.connections = ConnectionRegistry.from_dict(data.get("connections", {}))
         for s in data.get("sheets", []):
             sheet = Sheet.from_dict(s["name"], s.get("cells", {}))
