@@ -10,7 +10,11 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("abax.gui._qtcompat")
 
-from abax.core.pm.projects import Project  # noqa: E402
+from abax.core.pm.projects import (  # noqa: E402
+    KeyResult,
+    Objective,
+    Project,
+)
 from abax.gui._qtcompat import QApplication, QEvent  # noqa: E402
 from abax.settings import Settings  # noqa: E402
 
@@ -122,6 +126,46 @@ class TestViewHost:
         assert host._project.name == "Test"
 
         wb.projects.remove("Test")
+
+    def test_okr_tab_populates(self, win):
+        # Regression: the OKR tab used to be materialized but never fed data,
+        # leaving it permanently empty. Feeding proj.objectives fixes it.
+        wb = win._doc.workbook
+        sheet = wb.sheet
+        sheet.set_cell(0, 0, "Title")
+        sheet.set_cell(0, 1, "Status")
+        sheet.set_cell(1, 0, "Task A")
+        sheet.set_cell(1, 1, "To Do")
+        proj = Project(
+            name="OkrProj",
+            sheet=sheet.name,
+            last_col=1,
+            objectives=[
+                Objective(
+                    objective="Grow Revenue",
+                    key_results=[
+                        KeyResult(name="ARR", target=100, current_formula="60"),
+                    ],
+                ),
+            ],
+        )
+        wb.projects.add(proj)
+
+        win._pm_ensure_host()
+        host = win._pm_host
+        host.reload_projects()
+        host.select_project("OkrProj")
+
+        # Materialize the OKRs tab by selecting it.
+        labels = [host._tabs.tabText(i) for i in range(host._tabs.count())]
+        okr_idx = labels.index("OKRs")
+        host._tabs.setCurrentIndex(okr_idx)
+
+        okr_view = host._views["okr"]
+        # 1 objective row + 1 key-result row.
+        assert okr_view._table.rowCount() == 2
+
+        wb.projects.remove("OkrProj")
 
 
 class TestProjectSetupDialog:

@@ -286,7 +286,8 @@ class PMViewHost(QDockWidget):
             ev = evm(tasks)
             view.setData(bd, ev)
         elif key == "okr":
-            pass
+            objectives = proj.objectives if proj else []
+            view.setObjectives(objectives, tasks)
 
     def _all_project_data(self) -> list[tuple[Any, list]]:
         """Gather (Project, tasks) for every registered project."""

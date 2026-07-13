@@ -17,6 +17,14 @@ All notable changes to abax are documented here. The format follows
   tasks, matched to the sheet's columns by header-alias detection) as a single
   undo step; a bounded project data range grows to cover the new rows, and
   file columns absent from the sheet are ignored.
+- **`abax schedule FILE` CLI subcommand** — a headless command that runs CPM on
+  each project in a workbook and prints the critical path.
+
+### Fixed
+- **OKRs tab is no longer empty.** The PM view host materialized the OKRs view
+  but never fed it data, so the tab always showed an empty table. `_push_data_to`
+  now calls `OkrView.setObjectives(proj.objectives, tasks)` so the active
+  project's objectives and key results render.
 
 ## [0.1.13] — 2026-07-12
 
