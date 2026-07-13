@@ -57,6 +57,8 @@ class TestProjectMenu:
                 assert "Resources" in actions
                 assert "Budget / OKRs" in actions
                 assert "Scenarios..." in actions
+                assert "Import tasks..." in actions
+                assert "Export Gantt SVG..." in actions
                 assert "Export report..." in actions
                 return
         pytest.fail("Project menu not found")
@@ -74,6 +76,8 @@ class TestPalette:
         assert "Project: Resources" in actions
         assert "Project: Budget / OKRs" in actions
         assert "Project: Scenarios..." in actions
+        assert "Project: Import tasks..." in actions
+        assert "Project: Export Gantt SVG..." in actions
         assert "Project: export report..." in actions
 
 

@@ -71,6 +71,16 @@ optional packages, a network connection, or a display.
 | Drive abax from other programs | [automation API](../automation.md) | guide |
 | Round-trip notebooks / run abax as a Jupyter kernel | [Jupyter](../jupyter.md) | guide |
 
+## Project management
+
+| I want to… | Go to | Runs? |
+|---|---|---|
+| Track tasks with Kanban, Gantt, Calendar, and 7 more views | [task-tracking](project-management/task-tracking/README.md) | walkthrough |
+| Import tasks from CSV / MS Project XML | [task-tracking](project-management/task-tracking/README.md) | walkthrough |
+| Export a Gantt chart as SVG | [task-tracking](project-management/task-tracking/README.md) | walkthrough |
+| Run what-if scenarios with undo | [task-tracking](project-management/task-tracking/README.md) | walkthrough |
+| Generate an HTML status report | [CLI reference](../cli.md) | guide |
+
 ## Radio & RF
 
 | I want to… | Go to | Runs? |

@@ -19,7 +19,7 @@ from typing import Any
 
 from abax.core.pm.projects import Project
 from abax.core.pm.schedule import compute_cpm
-from abax.core.pm.taskmodel import Task
+from abax.core.pm.taskmodel import Task, write_task
 
 __all__ = [
     "budget_rollup",
@@ -28,6 +28,7 @@ __all__ = [
     "evm",
     "PmScenario",
     "apply_scenario",
+    "apply_scenario_to_sheet",
     "scenario_delta",
 ]
 
@@ -230,6 +231,49 @@ def apply_scenario(
                 setattr(new_t, field_name, value)
         result.append(new_t)
     return result
+
+
+def apply_scenario_to_sheet(
+    tasks: list[Task],
+    scenario: PmScenario,
+    *,
+    col_map: dict[str, int],
+    first_col: int = 0,
+    sheet: Any = None,
+    on_set: Any = None,
+) -> list[tuple[Task, str, Any, Any]]:
+    """Apply scenario overrides to the sheet via write_task, returning a change log.
+
+    Returns ``[(task, field_name, old_value, new_value), ...]``.  Uses
+    :func:`~abax.core.pm.taskmodel.write_task` so each cell edit flows through
+    *on_set*.  Also updates the Task object so the in-memory model stays in sync.
+    """
+    by_id = {t.id: t for t in tasks}
+    changes: list[tuple[Task, str, Any, Any]] = []
+
+    for task_id, field_overrides in scenario.overrides.items():
+        task = by_id.get(task_id)
+        if task is None:
+            continue
+
+        for field_name, new_val in field_overrides.items():
+            if field_name not in _ALLOWED_OVERRIDE_FIELDS:
+                continue
+            if field_name not in col_map:
+                continue
+
+            old_val = getattr(task, field_name, None)
+            if field_name in _DATE_FIELDS and new_val is not None:
+                new_val = _parse_date_value(new_val)
+
+            write_task(
+                sheet, task, field_name, new_val,
+                col_map=col_map, first_col=first_col, on_set=on_set,
+            )
+            setattr(task, field_name, new_val)
+            changes.append((task, field_name, old_val, new_val))
+
+    return changes
 
 
 def scenario_delta(

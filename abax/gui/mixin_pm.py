@@ -29,6 +29,9 @@ class PMMixin:
         self._act(m_proj, "Re&sources", lambda: self._pm_show_view("resource"))
         self._act(m_proj, "Bud&get / OKRs", lambda: self._pm_show_view("finance"))
         self._act(m_proj, "Sce&narios...", self.pm_scenarios)
+        m_proj.addSeparator()
+        self._act(m_proj, "&Import tasks...", self.pm_import_tasks)
+        self._act(m_proj, "Export &Gantt SVG...", self.pm_export_gantt_svg)
         self._act(m_proj, "Export &report...", self.pm_export_report)
 
     # -- palette entries (merged by _palette_actions) -----------------------
@@ -50,6 +53,8 @@ class PMMixin:
             "Project: Resources": lambda: self._pm_show_view("resource"),
             "Project: Budget / OKRs": lambda: self._pm_show_view("finance"),
             "Project: Scenarios...": self.pm_scenarios,
+            "Project: Import tasks...": self.pm_import_tasks,
+            "Project: Export Gantt SVG...": self.pm_export_gantt_svg,
             "Project: export report...": self.pm_export_report,
         }
 
@@ -180,6 +185,56 @@ class PMMixin:
             f.write(html)
         self._set_status(f"PM report exported to {path}")
 
+    def pm_import_tasks(self) -> None:
+        from ._qtcompat import QFileDialog
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import tasks", "",
+            "CSV files (*.csv);;MS Project XML (*.xml);;All files (*)",
+        )
+        if not path:
+            return
+        from pathlib import Path
+
+        ext = Path(path).suffix.lower()
+        from abax.core.pm.importer import import_csv, import_mpp_xml
+
+        try:
+            if ext == ".xml":
+                tasks = import_mpp_xml(path)
+            else:
+                tasks = import_csv(path)
+        except Exception as exc:
+            self._set_status(f"Import failed: {exc}")
+            return
+        if not tasks:
+            self._set_status("No tasks found in file")
+            return
+        self._set_status(f"Imported {len(tasks)} task(s) from {Path(path).name}")
+
+    def pm_export_gantt_svg(self) -> None:
+        proj = self._pm_pick_project("Export Gantt SVG")
+        if proj is None:
+            return
+        from ._qtcompat import QFileDialog
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Gantt SVG", "", "SVG files (*.svg);;All files (*)",
+        )
+        if not path:
+            return
+        self._pm_ensure_host()
+        sheet = self._pm_host._get_sheet()
+        if sheet is None:
+            return
+        _, tasks = self._pm_host._parse_project_tasks(sheet)
+        from datetime import date
+
+        from abax.core.pm.exporter import export_gantt_svg
+
+        export_gantt_svg(tasks, path, today=date.today(), title=proj.name)
+        self._set_status(f"Gantt SVG exported to {path}")
+
     def pm_scenarios(self) -> None:
         proj = self._pm_pick_project("Scenarios")
         if proj is None:
@@ -188,11 +243,29 @@ class PMMixin:
         sheet = self._pm_host._get_sheet()
         if sheet is None:
             return
-        _, tasks = self._pm_host._parse_project_tasks(sheet)
+        col_map, tasks = self._pm_host._parse_project_tasks(sheet)
         from .dialogs.pm_scenario_dialog import PmScenarioDialog
 
         dlg = PmScenarioDialog(self, tasks)
-        dlg.exec()
+        if not dlg.exec():
+            return
+        scenario = dlg.result_scenario()
+        if scenario is None or not dlg.result_apply():
+            return
+        from abax.core.pm.finance import apply_scenario_to_sheet
+
+        fc = proj.first_col if proj else 0
+        self._doc.checkpoint("apply scenario", coalesce_key="pm_scenario")
+        changes = apply_scenario_to_sheet(
+            tasks, scenario,
+            col_map=col_map, first_col=fc, sheet=sheet,
+            on_set=lambda s, r, c, v: s.set_cell(r, c, str(v)),
+        )
+        self._doc.mark_dirty()
+        self.refresh_table()
+        self._set_status(
+            f"Scenario '{scenario.name}' applied ({len(changes)} change(s))"
+        )
 
     # -- helpers ------------------------------------------------------------
 

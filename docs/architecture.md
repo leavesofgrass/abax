@@ -36,6 +36,11 @@ core  ──►  engine  ──►  gui / tui
     contest/POTA/SOTA logging (per-band-per-mode dupe detection with callsign
     normalization, point/multiplier tally) that registers the `ISDUPE` and
     `QSOPOINTS` spreadsheet functions.
+  - **`core/pm/`** — task-based project management: task model with header-alias
+    detection, project/milestone registry, CPM scheduling with critical-path
+    analysis, portfolio analytics, SVG renderers (Gantt/timeline/calendar),
+    budget roll-up and EVM-lite, resource capacity planning, scenario
+    modelling, CSV and MS Project XML import/export.
   - **`core/format/`** — cell value formatting, styles, conditional formatting,
     colour maps, ANSI palette.
 

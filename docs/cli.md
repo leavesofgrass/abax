@@ -314,6 +314,19 @@ Optional dependencies
   ...
 ```
 
+### `report file [-o OUT]` — export a PM report
+
+Generates an HTML project-management report for every project defined in the
+workbook.  The report includes per-project status tables, task summaries, and
+milestone listings — the same content as **Project → Export report** in the GUI.
+
+```console
+$ abax report portfolio.abax -o status.html
+PM report: 2 project(s), 47 task(s) → status.html
+```
+
+If `-o` is omitted the HTML is written to stdout.
+
 ### `notebook run FILE [-o OUT]` — execute a notebook headlessly
 
 Runs a Jupyter `.ipynb` end to end **without** `nbclient`: each code cell is

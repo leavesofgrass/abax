@@ -663,6 +663,10 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
   Formula profiler).
 - **Sheet** — New sheet (`Shift+F11`), Duplicate sheet, Rename sheet, Delete
   sheet, Next sheet (`Ctrl+PgDown`), Previous sheet (`Ctrl+PgUp`).
+- **Project** — New project from sheet, Open project views, Edit project, Remove
+  project, Milestones, Kanban board, Card / gallery, Calendar, Gantt chart,
+  Timeline, Dashboard, Roadmap, Resources, Budget / OKRs, Scenarios, Import
+  tasks (CSV / MS Project XML), Export Gantt SVG, Export report (HTML).
 - **Tools** — Scientific → (Matrix tool, Numerical solver, Signal / data tool,
   ODE solver, ML tool), Install optional features now, Budget wizard, Hex viewer,
   **Enable live data** (network REST/WEBSOCKET), **Enable external references**

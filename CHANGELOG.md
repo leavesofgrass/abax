@@ -47,6 +47,16 @@ All notable changes to abax are documented here. The format follows
   **OKRs** panel with objective/key-result progress table.  **Scenario
   editor** dialog for what-if task-field overrides.  All new views wired into
   the Project menu, command palette, and dockable view host (now 10 tabs).
+- **Project management — Wave 4.** Task import/export engine
+  (`core/pm/importer.py`) with CSV import (auto-delimiter sniffing, BOM
+  handling, header-alias mapping via `detect_columns`), MS Project XML import
+  (namespace-aware, predecessor extraction, ISO 8601 duration parsing), and
+  CSV export with round-trip-safe headers.  Gantt/timeline SVG and PDF export
+  (`core/pm/exporter.py`) with colour-key legend, multi-project stacked
+  report SVG, and print-friendly HTML wrapper.  Scenario undo integration:
+  `apply_scenario_to_sheet()` flows each override through `write_task`/`on_set`
+  so the entire batch is a single undo step.  **Import tasks** and **Export
+  Gantt SVG** menu entries added to the Project menu and command palette.
 - **A tested examples tree** under `docs/examples/` — twelve examples across
   getting-started, formulas, data, analysis, charts, scripting-and-CLI, and
   radio. Each is one folder with a README (showing the exact expected output)
