@@ -283,11 +283,12 @@ the amount delta). The same function is also available from the Python console
 | **CSV** | Delimiter auto-detected (comma, tab, semicolon, pipe). Headers are matched against the alias table, so a Jira export, a Trello CSV, or a hand-written file usually just works. BOM-safe. |
 | **MS Project XML** | Parses the `http://schemas.microsoft.com/project` namespace. Extracts task name, UID, start, finish, duration, predecessors, milestone status, and percent complete. |
 
-The dialog parses the file and reports how many tasks it found. (Writing the
-imported tasks into the sheet from the dialog is not yet wired up — to
-round-trip task lists today, use the programmatic API: `import_csv` /
-`import_mpp_xml` to read, `tasks_to_csv` to write. See
-[Programmatic access](#programmatic-access).)
+The parsed tasks are **appended to the active project's sheet**, in the first
+free rows below the existing tasks, matched to the sheet's columns by the same
+header-alias detection. The whole import is a **single undo step** — one
+`Ctrl+Z` removes every appended row. If the project's data range was
+explicitly bounded, it grows to cover the new rows so the views pick them up.
+Columns present in the file but not in the target sheet are ignored.
 
 ### Exporting
 

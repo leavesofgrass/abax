@@ -11,6 +11,16 @@ All notable changes to abax are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Project > Import tasks… writes into the sheet.** The importer no longer
+  just parses and reports a count — parsed CSV / MS Project XML tasks are
+  appended to the active project's sheet (first free rows below the existing
+  tasks, matched to the sheet's columns by header-alias detection) as a single
+  undo step; a bounded project data range grows to cover the new rows, and
+  file columns absent from the sheet are ignored.
+
+## [0.1.13] — 2026-07-12
+
+### Added
 - **Project > Schedule (CPM)…** — a menu entry (and "Project: Schedule (CPM)…"
   command-palette action) that runs the critical-path scheduler on the active
   project and highlights the critical-path tasks red in the Gantt and Roadmap
@@ -20,17 +30,11 @@ All notable changes to abax are documented here. The format follows
   the before/after delta (project finish date and cost, with deltas) every time
   an override is added or removed or the selected scenario changes, wiring
   `finance.scenario_delta` into the dialog's previously-empty delta area.
-
-### Changed
 - **PM scenarios are now persisted.** Scenario definitions are stored on the
   `Project` object (serialized in the workbook envelope via `to_dict`/
   `from_dict`) so they survive save/load and reappear when the scenario editor
   is reopened. Both *Apply to Sheet* and *Keep as Scenario* save the list;
   *Cancel* discards edits.
-
-## [0.1.13] — 2026-07-12
-
-### Added
 - **Project management — Wave 1.** A new *Project* menu (between Sheet and
   Tools) and command-palette entries for task-based project management.
   Core engines: CPM scheduling with critical-path analysis and business-day

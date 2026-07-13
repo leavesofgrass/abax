@@ -44,10 +44,9 @@ This is a **walkthrough** (nothing to run here).
 ## Import tasks from CSV or MS Project
 
 6. **Project > Import tasks...** — open a CSV file (auto-detects delimiter
-   and header names) or an MS Project XML export. The dialog parses the file
-   and reports how many tasks it found; writing them into the sheet is not
-   yet wired up (use the `import_csv` / `tasks_to_csv` Python API to
-   round-trip task lists).
+   and header names) or an MS Project XML export. The parsed tasks are
+   appended to the active project's sheet (matched to your columns by header
+   name) as a single undo step.
 
 ## Export a Gantt chart
 

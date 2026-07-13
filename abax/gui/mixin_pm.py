@@ -211,13 +211,67 @@ class PMMixin:
                 tasks = import_mpp_xml(path)
             else:
                 tasks = import_csv(path)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             self._set_status(f"Import failed: {exc}")
             return
         if not tasks:
             self._set_status("No tasks found in file")
             return
-        self._set_status(f"Imported {len(tasks)} task(s) from {Path(path).name}")
+
+        # Append the parsed tasks to the active project's sheet as one undo step.
+        proj = self._pm_pick_project("Import tasks")
+        if proj is None:
+            return
+        self._pm_ensure_host()
+        self._pm_host.select_project(proj.name)
+        sheet = self._pm_host._get_sheet()
+        if sheet is None:
+            self._set_status("project sheet not found")
+            return
+        col_map, existing = self._pm_host._parse_project_tasks(sheet)
+        if not col_map:
+            self._set_status("no task columns detected in the project sheet")
+            return
+
+        # First free row below the existing task rows.
+        if existing:
+            start_row = max(t.row for t in existing) + 1
+        elif proj.first_data_row >= 0:
+            start_row = proj.first_data_row
+        else:
+            start_row = proj.header_row + 1
+
+        from abax.core.pm.taskmodel import write_task
+
+        self._doc.checkpoint("import tasks", coalesce_key="pm_import")
+
+        def _on_set(s, r, c, v):
+            s.set_cell(r, c, str(v))
+
+        for offset, task in enumerate(tasks):
+            task.row = start_row + offset
+            for field_name in col_map:
+                value = getattr(task, field_name, None)
+                if value is None or value == "" or value == []:
+                    continue
+                write_task(
+                    sheet, task, field_name, value,
+                    col_map=col_map, first_col=proj.first_col, on_set=_on_set,
+                )
+
+        # Extend the project's data range if it was explicitly bounded, so the
+        # views parse the appended rows.
+        if proj.last_data_row >= 0:
+            proj.last_data_row = start_row + len(tasks) - 1
+            self._doc.workbook.projects.touch()
+
+        self._doc.mark_dirty()
+        self.refresh_table()
+        if hasattr(self._pm_host, "_refresh_views"):
+            self._pm_host._refresh_views()
+        self._set_status(
+            f"Imported {len(tasks)} task(s) from {Path(path).name}"
+        )
 
     def pm_export_gantt_svg(self) -> None:
         proj = self._pm_pick_project("Export Gantt SVG")
