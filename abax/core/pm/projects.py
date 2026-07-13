@@ -21,6 +21,7 @@ __all__ = [
     "Milestone",
     "Objective",
     "KeyResult",
+    "Scenario",
 ]
 
 
@@ -123,6 +124,38 @@ class Objective:
         )
 
 
+@dataclass
+class Scenario:
+    """A named set of what-if task-field overrides, persisted on the project.
+
+    Shape mirrors :class:`abax.core.pm.finance.PmScenario`
+    (``overrides`` maps ``task_id -> {field_name: new_value}``), but this type
+    lives here so the project registry stays free of a dependency on the
+    finance module.  The GUI scenario editor converts to/from ``PmScenario``
+    at its boundaries.
+    """
+
+    name: str
+    overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "overrides": {
+                str(tid): dict(fields)
+                for tid, fields in self.overrides.items()
+            },
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> Scenario:
+        raw = d.get("overrides", {})
+        overrides = {
+            str(tid): dict(fields) for tid, fields in raw.items()
+        }
+        return cls(name=d.get("name", ""), overrides=overrides)
+
+
 # ---------------------------------------------------------------------------
 # Project
 # ---------------------------------------------------------------------------
@@ -152,6 +185,7 @@ class Project:
     cross_links: list[CrossProjectLink] = field(default_factory=list)
     budget_total: float = 0.0
     objectives: list[Objective] = field(default_factory=list)
+    scenarios: list[Scenario] = field(default_factory=list)
 
     # -- serialization ------------------------------------------------------
 
@@ -177,6 +211,8 @@ class Project:
             d["budget_total"] = self.budget_total
         if self.objectives:
             d["objectives"] = [o.to_dict() for o in self.objectives]
+        if self.scenarios:
+            d["scenarios"] = [s.to_dict() for s in self.scenarios]
         return d
 
     @classmethod
@@ -200,6 +236,9 @@ class Project:
             budget_total=float(d.get("budget_total", 0.0)),
             objectives=[
                 Objective.from_dict(o) for o in d.get("objectives", [])
+            ],
+            scenarios=[
+                Scenario.from_dict(s) for s in d.get("scenarios", [])
             ],
         )
 

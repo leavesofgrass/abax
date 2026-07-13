@@ -665,8 +665,9 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
   sheet, Next sheet (`Ctrl+PgDown`), Previous sheet (`Ctrl+PgUp`).
 - **Project** — New project from sheet, Open project views, Edit project, Remove
   project, Milestones, Kanban board, Card / gallery, Calendar, Gantt chart,
-  Timeline, Dashboard, Roadmap, Resources, Budget / OKRs, Scenarios, Import
-  tasks (CSV / MS Project XML), Export Gantt SVG, Export report (HTML /
+  Timeline, Dashboard, Roadmap, Resources, Budget / OKRs, Scenarios, Schedule
+  (CPM) (compute the critical path and highlight it in the Gantt/Roadmap views),
+  Import tasks (CSV / MS Project XML), Export Gantt SVG, Export report (HTML /
   Markdown).
 - **Tools** — Scientific → (Matrix tool, Numerical solver, Signal / data tool,
   ODE solver, ML tool), Install optional features now, Budget wizard, Hex viewer,

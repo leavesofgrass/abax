@@ -70,6 +70,7 @@ class PMViewHost(QDockWidget):
 
         self.setWidget(container)
         self._views: dict[str, QWidget] = {}
+        self._critical_ids: set[str] = set()
         self._tabs.currentChanged.connect(self._on_tab_changed)
 
         for key, label in _VIEW_DEFS:
@@ -97,6 +98,18 @@ class PMViewHost(QDockWidget):
         idx = self._project_combo.findText(name)
         if idx >= 0:
             self._project_combo.setCurrentIndex(idx)
+
+    def set_critical(self, ids: set[str]) -> None:
+        """Store critical-path task IDs and push them to the schedule views.
+
+        The IDs are remembered so newly materialized / refreshed Gantt and
+        Roadmap views pick up the highlight too (see :meth:`_push_data_to`).
+        """
+        self._critical_ids = set(ids)
+        for key in ("gantt", "roadmap"):
+            view = self._views.get(key)
+            if view is not None and hasattr(view, "setCritical"):
+                view.setCritical(self._critical_ids)
 
     def _on_project_changed(self, idx: int) -> None:
         if idx < 0:
@@ -234,6 +247,8 @@ class PMViewHost(QDockWidget):
                     first_col=proj.first_col if proj else 0,
                     on_set=on_set,
                 )
+            if hasattr(view, "setCritical"):
+                view.setCritical(self._critical_ids)
         elif key == "dashboard":
             from datetime import date as _date
 
@@ -250,6 +265,8 @@ class PMViewHost(QDockWidget):
                 all_links.extend(p.cross_links)
             if all_links:
                 view.setCrossLinks(all_links)
+            if hasattr(view, "setCritical"):
+                view.setCritical(self._critical_ids)
         elif key == "resource":
             from abax.core.pm.capacity import aggregate_workload
 

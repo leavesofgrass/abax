@@ -90,9 +90,9 @@ The classic project-management view:
   shift the whole task.
 - **Dependency arrows** — drawn from each task to its successors (from the
   Depends column).
-- **Critical-path highlight** — the view can colour critical-path tasks red
-  when fed the result of the CPM scheduler (currently a programmatic step —
-  see [Scheduling](#scheduling)).
+- **Critical-path highlight** — colours critical-path tasks red. Run
+  **Project > Schedule (CPM)…** to compute the critical path and push it to the
+  Gantt (and Roadmap) views — see [Scheduling](#scheduling).
 - **Today line** — a vertical marker for the current date.
 - **Month axis** — auto-scaled to fit the project's date range.
 
@@ -157,8 +157,10 @@ that can reference sheet cells, so progress updates automatically as you work.
 ## Scheduling
 
 The **Critical Path Method (CPM)** scheduler lives in
-`abax/core/pm/schedule.py`. It is currently exposed **programmatically** —
-from the Python console or a script (a menu entry is planned):
+`abax/core/pm/schedule.py`. Run it from the GUI with
+**Project > Schedule (CPM)…** (or the command palette:
+"Project: Schedule (CPM)…"), or call it programmatically from the Python
+console or a script. Either way the pipeline is the same:
 
 1. **Build the DAG** from the Depends column.
 2. **Detect cycles** (DFS colouring) — if any exist, the cycle is reported
@@ -171,9 +173,13 @@ from the Python console or a script (a menu entry is planned):
 
 `compute_cpm(tasks)` returns a `CpmResult` per task (`early_start`,
 `early_finish`, `late_start`, `late_finish`, `slack_days`, `critical`); it
-does not modify the sheet. To persist proposed dates, write them back with
-`write_task` (see [Programmatic access](#programmatic-access)). Date
-arithmetic is business-day aware (weekends are skipped).
+does not modify the sheet. **Project > Schedule (CPM)…** runs it on the active
+project, then feeds the critical-path IDs to the Gantt and Roadmap views'
+`setCritical(ids)` slots so those tasks turn red; the status bar reports how
+many tasks are on the critical path. To persist proposed dates instead, write
+them back with `write_task` (see
+[Programmatic access](#programmatic-access)). Date arithmetic is business-day
+aware (weekends are skipped).
 
 ### Auto-schedule
 
@@ -224,8 +230,11 @@ At the bottom of the dialog:
 | Button | Effect |
 |--------|--------|
 | **Apply to Sheet** | Writes every override to the sheet as a **single undo step**. One `Ctrl+Z` reverts the entire batch. The dialog closes. |
-| **Keep as Scenario** | Closes the dialog without changing the sheet. (Scenario definitions are not yet persisted between openings of the dialog.) |
-| **Cancel** | Discards everything and closes. |
+| **Keep as Scenario** | Closes the dialog without changing the sheet, but **saves the scenario definitions on the project**. They are stored in the workbook envelope, so they survive save/load and reappear (with their overrides) the next time you open **Project > Scenarios…**. |
+| **Cancel** | Discards everything (including edits to the scenario list) and closes without saving. |
+
+Both **Apply to Sheet** and **Keep as Scenario** persist the current scenario
+list onto the project; only **Cancel** leaves it untouched.
 
 ### What happens under the hood
 
@@ -243,9 +252,12 @@ When you click **Apply to Sheet**, abax calls
 
 The engine provides `scenario_delta` — it applies the scenario to an
 in-memory copy of the task list, re-runs CPM, and returns a before/after
-comparison of dates, float, and cost totals. It is currently a programmatic
-API (Python console / scripts); the dialog's delta area is reserved for a
-future wiring of this comparison.
+comparison of finish dates and cost totals. The scenario editor calls it
+**live**: the **Before / After Delta** area at the bottom of the dialog updates
+every time you add or remove an override (or switch scenarios), showing the
+project's old → new finish date (with the day delta) and old → new cost (with
+the amount delta). The same function is also available from the Python console
+/ scripts for headless analysis.
 
 ### Example workflow
 

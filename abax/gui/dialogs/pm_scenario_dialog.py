@@ -49,6 +49,7 @@ class PmScenarioDialog(QDialog):
         parent: QWidget | None,
         tasks: list,
         scenarios: list[PmScenario] | None = None,
+        project: Any = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("PM Scenario Editor")
@@ -57,6 +58,7 @@ class PmScenarioDialog(QDialog):
         self._tasks = tasks
         self._scenarios: list[PmScenario] = list(scenarios or [])
         self._apply = False
+        self._project = project
 
         root = QVBoxLayout(self)
 
@@ -162,12 +164,86 @@ class PmScenarioDialog(QDialog):
         """True when the user chose *Apply to Sheet*."""
         return self._apply
 
+    def result_scenarios(self) -> list[PmScenario]:
+        """Return every scenario in the editor (for persistence)."""
+        return list(self._scenarios)
+
     def setDelta(self, delta: dict) -> None:  # noqa: N802
-        """Populate the before/after text area from an external delta dict."""
-        lines: list[str] = []
-        for key, val in delta.items():
-            lines.append(f"{key}: {val}")
+        """Populate the before/after text area from a delta dict.
+
+        Understands the structure returned by
+        :func:`abax.core.pm.finance.scenario_delta`
+        (``{"projects": [{name, old_finish, new_finish, finish_delta_days,
+        old_cost, new_cost, cost_delta}, ...]}``); falls back to a plain
+        ``key: value`` dump for any other mapping.
+        """
+        projects = delta.get("projects") if isinstance(delta, dict) else None
+        if projects is None:
+            lines = [f"{key}: {val}" for key, val in delta.items()]
+            self._delta_display.setPlainText("\n".join(lines))
+            return
+
+        lines = []
+        for p in projects:
+            lines.append(str(p.get("name", "")))
+            of, nf = p.get("old_finish"), p.get("new_finish")
+            fd = p.get("finish_delta_days")
+            if fd is None:
+                lines.append(f"  Finish: {of or 'n/a'} → {nf or 'n/a'}")
+            else:
+                sign = "+" if fd >= 0 else ""
+                lines.append(
+                    f"  Finish: {of or 'n/a'} → {nf or 'n/a'}"
+                    f"  ({sign}{fd} day{'s' if abs(fd) != 1 else ''})"
+                )
+            oc = p.get("old_cost", 0.0)
+            nc = p.get("new_cost", 0.0)
+            cd = p.get("cost_delta", 0.0)
+            sign = "+" if cd >= 0 else ""
+            lines.append(f"  Cost:   {oc:,.2f} → {nc:,.2f}  ({sign}{cd:,.2f})")
         self._delta_display.setPlainText("\n".join(lines))
+
+    # ------------------------------------------------------------------
+    # Live delta
+    # ------------------------------------------------------------------
+    def _update_delta(self) -> None:
+        """Recompute the before/after delta for the current scenario."""
+        sc = self._current_scenario()
+        if sc is None:
+            self._delta_display.clear()
+            return
+        from datetime import date
+
+        from abax.core.pm.finance import PmScenario as _FinScenario
+        from abax.core.pm.finance import scenario_delta
+        from abax.core.pm.projects import Project
+
+        overrides: dict[str, dict[str, Any]] = {}
+        for tid, fields in sc.overrides.items():
+            overrides[tid] = {
+                fld: self._coerce_value(fld, val)
+                for fld, val in fields.items()
+            }
+        fin_sc = _FinScenario(name=sc.name, overrides=overrides)
+        proj = self._project if self._project is not None else Project(
+            name=sc.name or "(scenario)",
+        )
+        try:
+            delta = scenario_delta([(proj, self._tasks)], fin_sc, date.today())
+        except Exception as exc:  # keep the dialog usable on bad input
+            self._delta_display.setPlainText(f"(delta unavailable: {exc})")
+            return
+        self.setDelta(delta)
+
+    @staticmethod
+    def _coerce_value(field_name: str, value: Any) -> Any:
+        """Coerce numeric override strings so delta math stays type-correct."""
+        if field_name in ("effort", "cost", "percent_done"):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+        return value
 
     # ------------------------------------------------------------------
     # Internals
@@ -199,7 +275,8 @@ class PmScenarioDialog(QDialog):
             return
         for tid, fields in sc.overrides.items():
             for fld, val in fields.items():
-                self._append_override_row(tid, fld, "", str(val))
+                self._append_override_row(tid, fld, self._get_original(tid, fld), str(val))
+        self._update_delta()
 
     def _on_add_override(self) -> None:
         sc = self._current_scenario()
@@ -212,6 +289,7 @@ class PmScenarioDialog(QDialog):
         orig = self._get_original(tid, fld)
         self._append_override_row(tid, fld, orig, new_val)
         self._new_value_edit.clear()
+        self._update_delta()
 
     def _get_original(self, tid: str, fld: str) -> str:
         for t in self._tasks:
@@ -251,6 +329,7 @@ class PmScenarioDialog(QDialog):
                     if not sc.overrides[tid]:
                         del sc.overrides[tid]
         self._override_table.removeRow(row)
+        self._update_delta()
 
     def _on_apply(self) -> None:
         self._apply = True

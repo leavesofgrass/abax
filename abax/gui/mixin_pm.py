@@ -29,6 +29,7 @@ class PMMixin:
         self._act(m_proj, "Re&sources", lambda: self._pm_show_view("resource"))
         self._act(m_proj, "Bud&get / OKRs", lambda: self._pm_show_view("finance"))
         self._act(m_proj, "Sce&narios...", self.pm_scenarios)
+        self._act(m_proj, "Schedule (&CPM)...", self.pm_schedule)
         m_proj.addSeparator()
         self._act(m_proj, "&Import tasks...", self.pm_import_tasks)
         self._act(m_proj, "Export &Gantt SVG...", self.pm_export_gantt_svg)
@@ -53,6 +54,7 @@ class PMMixin:
             "Project: Resources": lambda: self._pm_show_view("resource"),
             "Project: Budget / OKRs": lambda: self._pm_show_view("finance"),
             "Project: Scenarios...": self.pm_scenarios,
+            "Project: Schedule (CPM)...": self.pm_schedule,
             "Project: Import tasks...": self.pm_import_tasks,
             "Project: Export Gantt SVG...": self.pm_export_gantt_svg,
             "Project: export report...": self.pm_export_report,
@@ -240,22 +242,80 @@ class PMMixin:
         export_gantt_svg(tasks, path, today=date.today(), title=proj.name)
         self._set_status(f"Gantt SVG exported to {path}")
 
+    def pm_schedule(self) -> None:
+        proj = self._pm_pick_project("Schedule (CPM)")
+        if proj is None:
+            return
+        self._pm_ensure_host()
+        self._pm_host.select_project(proj.name)
+        sheet = self._pm_host._get_sheet()
+        if sheet is None:
+            self._set_status("project sheet not found")
+            return
+        _, tasks = self._pm_host._parse_project_tasks(sheet)
+        if not tasks:
+            self._set_status("no tasks to schedule")
+            return
+        from abax.core.pm.schedule import compute_cpm, critical_path
+
+        try:
+            cpm = compute_cpm(tasks)
+        except ValueError as exc:
+            self._set_status(f"Schedule failed: {exc}")
+            return
+        crit = set(critical_path(cpm))
+        self._pm_host.set_critical(crit)
+        self._pm_show_view("gantt")
+        self._set_status(
+            f"CPM scheduled '{proj.name}': "
+            f"{len(crit)} critical task(s) of {len(tasks)}"
+        )
+
     def pm_scenarios(self) -> None:
         proj = self._pm_pick_project("Scenarios")
         if proj is None:
             return
         self._pm_ensure_host()
+        self._pm_host.select_project(proj.name)
         sheet = self._pm_host._get_sheet()
         if sheet is None:
             return
         col_map, tasks = self._pm_host._parse_project_tasks(sheet)
-        from .dialogs.pm_scenario_dialog import PmScenarioDialog
+        from .dialogs.pm_scenario_dialog import PmScenario, PmScenarioDialog
 
-        dlg = PmScenarioDialog(self, tasks)
+        # Reload any scenarios persisted on the project.
+        existing = [
+            PmScenario(
+                name=s.name,
+                overrides={tid: dict(f) for tid, f in s.overrides.items()},
+            )
+            for s in proj.scenarios
+        ]
+        dlg = PmScenarioDialog(
+            self, tasks, scenarios=existing or None, project=proj,
+        )
         if not dlg.exec():
             return
+
+        # Persist the edited scenario set on the project (Apply and Keep both
+        # accept the dialog; only Cancel — a rejected exec — skips this).
+        from abax.core.pm.projects import Scenario as _Scenario
+
+        proj.scenarios = [
+            _Scenario(
+                name=s.name,
+                overrides={tid: dict(f) for tid, f in s.overrides.items()},
+            )
+            for s in dlg.result_scenarios()
+        ]
+        self._doc.workbook.projects.touch()
+        self._doc.mark_dirty()
+
         scenario = dlg.result_scenario()
         if scenario is None or not dlg.result_apply():
+            self._set_status(
+                f"{len(proj.scenarios)} scenario(s) saved for '{proj.name}'"
+            )
             return
         from abax.core.pm.finance import apply_scenario_to_sheet
 
