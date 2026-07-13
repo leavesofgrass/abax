@@ -28,7 +28,7 @@ These are parsed before any command and the first two are *fast paths* — they 
 
 ```bash
 $ abax --version
-abax 0.1.3
+abax 0.1.12
 ```
 
 ### `--deps`
@@ -316,16 +316,23 @@ Optional dependencies
 
 ### `report file [-o OUT]` — export a PM report
 
-Generates an HTML project-management report for every project defined in the
-workbook.  The report includes per-project status tables, task summaries, and
-milestone listings — the same content as **Project → Export report** in the GUI.
+Generates a project-management report (HTML or Markdown) for every project
+defined in the workbook.  The report includes per-project status tables, task
+summaries, and milestone listings — the same content as **Project → Export
+report** in the GUI.
 
 ```console
 $ abax report portfolio.abax -o status.html
-PM report: 2 project(s), 47 task(s) → status.html
+report written to status.html
+
+$ abax report portfolio.abax -o status.md
+report written to status.md
 ```
 
-If `-o` is omitted the HTML is written to stdout.
+The output format is chosen by the file extension: `.md` produces Markdown,
+anything else produces HTML. If `-o` is omitted the report is written to
+`report.html` in the current directory. Exit code **2** when the file cannot
+be opened or the workbook defines no projects.
 
 ### `notebook run FILE [-o OUT]` — execute a notebook headlessly
 

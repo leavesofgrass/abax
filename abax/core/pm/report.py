@@ -19,6 +19,7 @@ from abax.core.pm.taskmodel import Task
 __all__ = [
     "report_sheet_data",
     "report_html",
+    "report_markdown",
 ]
 
 
@@ -244,3 +245,68 @@ def report_html(
 
     parts.append("</body></html>")
     return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Markdown report
+# ---------------------------------------------------------------------------
+
+def report_markdown(
+    projects: list[tuple[Project, list[Task]]],
+    today: date,
+    *,
+    title: str = "Project Report",
+) -> str:
+    """Return a Markdown string with summary table and per-project details."""
+    headers, rows = report_sheet_data(projects, today)
+    lines: list[str] = []
+
+    lines.append(f"# {title}")
+    lines.append("")
+    lines.append(f"*Generated {today.isoformat()}*")
+    lines.append("")
+
+    # Summary table
+    lines.append("| " + " | ".join(headers) + " |")
+    lines.append("| " + " | ".join("---" for _ in headers) + " |")
+    for i, row in enumerate(rows):
+        prefix = "**" if i == len(rows) - 1 else ""
+        suffix = "**" if i == len(rows) - 1 else ""
+        cells = [f"{prefix}{cell}{suffix}" for cell in row]
+        lines.append("| " + " | ".join(cells) + " |")
+    lines.append("")
+
+    # Per-project details
+    for proj, tasks in projects:
+        lines.append(f"## {proj.name}")
+        lines.append("")
+
+        done_count = sum(1 for t in tasks if _is_done(t))
+        overdue = _overdue_tasks(tasks, today)
+        pct = _progress(tasks) if tasks else 0.0
+        health = _health(tasks, today)
+
+        lines.append(f"- **Progress:** {pct:.0f}%")
+        lines.append(f"- **Tasks:** {len(tasks)} ({done_count} done)")
+        lines.append(f"- **Overdue:** {len(overdue)}")
+        lines.append(f"- **Health:** {health}")
+        lines.append("")
+
+        if overdue:
+            lines.append("### Overdue tasks")
+            lines.append("")
+            for t in overdue:
+                due_str = t.due.isoformat() if t.due else "?"
+                lines.append(f"- {t.title or t.id} (due {due_str})")
+            lines.append("")
+
+        if proj.milestones:
+            lines.append("### Milestones")
+            lines.append("")
+            for ms in proj.milestones:
+                mark = "x" if ms.done else " "
+                date_str = f" ({ms.date})" if ms.date else ""
+                lines.append(f"- [{mark}] {ms.name}{date_str}")
+            lines.append("")
+
+    return "\n".join(lines)

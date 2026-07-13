@@ -148,14 +148,13 @@ class PMMixin:
     def pm_export_report(self) -> None:
         from ._qtcompat import QFileDialog
 
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export PM report", "", "HTML files (*.html);;All files (*)"
+        path, filt = QFileDialog.getSaveFileName(
+            self, "Export PM report", "",
+            "HTML files (*.html);;Markdown files (*.md);;All files (*)",
         )
         if not path:
             return
         from datetime import date
-
-        from abax.core.pm.report import report_html
 
         wb = self._doc.workbook
         projects = []
@@ -180,9 +179,15 @@ class PMMixin:
                     )
                     projects.append((proj, tasks))
                     break
-        html = report_html(projects, date.today())
+        use_md = path.endswith(".md") or "Markdown" in filt
+        if use_md:
+            from abax.core.pm.report import report_markdown
+            content = report_markdown(projects, date.today())
+        else:
+            from abax.core.pm.report import report_html
+            content = report_html(projects, date.today())
         with open(path, "w", encoding="utf-8") as f:
-            f.write(html)
+            f.write(content)
         self._set_status(f"PM report exported to {path}")
 
     def pm_import_tasks(self) -> None:

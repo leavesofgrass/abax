@@ -142,8 +142,8 @@ class PMViewHost(QDockWidget):
             from .timeline_view import TimelineView
             return TimelineView(parent=self)
         if key == "dashboard":
-            from .dashboard import PMDashboard
-            return PMDashboard(parent=self)
+            from .dashboard import DashboardView
+            return DashboardView(parent=self)
         if key == "roadmap":
             from .roadmap_view import RoadmapView
             return RoadmapView(parent=self)

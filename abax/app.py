@@ -86,10 +86,10 @@ def _build_parser() -> argparse.ArgumentParser:
     pp.add_argument("--tsv", action="store_true", help="force tab-separated columns")
     pp.add_argument("--csv", action="store_true", help="force comma-separated columns")
 
-    prp = sub.add_parser("report", help="export a PM report (HTML) for a workbook")
+    prp = sub.add_parser("report", help="export a PM report (HTML or Markdown) for a workbook")
     prp.add_argument("file", help="workbook with project definitions (.abax/.json/.xlsx/…)")
     prp.add_argument("-o", "--output", default="report.html", metavar="FILE",
-                     help="output path (default: report.html)")
+                     help="output path; use .md for Markdown (default: report.html)")
 
     pr = sub.add_parser("profile", help="report the slowest formula cells in a workbook")
     pr.add_argument("file", help="workbook to profile (.abax/.json/.xlsx/…)")
@@ -247,10 +247,9 @@ def _cmd_pipe(args) -> int:
 
 
 def _cmd_report(args) -> int:
-    """``abax report FILE`` — export a PM HTML report for a workbook."""
+    """``abax report FILE`` — export a PM report (HTML or Markdown)."""
     from datetime import date
 
-    from .core.pm.report import report_html
     from .core.pm.taskmodel import parse_tasks
     from .engine.document import Document
 
@@ -280,10 +279,15 @@ def _cmd_report(args) -> int:
     if not projects:
         print("report: no projects defined in this workbook", file=sys.stderr)
         return 2
-    html = report_html(projects, date.today())
     out = args.output
+    if out.endswith(".md"):
+        from .core.pm.report import report_markdown
+        content = report_markdown(projects, date.today())
+    else:
+        from .core.pm.report import report_html
+        content = report_html(projects, date.today())
     with open(out, "w", encoding="utf-8") as f:
-        f.write(html)
+        f.write(content)
     print(f"report written to {out}")
     return 0
 

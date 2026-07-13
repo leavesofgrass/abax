@@ -93,8 +93,9 @@ class PmScenarioDialog(QDialog):
         add_row = QHBoxLayout()
         self._task_combo = QComboBox()
         for t in self._tasks:
-            tid = getattr(t, "task_id", None) or getattr(t, "name", str(t))
-            self._task_combo.addItem(str(tid))
+            tid = getattr(t, "id", "") or f"T{getattr(t, 'row', '?')}"
+            label = getattr(t, "title", "") or tid
+            self._task_combo.addItem(f"{tid}: {label}", tid)
         self._field_combo = QComboBox()
         self._field_combo.addItems(_OVERRIDE_FIELDS)
         self._new_value_edit = QLineEdit()
@@ -129,10 +130,11 @@ class PmScenarioDialog(QDialog):
         root.addLayout(btn_box)
 
         # ---- populate scenario list ----
+        if not self._scenarios:
+            self._scenarios.append(PmScenario(name="Scenario 1"))
         for sc in self._scenarios:
             self._scenario_list.addItem(sc.name)
-        if self._scenarios:
-            self._scenario_list.setCurrentRow(0)
+        self._scenario_list.setCurrentRow(0)
 
         # ---- connections ----
         self._add_btn.clicked.connect(self._on_add_scenario)
@@ -203,12 +205,21 @@ class PmScenarioDialog(QDialog):
         sc = self._current_scenario()
         if sc is None:
             return
-        tid = self._task_combo.currentText()
+        tid = self._task_combo.currentData() or self._task_combo.currentText()
         fld = self._field_combo.currentText()
         new_val = self._new_value_edit.text()
         sc.overrides.setdefault(tid, {})[fld] = new_val
-        self._append_override_row(tid, fld, "", new_val)
+        orig = self._get_original(tid, fld)
+        self._append_override_row(tid, fld, orig, new_val)
         self._new_value_edit.clear()
+
+    def _get_original(self, tid: str, fld: str) -> str:
+        for t in self._tasks:
+            task_id = getattr(t, "id", "") or f"T{getattr(t, 'row', '')}"
+            if task_id == tid:
+                val = getattr(t, fld, None)
+                return str(val) if val is not None else ""
+        return ""
 
     def _append_override_row(
         self,

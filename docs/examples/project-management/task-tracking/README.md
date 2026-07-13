@@ -44,7 +44,10 @@ This is a **walkthrough** (nothing to run here).
 ## Import tasks from CSV or MS Project
 
 6. **Project > Import tasks...** — open a CSV file (auto-detects delimiter
-   and header names) or an MS Project XML export.
+   and header names) or an MS Project XML export. The dialog parses the file
+   and reports how many tasks it found; writing them into the sheet is not
+   yet wired up (use the `import_csv` / `tasks_to_csv` Python API to
+   round-trip task lists).
 
 ## Export a Gantt chart
 
@@ -59,10 +62,14 @@ This is a **walkthrough** (nothing to run here).
 
 ## Export a status report
 
-9. **Project > Export report...** — generates an HTML report with per-project
-   status, task summaries, and milestones. Or from the CLI:
+9. **Project > Export report...** — generates a status report with per-project
+   tables, task summaries, and milestones. The file dialog offers both HTML and
+   Markdown formats — save with a `.md` extension for Markdown output.
 
-       abax report myproject.abax -o status.html
+   From the CLI:
+
+       abax report myproject.abax -o status.html   # HTML
+       abax report myproject.abax -o status.md      # Markdown
 
 ## Next steps
 

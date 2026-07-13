@@ -105,10 +105,11 @@ setting off, a genuine circular reference still reports `#CIRC!`.
 Function names are case-insensitive. Below, every built-in is grouped by
 family with its signature, a one-line description, and an example. Optional
 arguments are shown in `[brackets]`. There are **642 built-in functions** —
-**591 eager** (counting aliases and modern dotted names), **6 lazy** control-flow
-functions, and **21 reference/context** functions (`ROW`, `OFFSET`, `INDIRECT`,
-`CELL`, `LET`, `LAMBDA`, …) — **618 names** in all; user macros can add more
-(see the [UDFs](#user-defined-functions-udfs) note).
+**614 eager** (counting aliases and modern dotted names) plus **28
+lazy / reference / context** functions evaluated by the engine itself (`IF`,
+`IFS`, `SWITCH`, `ROW`, `OFFSET`, `INDIRECT`, `CELL`, `LET`, `LAMBDA`, `MAP`,
+`REDUCE`, …); user macros can add more (see the
+[UDFs](#user-defined-functions-udfs) note).
 
 Coverage spans the everyday Excel / Gnumeric set: math and trigonometry
 (including hyperbolic and reciprocal), combinatorics, a full statistical

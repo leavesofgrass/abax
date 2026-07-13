@@ -8,7 +8,7 @@ from datetime import date
 import pytest
 
 from abax.core.pm.projects import Milestone, Project
-from abax.core.pm.report import report_html, report_sheet_data
+from abax.core.pm.report import report_html, report_markdown, report_sheet_data
 from abax.core.pm.taskmodel import Task
 
 # ---------------------------------------------------------------------------
@@ -173,6 +173,85 @@ class TestReportHtml:
         html = report_html([(proj, tasks)], _TODAY)
         # At least one health class should appear
         assert "health-" in html
+
+
+# ---------------------------------------------------------------------------
+# report_markdown tests
+# ---------------------------------------------------------------------------
+
+
+class TestReportMarkdown:
+    def test_returns_markdown_with_heading(self):
+        proj = _make_project()
+        tasks = _make_tasks()
+        md = report_markdown([(proj, tasks)], _TODAY)
+        assert md.startswith("# Project Report")
+
+    def test_contains_project_name(self):
+        proj = _make_project("Alpha")
+        tasks = _make_tasks()
+        md = report_markdown([(proj, tasks)], _TODAY)
+        assert "## Alpha" in md
+
+    def test_contains_generation_date(self):
+        proj = _make_project()
+        tasks = _make_tasks()
+        md = report_markdown([(proj, tasks)], _TODAY)
+        assert "2026-07-12" in md
+
+    def test_custom_title(self):
+        proj = _make_project()
+        tasks = _make_tasks()
+        md = report_markdown([(proj, tasks)], _TODAY, title="Sprint 12")
+        assert "# Sprint 12" in md
+
+    def test_summary_table(self):
+        proj = _make_project()
+        tasks = _make_tasks()
+        md = report_markdown([(proj, tasks)], _TODAY)
+        assert "| Project |" in md
+        assert "| Alpha |" in md
+        # Totals row is bold
+        assert "| **TOTAL** |" in md
+
+    def test_overdue_section(self):
+        proj = _make_project()
+        tasks = _make_tasks()
+        md = report_markdown([(proj, tasks)], _TODAY)
+        assert "### Overdue tasks" in md
+        assert "Overdue bug" in md
+
+    def test_milestone_checkboxes(self):
+        proj = _make_project()
+        tasks = _make_tasks()
+        md = report_markdown([(proj, tasks)], _TODAY)
+        assert "- [x] MVP" in md
+        assert "- [ ] Launch" in md
+
+    def test_empty_projects_list(self):
+        md = report_markdown([], _TODAY)
+        assert "# Project Report" in md
+        assert "| **TOTAL** |" in md
+
+    def test_multiple_projects(self):
+        p1 = _make_project("Alpha")
+        p2 = _make_project("Beta")
+        tasks = _make_tasks()
+        md = report_markdown(
+            [(p1, tasks), (p2, [Task(row=1, title="X", status="Done",
+                                     percent_done=100.0)])],
+            _TODAY,
+        )
+        assert "## Alpha" in md
+        assert "## Beta" in md
+
+    def test_no_html_tags(self):
+        proj = _make_project()
+        tasks = _make_tasks()
+        md = report_markdown([(proj, tasks)], _TODAY)
+        assert "<html" not in md
+        assert "<svg" not in md
+        assert "<!DOCTYPE" not in md
 
 
 # ---------------------------------------------------------------------------

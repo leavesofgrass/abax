@@ -99,11 +99,29 @@ All notable changes to abax are documented here. The format follows
   mirroring the GUI profiler for scripts and CI.
 - **Windowed cell-store control** in Preferences → System → Performance (the
   `windowed_store_capacity` setting is no longer edit-`settings.json`-only).
+- **Markdown PM reports.** `report_markdown()` in `core/pm/report.py` renders
+  the same roll-up as the HTML report — summary table, per-project progress /
+  health / overdue sections, milestones as `- [x]` checkboxes — as plain
+  Markdown. **Project → Export report…** now offers HTML and Markdown in the
+  file dialog, and `abax report FILE -o status.md` picks Markdown by
+  extension.
+- **A comprehensive project-management guide** (`docs/project-management.md`):
+  task model and header aliases, all ten views, CPM scheduling, the scenario
+  workflow end-to-end, import/export, capacity, budget/EVM, and portfolio
+  analytics — cross-linked from the docs index and the MkDocs nav.
 
 ### Fixed
 - **Python 3.14 ctypes deprecation** — the Linux Landlock `Structure` set
   `_pack_` without an explicit `_layout_`, which 3.14 deprecates; it now
   declares `_layout_ = "ms"` (same memory layout).
+- **Dashboard view crash** — opening *Project → Dashboard* raised
+  `ImportError` (the view host imported `PMDashboard`; the class is
+  `DashboardView`).
+- **Scenario editor usability** — the dialog now opens with a starter
+  scenario selected (previously the override controls silently did nothing
+  until you clicked *Add*), the task picker shows `ID: Title` instead of the
+  raw dataclass repr, and the *Original* column is populated from the task's
+  current sheet value.
 
 ## [0.1.12] — 2026-07-11
 

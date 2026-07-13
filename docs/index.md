@@ -58,12 +58,16 @@ opt-in from a first-run chooser (nothing is installed until you choose it).
   themes, and accessibility options (high-contrast mode, spoken active-cell readout).
 - [File manager](file-manager.md) — the dual-pane browser, archiving, search, and
   configurable command buttons.
+- [Project management](project-management.md) — task tracking with ten live views
+  (Kanban, Gantt, Calendar, …), CPM scheduling, scenarios, import/export, budget
+  roll-up, and Earned Value Management.
 - [Budgeting](budgeting.md) — the budget wizard and the live `SUMIF`-driven budget
   sheet.
 - [File formats](file-formats.md) — CSV, Excel, ODS, Parquet, XML, Markdown,
   Jupyter, R, SQLite, JSON Lines, ADIF logbooks, and the native `.abax` envelope.
-- [Command-line interface](cli.md) — headless `view`/`convert`/`get`/`macro`/`deps`
-  plus the GUI/TUI launchers.
+- [Command-line interface](cli.md) — headless `view`/`convert`/`get`/`diff`/
+  `pipe`/`profile`/`report`/`macro`/`notebook`/`deps` plus the GUI/TUI
+  launchers.
 - [Configuration](configuration.md) — settings, auto-install, environment
   variables, themes, fonts, runtime paths, iterative (circular-reference)
   calculation, and third-party plugin consent (off by default).
