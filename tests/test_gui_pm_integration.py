@@ -53,6 +53,8 @@ class TestProjectMenu:
                 menu = menu_action.menu()
                 actions = [a.text().replace("&", "") for a in menu.actions() if a.text()]
                 assert "New project from sheet..." in actions
+                assert "Milestones..." in actions
+                assert "OKRs..." in actions
                 assert "Open project views..." in actions
                 assert "Kanban board" in actions
                 assert "Gantt chart" in actions
@@ -72,6 +74,8 @@ class TestPalette:
     def test_pm_entries_in_palette(self, win):
         actions = win._palette_actions()
         assert "Project: new from sheet..." in actions
+        assert "Project: milestones..." in actions
+        assert "Project: OKRs..." in actions
         assert "Project: Kanban board" in actions
         assert "Project: Gantt chart" in actions
         assert "Project: Timeline" in actions
@@ -166,6 +170,69 @@ class TestViewHost:
         assert okr_view._table.rowCount() == 2
 
         wb.projects.remove("OkrProj")
+
+
+class TestOkrEditor:
+    def test_pm_okrs_persists(self, win, monkeypatch):
+        import abax.gui._qtcompat as qtc
+
+        wb = win._doc.workbook
+        sheet = wb.sheet
+        proj = Project(name="OkrEdit", sheet=sheet.name)
+        wb.projects.add(proj)
+
+        # Force the project picker to return our project without a dialog.
+        monkeypatch.setattr(win, "_pm_pick_project", lambda title: proj)
+
+        text = (
+            "Grow Revenue\n"
+            "\tARR\t100\t60\n"
+            "\tMRR\t50\t=SUM(A1:A3)\n"
+            "Improve Retention\n"
+            "\tChurn\t5\t3\n"
+        )
+        monkeypatch.setattr(
+            qtc.QInputDialog,
+            "getMultiLineText",
+            staticmethod(lambda *a, **k: (text, True)),
+        )
+
+        win.pm_okrs()
+
+        assert len(proj.objectives) == 2
+        assert proj.objectives[0].objective == "Grow Revenue"
+        assert len(proj.objectives[0].key_results) == 2
+        assert proj.objectives[0].key_results[0].name == "ARR"
+        assert proj.objectives[0].key_results[0].target == 100
+        assert proj.objectives[0].key_results[1].current_formula == "=SUM(A1:A3)"
+        assert proj.objectives[1].objective == "Improve Retention"
+
+        wb.projects.remove("OkrEdit")
+
+    def test_pm_okrs_cancel_keeps_existing(self, win, monkeypatch):
+        import abax.gui._qtcompat as qtc
+
+        wb = win._doc.workbook
+        sheet = wb.sheet
+        proj = Project(
+            name="OkrCancel",
+            sheet=sheet.name,
+            objectives=[Objective(objective="Keep me", key_results=[])],
+        )
+        wb.projects.add(proj)
+        monkeypatch.setattr(win, "_pm_pick_project", lambda title: proj)
+        monkeypatch.setattr(
+            qtc.QInputDialog,
+            "getMultiLineText",
+            staticmethod(lambda *a, **k: ("", False)),
+        )
+
+        win.pm_okrs()
+
+        assert len(proj.objectives) == 1
+        assert proj.objectives[0].objective == "Keep me"
+
+        wb.projects.remove("OkrCancel")
 
 
 class TestProjectSetupDialog:

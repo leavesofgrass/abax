@@ -17,6 +17,7 @@ class PMMixin:
         self._act(m_proj, "&Remove project...", self.pm_remove_project)
         m_proj.addSeparator()
         self._act(m_proj, "&Milestones...", self.pm_milestones)
+        self._act(m_proj, "OK&Rs...", self.pm_okrs)
         m_proj.addSeparator()
         self._act(m_proj, "&Kanban board", lambda: self._pm_show_view("kanban"))
         self._act(m_proj, "C&ard / gallery", lambda: self._pm_show_view("card"))
@@ -44,6 +45,7 @@ class PMMixin:
             "Project: edit...": self.pm_edit_project,
             "Project: remove...": self.pm_remove_project,
             "Project: milestones...": self.pm_milestones,
+            "Project: OKRs...": self.pm_okrs,
             "Project: Kanban board": lambda: self._pm_show_view("kanban"),
             "Project: Card / gallery": lambda: self._pm_show_view("card"),
             "Project: Calendar": lambda: self._pm_show_view("calendar"),
@@ -146,6 +148,60 @@ class PMMixin:
         self._doc.workbook.projects.touch()
         self._doc.mark_dirty()
         self._set_status(f"{len(milestones)} milestone(s) saved for '{proj.name}'")
+
+    def pm_okrs(self) -> None:
+        proj = self._pm_pick_project("OKRs")
+        if proj is None:
+            return
+        from ._qtcompat import QInputDialog
+
+        # Text format: a non-indented line is an objective; each following
+        # indented line is a key result (name<tab>target<tab>current-formula)
+        # belonging to the most recent objective.
+        lines: list[str] = []
+        for obj in proj.objectives:
+            lines.append(obj.objective)
+            for kr in obj.key_results:
+                lines.append(f"\t{kr.name}\t{kr.target:g}\t{kr.current_formula}")
+        text, ok = QInputDialog.getMultiLineText(
+            self,
+            "OKRs",
+            f"Objectives & key results for '{proj.name}'.\n"
+            "Non-indented line = objective; indented line = key result "
+            "(name<tab>target<tab>current):",
+            "\n".join(lines),
+        )
+        if not ok:
+            return
+        from abax.core.pm.projects import KeyResult, Objective
+
+        objectives: list[Objective] = []
+        current: Objective | None = None
+        for line in text.splitlines():
+            if not line.strip():
+                continue
+            if line[0] in (" ", "\t"):
+                if current is None:
+                    continue
+                parts = line.strip().split("\t")
+                name = parts[0].strip()
+                if not name:
+                    continue
+                try:
+                    target = float(parts[1]) if len(parts) > 1 and parts[1].strip() else 100.0
+                except ValueError:
+                    target = 100.0
+                cur = parts[2].strip() if len(parts) > 2 else ""
+                current.key_results.append(
+                    KeyResult(name=name, target=target, current_formula=cur)
+                )
+            else:
+                current = Objective(objective=line.strip(), key_results=[])
+                objectives.append(current)
+        proj.objectives = objectives
+        self._doc.workbook.projects.touch()
+        self._doc.mark_dirty()
+        self._set_status(f"{len(objectives)} objective(s) saved for '{proj.name}'")
 
     def pm_export_report(self) -> None:
         from ._qtcompat import QFileDialog

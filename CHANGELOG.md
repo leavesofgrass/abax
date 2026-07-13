@@ -19,6 +19,11 @@ All notable changes to abax are documented here. The format follows
   file columns absent from the sheet are ignored.
 - **`abax schedule FILE` CLI subcommand** — a headless command that runs CPM on
   each project in a workbook and prints the critical path.
+- **Project > OKRs… editor** — a menu entry (and "Project: OKRs…" command-palette
+  action) to edit a project's objectives and key results as text, mirroring the
+  Milestones editor. Non-indented lines are objectives; indented
+  `name<tab>target<tab>current` lines are key results. Previously objectives
+  could only be created programmatically.
 
 ### Fixed
 - **OKRs tab is no longer empty.** The PM view host materialized the OKRs view
