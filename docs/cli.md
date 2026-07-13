@@ -334,6 +334,25 @@ anything else produces HTML. If `-o` is omitted the report is written to
 `report.html` in the current directory. Exit code **2** when the file cannot
 be opened or the workbook defines no projects.
 
+### `schedule file` — CPM critical path per project
+
+Runs the Critical Path Method (CPM) over every project defined in the workbook
+and prints, per project, the task count and the critical-path task ids/titles —
+the headless twin of the GUI scheduler (same `core.pm.schedule` engine). Tasks
+are read from each project's sheet using its stored geometry; dependencies come
+from the tasks' `Depends` column.
+
+```console
+$ abax schedule portfolio.abax
+Alpha (4 task(s))
+  critical path: T1 (Design) -> T2 (Implement) -> T3 (Test)
+```
+
+Exit codes: **0** = every project scheduled, **1** = a project's tasks contain a
+dependency cycle (the offending loop is printed to stderr and the remaining
+projects are still scheduled), **2** = the file can't be opened or the workbook
+defines no projects.
+
 ### `notebook run FILE [-o OUT]` — execute a notebook headlessly
 
 Runs a Jupyter `.ipynb` end to end **without** `nbclient`: each code cell is

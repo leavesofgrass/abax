@@ -99,12 +99,15 @@ def _build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--limit", type=int, default=20, metavar="N",
                     help="show at most N rows (default: 20; 0 = all)")
 
+    psc = sub.add_parser("schedule", help="run CPM scheduling on each project in a workbook")
+    psc.add_argument("file", help="run CPM scheduling on each project in a workbook")
+
     return p
 
 
 _SUBCOMMANDS = frozenset(
     {"gui", "tui", "view", "convert", "get", "macro", "deps", "doctor", "notebook",
-     "fetch", "sql", "diff", "pipe", "report", "profile"})
+     "fetch", "sql", "diff", "pipe", "report", "profile", "schedule"})
 
 
 def _normalize_argv(argv: list[str]) -> list[str]:
@@ -184,6 +187,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_report(args)
     if cmd == "profile":
         return _cmd_profile(args)
+    if cmd == "schedule":
+        return _cmd_schedule(args)
 
     # No subcommand: prefer GUI, fall back to TUI, then help.
     from . import _runtime as rt
@@ -290,6 +295,66 @@ def _cmd_report(args) -> int:
         f.write(content)
     print(f"report written to {out}")
     return 0
+
+
+def _cmd_schedule(args) -> int:
+    """``abax schedule FILE`` — run CPM scheduling on each project in a workbook.
+
+    For every project defined in the workbook, parse its task rows, run the
+    Critical Path Method, and print the critical-path task ids/titles.
+
+    Exit codes: **0** = every project scheduled, **1** = a project's tasks
+    contain a dependency cycle, **2** = the file can't be opened or the workbook
+    defines no projects.
+    """
+    from .core.pm.schedule import compute_cpm, critical_path
+    from .core.pm.taskmodel import parse_tasks
+    from .engine.document import Document
+
+    try:
+        doc = Document.open(args.file)
+    except Exception as exc:  # noqa: BLE001 — surface any open failure cleanly
+        print(f"schedule: cannot open {args.file}: {exc}", file=sys.stderr)
+        return 2
+    wb = doc.workbook
+    projects = []
+    for proj in wb.projects:
+        for s in wb.sheets:
+            if s.name == proj.sheet:
+                hr = proj.header_row
+                fc = proj.first_col
+                lc = proj.last_col
+                if lc < 0:
+                    _, nc = s.used_bounds()
+                    lc = nc - 1
+                tasks = parse_tasks(
+                    s, header_row=hr, first_col=fc, last_col=lc,
+                    first_data_row=proj.first_data_row if proj.first_data_row >= 0 else None,
+                    last_data_row=proj.last_data_row if proj.last_data_row >= 0 else None,
+                )
+                projects.append((proj, tasks))
+                break
+    if not projects:
+        print("schedule: no projects defined in this workbook", file=sys.stderr)
+        return 2
+
+    rc = 0
+    for proj, tasks in projects:
+        print(f"{proj.name} ({len(tasks)} task(s))")
+        try:
+            cpm = compute_cpm(tasks)
+        except ValueError as exc:
+            print(f"  schedule: {exc}", file=sys.stderr)
+            rc = 1
+            continue
+        titles = {t.id: t.title for t in tasks}
+        crit = critical_path(cpm)
+        if crit:
+            path = " -> ".join(f"{tid} ({titles.get(tid, '')})" for tid in crit)
+            print(f"  critical path: {path}")
+        else:
+            print("  critical path: (none)")
+    return rc
 
 
 def _cmd_profile(args) -> int:
