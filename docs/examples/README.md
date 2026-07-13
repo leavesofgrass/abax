@@ -79,7 +79,7 @@ optional packages, a network connection, or a display.
 | Import tasks from CSV / MS Project XML | [task-tracking](project-management/task-tracking/README.md) | walkthrough |
 | Export a Gantt chart as SVG | [task-tracking](project-management/task-tracking/README.md) | walkthrough |
 | Run what-if scenarios with undo | [task-tracking](project-management/task-tracking/README.md) | walkthrough |
-| Generate an HTML status report | [CLI reference](../cli.md) | guide |
+| Generate a status report (HTML or Markdown) | [project management guide](../project-management.md) | guide |
 
 ## Radio & RF
 
