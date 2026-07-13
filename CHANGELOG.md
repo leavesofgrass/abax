@@ -11,6 +11,26 @@ All notable changes to abax are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- **Project > Schedule (CPM)…** — a menu entry (and "Project: Schedule (CPM)…"
+  command-palette action) that runs the critical-path scheduler on the active
+  project and highlights the critical-path tasks red in the Gantt and Roadmap
+  views (via their `setCritical` slots). Previously CPM was reachable only
+  programmatically.
+- **Live scenario delta.** The PM scenario editor now recomputes and displays
+  the before/after delta (project finish date and cost, with deltas) every time
+  an override is added or removed or the selected scenario changes, wiring
+  `finance.scenario_delta` into the dialog's previously-empty delta area.
+
+### Changed
+- **PM scenarios are now persisted.** Scenario definitions are stored on the
+  `Project` object (serialized in the workbook envelope via `to_dict`/
+  `from_dict`) so they survive save/load and reappear when the scenario editor
+  is reopened. Both *Apply to Sheet* and *Keep as Scenario* save the list;
+  *Cancel* discards edits.
+
+## [0.1.13] — 2026-07-12
+
+### Added
 - **Project management — Wave 1.** A new *Project* menu (between Sheet and
   Tools) and command-palette entries for task-based project management.
   Core engines: CPM scheduling with critical-path analysis and business-day
@@ -57,9 +77,10 @@ All notable changes to abax are documented here. The format follows
   `apply_scenario_to_sheet()` flows each override through `write_task`/`on_set`
   so the entire batch is a single undo step.  **Import tasks** and **Export
   Gantt SVG** menu entries added to the Project menu and command palette.
-- **A tested examples tree** under `docs/examples/` — twelve examples across
-  getting-started, formulas, data, analysis, charts, scripting-and-CLI, and
-  radio. Each is one folder with a README (showing the exact expected output)
+- **A tested examples tree** under `docs/examples/` — thirteen examples across
+  getting-started, formulas, data, analysis, charts, scripting-and-CLI,
+  project-management, and radio. Each is one folder with a README (showing the
+  exact expected output)
   and a uniform `run.py`; a catalog page maps every feature area to an example
   or the relevant guide. All runnable examples are executed by a new
   `tests/test_examples.py` smoke gate so they can never silently rot, and the

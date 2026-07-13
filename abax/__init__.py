@@ -11,7 +11,7 @@ The package top level doubles as the public automation API::
 See :mod:`abax.api` (and docs/automation.md) for the full surface.
 """
 
-__version__ = "0.1.12"
+__version__ = "0.1.13"
 __all__ = ["__version__", "Book", "Sheet", "new", "open"]
 
 _API_NAMES = ("Book", "Sheet", "new", "open")

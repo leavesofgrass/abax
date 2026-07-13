@@ -37,8 +37,8 @@ def win(app):
 @dataclass
 class _Task:
     row: int
-    name: str = ""
-    task_id: str = ""
+    title: str = ""
+    id: str = ""
     start: date | None = None
     due: date | None = None
     tags: list[str] = field(default_factory=list)
@@ -219,9 +219,9 @@ class TestOkrView:
             ),
         ]
         tasks = [
-            _Task(row=1, name="T1", tags=["okr:ship_mvp"]),
-            _Task(row=2, name="T2", tags=["okr:ship_mvp"]),
-            _Task(row=3, name="T3", tags=["other"]),
+            _Task(row=1, title="T1", tags=["okr:ship_mvp"]),
+            _Task(row=2, title="T2", tags=["okr:ship_mvp"]),
+            _Task(row=3, title="T3", tags=["other"]),
         ]
         w = OkrView()
         w.setObjectives(objs, tasks)
@@ -247,9 +247,12 @@ class TestPmScenarioDialog:
     def test_create_empty(self, app):
         from abax.gui.dialogs.pm_scenario_dialog import PmScenarioDialog
 
-        tasks = [_Task(row=1, name="A", task_id="A")]
+        tasks = [_Task(row=1, title="A", id="A")]
         dlg = PmScenarioDialog(None, tasks)
-        assert dlg.result_scenario() is None
+        # With no scenarios passed, the dialog seeds a starter scenario so the
+        # override controls act on something from the first click.
+        assert dlg._scenario_list.count() == 1
+        assert dlg.result_scenario() is not None
         assert dlg.result_apply() is False
         dlg.deleteLater()
 
@@ -259,7 +262,7 @@ class TestPmScenarioDialog:
             PmScenarioDialog,
         )
 
-        tasks = [_Task(row=1, name="A", task_id="A")]
+        tasks = [_Task(row=1, title="A", id="A")]
         sc = PmScenario(name="Best case", overrides={"A": {"cost": "500"}})
         dlg = PmScenarioDialog(None, tasks, scenarios=[sc])
         assert dlg._scenario_list.count() == 1
@@ -270,10 +273,11 @@ class TestPmScenarioDialog:
     def test_add_scenario(self, app):
         from abax.gui.dialogs.pm_scenario_dialog import PmScenarioDialog
 
-        tasks = [_Task(row=1, name="A", task_id="A")]
+        tasks = [_Task(row=1, title="A", id="A")]
         dlg = PmScenarioDialog(None, tasks)
+        # Starts with the seeded starter scenario; adding one makes two.
         dlg._on_add_scenario()
-        assert dlg._scenario_list.count() == 1
+        assert dlg._scenario_list.count() == 2
         assert dlg.result_scenario() is not None
         dlg.deleteLater()
 
@@ -283,7 +287,7 @@ class TestPmScenarioDialog:
             PmScenarioDialog,
         )
 
-        tasks = [_Task(row=1, name="A", task_id="A")]
+        tasks = [_Task(row=1, title="A", id="A")]
         sc = PmScenario(name="X")
         dlg = PmScenarioDialog(None, tasks, scenarios=[sc])
         dlg._scenario_list.setCurrentRow(0)
@@ -294,7 +298,7 @@ class TestPmScenarioDialog:
     def test_add_override(self, app):
         from abax.gui.dialogs.pm_scenario_dialog import PmScenarioDialog
 
-        tasks = [_Task(row=1, name="A", task_id="A")]
+        tasks = [_Task(row=1, title="A", id="A")]
         dlg = PmScenarioDialog(None, tasks)
         dlg._on_add_scenario()
         dlg._task_combo.setCurrentIndex(0)
@@ -311,7 +315,7 @@ class TestPmScenarioDialog:
     def test_remove_override(self, app):
         from abax.gui.dialogs.pm_scenario_dialog import PmScenarioDialog
 
-        tasks = [_Task(row=1, name="A", task_id="A")]
+        tasks = [_Task(row=1, title="A", id="A")]
         dlg = PmScenarioDialog(None, tasks)
         dlg._on_add_scenario()
         dlg._task_combo.setCurrentIndex(0)
@@ -326,7 +330,7 @@ class TestPmScenarioDialog:
     def test_set_delta(self, app):
         from abax.gui.dialogs.pm_scenario_dialog import PmScenarioDialog
 
-        tasks = [_Task(row=1, name="A", task_id="A")]
+        tasks = [_Task(row=1, title="A", id="A")]
         dlg = PmScenarioDialog(None, tasks)
         dlg.setDelta({"finish_date": "2026-08-01 -> 2026-09-01",
                        "cost": "$5000 -> $7000"})
@@ -338,7 +342,7 @@ class TestPmScenarioDialog:
     def test_apply_sets_flag(self, app):
         from abax.gui.dialogs.pm_scenario_dialog import PmScenarioDialog
 
-        tasks = [_Task(row=1, name="A", task_id="A")]
+        tasks = [_Task(row=1, title="A", id="A")]
         dlg = PmScenarioDialog(None, tasks)
         dlg._on_add_scenario()
         # Simulate "Apply to Sheet"
