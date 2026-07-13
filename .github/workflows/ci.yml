@@ -4,7 +4,7 @@ name: CI
 #   check    — lint + test + pyz build across the OS x Python matrix (mirrors
 #              `just check`).
 #   coverage — one suite run measuring abax/core + abax/engine; ratchets both
-#              (core floor 81, engine floor 55) on a single runner.
+#              (core floor 81, engine floor 57) on a single runner.
 #   bench    — recalc throughput + memory regression gate vs a committed baseline.
 on:
   push:
@@ -122,11 +122,11 @@ jobs:
 
       # Engine ratchet. Thin-env coverage measured at 59% (adapters that need
       # the heavy optional deps — numpy/pandas/pymc/… — are importorskip'd here,
-      # so npkernel/parquet/statfiles/… stay low). Floor is a conservative 55,
-      # with headroom against env drift; raise it when engine coverage rises,
-      # never a number to chase.
+      # so npkernel/parquet/statfiles/… stay low). Floor 57 keeps a ~2-point
+      # buffer under the measured 59% for thin-env drift; raise it when engine
+      # coverage rises, never a number to chase.
       - name: abax/engine coverage ratchet (fail under the floor)
-        run: python -m coverage report --include="abax/engine/*" --fail-under=55
+        run: python -m coverage report --include="abax/engine/*" --fail-under=57
 
   # ── Benchmark regression gate ──────────────────────────────────────────────
   # Runs the recalc throughput gate against scripts/bench_baseline.json and
