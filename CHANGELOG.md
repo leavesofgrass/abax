@@ -56,6 +56,24 @@ All notable changes to abax are documented here. The format follows
   handles everything, and the new extra is registered across the stack
   (`pip install "abax[charts]"`, auto-deps, the first-run feature chooser,
   and `abax doctor`).
+- **GUI: Insert → Embedded chart (on sheet)…** — create, edit, and delete
+  floating charts anchored to a cell (all ten embedded kinds), drawn over
+  the grid; overlays follow scrolling and row/column changes, re-render
+  after every edit and recalc, and a dead range paints a placeholder
+  instead of failing. Right-click a chart to edit or delete; every
+  operation is a single undo step. Also in the command palette.
+- **GUI: `chart_backend` setting** (Preferences → Appearance → Embedded
+  charts; settings schema v9, lazy-migrated) — `auto` = matplotlib when
+  installed else the built-in SVG renderer, `svg` = always built-in,
+  `matplotlib` = matplotlib with SVG fallback and a status-bar hint.
+- **`.xlsx` round-trips embedded line/bar/scatter charts** as native Excel
+  charts (kind, source, title, anchor, and size carried both ways; kinds
+  Excel can't express stay native-envelope-only and are skipped cleanly on
+  export, and foreign chart types are ignored on import).
+- docs: embedded-charts guide (`docs/charts.md` — the model, ten kinds and
+  their data shapes, SVG + matplotlib backends, scripting) plus a tested
+  runnable example (`docs/examples/charts/embedded-charts`) wired into the
+  nav, examples catalog, and cross-links.
 
 ### Changed
 - **Large native files now open directly into the windowed cell store.**
