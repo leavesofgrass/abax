@@ -48,16 +48,20 @@ class DocumentIOMixin:
         # Off the UI thread: the worker builds a fresh Document from the file and
         # nothing on the main thread touches it until the result arrives, so there
         # is no shared state to race. A large file no longer freezes the window.
+        # The windowed-store setting rides along so a large native file is built
+        # directly on the windowed store during the load (no migrate-after spike).
         from ..workers import IOWorker
 
-        self._run_io(IOWorker("open", str(path)),
+        cap = getattr(self._settings, "windowed_store_capacity", 0)
+        self._run_io(IOWorker("open", str(path), windowed_capacity=cap),
                      on_success=self._open_succeeded,
                      busy_msg=f"opening {Path(path).name}...")
 
     def _open_succeeded(self, doc) -> None:
         # Windowed cell store: >0 always, 0 (default) auto-windows large
-        # sheets only, <0 never. (IOWorker builds the Document without the
-        # setting, so the policy is applied here on the delivered workbook.)
+        # sheets only, <0 never. The worker already applied the policy at load;
+        # re-asserting here is an idempotent no-op for those sheets and covers
+        # any Document delivered without the setting.
         cap = getattr(self._settings, "windowed_store_capacity", 0)
         doc.workbook.apply_windowing_policy(cap)
         self._doc = doc

@@ -174,13 +174,20 @@ class Sheet:
         ``capacity`` cells resident, spill the rest (``capacity <= 0`` is a
         no-op). Moves every populated cell into a :class:`WindowedCellStore` and
         re-caps the parsed-AST caches to match; the (recomputable) value cache is
-        dropped and repopulates on the next recalc. Re-homing again swaps in a
-        fresh store. See ``docs/configuration.md`` for when this helps.
+        dropped and repopulates on the next recalc. **Idempotent**: a store
+        already windowed at exactly ``capacity`` (e.g. built directly by the
+        native load path — see ``Workbook.from_envelope``) is kept as-is, so
+        re-applying the policy never re-copies cells; a *different* capacity
+        re-homes into a fresh store. See ``docs/configuration.md`` for when
+        this helps.
         """
         if not capacity or capacity <= 0:
             return
         from .cellstore import BoundedCache, WindowedCellStore
 
+        cur = self._cells
+        if isinstance(cur, WindowedCellStore) and cur.capacity == capacity:
+            return  # already windowed at this capacity — nothing to re-home
         new = WindowedCellStore(capacity=capacity)
         for key, cell in list(self._cells.items()):
             new[key] = cell
@@ -1010,10 +1017,14 @@ class Sheet:
         return {to_a1(r, c): cell.raw for (r, c), cell in self._cells.items()}
 
     @classmethod
-    def from_dict(cls, name: str, data: dict) -> "Sheet":
-        sheet = cls(name)
+    def from_dict(cls, name: str, data: dict,
+                  *, cell_store: "CellStore | None" = None) -> "Sheet":
+        sheet = cls(name, cell_store=cell_store)
         # Bulk path: invalidate caches once, not once per cell (the native-format
-        # load path — matches the CSV/Excel/etc. loaders).
+        # load path — matches the CSV/Excel/etc. loaders). With a windowed
+        # ``cell_store`` the cells stream straight into the bounded store —
+        # past-capacity cells spill to disk as they arrive, so at no point do
+        # all of them exist in memory at once (no plain-dict staging copy).
         sheet.set_cells_bulk((*parse_a1(ref), raw) for ref, raw in data.items())
         return sheet
 
