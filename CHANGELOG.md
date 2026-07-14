@@ -34,6 +34,12 @@ All notable changes to abax are documented here. The format follows
   Milestones editor. Non-indented lines are objectives; indented
   `name<tab>target<tab>current` lines are key results. Previously objectives
   could only be created programmatically.
+- **A runnable PM example.** `docs/examples/project-management/task-tracking/`
+  gained a `run.py` (previously walkthrough-only): builds a five-task sprint
+  on a sheet, registers it as a project, runs CPM (printing the critical path
+  and per-task slack), and writes a Markdown status report, a Gantt SVG, and
+  the registered `.abax` workbook to `out/`. Pure stdlib; executed by the
+  examples smoke gate like every other runner.
 
 ### Fixed
 - **OKRs tab is no longer empty.** The PM view host materialized the OKRs view

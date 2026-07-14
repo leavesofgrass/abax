@@ -75,9 +75,9 @@ optional packages, a network connection, or a display.
 
 | I want to… | Go to | Runs? |
 |---|---|---|
+| Schedule a project (CPM) and export a report, headlessly | [task-tracking](project-management/task-tracking/README.md) | `run.py` |
 | Track tasks with Kanban, Gantt, Calendar, and 7 more views | [task-tracking](project-management/task-tracking/README.md) | walkthrough |
 | Import tasks from CSV / MS Project XML | [task-tracking](project-management/task-tracking/README.md) | walkthrough |
-| Export a Gantt chart as SVG | [task-tracking](project-management/task-tracking/README.md) | walkthrough |
 | Run what-if scenarios with undo | [task-tracking](project-management/task-tracking/README.md) | walkthrough |
 | Generate a status report (HTML or Markdown) | [project management guide](../project-management.md) | guide |
 
