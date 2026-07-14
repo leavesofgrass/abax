@@ -113,6 +113,8 @@ keys**. Key features:
 | `:live [on\|off]` | Toggle network live data (`=REST`/`=WEBSOCKET` formulas); off by default |
 | `:extern [on\|off]` | Toggle closed-workbook external references (`=[Book.abax]Sheet1!A1`); off by default |
 | `:table [NAME]` | Name the current region as a structured table (top row = headers) so formulas can use `NAME[Column]`; no args lists tables |
+| `:tasks` | List the active project's tasks (id, title, status, due) in a **read-only** scrollable overlay — the project on the active sheet, else the first registered one |
+| `:critpath` | Show that project's CPM critical path — the zero-slack chain, one `id  title` hop per row — in the same read-only overlay (a dependency cycle is reported on the status line) |
 | `:auth HOST HEADER VALUE` | Set a **session-only** live-data request header for HOST (e.g. `:auth api.x Authorization Bearer tok`); `:auth` lists hosts, `:noauth [HOST]` clears. Never persisted |
 | `:` commands | `:w` `:q` write/quit, `:find`, `:rpn`, `:fmt`, `:py`, `:!cmd`, `:func`, `:sheet`, `:pivot`, `:describe`, `:trace`, `:live`, `:extern`, … |
 
