@@ -248,6 +248,17 @@ imports styled):
   an Excel differential style). abax's `regex` kind has no Excel counterpart
   and is skipped on export; Excel rule types abax has no model for (data bars,
   icon sets, formula rules) are skipped on import.
+- **Embedded charts** — `line`, `bar`, and `scatter` charts become native
+  Excel charts anchored at the same cell, carrying kind, source range, title,
+  and size (pixels convert to Excel's centimetres and land back within a
+  pixel); a line chart's `first_col_x` option becomes the category axis and is
+  recovered on import. Importing a foreign `.xlsx` rebuilds each mapped chart
+  from its data references (a label column folds back into the source range).
+  The other abax kinds — `histogram`, `box`, `violin`, `qq`, `ecdf`,
+  `heatmap`, `waterfall` — have no Excel counterpart through openpyxl, so they
+  are skipped cleanly on export: the cell data still lands, and those charts
+  survive only in the native `.abax` envelope, not in the `.xlsx`. Foreign
+  chart types abax has no model for (pie, area, 3-D, …) are ignored on import.
 
 The fidelity pass is strictly additive: an unstyled workbook writes a plain
 `.xlsx` exactly as before, and unmappable foreign styling is dropped rather

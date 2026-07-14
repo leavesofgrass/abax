@@ -8,9 +8,11 @@ Beyond raw cell text, both directions carry the fidelity model the native
 envelope persists (schema v2 + formatting): per-cell number formats, visual
 styles (bold/italic/underline, alignment, text/fill colours), borders, column
 widths, row heights, frozen panes, merged regions, and conditional-formatting
-rules. Everything degrades gracefully — a workbook with no styling round-trips
-exactly as before, and foreign .xlsx features abax has no model for are simply
-left behind rather than erroring.
+rules. Embedded charts whose kind has a native Excel counterpart (line, bar,
+scatter) become real Excel charts and come back as ChartObjects. Everything
+degrades gracefully — a workbook with no styling round-trips exactly as
+before, and foreign .xlsx features abax has no model for are simply left
+behind rather than erroring.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from ..core import chartobj
 from ..core.format.cellstyle import CellStyle
 from ..core.format.condformat import CondRule, CondStyle, parse_css
 from ..core.reference import col_to_index, index_to_col, parse_a1, parse_range, to_a1
@@ -26,6 +29,13 @@ from ..core.workbook import Workbook
 
 try:
     import openpyxl  # type: ignore
+    from openpyxl.chart import (  # type: ignore
+        BarChart,
+        LineChart,
+        Reference,
+        ScatterChart,
+        Series,
+    )
     from openpyxl.formatting.rule import ColorScaleRule, Rule  # type: ignore
     from openpyxl.styles import (  # type: ignore
         Alignment,
@@ -69,6 +79,10 @@ def load_xlsx(path: str | Path) -> Workbook:
         _read_fidelity(ws, sheet)
         wb.sheets.append(sheet)
     wb._add_default_if_empty()
+    # Charts last: their data references may span sheets, so every sheet must
+    # already exist (and be linked) before any chart is rebuilt.
+    for ws, sheet in zip(wb_x.worksheets, wb.sheets):
+        _read_charts(ws, sheet, wb)
     return wb
 
 
@@ -78,7 +92,8 @@ def save_xlsx(wb: Workbook, path: str | Path, *, values: bool = False) -> None:
     ``values=False`` (default) writes raw cell text, so formulas survive the
     round-trip into Excel. ``values=True`` writes computed values instead.
     Either way the sheet's formatting fidelity (number formats, styles,
-    borders, layout, merges, conditional formats) is carried along.
+    borders, layout, merges, conditional formats) and its line/bar/scatter
+    embedded charts are carried along.
     """
     if not HAS_OPENPYXL:
         raise RuntimeError(_FALLBACK_MSG)
@@ -87,8 +102,10 @@ def save_xlsx(wb: Workbook, path: str | Path, *, values: bool = False) -> None:
     # Remove the default sheet openpyxl creates; we add our own.
     default = wb_x.active
     wb_x.remove(default)
+    ws_by_name: dict = {}
     for sheet in wb.sheets:
         ws = wb_x.create_sheet(title=sheet.name[:31])  # Excel caps title at 31
+        ws_by_name[sheet.name] = ws
         n_rows, n_cols = sheet.used_bounds()
         for r in range(n_rows):
             for c in range(n_cols):
@@ -101,6 +118,10 @@ def save_xlsx(wb: Workbook, path: str | Path, *, values: bool = False) -> None:
                 else:
                     ws.cell(row=r + 1, column=c + 1, value=_excel_raw(cell))
         _write_fidelity(ws, sheet)
+    # Charts last: a chart may source a sheet created after its own.
+    for sheet in wb.sheets:
+        if sheet.charts:
+            _write_charts(ws_by_name[sheet.name], sheet, wb, ws_by_name)
     if not wb_x.worksheets:
         wb_x.create_sheet(title="Sheet1")
     wb_x.save(path)
@@ -604,3 +625,265 @@ def _read_fidelity(ws, sheet: Sheet) -> None:
                 if rule is not None:
                     rules.append(rule)
     sheet.cond_rules = rules
+
+
+# --- embedded charts -----------------------------------------------------------
+#
+# ChartObjects whose kind has a native Excel counterpart (line, bar, scatter)
+# become real openpyxl charts, and native charts of those types come back as
+# ChartObjects. Both directions follow chart_data's column pairing
+# (core/chartobj.py) so Excel draws the same series abax renders. Kinds Excel
+# can't express through openpyxl (histogram, box, violin, qq, ecdf, heatmap,
+# waterfall) are skipped cleanly on export — the cell data still lands, the
+# picture survives only in the native envelope — and foreign chart types abax
+# has no model for (pie, area, 3-D, …) are ignored on import.
+
+# openpyxl chart sizes are centimetres; anchors carry EMU. abax stores pixels
+# (96 DPI): px * 2.54/96 cm, and 1 px = 9525 EMU (914400 EMU/inch ÷ 96), so a
+# px → cm → EMU → px trip inverts exactly after round().
+_CM_PER_PX = 2.54 / 96.0
+_EMU_PER_PX = 9525
+
+
+def _px_to_cm(px: int) -> float:
+    return px * _CM_PER_PX
+
+
+def _emu_to_px(emu: int) -> int:
+    return round(emu / _EMU_PER_PX)
+
+
+def _title_text(title) -> str:
+    """The plain text of an openpyxl chart Title (may span rich-text runs)."""
+    rich = getattr(getattr(title, "tx", None), "rich", None)
+    if rich is None:
+        return ""
+    return "".join(r.t for p in (rich.p or [])
+                   for r in (getattr(p, "r", None) or []) if r.t)
+
+
+def _ref_box(src) -> "tuple[str, int, int, int, int] | None":
+    """A series data source -> its ``(sheet, r1, c1, r2, c2)`` box, or None.
+
+    ``src`` is any openpyxl holder with a ``numRef``/``strRef`` formula —
+    series values, categories, scatter x-values, or a from-data series title.
+    Coordinates come back zero-based and normalized; a literal (non-reference)
+    source returns None.
+    """
+    if src is None:
+        return None
+    ref = getattr(src, "numRef", None) or getattr(src, "strRef", None)
+    body = (getattr(ref, "f", "") or "").strip()
+    if not body:
+        return None
+    sheet = ""
+    if "!" in body:
+        sheet, body = body.rsplit("!", 1)
+        sheet = sheet.strip().strip("'").replace("''", "'")
+    body = body.replace("$", "")
+    a, _, b = body.partition(":")
+    try:
+        r1, c1 = parse_a1(a)
+        r2, c2 = parse_a1(b) if b else (r1, c1)
+    except Exception:
+        return None
+    return (sheet, min(r1, r2), min(c1, c2), max(r1, r2), max(c1, c2))
+
+
+def _range_str(sheet_name: str, r1: int, c1: int, r2: int, c2: int,
+               host_name: str) -> str:
+    """A box as a ChartObject range: bare on the host sheet, qualified off it."""
+    body = f"{to_a1(r1, c1)}:{to_a1(r2, c2)}"
+    if sheet_name and sheet_name != host_name:
+        return f"{sheet_name}!{body}"
+    return body
+
+
+def _anchor_cell(anchor) -> "tuple[int, int]":
+    """An openpyxl drawing anchor -> abax's zero-based ``(row, col)``."""
+    frm = getattr(anchor, "_from", None)
+    if frm is not None:
+        return int(frm.row), int(frm.col)
+    try:
+        return parse_a1(str(anchor))  # unsaved charts anchor as "E5" strings
+    except Exception:
+        return (0, 0)
+
+
+def _anchor_size(anchor) -> "tuple[int, int]":
+    """An anchor's extent in pixels; abax's defaults when it names none.
+
+    One-cell anchors (what abax writes, and what ``ws.add_chart(c, "E5")``
+    produces) carry an EMU extent; two-cell anchors size by cell span instead,
+    so those fall back to ChartObject's default 480x320.
+    """
+    ext = getattr(anchor, "ext", None)
+    cx = getattr(ext, "cx", 0) or 0
+    cy = getattr(ext, "cy", 0) or 0
+    if cx and cy:
+        return _emu_to_px(cx), _emu_to_px(cy)
+    return 480, 320
+
+
+def _write_chart(chart, wb: Workbook, host: Sheet, ws_by_name: dict):
+    """One ChartObject -> an openpyxl chart ready to anchor (None = no map).
+
+    The Reference layout mirrors ``chart_data``'s pairing: a line chart's
+    columns are its series (the first column becoming the x/category axis
+    under ``first_col_x``), a bar chart with a leading text column uses it as
+    the category axis with the next column as values, and a scatter pairs the
+    first column (x) with the second (y). When the source's first row is a
+    header it feeds the series titles rather than the data.
+    """
+    if chart.kind not in ("line", "bar", "scatter"):
+        return None
+    src_sheet, a, b = chartobj._split_range(chart.source, host.name)
+    ws_src = ws_by_name.get(src_sheet)
+    if ws_src is None:
+        return None
+    grid = chartobj._load_grid(wb, host.name, chart.source)  # ChartError -> skip
+    header = chartobj._has_header(grid)
+    r1, c1 = parse_a1(a)
+    r2, c2 = parse_a1(b)
+    if r2 < r1:
+        r1, r2 = r2, r1
+    if c2 < c1:
+        c1, c2 = c2, c1
+    body_r1 = r1 + 1 if header else r1
+
+    def ref(cc1: int, cc2: int, rr1: int = r1) -> "Reference":
+        return Reference(ws_src, min_col=cc1 + 1, min_row=rr1 + 1,
+                         max_col=cc2 + 1, max_row=r2 + 1)
+
+    if chart.kind == "scatter":
+        if c2 == c1:
+            return None  # chart_data pairs column 1 (x) with column 2 (y)
+        x = ScatterChart()
+        x.scatterStyle = "marker"  # abax scatters are point clouds
+        x.series.append(Series(ref(c1 + 1, c1 + 1), xvalues=ref(c1, c1, body_r1),
+                               title_from_data=header))
+    elif chart.kind == "line":
+        x = LineChart()
+        if chart.options.get("first_col_x") and c2 > c1:
+            x.add_data(ref(c1 + 1, c2), titles_from_data=header)
+            x.set_categories(ref(c1, c1, body_r1))
+        else:
+            x.add_data(ref(c1, c2), titles_from_data=header)
+    else:  # bar
+        x = BarChart()
+        body = grid[1:] if header else grid
+        first_col_text = (body and c2 > c1 and all(
+            chartobj._num(row[0]) is None and row[0] not in (None, "")
+            for row in body if row))
+        if first_col_text:
+            x.add_data(ref(c1 + 1, c1 + 1), titles_from_data=header)
+            x.set_categories(ref(c1, c1, body_r1))
+        else:
+            x.add_data(ref(c1, c2), titles_from_data=header)
+            if chart.labels:  # an explicit labels range is the category axis
+                ls, la, lb = chartobj._split_range(chart.labels, host.name)
+                ws_lab = ws_by_name.get(ls)
+                if ws_lab is not None:
+                    lr1, lc1 = parse_a1(la)
+                    lr2, lc2 = parse_a1(lb)
+                    x.set_categories(Reference(
+                        ws_lab,
+                        min_col=min(lc1, lc2) + 1, min_row=min(lr1, lr2) + 1,
+                        max_col=max(lc1, lc2) + 1, max_row=max(lr1, lr2) + 1))
+    if chart.title:
+        x.title = chart.title
+    x.width = _px_to_cm(chart.width)
+    x.height = _px_to_cm(chart.height)
+    return x
+
+
+def _read_chart(xchart, host: Sheet, wb: Workbook):
+    """One openpyxl chart -> ChartObject (None = no abax counterpart).
+
+    The source range is rebuilt as the bounding box of the series' value
+    references (plus scatter x-values and from-data title cells, so a header
+    row rejoins its data). A category reference hugging the box's left edge is
+    folded in — that's where chart-with-label-column layouts keep it — turning
+    back into ``first_col_x`` for a line chart when the column is numeric; a
+    detached one becomes the chart's ``labels`` range.
+    """
+    if isinstance(xchart, LineChart):
+        kind = "line"
+    elif isinstance(xchart, BarChart):
+        kind = "bar"
+    elif isinstance(xchart, ScatterChart):
+        kind = "scatter"
+    else:
+        return None
+    boxes, cats = [], []
+    for s in xchart.series:
+        for src in (s.val, s.yVal, s.xVal, s.tx):
+            box = _ref_box(src)
+            if box is not None:
+                boxes.append(box)
+        box = _ref_box(s.cat)
+        if box is not None:
+            cats.append(box)
+    if not boxes:
+        return None
+    src_sheet = boxes[0][0]
+    boxes = [bx for bx in boxes if bx[0] == src_sheet]
+    r1 = min(bx[1] for bx in boxes)
+    c1 = min(bx[2] for bx in boxes)
+    r2 = max(bx[3] for bx in boxes)
+    c2 = max(bx[4] for bx in boxes)
+    labels = ""
+    options: dict = {}
+    cb = cats[0] if cats else None
+    if cb is not None:
+        if cb[0] == src_sheet and cb[4] == c1 - 1 and cb[1] >= r1 and cb[3] <= r2:
+            c1 = cb[2]
+            if kind == "line" and _looks_numeric(wb, src_sheet, cb[1], cb[2]):
+                options["first_col_x"] = True
+        else:
+            labels = _range_str(cb[0], cb[1], cb[2], cb[3], cb[4], host.name)
+    width, height = _anchor_size(xchart.anchor)
+    return chartobj.ChartObject(
+        id="", kind=kind,
+        source=_range_str(src_sheet, r1, c1, r2, c2, host.name),
+        title=_title_text(xchart.title), labels=labels,
+        anchor=_anchor_cell(xchart.anchor), width=width, height=height,
+        options=options)
+
+
+def _looks_numeric(wb: Workbook, sheet_name: str, r: int, c: int) -> bool:
+    """Does the first body cell of a folded-in category column hold a number?
+
+    Numeric x categories mean the chart plotted true x/y pairs (abax's
+    ``first_col_x``); text categories are plain 1..n lines with axis labels.
+    """
+    sheet = wb.get_sheet(sheet_name)
+    return sheet is not None and chartobj._num(sheet.get_raw(r, c)) is not None
+
+
+def _write_charts(ws, sheet: Sheet, wb: Workbook, ws_by_name: dict) -> None:
+    """Emit the sheet's embedded charts that map to native Excel chart types.
+
+    Mirrors the cond-format policy: anything unmappable — a kind with no Excel
+    counterpart, a dead range, a missing source sheet — degrades to "not
+    exported", never fatal; the cell data always lands.
+    """
+    for chart in sheet.charts:
+        try:
+            xchart = _write_chart(chart, wb, sheet, ws_by_name)
+        except Exception:
+            continue
+        if xchart is not None:
+            ws.add_chart(xchart, to_a1(*chart.anchor))
+
+
+def _read_charts(ws, sheet: Sheet, wb: Workbook) -> None:
+    """Rebuild ChartObjects from a worksheet's native charts (mapped types)."""
+    for xchart in getattr(ws, "_charts", ()):
+        try:
+            chart = _read_chart(xchart, sheet, wb)
+        except Exception:
+            continue  # foreign chart shapes degrade to "not imported"
+        if chart is not None:
+            chart.id = chartobj.new_chart_id(sheet.charts)
+            sheet.charts.append(chart)

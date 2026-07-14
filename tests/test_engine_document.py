@@ -1,9 +1,10 @@
 """Document façade: open/save dispatch by extension; Excel when available.
 
 Also home to the .xlsx formatting-fidelity round-trips (excel_io): number
-formats, styles, borders, layout, merges, and conditional formats each get a
-save → load → compare test. Those all `importorskip("openpyxl")` so the thin
-CI environment (no openpyxl) skips them cleanly.
+formats, styles, borders, layout, merges, conditional formats, and embedded
+charts each get a save → load → compare test. Those all
+`importorskip("openpyxl")` so the thin CI environment (no openpyxl) skips
+them cleanly.
 """
 
 from __future__ import annotations
@@ -275,3 +276,137 @@ def test_xlsx_values_mode_still_carries_formatting(tmp_path):
     assert s2.get_raw(0, 1) == "6"          # computed value, not the formula
     assert s2.cell_formats[(0, 1)] == "fixed2"
     assert (s2.frozen_rows, s2.frozen_cols) == (1, 0)
+
+
+# --- embedded charts through .xlsx (line/bar/scatter map; others skip) --------
+
+
+def test_xlsx_charts_roundtrip(tmp_path):
+    pytest.importorskip("openpyxl")
+    from abax.core.chartobj import ChartObject
+
+    wb = Workbook()
+    s = wb.sheet
+    # bar source: header row + text category column
+    s.set("A1", "Cat")
+    s.set("B1", "Val")
+    for i, (cat, val) in enumerate([("a", "3"), ("b", "5"), ("c", "2")], start=2):
+        s.set(f"A{i}", cat)
+        s.set(f"B{i}", val)
+    # numeric block (no header) for the line and scatter charts
+    for i in range(1, 6):
+        s.set(f"D{i}", str(i))
+        s.set(f"E{i}", str(i * i))
+    data = wb.add_sheet("Data")
+    for i in range(1, 5):
+        data.set(f"A{i}", str(i))
+        data.set(f"B{i}", str(10 * i))
+    s.charts = [
+        ChartObject(id="chart1", kind="bar", source="A1:B4", title="Bars",
+                    anchor=(0, 6), width=400, height=300),
+        ChartObject(id="chart2", kind="line", source="D1:E5", title="Squares",
+                    anchor=(10, 6), width=480, height=320,
+                    options={"first_col_x": True}),
+        ChartObject(id="chart3", kind="scatter", source="D1:E5", title="Cloud",
+                    anchor=(20, 6), width=512, height=256),
+        ChartObject(id="chart4", kind="line", source="Data!A1:B4",
+                    anchor=(30, 0)),
+    ]
+    s2 = _xlsx_roundtrip(wb, tmp_path)
+    assert [(c.kind, c.source, c.title, c.anchor) for c in s2.charts] == [
+        ("bar", "A1:B4", "Bars", (0, 6)),
+        ("line", "D1:E5", "Squares", (10, 6)),
+        ("scatter", "D1:E5", "Cloud", (20, 6)),
+        ("line", "Data!A1:B4", "", (30, 0)),
+    ]
+    # px -> cm -> EMU -> px inverts exactly for the size
+    assert [(c.width, c.height) for c in s2.charts] == [
+        (400, 300), (480, 320), (512, 256), (480, 320)]
+    # the x/y pairing survives as first_col_x; plain lines don't gain it
+    assert s2.charts[1].options.get("first_col_x") is True
+    assert s2.charts[3].options == {}
+    assert [c.id for c in s2.charts] == ["chart1", "chart2", "chart3", "chart4"]
+
+
+def test_xlsx_unmapped_chart_kinds_skipped(tmp_path):
+    openpyxl = pytest.importorskip("openpyxl")
+    from abax.core.chartobj import CHART_KINDS, ChartObject
+    from abax.engine.excel_io import save_xlsx
+
+    wb = Workbook()
+    s = wb.sheet
+    for i in range(1, 7):
+        s.set(f"A{i}", str(i))
+    unmapped = [k for k in CHART_KINDS if k not in ("line", "bar", "scatter")]
+    s.charts = [ChartObject(id=f"chart{n}", kind=k, source="A1:A6")
+                for n, k in enumerate(unmapped, start=1)]
+    s.charts.append(ChartObject(id="chart9", kind="bar", source="A1:A6",
+                                title="Kept"))
+    s2 = _xlsx_roundtrip(wb, tmp_path)
+    # only the mappable chart comes back; the cell data always lands
+    assert [(c.kind, c.source, c.title) for c in s2.charts] == \
+        [("bar", "A1:A6", "Kept")]
+    assert s2.get_raw(5, 0) == "6"
+    # and the file itself holds exactly one native chart — nothing errored
+    p = tmp_path / "native-count.xlsx"
+    save_xlsx(wb, p)
+    assert len(openpyxl.load_workbook(p).active._charts) == 1
+
+
+def test_xlsx_foreign_chart_imports(tmp_path):
+    openpyxl = pytest.importorskip("openpyxl")
+    from openpyxl.chart import BarChart, PieChart, Reference
+
+    from abax.core.chartobj import chart_data
+    from abax.engine.excel_io import load_xlsx
+
+    wb_x = openpyxl.Workbook()
+    ws = wb_x.active
+    for row in [["Month", "Sales"], ["Jan", 10], ["Feb", 20], ["Mar", 15]]:
+        ws.append(row)
+    chart = BarChart()
+    chart.title = "Sales by month"
+    chart.add_data(Reference(ws, min_col=2, min_row=1, max_col=2, max_row=4),
+                   titles_from_data=True)
+    chart.set_categories(Reference(ws, min_col=1, min_row=2, max_col=1, max_row=4))
+    ws.add_chart(chart, "E3")
+    pie = PieChart()  # no abax counterpart -> ignored on import
+    pie.add_data(Reference(ws, min_col=2, min_row=2, max_row=4))
+    ws.add_chart(pie, "E20")
+    p = tmp_path / "foreign.xlsx"
+    wb_x.save(p)
+
+    wb = load_xlsx(p)
+    assert len(wb.sheet.charts) == 1
+    ch = wb.sheet.charts[0]
+    assert ch.id == "chart1"
+    # header and label column fold back into one bounding source range
+    assert (ch.kind, ch.source, ch.title, ch.anchor) == \
+        ("bar", "A1:B4", "Sales by month", (2, 4))
+    assert ch.width > 0 and ch.height > 0
+    # the imported chart shapes through abax's own pipeline
+    d = chart_data(wb, wb.sheet.name, ch)
+    assert d["categories"] == ["Jan", "Feb", "Mar"]
+    assert d["values"] == [10.0, 20.0, 15.0]
+
+
+def test_xlsx_chart_sizes_convert_both_ways(tmp_path):
+    pytest.importorskip("openpyxl")
+    from openpyxl.utils.units import cm_to_EMU
+
+    from abax.core.chartobj import ChartObject
+    from abax.engine.excel_io import _emu_to_px, _px_to_cm
+
+    # unit trip px -> cm -> EMU -> px is the identity (an EMU is ~0.0001 px)
+    for px in (37, 100, 217, 320, 333, 480, 512, 799, 1024):
+        assert _emu_to_px(cm_to_EMU(_px_to_cm(px))) == px
+    # and through a real file, odd sizes land within a pixel
+    wb = Workbook()
+    s = wb.sheet
+    for i in range(1, 5):
+        s.set(f"A{i}", str(i))
+    s.charts = [ChartObject(id="chart1", kind="line", source="A1:A4",
+                            width=333, height=217)]
+    s2 = _xlsx_roundtrip(wb, tmp_path)
+    assert abs(s2.charts[0].width - 333) <= 1
+    assert abs(s2.charts[0].height - 217) <= 1
