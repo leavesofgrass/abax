@@ -29,6 +29,9 @@ opt-in from a first-run chooser (nothing is installed until you choose it).
 - [Data & analysis tools](data-analysis.md) — descriptive statistics, regression,
   t-tests, ANOVA, correlation, pivot/group-by, recode, the pandas hand-off,
   graphing, and the ML tools.
+- [Charts](charts.md) — embedded chart objects: anchored to the sheet, driven by
+  a range, refreshed on recalc, and saved in the file — ten kinds, rendered by
+  the stdlib SVG engine or the optional matplotlib backend.
 - [Conditional formatting](conditional-formatting.md) — colour cells by value:
   comparisons, text/regex matches, duplicates, ranking, colour scales, and CSS
   styling, with worked examples.

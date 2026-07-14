@@ -380,6 +380,10 @@ are documented with the statistical detail in
 Because the output is a plain SVG string you can drop it into an HTML report,
 save it to a file, or embed it anywhere — no rendering backend required.
 
+Both paths draw a picture of the *moment*. To keep a chart **in the workbook**
+— anchored to a cell, re-rendered on recalc, saved in the `.abax` file — use an
+[embedded chart object](charts.md).
+
 ## Open selection in pandas
 
 A DataFrame viewer (**Data → Analyze → Open selection in pandas…**,
