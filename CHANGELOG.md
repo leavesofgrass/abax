@@ -35,6 +35,19 @@ All notable changes to abax are documented here. The format follows
   `:trace`/`:describe full`. No sheet writes, no checkpoints; the
   no-projects and dependency-cycle cases report on the status line instead
   of raising.
+- **Embedded charts (envelope schema v3).** Sheets can now carry chart
+  *objects* (`abax/core/chartobj.py`): a chart kind (line, bar, scatter,
+  histogram, box, violin, Q-Q, ECDF, heatmap, waterfall), an A1 source
+  range (optionally sheet-qualified), an optional labels range, a title, a
+  cell anchor, a pixel size, and kind-specific options. Ranges resolve at
+  **render time** through the normal evaluation path, so a recalc is all it
+  takes to refresh the picture; anchors and ranges shift with row/column
+  insert & delete (workbook-wide — a chart reading another sheet tracks
+  that sheet's edits). Persisted in the workbook envelope as an additive
+  schema **v3** per-sheet `charts` key — omitted when empty, older files
+  load unchanged, and rendering goes through the pure-stdlib SVG renderers.
+  A backend-neutral `chart_data()` shaping pass means every renderer draws
+  identical data.
 
 ### Changed
 - **Large native files now open directly into the windowed cell store.**

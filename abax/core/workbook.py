@@ -14,7 +14,7 @@ from pathlib import Path
 from .reference import parse_a1, to_a1
 from .sheet import Sheet
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # Auto-windowing kicks in (windowed_store_capacity == 0, the default) for
 # sheets with at least this many populated cells. Below it a plain dict is
@@ -460,6 +460,9 @@ class Workbook:
                         **({"merges": [f"{to_a1(r1, c1)}:{to_a1(r2, c2)}"
                                        for (r1, c1, r2, c2) in s.merges]}
                            if s.merges else {}),
+                        # v3: embedded charts (omitted when empty, like the rest).
+                        **({"charts": [ch.to_dict() for ch in s.charts]}
+                           if s.charts else {}),
                     }
                     for s in self.sheets
                 ],
@@ -483,6 +486,7 @@ class Workbook:
         version = env.get("schema_version", 0)
         data = env.get("data", env)  # tolerate bare payloads
         data = _migrate(data, version)
+        from .chartobj import ChartObject
         from .connections import ConnectionRegistry
         from .format.cellstyle import CellStyle
         from .format.condformat import CondRule
@@ -540,6 +544,8 @@ class Workbook:
                     mr1, mc1 = parse_a1(a)
                     mr2, mc2 = parse_a1(b)
                     sheet.merges.append((mr1, mc1, mr2, mc2))
+            # v3 embedded charts (optional; a v1/v2 file simply has none).
+            sheet.charts = [ChartObject.from_dict(d) for d in s.get("charts", [])]
             wb.sheets.append(sheet)
         wb.active = data.get("active", 0)
         wb._add_default_if_empty()
@@ -566,10 +572,11 @@ def _migrate(data: dict, version: int) -> dict:
     """Expand-switch-contract migration hook.
 
     v1 -> v2 added per-sheet layout & fidelity keys (``col_widths`` /
-    ``row_heights`` / ``frozen`` / ``borders`` / ``merges``). They are read with
-    defaults in :meth:`Workbook.from_envelope`, so a v1 file (which lacks them)
-    loads unchanged — no data transform is needed, only the version label.
+    ``row_heights`` / ``frozen`` / ``borders`` / ``merges``); v2 -> v3 added
+    per-sheet embedded ``charts``. All are read with defaults in
+    :meth:`Workbook.from_envelope`, so an older file (which lacks them) loads
+    unchanged — no data transform is needed, only the version label.
     """
-    if version < 2:
-        data["schema_version"] = 2
+    if version < 3:
+        data["schema_version"] = 3
     return data

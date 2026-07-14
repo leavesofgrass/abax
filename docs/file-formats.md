@@ -90,7 +90,7 @@ abax's own format is a self-describing JSON **envelope** produced by
 ```json
 {
   "app": "abax",
-  "schema_version": 2,
+  "schema_version": 3,
   "written_at": "2026-06-29T12:00:00+00:00",
   "data": {
     "active": 0,
@@ -138,6 +138,21 @@ have none of these keys and load unchanged: `from_envelope` reads each with a
 default, so a v1 file simply comes back with no custom widths, freezes, borders,
 or merges. The migration is a bare version-label bump — no data transform — so
 nothing in an older file is rewritten or lost.
+
+### Embedded charts (schema v3)
+
+Schema **v3** adds one more per-sheet key on the same additive pattern:
+
+- `charts` — embedded chart objects (`abax/core/chartobj.py`): each records a
+  chart kind (`line`, `bar`, `scatter`, `histogram`, `box`, `violin`, `qq`,
+  `ecdf`, `heatmap`, `waterfall`), its A1 source range (optionally
+  sheet-qualified), an optional labels range and title, a cell anchor, a pixel
+  size, and kind-specific options. Ranges are resolved at **render time**
+  against current cell values, so a recalc refreshes the picture; anchors and
+  ranges shift with row/column insert & delete like every other range.
+
+As with v2, the key is omitted when a sheet has no charts, a v1/v2 file loads
+unchanged, and the migration is a version-label bump only.
 
 ### `.json` auto-detects native vs foreign
 

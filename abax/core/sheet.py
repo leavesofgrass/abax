@@ -115,6 +115,9 @@ class Sheet:
         # Merged regions as (r1, c1, r2, c2); the top-left is the anchor (its value
         # shows across the block), interior cells are cleared on merge.
         self.merges: list[tuple[int, int, int, int]] = []
+        # Embedded chart objects (core/chartobj.py), persisted in the envelope
+        # (schema v3). Ranges resolve at render time, so recalc refreshes them.
+        self.charts: list = []
         # The cell store — the swap point for the windowed/lazy backing store.
         # Default is DictCellStore (a dict subclass): every populated cell
         # resident, identical behaviour to the bare dict used before. Pass a
@@ -456,6 +459,33 @@ class Sheet:
                 if (nr1, nc1) != (nr2, nc2):  # still a real (>1 cell) region
                     new_merges.append((nr1, nc1, nr2, nc2))
         self.merges = new_merges
+
+        # Charts: anchors shift like cells (clamped to the edit point when the
+        # anchored line is deleted — the chart object itself survives), and
+        # source/label ranges shift workbook-wide, so a chart on another sheet
+        # that reads this one tracks the edit too. A wholly deleted range
+        # blanks out: the chart then reports a dead range instead of silently
+        # drawing shifted neighbours.
+        for ch in self.charts:
+            ar, ac = ch.anchor
+            if axis == "row":
+                moved = shift_coord(ar, index, delta)
+                ar = moved if moved is not None else max(index, 0)
+            else:
+                moved = shift_coord(ac, index, delta)
+                ac = moved if moved is not None else max(index, 0)
+            ch.anchor = (ar, ac)
+        chart_hosts = self.workbook.sheets if self.workbook is not None else [self]
+        for host in chart_hosts:
+            for ch in host.charts:
+                for attr in ("source", "labels"):
+                    ref = getattr(ch, attr)
+                    if not ref:
+                        continue
+                    body = ref.rsplit("!", 1)[-1]
+                    fixer = adjust_range if ":" in body else adjust_reference
+                    newref = fixer(ref, self.name, host.name, axis, index, delta)
+                    setattr(ch, attr, "" if newref == REF_ERROR else newref)
 
         # Shift workbook-level named ranges whose target resolves to this sheet
         # (qualified targets shift only when the qualifier matches; unqualified
