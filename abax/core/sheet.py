@@ -12,6 +12,7 @@ layers above it.
 from __future__ import annotations
 
 import re
+import sys
 from typing import Any, Iterator
 
 from .cells import Cell
@@ -40,6 +41,19 @@ ARRAY_FUNCTIONS = frozenset({
     "TEXTSPLIT", "LET", "MAP", "SCAN", "BYROW", "BYCOL", "MAKEARRAY",
 })
 
+
+# Recursion headroom for cold evaluation of long dependency *chains*
+# (``A2=A1+1 … A10000=A9999+1``). Evaluation recurses ~6 Python frames per
+# chain link, so the interpreter's default limit (1000) used to cap a cold
+# top-down read at a chain ~166 deep — far shallower than real running-total
+# columns — and the RecursionError surfaced as a **false #CIRC!** (the chain
+# is not circular). The outermost formula evaluation temporarily raises the
+# limit to this value (~10k-deep chains), then restores it. Safe on 3.11+:
+# Python-to-Python calls no longer consume C stack (frames live on the heap),
+# so a raised limit cannot hard-crash the interpreter; a chain deeper than
+# even this headroom still lands in the ``except RecursionError`` backstop
+# and reports #CIRC!.
+_EVAL_RECURSION_LIMIT = 65_000
 
 # A spill-range reference like ``A1#`` / ``$A$1#`` (the '#' follows a row digit,
 # which never happens in an error literal such as ``#NAME?``).
@@ -602,6 +616,17 @@ class Sheet:
             if self._iterating:
                 return self._iter_values.get(key, 0.0)
             return CellError(CellError.CIRC)
+        # Outermost evaluation on this sheet: raise the recursion headroom so a
+        # cold read of a long (non-circular) dependency chain doesn't blow the
+        # interpreter's default limit and masquerade as #CIRC!. Cross-sheet
+        # chains bump once (the inner sheet sees the limit already raised);
+        # true cycles are caught above at depth 0-1, never by the limit.
+        _outermost = not self._computing
+        _old_limit = sys.getrecursionlimit()
+        if _outermost and _old_limit < _EVAL_RECURSION_LIMIT:
+            sys.setrecursionlimit(_EVAL_RECURSION_LIMIT)
+        else:
+            _outermost = False               # nothing to restore
         self._computing.add(key)
         try:
             ast = self._ast_cache.get(key)
@@ -637,6 +662,8 @@ class Sheet:
             val = CellError(CellError.CIRC)
         finally:
             self._computing.discard(key)
+            if _outermost:
+                sys.setrecursionlimit(_old_limit)
         if isinstance(val, LambdaValue):
             # A LAMBDA that was never applied can't be shown in a cell.
             val = CellError(CellError.CALC)

@@ -30,6 +30,18 @@ All notable changes to abax are documented here. The format follows
   but never fed it data, so the tab always showed an empty table. `_push_data_to`
   now calls `OkrView.setObjectives(proj.objectives, tasks)` so the active
   project's objectives and key results render.
+- **Deep dependency chains no longer report a false `#CIRC!`.** A cold
+  top-down read of a long running-total chain (`A2=A1+1, …`) hit the
+  interpreter's default recursion limit at a chain only ~166 cells deep — on
+  every cell store, not just the windowed one as previously documented — and
+  the `RecursionError` surfaced as `#CIRC!` even though nothing was circular.
+  The outermost formula evaluation now temporarily raises its recursion
+  headroom (chains to ~10,000 cells evaluate; the limit is restored after),
+  genuine cycles are still detected at depth 0–1, and the windowed store's
+  capacity no longer needs to exceed the deepest chain — the configuration
+  guidance saying otherwise was corrected. Verified on a 125k-cell import:
+  windowed values identical to the plain store (48% steady-state memory
+  saving at capacity 10k), benchmark gate flat.
 
 ## [0.1.13] — 2026-07-12
 

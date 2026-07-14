@@ -196,13 +196,15 @@ class WindowedCellStore(DictCellStore):
     resolves reads of already-computed precedents. Formatting maps
     (cell_formats/styles/borders) are sparse and stay resident.
 
-    **Known limitation — deep dependency chains.** A single reference chain
-    *deeper than the window* (e.g. ``A2=A1+1, … A400=A399+1`` with capacity 50)
-    can recurse through page-ins far enough to trip the evaluator's recursion
-    guard and yield ``#CIRC!``. Real sheets are shallow; the guidance is simply to
-    set ``capacity`` comfortably above the deepest dependency chain (which also
-    keeps the whole chain resident). This is inherent to on-demand paging, not
-    specific to the cache windowing.
+    **Deep dependency chains.** Long reference chains (``A2=A1+1, …``) evaluate
+    correctly regardless of ``capacity`` — a chain deeper than the window simply
+    pages through it. (An earlier limitation note blamed the window for deep
+    chains yielding ``#CIRC!``; measurement showed the plain store failed the
+    same way — the cause was the interpreter's default recursion limit capping
+    cold evaluation at a chain ~166 deep on *any* store. The evaluator now
+    raises its recursion headroom for the outermost computation — see
+    ``_EVAL_RECURSION_LIMIT`` in :mod:`abax.core.sheet` — which handles chains
+    ~10k deep; only beyond that does the ``#CIRC!`` backstop fire.)
 
     Not thread-safe across *different* stores sharing a file; each store owns its
     own private temp spill, guarded by a lock for the background-thread callers.

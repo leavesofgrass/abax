@@ -257,3 +257,64 @@ def test_use_windowed_stores_zero_is_a_no_op():
 def test_windowed_store_capacity_setting_defaults_off():
     from abax.settings import Settings
     assert Settings().windowed_store_capacity == 0
+
+
+# --------------------------------------------------------------------------- #
+# Deep dependency chains — the recursion-headroom guard in Sheet
+# --------------------------------------------------------------------------- #
+
+
+def _build_chain(sheet: Sheet, depth: int) -> None:
+    """A1=1, A2=A1+1, ... A<depth>=A<depth-1>+1 — a straight, non-circular chain."""
+    sheet.set_cell(0, 0, "1")
+    for r in range(1, depth):
+        sheet.set_cell(r, 0, f"=A{r} + 1")
+
+
+def test_deep_chain_evaluates_on_plain_store():
+    """A cold top-down read of a 2000-deep chain must yield the value, not a
+    false #CIRC!. (Historically the interpreter's default recursion limit
+    capped cold evaluation at a chain ~166 deep — on every store.)"""
+    sh = Sheet(name="deep")
+    _build_chain(sh, 2000)
+    assert sh.get_value(1999, 0) == 2000
+
+
+def test_deep_chain_evaluates_on_windowed_store_below_capacity():
+    """Chain depth must not be constrained by the window capacity: a 2000-deep
+    chain on a capacity-50 store pages through and evaluates correctly."""
+    sh = Sheet(name="deepwin")
+    _build_chain(sh, 2000)
+    sh.use_windowed_store(50)
+    try:
+        assert sh.get_value(1999, 0) == 2000
+        assert sh._cells.resident_count() <= 50
+    finally:
+        sh._cells.close()
+
+
+def test_recursion_limit_restored_after_deep_evaluation():
+    import sys
+    before = sys.getrecursionlimit()
+    sh = Sheet(name="restore")
+    _build_chain(sh, 1200)
+    assert sh.get_value(1199, 0) == 1200
+    assert sys.getrecursionlimit() == before
+
+
+def test_true_cycle_still_reports_circ_on_both_stores():
+    """The headroom guard must not weaken genuine cycle detection."""
+    from abax.core.errors import CellError
+
+    for windowed in (False, True):
+        sh = Sheet(name="cyc")
+        sh.set_cell(0, 0, "=B1")
+        sh.set_cell(0, 1, "=A1")
+        if windowed:
+            sh.use_windowed_store(10)
+        try:
+            v = sh.get_value(0, 0)
+            assert isinstance(v, CellError) and str(v) == "#CIRC!"
+        finally:
+            if windowed:
+                sh._cells.close()
