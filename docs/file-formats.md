@@ -206,6 +206,38 @@ cached values. On export the default writes **raw cell text** (so formulas
 survive the round-trip into Excel); the API can write computed values instead.
 Sheet titles are capped at Excel's 31-character limit.
 
+### What round-trips (formatting fidelity)
+
+Both directions also carry the formatting the native envelope persists, so a
+styled workbook survives `.abax` → `.xlsx` → `.abax` (and a styled `.xlsx`
+imports styled):
+
+- **Number formats** — abax's specs map to Excel format codes (`comma` ↔
+  `#,##0.00`, `currency` ↔ `$#,##0.00`, `percent` ↔ `0.00%`, `sci` ↔
+  `0.000E+00`, `int` ↔ `0`, `fixedN` ↔ `0.00…`, `text` ↔ `@`). Importing a
+  foreign file maps codes back best-effort (any `$` → currency, `%` → percent,
+  …); codes with no abax counterpart (e.g. date masks) are left as general.
+- **Cell styles** — bold/italic/underline, horizontal alignment, text colour,
+  and fill colour (theme/indexed colours in foreign files are skipped; only
+  concrete RGB maps).
+- **Borders** — per-edge thin/medium/thick. Foreign edge styles fold to the
+  nearest weight (`hair`/`dashed`/… → thin, `double`/`mediumDashed`/… → medium).
+- **Layout** — column widths and row heights (abax stores pixels; widths
+  convert to Excel's character units as `chars = (px − 5) / 7`, heights to
+  points as `pt = px × 0.75`, and both invert exactly on import), frozen
+  panes, and merged regions.
+- **Conditional formatting** — comparison rules (`>`, `<`, `>=`, `<=`, `==`,
+  `!=`, `between`), 2- and 3-colour scales, text rules (contains / begins with
+  / ends with), blank/not-blank, above/below average, top/bottom N and %,
+  duplicate/unique — including a rule's fill colour or CSS styling (mapped to
+  an Excel differential style). abax's `regex` kind has no Excel counterpart
+  and is skipped on export; Excel rule types abax has no model for (data bars,
+  icon sets, formula rules) are skipped on import.
+
+The fidelity pass is strictly additive: an unstyled workbook writes a plain
+`.xlsx` exactly as before, and unmappable foreign styling is dropped rather
+than erroring.
+
 If `openpyxl` is not installed, both load and save raise a `RuntimeError` with a
 clear hint:
 
