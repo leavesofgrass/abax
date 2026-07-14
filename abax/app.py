@@ -101,6 +101,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     psc = sub.add_parser("schedule", help="run CPM scheduling on each project in a workbook")
     psc.add_argument("file", help="run CPM scheduling on each project in a workbook")
+    psc.add_argument("--write", action="store_true",
+                     help="fill EMPTY Start/Due cells with auto-scheduled dates "
+                          "and save the workbook (existing dates are never touched)")
 
     return p
 
@@ -301,14 +304,17 @@ def _cmd_schedule(args) -> int:
     """``abax schedule FILE`` — run CPM scheduling on each project in a workbook.
 
     For every project defined in the workbook, parse its task rows, run the
-    Critical Path Method, and print the critical-path task ids/titles.
+    Critical Path Method, and print the critical-path task ids/titles. With
+    ``--write``, additionally fill **empty** Start/Due cells with dates
+    proposed by ``auto_schedule`` (existing dates are never touched) and save
+    the workbook in place.
 
     Exit codes: **0** = every project scheduled, **1** = a project's tasks
     contain a dependency cycle, **2** = the file can't be opened or the workbook
     defines no projects.
     """
-    from .core.pm.schedule import compute_cpm, critical_path
-    from .core.pm.taskmodel import parse_tasks
+    from .core.pm.schedule import auto_schedule, compute_cpm, critical_path
+    from .core.pm.taskmodel import detect_columns, parse_tasks, write_task
     from .engine.document import Document
 
     try:
@@ -332,14 +338,15 @@ def _cmd_schedule(args) -> int:
                     first_data_row=proj.first_data_row if proj.first_data_row >= 0 else None,
                     last_data_row=proj.last_data_row if proj.last_data_row >= 0 else None,
                 )
-                projects.append((proj, tasks))
+                projects.append((proj, s, tasks))
                 break
     if not projects:
         print("schedule: no projects defined in this workbook", file=sys.stderr)
         return 2
 
     rc = 0
-    for proj, tasks in projects:
+    wrote_any = False
+    for proj, sheet, tasks in projects:
         print(f"{proj.name} ({len(tasks)} task(s))")
         try:
             cpm = compute_cpm(tasks)
@@ -354,6 +361,40 @@ def _cmd_schedule(args) -> int:
             print(f"  critical path: {path}")
         else:
             print("  critical path: (none)")
+
+        if getattr(args, "write", False):
+            fc = proj.first_col
+            lc = proj.last_col
+            if lc < 0:
+                _, nc = sheet.used_bounds()
+                lc = nc - 1
+            headers = [
+                str(v) if v is not None else ""
+                for v in (sheet.get_value(proj.header_row, fc + c)
+                          for c in range(lc - fc + 1))
+            ]
+            col_map = detect_columns(headers)
+            by_id = {t.id: t for t in tasks}
+            written = 0
+            for tid, start, finish in auto_schedule(tasks):
+                task = by_id.get(tid)
+                if task is None:
+                    continue
+                # Fill gaps only — never overwrite a date the user typed.
+                if task.start is None and "start" in col_map:
+                    write_task(sheet, task, "start", start,
+                               col_map=col_map, first_col=fc)
+                    written += 1
+                if task.due is None and "due" in col_map:
+                    write_task(sheet, task, "due", finish,
+                               col_map=col_map, first_col=fc)
+                    written += 1
+            print(f"  wrote {written} date cell(s)")
+            wrote_any = wrote_any or written > 0
+
+    if getattr(args, "write", False) and wrote_any and rc == 0:
+        doc.save()
+        print(f"saved {args.file}")
     return rc
 
 

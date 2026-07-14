@@ -348,10 +348,22 @@ Alpha (4 task(s))
   critical path: T1 (Design) -> T2 (Implement) -> T3 (Test)
 ```
 
+With `--write`, dates proposed by the auto-scheduler are written into **empty**
+Start/Due cells (a date you typed is never touched) and the workbook is saved
+in place:
+
+```console
+$ abax schedule portfolio.abax --write
+Alpha (4 task(s))
+  critical path: T1 (Design) -> T2 (Implement) -> T3 (Test)
+  wrote 4 date cell(s)
+saved portfolio.abax
+```
+
 Exit codes: **0** = every project scheduled, **1** = a project's tasks contain a
-dependency cycle (the offending loop is printed to stderr and the remaining
-projects are still scheduled), **2** = the file can't be opened or the workbook
-defines no projects.
+dependency cycle (the offending loop is printed to stderr, the remaining
+projects are still scheduled, and nothing is saved), **2** = the file can't be
+opened or the workbook defines no projects.
 
 ### `notebook run FILE [-o OUT]` — execute a notebook headlessly
 

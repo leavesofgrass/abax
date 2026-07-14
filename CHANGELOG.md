@@ -18,7 +18,10 @@ All notable changes to abax are documented here. The format follows
   undo step; a bounded project data range grows to cover the new rows, and
   file columns absent from the sheet are ignored.
 - **`abax schedule FILE` CLI subcommand** — a headless command that runs CPM on
-  each project in a workbook and prints the critical path.
+  each project in a workbook and prints the critical path. **`--write`** goes
+  further: dates proposed by `auto_schedule` are written into **empty**
+  Start/Due cells (existing dates are never touched) and the workbook is saved
+  in place.
 - **The windowed cell store now auto-enables for large files.**
   `windowed_store_capacity` gained three-way semantics: `0` (the default) is
   **Auto** — when a file is opened, sheets with ≥ 100,000 populated cells are
