@@ -3,8 +3,9 @@
 A tabbed dialog over everything stored in ``settings.json``, grouped into logical
 sections:
 
-* **Appearance** — GUI theme, TUI theme, OpenDyslexic font, default zoom, and the
-  interface toggles (toolbar, vim-style keys).
+* **Appearance** — GUI theme, TUI theme, OpenDyslexic font, default zoom, the
+  interface toggles (toolbar, vim-style keys), and the embedded-chart render
+  backend.
 * **Calculator** — default model, faceplate style, angle mode, and the optional
   faceplate-art folder / repository.
 * **System** — autosave cadence, code-execution isolation, and whether optional
@@ -68,6 +69,13 @@ _ISOLATION = [
     ("off", "Off — in-process (no isolation)"),
     ("isolated", "Isolated — worker + resource limits (default)"),
     ("strict", "Strict — OS sandbox (no network, scratch-only writes)"),
+]
+
+# chart_backend choices — how embedded charts (Insert → Embedded chart) render.
+_CHART_BACKENDS = [
+    ("auto", "Auto — matplotlib when installed, else built-in SVG"),
+    ("svg", "Built-in SVG (pure stdlib, always available)"),
+    ("matplotlib", "Matplotlib (falls back to SVG when not installed)"),
 ]
 
 # (calc_model key, label) — mirrors calculator_panel._MODELS (key = its 3rd field).
@@ -160,6 +168,14 @@ class PreferencesDialog(QDialog):
         self._vim = QCheckBox("Vim-style modal keys (Normal / Insert / Visual)", iface_box)
         iform.addRow(self._vim)
         outer.addWidget(iface_box)
+
+        chart_box = QGroupBox("Embedded charts", page)
+        cform = QFormLayout(chart_box)
+        self._chart_backend = QComboBox(chart_box)
+        for key, label in _CHART_BACKENDS:
+            self._chart_backend.addItem(label, key)
+        cform.addRow("Render with:", self._chart_backend)
+        outer.addWidget(chart_box)
         outer.addStretch(1)
         return page
 
@@ -321,6 +337,7 @@ class PreferencesDialog(QDialog):
         self._zoom.setValue(float(getattr(s, "zoom", 1.0) or 1.0))
         self._show_toolbar.setChecked(bool(getattr(s, "show_toolbar", True)))
         self._vim.setChecked(bool(getattr(s, "vim_mode", True)))
+        self._select(self._chart_backend, getattr(s, "chart_backend", "auto") or "auto")
 
         self._high_contrast.setChecked(bool(getattr(s, "high_contrast", False)))
         self._speak_on_move.setChecked(bool(getattr(s, "speak_on_move", False)))
@@ -382,6 +399,14 @@ class PreferencesDialog(QDialog):
         vim = self._vim.isChecked()
         if vim != bool(getattr(s, "vim_mode", True)) and hasattr(win, "set_vim_mode"):
             win.set_vim_mode(vim)
+
+        backend = self._chart_backend.currentData()
+        if backend != getattr(s, "chart_backend", "auto"):
+            s.chart_backend = backend
+            # Live: re-render any floating chart overlays with the new backend.
+            refresh_charts = getattr(win, "_refresh_chart_overlays", None)
+            if refresh_charts is not None:
+                refresh_charts()
 
         # --- deferred (persist now; take effect on next use) -----------------
         # Accessibility toggles: persisted here; the front-ends read them live
