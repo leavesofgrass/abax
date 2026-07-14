@@ -440,6 +440,7 @@ class MainWindow(PMMixin, NavigationMixin, DocumentMixin, DocumentIOMixin, Setti
         self._reg_icon(self._act(m_insert, "&Equation...", self.show_equation), "equation")
         self._reg_icon(self._act(m_insert, "C&hart / graph...", self.show_graph), "graph")
         self._act(m_insert, "&Business chart (waterfall / treemap / ...)...", self.show_business_chart)
+        self._act(m_insert, "E&mbedded chart (on sheet)...", self.show_insert_chart)
         self._act(m_insert, "Export chart as &SVG...", self.export_chart_svg)
 
         # --- Format (font - alignment - number - theme) -------------------

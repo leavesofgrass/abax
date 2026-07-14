@@ -166,6 +166,7 @@ class PaletteMixin:
             "Cycle code isolation (off / isolated / strict)": self.cycle_code_isolation,
             "Graph...": self.show_graph,
             "Business chart (waterfall / sunburst / treemap / sparkline)...": self.show_business_chart,
+            "Insert embedded chart (on sheet)...": self.show_insert_chart,
             "Formula dependency trace...": self.show_deptrace,
             "Hex viewer...": self.show_hex_viewer,
             "Manage macros...": self.show_macro_manager,
