@@ -10,6 +10,45 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **`.xlsx` import/export now round-trips formatting fidelity** — per-cell
+  number formats, styles (bold/italic/underline, alignment, text/fill
+  colours), borders, column widths and row heights (with documented
+  pixel ↔ character/point conversions), frozen panes, and merged regions —
+  in both directions, still gracefully optional on `openpyxl`.
+  `docs/file-formats.md` now documents exactly what survives the round-trip.
+- **`.xlsx` conditional formatting round-trips too** — comparison,
+  colour-scale, text, blank, average, top/bottom-N, and duplicate/unique
+  rules carry their fill or CSS styling as Excel differential styles
+  (`regex` rules, which Excel lacks, are skipped on export).
+- **`abax tasks FILE` CLI subcommand** — lists every project's tasks (id,
+  title, status, start → due, assignee) and validates them: overdue tasks
+  (done-like statuses exempt — the same detection as the portfolio health
+  roll-up), missing start/due dates, and `Depends` references to unknown
+  task ids. Exit code **0** = clean / **1** = problems found, so it drops
+  into CI and pre-commit hooks as a project-hygiene gate; `--project NAME`
+  restricts to one project.
+- **`:tasks` and `:critpath` in the TUI** — read-only project-management
+  commands: `:tasks` lists the active project's tasks (id, title, status,
+  due) and `:critpath` shows its CPM critical path (the zero-slack chain,
+  id + title per hop), both in the scrollable overlay already used by
+  `:trace`/`:describe full`. No sheet writes, no checkpoints; the
+  no-projects and dependency-cycle cases report on the status line instead
+  of raising.
+
+### Changed
+- **Large native files now open directly into the windowed cell store.**
+  When the `windowed_store_capacity` policy would window a sheet,
+  `.abax`/`.json` loads build it on the bounded store from the first cell
+  (spilling as cells arrive) instead of loading plain and migrating —
+  eliminating the transient ~1.5× memory spike at open (peak on a
+  150k-cell file now lands below even a plain un-windowed load). Other
+  formats keep the migrate-after-load fallback, and re-applying the policy
+  to an already-windowed sheet is now a no-op.
+- The GUI forwards `windowed_store_capacity` to the background open
+  worker, so windowing happens off the UI thread and the `-1` (never
+  window) setting is honored at load.
+
 ## [0.1.14] — 2026-07-14
 
 ### Added
