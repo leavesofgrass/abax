@@ -365,6 +365,45 @@ dependency cycle (the offending loop is printed to stderr, the remaining
 projects are still scheduled, and nothing is saved), **2** = the file can't be
 opened or the workbook defines no projects.
 
+### `tasks file [--project NAME]` — list and validate project tasks
+
+Lists every project's tasks — id, title, status, start → due, assignee — then
+runs a validation pass per project and reports what it finds. The exit code is
+the scriptable part: it is non-zero exactly when validation flags something, so
+the command drops straight into CI pipelines and pre-commit hooks as a project
+hygiene gate. Three checks are performed:
+
+- **overdue** — the task's due date is before today and its status is not
+  done-like (`Done`, `Complete`, `Closed`, … — the same detection the
+  portfolio health roll-up uses);
+- **missing dates** — the task has no start and/or no due date;
+- **unknown dependency** — the task's `Depends` column references an id that
+  matches no task in the project.
+
+```console
+$ abax tasks portfolio.abax
+Alpha (3 task(s))
+  T1  Design     Done         2026-06-01 -> 2026-06-05  alice
+  T2  Implement  In progress  2026-06-08 -> 2026-06-19  bob
+  T3  Test       Todo                  - -> -           carol
+  2 problem(s):
+    overdue: T2 (Implement) was due 2026-06-19
+    missing start and due: T3 (Test)
+$ echo $?
+1
+```
+
+`--project NAME` restricts the listing (and the gate) to one project:
+
+```console
+$ abax tasks portfolio.abax --project Alpha
+```
+
+Exit codes: **0** = validation found nothing, **1** = validation found
+problems (the listing is still printed to stdout), **2** = the file can't be
+opened, the workbook defines no projects, or `--project` names an unknown
+project.
+
 ### `notebook run FILE [-o OUT]` — execute a notebook headlessly
 
 Runs a Jupyter `.ipynb` end to end **without** `nbclient`: each code cell is
