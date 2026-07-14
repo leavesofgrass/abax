@@ -10,6 +10,8 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.14] — 2026-07-14
+
 ### Added
 - **Project > Import tasks… writes into the sheet.** The importer no longer
   just parses and reports a count — parsed CSV / MS Project XML tasks are
