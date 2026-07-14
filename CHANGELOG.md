@@ -48,6 +48,14 @@ All notable changes to abax are documented here. The format follows
   load unchanged, and rendering goes through the pure-stdlib SVG renderers.
   A backend-neutral `chart_data()` shaping pass means every renderer draws
   identical data.
+- **Matplotlib chart backend (optional `charts` extra).** The same embedded
+  charts can render through matplotlib (`abax/engine/chartmpl.py`) to PNG or
+  SVG — all ten kinds, drawn from the identical `chart_data()` pass, via the
+  object-oriented Figure/Agg API (no pyplot, no global state, safe off the
+  GUI thread). Fully optional: without matplotlib the built-in SVG renderer
+  handles everything, and the new extra is registered across the stack
+  (`pip install "abax[charts]"`, auto-deps, the first-run feature chooser,
+  and `abax doctor`).
 
 ### Changed
 - **Large native files now open directly into the windowed cell store.**

@@ -64,11 +64,12 @@ If you have `just` installed, `just install` runs the full developer setup for y
 | `bayes` | pymc | Bayesian / probabilistic programming — split out because it's heavy (pytensor + arviz + numba/llvmlite, ~150 MB) |
 | `jupyter` | `nbformat`, `ipykernel`, `anywidget` | Notebook validation, the abax Jupyter kernel, and the editable-sheet widget ([jupyter.md](jupyter.md)) |
 | `sevenzip` | `py7zr` | Create / extract `.7z` archives in the file manager |
+| `charts` | `matplotlib` | Matplotlib rendering backend for embedded charts (the built-in SVG renderer always works without it) |
 | `stats-io` | `pyreadstat` | Reading Stata `.dta` / SPSS `.sav` files |
 | `hdf5` | `h5py` | Reading HDF5 `.h5` / `.hdf5` files |
 | `nec` | `PyNEC` | Reference NEC-2 antenna solver (cross-checks the built-in MoM) |
 | **`thin`** | `gui` + `tui` + `excel` + `fast-io` + `terminal` + `sevenzip` | A lean desktop install — every lightweight convenience, none of the heavy data libraries |
-| **`all`** | `thin` + `parquet` + `science` + `jupyter` + `bayes` + `stats-io` + `hdf5` + `nec` | One-shot install of everything abax can use (the full-fat set) |
+| **`all`** | `thin` + `charts` + `parquet` + `science` + `jupyter` + `bayes` + `stats-io` + `hdf5` + `nec` | One-shot install of everything abax can use (the full-fat set) |
 
 > **You choose on first launch.** You don't have to pick extras at install time:
 > install just `gui`, and the first time you open abax it shows a short **chooser**
