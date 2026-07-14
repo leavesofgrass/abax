@@ -16,6 +16,12 @@ from .sheet import Sheet
 
 SCHEMA_VERSION = 2
 
+# Auto-windowing kicks in (windowed_store_capacity == 0, the default) for
+# sheets with at least this many populated cells. Below it a plain dict is
+# cheap (~25 MB per 125k cells measured); above it the windowed store's
+# ~50% steady-state saving starts to matter. Tests may patch this down.
+AUTO_WINDOW_THRESHOLD = 100_000
+
 
 class RecalcCancelled(Exception):
     """Raised inside a recalc when its ``should_cancel`` callback returns truthy.
@@ -270,16 +276,45 @@ class Workbook:
         return self.sheets[self.active]
 
     def use_windowed_stores(self, capacity: int) -> None:
-        """Bound every sheet's resident cells to ``capacity`` (0 = off).
+        """Bound every sheet's resident cells to ``capacity`` (<= 0 = off).
 
-        Called once by a front-end after a large workbook is opened, when the
-        ``windowed_store_capacity`` setting is on. Per-sheet detail:
+        The unconditional mechanism (every sheet, given capacity); front-ends
+        normally go through :meth:`apply_windowing_policy`, which adds the
+        auto-on-large-sheets default. Per-sheet detail:
         :meth:`Sheet.use_windowed_store`.
         """
         if not capacity or capacity <= 0:
             return
         for sheet in self.sheets:
             sheet.use_windowed_store(capacity)
+
+    def apply_windowing_policy(self, setting: int) -> None:
+        """Apply the ``windowed_store_capacity`` setting after a file is opened.
+
+        Three-way semantics:
+
+        * ``setting > 0`` — window **every** sheet at that capacity (the
+          explicit opt-in, unchanged).
+        * ``setting == 0`` (the default) — **auto**: window only sheets whose
+          populated-cell count is at least :data:`AUTO_WINDOW_THRESHOLD`, at
+          ``WindowedCellStore.DEFAULT_CAPACITY``. Small sheets keep the plain
+          store — zero change for typical workbooks.
+        * ``setting < 0`` — never window (the explicit opt-out).
+
+        Auto only triggers at open time, so the transient migration cost
+        (~1.5x while cells move into the windowed store) is paid where a load
+        spike already exists, not mid-session.
+        """
+        if setting > 0:
+            self.use_windowed_stores(setting)
+            return
+        if setting < 0:
+            return
+        from .cellstore import WindowedCellStore
+
+        for sheet in self.sheets:
+            if len(sheet._cells) >= AUTO_WINDOW_THRESHOLD:
+                sheet.use_windowed_store(WindowedCellStore.DEFAULT_CAPACITY)
 
     def add_sheet(self, name: str | None = None) -> Sheet:
         name = name or f"Sheet{len(self.sheets) + 1}"

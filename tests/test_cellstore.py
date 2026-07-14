@@ -318,3 +318,80 @@ def test_true_cycle_still_reports_circ_on_both_stores():
         finally:
             if windowed:
                 sh._cells.close()
+
+
+# --------------------------------------------------------------------------- #
+# Auto-windowing policy — Workbook.apply_windowing_policy
+# --------------------------------------------------------------------------- #
+
+
+def test_policy_auto_windows_only_large_sheets(monkeypatch):
+    """Setting 0 (the default) windows sheets at/above the threshold and leaves
+    small sheets on the plain store."""
+    import abax.core.workbook as wbmod
+    from abax.core.workbook import Workbook
+
+    monkeypatch.setattr(wbmod, "AUTO_WINDOW_THRESHOLD", 100)
+    wb = Workbook()
+    big = wb.sheet
+    for r in range(120):                       # >= patched threshold
+        big.set_cell(r, 0, str(r))
+    small = wb.add_sheet("small")
+    small.set_cell(0, 0, "1")
+
+    wb.apply_windowing_policy(0)
+    try:
+        assert isinstance(big._cells, WindowedCellStore)
+        assert big._cells.capacity == WindowedCellStore.DEFAULT_CAPACITY
+        assert not isinstance(small._cells, WindowedCellStore)
+        # Values intact through the migration.
+        assert big.get_value(119, 0) == 119
+    finally:
+        big._cells.close()
+
+
+def test_policy_negative_never_windows(monkeypatch):
+    import abax.core.workbook as wbmod
+    from abax.core.workbook import Workbook
+
+    monkeypatch.setattr(wbmod, "AUTO_WINDOW_THRESHOLD", 10)
+    wb = Workbook()
+    for r in range(50):
+        wb.sheet.set_cell(r, 0, str(r))
+    wb.apply_windowing_policy(-1)
+    assert not isinstance(wb.sheet._cells, WindowedCellStore)
+
+
+def test_policy_positive_windows_every_sheet():
+    from abax.core.workbook import Workbook
+
+    wb = Workbook()
+    wb.sheet.set_cell(0, 0, "1")               # tiny — still windowed when >0
+    tiny = wb.add_sheet("tiny")
+    tiny.set_cell(0, 0, "2")
+    wb.apply_windowing_policy(25)
+    try:
+        assert isinstance(wb.sheets[0]._cells, WindowedCellStore)
+        assert isinstance(tiny._cells, WindowedCellStore)
+        assert tiny._cells.capacity == 25
+    finally:
+        for sh in wb.sheets:
+            sh._cells.close()
+
+
+def test_document_open_applies_auto_policy(tmp_path, monkeypatch):
+    """Document.open routes the setting through apply_windowing_policy."""
+    import abax.core.workbook as wbmod
+    from abax.engine.document import Document
+
+    monkeypatch.setattr(wbmod, "AUTO_WINDOW_THRESHOLD", 5)
+    csv = tmp_path / "big.csv"
+    csv.write_text("\n".join(str(i) for i in range(20)), encoding="utf-8")
+    doc = Document.open(csv)                   # default 0 -> auto
+    try:
+        assert isinstance(doc.workbook.sheet._cells, WindowedCellStore)
+    finally:
+        doc.workbook.sheet._cells.close()
+
+    doc2 = Document.open(csv, windowed_capacity=-1)   # never
+    assert not isinstance(doc2.workbook.sheet._cells, WindowedCellStore)

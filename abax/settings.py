@@ -110,11 +110,12 @@ if _HAS_MSGSPEC:
         # read other workbook files (consent). Off by default so an opened file
         # cannot pull in other files on its own.
         external_refs_enabled: bool = False
-        # Windowed cell store: keep at most this many cells resident per sheet and
-        # spill the rest to a private temp file (0 = off, the default — every cell
-        # stays in RAM). A memory/latency trade-off worth enabling ONLY for very
-        # large *data* imports (lots of literal cells); formula-heavy sheets see
-        # little benefit. See docs/configuration.md.
+        # Windowed cell store: >0 keeps at most that many cells resident per
+        # sheet (rest spilled to a private temp file); 0 (the default) = AUTO —
+        # only sheets with >= 100k populated cells are windowed, at the store's
+        # default 50k capacity, so small workbooks are untouched; -1 = never.
+        # A memory/latency trade-off that matters for very large *data* imports
+        # (lots of literal cells). See docs/configuration.md.
         windowed_store_capacity: int = 0
         schema_version: int = SCHEMA_VERSION
 
@@ -177,11 +178,12 @@ else:
         # read other workbook files (consent). Off by default so an opened file
         # cannot pull in other files on its own.
         external_refs_enabled: bool = False
-        # Windowed cell store: keep at most this many cells resident per sheet and
-        # spill the rest to a private temp file (0 = off, the default — every cell
-        # stays in RAM). A memory/latency trade-off worth enabling ONLY for very
-        # large *data* imports (lots of literal cells); formula-heavy sheets see
-        # little benefit. See docs/configuration.md.
+        # Windowed cell store: >0 keeps at most that many cells resident per
+        # sheet (rest spilled to a private temp file); 0 (the default) = AUTO —
+        # only sheets with >= 100k populated cells are windowed, at the store's
+        # default 50k capacity, so small workbooks are untouched; -1 = never.
+        # A memory/latency trade-off that matters for very large *data* imports
+        # (lots of literal cells). See docs/configuration.md.
         windowed_store_capacity: int = 0
         schema_version: int = SCHEMA_VERSION
 

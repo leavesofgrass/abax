@@ -55,10 +55,11 @@ class DocumentIOMixin:
                      busy_msg=f"opening {Path(path).name}...")
 
     def _open_succeeded(self, doc) -> None:
-        # Opt-in windowed cell store for very large data imports (0 = off).
+        # Windowed cell store: >0 always, 0 (default) auto-windows large
+        # sheets only, <0 never. (IOWorker builds the Document without the
+        # setting, so the policy is applied here on the delivered workbook.)
         cap = getattr(self._settings, "windowed_store_capacity", 0)
-        if cap and cap > 0:
-            doc.workbook.use_windowed_stores(cap)
+        doc.workbook.apply_windowing_policy(cap)
         self._doc = doc
         if doc.path:
             self._remember_recent(str(doc.path))

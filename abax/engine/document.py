@@ -74,9 +74,11 @@ class Document:
     def open(cls, path: str | Path, windowed_capacity: int = 0) -> "Document":
         """Load a file into a Document.
 
-        ``windowed_capacity`` > 0 re-homes every sheet into a bounded,
-        disk-spilling cell store after loading (the ``windowed_store_capacity``
-        setting) — for very large data imports. Default 0 keeps every cell in RAM.
+        ``windowed_capacity`` is the ``windowed_store_capacity`` setting:
+        ``> 0`` re-homes every sheet into a bounded, disk-spilling cell store
+        at that capacity; ``0`` (the default) **auto-windows only large
+        sheets** (>= ``AUTO_WINDOW_THRESHOLD`` populated cells, at the store's
+        default capacity); ``< 0`` never windows.
         """
         path = Path(path)
         ext = path.suffix.lower()
@@ -129,8 +131,7 @@ class Document:
             wb = hdf5_io.load_hdf5(path)
         else:
             raise ValueError(f"unsupported file type: {ext!r}")
-        if windowed_capacity and windowed_capacity > 0:
-            wb.use_windowed_stores(windowed_capacity)
+        wb.apply_windowing_policy(windowed_capacity)
         return cls(wb, path)
 
     def save(self, path: str | Path | None = None) -> None:

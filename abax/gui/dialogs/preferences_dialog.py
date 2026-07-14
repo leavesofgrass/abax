@@ -287,19 +287,21 @@ class PreferencesDialog(QDialog):
         perf_box = QGroupBox("Performance", page)
         perf_form = QFormLayout(perf_box)
         self._windowed_capacity = QSpinBox(perf_box)
-        self._windowed_capacity.setRange(0, 100_000_000)
+        self._windowed_capacity.setRange(-1, 100_000_000)
         self._windowed_capacity.setSingleStep(10_000)
         self._windowed_capacity.setGroupSeparatorShown(True)
-        # value 0 shows as the "off" label instead of "0"
-        self._windowed_capacity.setSpecialValueText("Off — keep every cell in RAM")
+        # value -1 (the minimum) shows as the "never" label instead of "-1"
+        self._windowed_capacity.setSpecialValueText("Never — keep every cell in RAM")
         self._windowed_capacity.setSuffix(" cells / sheet")
         perf_form.addRow("Windowed cell store:", self._windowed_capacity)
         perf_hint = QLabel(
             "Keep at most this many cells resident per sheet and spill the rest to a "
-            "temp file — trades memory for latency, worth it only for very large data "
-            "imports (applies to files opened afterwards). Set it comfortably above your "
-            "deepest formula-dependency chain: a chain longer than the capacity can "
-            "surface #CIRC!. Leave it Off unless you actually hit a memory ceiling.",
+            "temp file — trades memory for latency (applies to files opened "
+            "afterwards). 0 = Auto (the default): only sheets with ≥ 100,000 "
+            "populated cells are windowed, at 50,000 resident cells — small "
+            "workbooks are untouched. A positive value windows every sheet at that "
+            "capacity; Never disables windowing entirely. Formula chains of any "
+            "depth evaluate correctly regardless of the capacity.",
             perf_box)
         perf_hint.setWordWrap(True)
         perf_form.addRow(perf_hint)

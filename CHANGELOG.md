@@ -19,6 +19,16 @@ All notable changes to abax are documented here. The format follows
   file columns absent from the sheet are ignored.
 - **`abax schedule FILE` CLI subcommand** — a headless command that runs CPM on
   each project in a workbook and prints the critical path.
+- **The windowed cell store now auto-enables for large files.**
+  `windowed_store_capacity` gained three-way semantics: `0` (the default) is
+  **Auto** — when a file is opened, sheets with ≥ 100,000 populated cells are
+  windowed at the store's default 50,000-cell capacity, so small workbooks are
+  untouched and huge imports get the ~48% steady-state memory saving without
+  any setting; a positive value windows every sheet at that capacity (the old
+  explicit opt-in, unchanged); `-1` never windows. Applied by all three
+  front-ends via a new `Workbook.apply_windowing_policy`. The Preferences
+  spin-box grew a "Never" position and its hint no longer repeats the
+  disproven chain-depth capacity guidance.
 - **Project > OKRs… editor** — a menu entry (and "Project: OKRs…" command-palette
   action) to edit a project's objectives and key results as text, mirroring the
   Milestones editor. Non-indented lines are objectives; indented
