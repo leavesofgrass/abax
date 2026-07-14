@@ -40,6 +40,21 @@ All notable changes to abax are documented here. The format follows
   but never fed it data, so the tab always showed an empty table. `_push_data_to`
   now calls `OkrView.setObjectives(proj.objectives, tasks)` so the active
   project's objectives and key results render.
+- **Four more PM tabs actually work now.** A new soak test that materializes
+  ALL ten view tabs against a populated two-project workbook (the guard the
+  OKR bug called for) immediately caught four more host↔view seam breaks that
+  shipped in 0.1.13: the **initial tab (Kanban) never materialized** (Qt fires
+  no `currentChanged` for the tab a widget starts on, so it stayed a
+  placeholder until you switched away and back); **Kanban and Card** were fed
+  through a `setTasks` method neither view has (they consume a
+  `TaskViewModel` via `setModel` — they now get one, wired to the undo path);
+  **Budget** called `budget_rollup(tasks)` / `evm(tasks)` with the wrong
+  shapes (roll-up takes `(project, tasks)` pairs; EVM needs a reference date
+  and the project budget); and **Resources** imported a function that does
+  not exist (`aggregate_workload` → the real `workload_by_week`, spanning the
+  tasks' actual date range). Every view's own unit tests passed throughout —
+  the breakage lived exclusively in the integration seam, which is exactly
+  what the soak test now pins.
 - **Deep dependency chains no longer report a false `#CIRC!`.** A cold
   top-down read of a long running-total chain (`A2=A1+1, …`) hit the
   interpreter's default recursion limit at a chain only ~166 cells deep — on

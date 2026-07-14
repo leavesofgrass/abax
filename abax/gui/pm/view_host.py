@@ -116,6 +116,11 @@ class PMViewHost(QDockWidget):
             self._project = None
             return
         self._project = self._project_combo.itemData(idx)
+        # Materialize the tab that is already showing: switching TO a tab
+        # fires currentChanged, but the tab the widget starts on (Kanban)
+        # never does — it would stay a placeholder until the user switched
+        # away and back.
+        self._on_tab_changed(self._tabs.currentIndex())
         self._refresh_views()
 
     def _on_tab_changed(self, idx: int) -> None:
@@ -228,7 +233,26 @@ class PMViewHost(QDockWidget):
         proj = self._project
 
         if key in ("kanban", "card"):
-            view.setTasks(tasks)
+            # These two views consume a TaskViewModel (task list + write-back
+            # context), not a bare task list.
+            from .common import TaskViewModel
+
+            model = TaskViewModel(
+                sheet,
+                header_row=proj.header_row if proj else 0,
+                first_col=proj.first_col if proj else 0,
+                last_col=(proj.last_col if proj and proj.last_col >= 0 else None),
+                first_data_row=(
+                    proj.first_data_row
+                    if proj and proj.first_data_row >= 0 else None
+                ),
+                last_data_row=(
+                    proj.last_data_row
+                    if proj and proj.last_data_row >= 0 else None
+                ),
+                on_set=on_set,
+            )
+            view.setModel(model)
         elif key == "calendar":
             view.setTasks(tasks)
             view.setContext(
@@ -268,9 +292,18 @@ class PMViewHost(QDockWidget):
             if hasattr(view, "setCritical"):
                 view.setCritical(self._critical_ids)
         elif key == "resource":
-            from abax.core.pm.capacity import aggregate_workload
+            from datetime import date as _date
+            from datetime import timedelta as _td
 
-            workload = aggregate_workload(tasks)
+            from abax.core.pm.capacity import workload_by_week
+
+            # Span the tasks' actual date range (fall back to a month around
+            # today when no task carries dates).
+            starts = [t.start for t in tasks if t.start]
+            dues = [t.due for t in tasks if t.due]
+            lo = min(starts) if starts else _date.today()
+            hi = max(dues) if dues else _date.today() + _td(weeks=4)
+            workload = workload_by_week(tasks, lo, hi)
             view.setData(workload)
             view.setTasks(tasks)
             view.setContext(
@@ -280,10 +313,15 @@ class PMViewHost(QDockWidget):
                 on_set=on_set,
             )
         elif key == "finance":
+            from datetime import date as _date
+
             from abax.core.pm.finance import budget_rollup, evm
 
-            bd = budget_rollup(tasks)
-            ev = evm(tasks)
+            # budget_rollup aggregates (Project, tasks) pairs; evm needs a
+            # reference date (and uses the project budget for EAC context).
+            bd = budget_rollup([(proj, tasks)] if proj else [])
+            ev = evm(tasks, _date.today(),
+                     budget=(proj.budget_total if proj else None))
             view.setData(bd, ev)
         elif key == "okr":
             objectives = proj.objectives if proj else []
