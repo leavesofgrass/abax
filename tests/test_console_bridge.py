@@ -39,6 +39,14 @@ def test_interrupt_stops_a_runaway(bridge):
     import threading
 
     env = Workbook().to_envelope()
+    # Warm the worker FIRST so it is already spawned and answering before the
+    # interrupt timer is armed. interrupt() is a no-op while `bridge._proc` is
+    # still None, so racing the timer against a cold spawn is a hang waiting to
+    # happen: under full-suite load (parallel xdist workers + AV scanning every
+    # fresh python.exe) CreateProcess can take longer than the timer delay, the
+    # interrupt fires into nothing, and the runaway below blocks forever.
+    # Against a live worker, a kill at any moment yields crashed=True.
+    assert "warm" in bridge.execute("print('warm')", env)["output"]
     timer = threading.Timer(1.5, bridge.interrupt)     # kill the worker mid-run
     timer.start()
     # exec() so the loop actually runs — a bare one-line `while True: pass` is
