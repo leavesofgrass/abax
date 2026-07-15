@@ -460,8 +460,8 @@ def test_from_envelope_auto_windows_large_sheets_at_load(monkeypatch):
 
 def test_from_envelope_without_policy_or_negative_stays_plain(monkeypatch):
     """No ``windowed_capacity`` (callers that apply the policy later — or never,
-    like undo/redo snapshots) and the explicit ``-1`` both keep the plain store,
-    even above the auto threshold."""
+    like save-a-copy snapshots) and the explicit ``-1`` both keep the plain
+    store, even above the auto threshold."""
     import abax.core.workbook as wbmod
     from abax.core.workbook import Workbook
 

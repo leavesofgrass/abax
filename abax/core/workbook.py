@@ -261,13 +261,20 @@ class Workbook:
                 sh._iterating = False
         return iterations, converged
 
-    def load_envelope(self, env: dict) -> None:
+    def load_envelope(self, env: dict, *, windowed_capacity: "int | None" = None) -> None:
         """Replace this workbook's contents IN PLACE from an envelope.
 
         Keeps ``self`` identity (so GUI/TUI references to the workbook stay valid)
         while swapping in the sheets/active from ``env`` — the basis for undo/redo.
+
+        ``windowed_capacity`` re-applies the windowing policy during the rebuild
+        (same semantics as :meth:`from_envelope`), so restoring a snapshot of a
+        large workbook lands its sheets back on the bounded windowed store
+        instead of silently rehydrating every cell into RAM. The default
+        ``None`` applies no policy (plain stores), preserving the behaviour of
+        policy-free callers.
         """
-        other = Workbook.from_envelope(env)
+        other = Workbook.from_envelope(env, windowed_capacity=windowed_capacity)
         self.sheets = other.sheets
         self.active = other.active
         self.names = other.names
@@ -481,7 +488,9 @@ class Workbook:
         migrate-after-load memory spike at exactly the moment it hurt most.
         The default ``None`` applies no policy (plain stores), preserving the
         behaviour of callers that window afterwards — or never — such as
-        undo/redo snapshots and :meth:`apply_windowing_policy` users.
+        transient save-a-copy snapshots and :meth:`apply_windowing_policy`
+        users. Live-document restores (undo/redo) pass the retained setting
+        through :meth:`load_envelope` so the policy re-applies identically.
         """
         version = env.get("schema_version", 0)
         data = env.get("data", env)  # tolerate bare payloads

@@ -17,13 +17,21 @@ from ..core.workbook import Workbook
 
 
 class Document:
-    def __init__(self, workbook: Workbook | None = None, path: Path | None = None) -> None:
+    def __init__(self, workbook: Workbook | None = None, path: Path | None = None,
+                 windowed_capacity: int | None = None) -> None:
         from ..core.undo import UndoStack
 
         self.workbook = workbook or Workbook()
         self.path = path
         self.dirty = False
         self._undo = UndoStack()
+        # The windowed_store_capacity policy this document was opened under
+        # (``Document.open`` retains it). Undo/redo rebuild the workbook from an
+        # envelope snapshot, so they re-apply the same policy — a large windowed
+        # workbook stays on the bounded store across a restore instead of
+        # rehydrating every cell into RAM. ``None`` (the default for direct
+        # constructions) means no policy: restores stay on plain stores.
+        self.windowed_capacity = windowed_capacity
 
     @property
     def title(self) -> str:
@@ -46,7 +54,9 @@ class Document:
         res = self._undo.undo(self.workbook.to_envelope())
         if res is None:
             return False
-        self.workbook.load_envelope(res[0])
+        # Restore under the document's windowing policy so a large workbook
+        # lands back on the bounded store (see __init__).
+        self.workbook.load_envelope(res[0], windowed_capacity=self.windowed_capacity)
         self.dirty = True
         return True
 
@@ -54,7 +64,7 @@ class Document:
         res = self._undo.redo(self.workbook.to_envelope())
         if res is None:
             return False
-        self.workbook.load_envelope(res[0])
+        self.workbook.load_envelope(res[0], windowed_capacity=self.windowed_capacity)
         self.dirty = True
         return True
 
@@ -86,6 +96,11 @@ class Document:
         first. Every other format loads plain and then migrates via
         ``apply_windowing_policy`` (a no-op for the already-windowed native
         sheets).
+
+        The policy is retained on the returned document
+        (``self.windowed_capacity``), and undo/redo re-apply it when they
+        rebuild the workbook from a snapshot — so one Ctrl+Z on a windowed
+        workbook cannot silently rehydrate every cell into RAM.
         """
         path = Path(path)
         ext = path.suffix.lower()
@@ -141,7 +156,8 @@ class Document:
         else:
             raise ValueError(f"unsupported file type: {ext!r}")
         wb.apply_windowing_policy(windowed_capacity)
-        return cls(wb, path)
+        # Retain the policy on the document so undo/redo restores re-apply it.
+        return cls(wb, path, windowed_capacity=windowed_capacity)
 
     def save(self, path: str | Path | None = None) -> None:
         target = Path(path) if path else self.path
