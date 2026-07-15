@@ -26,6 +26,22 @@ py -m PyInstaller packaging/windows/abax.spec --noconfirm --distpath dist/window
 
 The result is `dist/windows/abax/` — zip that folder to distribute.
 
+## Smoke gate
+
+After every build, run the frozen-bundle gate:
+
+```powershell
+.\packaging\windows\smoke.ps1 -BundleDir dist\windows\abax
+```
+
+It checks the exe layout, `--version`, a `get` data canary, an **embedded
+chart render inside the bundle's interpreter** (both backends: the stdlib SVG
+renderer must return `<svg`, matplotlib must return PNG bytes — run via a
+command macro, `abax --macros … macro run …`), and an offscreen `abax gui`
+launch that must stay alive. CLI checks alone prove nothing about
+lazily-imported or data-dependent paths — that is the 0.1.8 lesson this gate
+encodes. The release workflow runs the same script on every build.
+
 **CI:** the `windows-binary` job in `.github/workflows/release.yml` runs exactly
 this on `windows-latest` for every `v*` tag, zips the bundle as
 `abax-<version>-windows-x64.zip`, and attaches it to the GitHub Release. It

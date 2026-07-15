@@ -136,8 +136,14 @@ jobs:
           pip install -e ".[dev,thin,parquet,science,jupyter,bayes,stats-io,database,hdf5,satellite,tts,restricted]" pyinstaller pyttsx3 RestrictedPython "psycopg[binary]" PyMySQL
       - name: Build the bundle
         run: python -m PyInstaller packaging/windows/abax.spec --noconfirm --distpath dist/windows
+      # The full frozen-bundle gate (0.1.8 lesson: CLI checks alone prove
+      # nothing): exe layout, --version, a `get` data canary, an embedded
+      # chart rendered through BOTH backends inside the bundle's interpreter
+      # (stdlib SVG + matplotlib PNG), and an offscreen GUI launch that must
+      # stay alive. See packaging/windows/smoke.ps1.
       - name: Smoke-test the frozen build
-        run: dist/windows/abax/abax.exe --version
+        shell: pwsh
+        run: ./packaging/windows/smoke.ps1 -BundleDir dist/windows/abax
       - name: Zip the bundle
         shell: pwsh
         run: |
