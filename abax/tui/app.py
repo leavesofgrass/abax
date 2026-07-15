@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from .capabilities import detect_terminal
-from .editor import TuiEditor
 from .render import _draw_loop
-from .themes import THEMES
+from .session import build_session
 
 
 def run_tui(file: str | None = None, registry=None) -> int:
@@ -15,47 +14,9 @@ def run_tui(file: str | None = None, registry=None) -> int:
         print("curses is unavailable; install 'windows-curses' on Windows.")
         return 1
 
-    from .. import _runtime as rt
-    from ..engine.document import Document
-    from ..settings import load_settings
-
-    settings = load_settings(rt.CONFIG_DIR / "settings.json")
-
-    # First run: point the user at their choices instead of silently installing.
-    from .. import autodeps
-    autodeps.set_enabled(getattr(settings, "auto_install", True))
-    if autodeps.enabled() and not getattr(settings, "deps_prompted", False):
-        print("abax: optional features (data science, Excel/Parquet, Jupyter, "
-              "terminal) are not installed yet.")
-        print("  Install everything:  abax deps        (or launch the GUI for a "
-              "chooser)")
-        print("  Pick specific ones:  pip install abax[science]  /  [excel]  /  "
-              "[jupyter]  ...")
-        settings.deps_prompted = True
-        try:
-            from ..settings import save_settings
-            save_settings(settings, rt.CONFIG_DIR / "settings.json")
-        except Exception:
-            pass
-
-    # Honour the persisted live-data consent so REST/WEBSOCKET formulas work in
-    # the TUI too (off unless the user opted in; a loaded file can't phone home).
-    from ..core.externref import HUB as EXT
-    from ..core.livedata import HUB
-    HUB.set_enabled(bool(getattr(settings, "live_data_enabled", False)))
-    EXT.set_enabled(bool(getattr(settings, "external_refs_enabled", False)))
-
-    doc = (Document.open(file, windowed_capacity=getattr(settings, "windowed_store_capacity", 0))
-           if file else Document())
-    # Anchor external-ref paths at the open workbook's directory.
-    EXT.set_base_dir(doc.path.parent if getattr(doc, "path", None) else None)
-    # Pass settings so the editor can honour the Wave-1 accessibility flags
-    # (tui_screen_reader / speak_on_move); it reads them defensively, so an older
-    # settings struct without those fields simply leaves the features off.
-    editor = TuiEditor(doc, registry, settings)
-    theme_name = getattr(settings, "tui_theme", "obsidian")
-
-    editor.theme_name = theme_name if theme_name in THEMES else "obsidian"
+    # Shared preamble: settings, first-run dep hint, live-data/extern consent,
+    # document open, editor + theme (see abax.tui.session).
+    editor = build_session(file, registry)
 
     def _main(stdscr) -> int:
         curses.curs_set(0)

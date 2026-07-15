@@ -32,8 +32,13 @@ def _build_parser() -> argparse.ArgumentParser:
     pg = sub.add_parser("gui", help="launch the Qt GUI")
     pg.add_argument("file", nargs="?", help="spreadsheet to open")
 
-    pt = sub.add_parser("tui", help="launch the curses TUI")
+    pt = sub.add_parser("tui", help="launch the terminal UI (Textual, curses fallback)")
     pt.add_argument("file", nargs="?", help="spreadsheet to open")
+    pt_backend = pt.add_mutually_exclusive_group()
+    pt_backend.add_argument("--curses", action="store_true",
+                            help="force the curses front-end (SSH-safe, 8-colour/mono)")
+    pt_backend.add_argument("--textual", action="store_true",
+                            help="force the Textual front-end")
 
     pv = sub.add_parser("view", help="print a spreadsheet as a table")
     pv.add_argument("file", help="spreadsheet to open (.csv/.xlsx/.json)")
@@ -164,9 +169,7 @@ def main(argv: list[str] | None = None) -> int:
 
         return run_gui(args.file, registry)
     if cmd == "tui":
-        from .tui import run_tui
-
-        return run_tui(args.file, registry)
+        return _cmd_tui(args, registry)
     if cmd == "view":
         return _cmd_view(args.file, args.sheet)
     if cmd == "convert":
@@ -537,6 +540,27 @@ def _cmd_deps() -> int:
     have = sum(1 for _pip, mod in autodeps.ALL if autodeps.installed(mod))
     print(f"Optional dependencies present: {have}/{len(autodeps.ALL)}")
     return 0
+
+
+def _cmd_tui(args, registry) -> int:
+    """Launch the terminal UI, choosing the front-end.
+
+    Textual is the default when it's installed and the session is a real
+    interactive terminal; ``--curses`` forces the SSH-safe curses view (as does a
+    non-TTY stdout or Textual being absent), and ``--textual`` forces Textual.
+    """
+    import sys as _sys
+
+    from .tui.textual_app import run_textual_tui, textual_available
+
+    force_curses = getattr(args, "curses", False)
+    force_textual = getattr(args, "textual", False)
+    interactive = _sys.stdout.isatty() and _sys.stdin.isatty()
+    use_textual = force_textual or (textual_available() and interactive and not force_curses)
+    if use_textual:
+        return run_textual_tui(args.file, registry)
+    from .tui import run_tui
+    return run_tui(args.file, registry)
 
 
 def _cmd_view(path: str, sheet_name: str | None) -> int:
