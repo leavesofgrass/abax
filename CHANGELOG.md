@@ -15,9 +15,12 @@ All notable changes to abax are documented here. The format follows
   sharing the exact `TuiEditor` state machine (modes, `:` commands, undo/redo)
   with the curses view. `abax tui` now launches Textual on a capable interactive
   terminal and falls back to curses over SSH / dumb terminals or with `--curses`
-  (`--textual` forces it). This first slice covers the grid, vim navigation,
-  cell editing, and the `:` command line; visual mode, theming, and the overlays
-  land in follow-ups.
+  (`--textual` forces it). Covers the grid with the TUI colour themes and
+  conditional-format colours, vim navigation, cell editing, visual selection with
+  yank/paste, and the full `:` command line — the same keys as curses, since both
+  views delegate into `TuiEditor.dispatch_normal`. The overlay modes
+  (help / function browser / `:describe` / `:tasks` / RPN / plot) land in a
+  follow-up.
 - **Kind-specific chart options in the Insert/Edit dialog** — histogram bins,
   waterfall total bar, and line first-column-is-X are now settable from the
   GUI; only the active kind's option rows are visible, and only non-default

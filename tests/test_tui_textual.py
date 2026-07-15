@@ -113,6 +113,75 @@ def test_status_text_reflects_mode():
     assert "INSERT" in status_text(ed)
 
 
+# --- visual mode + yank/paste (delegated to the shared editor dispatch) ------
+
+
+def test_visual_yank_then_paste():
+    doc = Document()
+    sh = doc.workbook.sheet
+    sh.set_cell(0, 0, "10")
+    sh.set_cell(0, 1, "20")
+    ed = TuiEditor(doc)
+    handle_key(ed, "v", "v")                 # enter visual at A1
+    assert ed.mode == "visual"
+    handle_key(ed, "l", "l")                 # extend to B1
+    handle_key(ed, "y", "y")                 # yank A1:B1 (cursor now at B1)
+    assert ed.mode == "normal" and ed.clip is not None
+    handle_key(ed, "0", "0")                 # back to column A
+    handle_key(ed, "j", "j")                 # move to A2
+    handle_key(ed, "p", "p")                 # paste
+    assert ed.sheet.get_raw(1, 0) == "10"
+    assert ed.sheet.get_raw(1, 1) == "20"
+
+
+def test_visual_escape_cancels():
+    ed = _editor()
+    handle_key(ed, "v", "v")
+    assert ed.mode == "visual"
+    handle_key(ed, "escape", None)
+    assert ed.mode == "normal"
+
+
+def test_visual_delete_clears_selection():
+    doc = Document()
+    sh = doc.workbook.sheet
+    sh.set_cell(0, 0, "10")
+    sh.set_cell(0, 1, "20")
+    ed = TuiEditor(doc)
+    handle_key(ed, "v", "v")
+    handle_key(ed, "l", "l")
+    handle_key(ed, "d", "d")                 # delete A1:B1
+    assert ed.mode == "normal"
+    assert ed.sheet.get_raw(0, 0) == "" and ed.sheet.get_raw(0, 1) == ""
+
+
+# --- theming + conditional-format colours -----------------------------------
+
+
+def _styles(text):
+    return " ".join(str(sp.style) for sp in text.spans)
+
+
+def test_render_grid_applies_theme_and_cursor_style():
+    ed = _editor()
+    ed.theme_name = "hacker"                  # green theme -> color(46) for lcd
+    text = render_grid(ed, 80, 24)
+    styles = _styles(text)
+    assert "reverse" in styles                # the cursor cell
+    assert "color(" in styles                 # theme role colours applied
+
+
+def test_render_grid_uses_conditional_format_colors(monkeypatch):
+    import abax.core.format.condformat as cf
+
+    # A red rule on C3 (not the A1 cursor cell) -> #ff0000 -> xterm-256 index 196.
+    monkeypatch.setattr(cf, "evaluate", lambda sheet, rules: {(2, 2): "#ff0000"})
+    ed = _editor()
+    ed.sheet.cond_rules = ["<sentinel-rule>"]  # non-empty so _cond_colors evaluates
+    text = render_grid(ed, 80, 24)
+    assert "color(196)" in _styles(text)
+
+
 # --- live app via Pilot -----------------------------------------------------
 
 

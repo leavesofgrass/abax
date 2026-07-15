@@ -36,13 +36,43 @@ def grid_viewport(width: int, height: int) -> "tuple[int, int]":
     return rows, cols
 
 
+def _role_style(theme, role: str) -> str:
+    """A Rich style for a theme role — the theme's xterm-256 index as ``color(N)``
+    (Rich understands the 256-palette form directly, so the TUI themes map over
+    with no new colour tables)."""
+    return f"color({theme.color(role, '256')})"
+
+
+def _cond_colors(sheet) -> dict:
+    """``{(row, col): '#rrggbb'}`` from the sheet's conditional-format rules, or
+    ``{}`` — evaluation is guarded exactly like the curses draw loop so a bad rule
+    can never break the paint."""
+    if not getattr(sheet, "cond_rules", None):
+        return {}
+    try:
+        from ..core.format.condformat import evaluate
+        return evaluate(sheet, sheet.cond_rules)
+    except Exception:
+        return {}
+
+
 def render_grid(editor, width: int, height: int):
     """Build the grid body (header + data rows) as a Rich ``Text`` for a widget
     ``width`` x ``height`` cells, syncing the editor's viewport + scroll first so
-    the cursor stays visible (the same reclamp the curses draw loop does)."""
+    the cursor stays visible (the same reclamp the curses draw loop does). Cells
+    are tinted with the active TUI theme's role colours and per-cell
+    conditional-format colours — cursor and selection win over both."""
     from rich.text import Text
 
     from ..core.reference import index_to_col
+    from .themes import THEMES, _hex_to_256
+
+    theme = THEMES.get(getattr(editor, "theme_name", "obsidian"), THEMES["obsidian"])
+    s_label = _role_style(theme, "label")
+    s_dim = _role_style(theme, "dim")
+    s_lcd = _role_style(theme, "lcd")
+    s_accent = _role_style(theme, "accent")
+    s_cursor = _role_style(theme, "cursor") + " reverse"
 
     rows, cols = grid_viewport(width, height)
     editor.viewport_rows = rows
@@ -52,26 +82,29 @@ def render_grid(editor, width: int, height: int):
     sheet = editor.sheet
     top, left = editor.scroll_row, editor.scroll_col
     vsel = editor.visual_bounds() if editor.mode in ("visual", "visual-line") else None
+    cond = _cond_colors(sheet)
 
     out = Text()
     # Column header.
-    out.append(" " * _GUTTER, style="bold")
+    out.append(" " * _GUTTER, style=s_label + " bold")
     for c in range(left, left + cols):
-        out.append(index_to_col(c).ljust(_COL_W + 1)[: _COL_W + 1], style="bold")
+        out.append(index_to_col(c).ljust(_COL_W + 1)[: _COL_W + 1], style=s_label + " bold")
     out.append("\n")
     # Data rows.
     for r in range(top, top + rows):
-        out.append(str(r + 1).rjust(_GUTTER - 1) + " ", style="dim")
+        out.append(str(r + 1).rjust(_GUTTER - 1) + " ", style=s_dim)
         for c in range(left, left + cols):
             text = sheet.display(r, c)[:_COL_W].ljust(_COL_W) + " "
             if r == editor.row and c == editor.col:
-                style = "reverse"
+                style = s_cursor
             elif vsel is not None and vsel[0] <= r <= vsel[2] and vsel[1] <= c <= vsel[3]:
-                style = "reverse dim"
+                style = s_accent + " reverse"
+            elif cond.get((r, c)):
+                style = f"color({_hex_to_256(cond[(r, c)])})"
             elif sheet.in_spill(r, c):
-                style = "cyan"
+                style = s_accent
             else:
-                style = ""
+                style = s_lcd
             out.append(text, style=style)
         if r != top + rows - 1:
             out.append("\n")
@@ -101,58 +134,86 @@ def status_text(editor) -> str:
     return "   ".join(parts)
 
 
+# Textual's arrow/navigation key names -> the editor's motion methods / vi chars.
+_NAV_METHOD = {"pageup": "page_up", "pagedown": "page_down",
+               "home": "line_home", "end": "line_end"}
+_ARROW_VI = {"up": "k", "down": "j", "left": "h", "right": "l"}
+_VISUAL_MOVE = {"h": (0, -1), "l": (0, 1), "j": (1, 0), "k": (-1, 0)}
+
+
 def handle_key(editor, key: str, char: "str | None") -> None:
     """Route one key (Textual ``event.key`` name + ``event.character``) into the
-    editor, dispatched by the current mode. Mirrors ``keys.py`` for curses; the
-    editor methods it calls are identical."""
+    editor, dispatched by the current mode. Mirrors ``keys.py`` for curses down to
+    the delegation into :meth:`TuiEditor.dispatch_normal` — so every normal-mode
+    command (visual, yank/paste, search, append, …) and user ``init.py`` rebind
+    works identically across both front-ends."""
     if editor.mode == "command":
         _command_key(editor, key, char)
     elif editor.mode == "insert":
         _insert_key(editor, key, char)
+    elif editor.mode in ("visual", "visual-line"):
+        _visual_key(editor, key, char)
     else:
         _normal_key(editor, key, char)
 
 
 def _normal_key(editor, key: str, char: "str | None") -> None:
-    # A bare 'g' arms 'gg'; any other key disarms it (handled at the end).
-    was_pending_g = editor.pending_g
-    editor.pending_g = False
-    if key in ("left", "h"):
-        editor.move(0, -1)
-    elif key in ("right", "l"):
-        editor.move(0, 1)
-    elif key in ("up", "k"):
-        editor.move(-1, 0)
-    elif key in ("down", "j"):
-        editor.move(1, 0)
-    elif key == "pageup":
-        editor.page_up()
-    elif key == "pagedown":
-        editor.page_down()
-    elif key == "home" or char == "0":
-        editor.line_home()
-    elif key == "end" or char == "$":
-        editor.line_end()
-    elif key == "g":
-        if was_pending_g:
-            editor.row = 0
-            editor._reclamp()
-            editor.announce()
-        else:
-            editor.pending_g = True
-    elif char == "G":
-        n_rows, _ = editor.sheet.used_bounds()
-        editor.row = max(0, n_rows - 1)
-        editor._reclamp()
-        editor.announce()
-    elif key in ("i", "enter") or char == "i":
+    from .keys import _user_binding
+
+    if key == "enter":                       # Excel-style: Enter starts editing
+        editor.message = ""
         editor.begin_insert()
-    elif char == ":" or key == "colon":
-        editor.begin_command()
-    elif char == "u":
-        editor.do_undo()
-    elif key == "ctrl+r":
+        return
+    if key == "ctrl+r":                       # redo (curses gets this as \x12)
+        editor.message = ""
         editor.do_redo()
+        return
+    nav = _NAV_METHOD.get(key)
+    if nav is not None:
+        editor.message = ""
+        getattr(editor, nav)()
+        return
+    k = _ARROW_VI.get(key) or char            # arrows behave as h/j/k/l
+    if k is None:
+        return
+    if _user_binding(editor, "normal", k):    # ~/.config/abax/init.py rebinds win
+        return
+    if editor.pending_g:                       # resolve a pending 'g' (gt/gT/gg)
+        editor.pending_g = False
+        if k == "t":
+            editor.message = ""
+            editor.next_sheet(1)
+            return
+        if k == "T":
+            editor.message = ""
+            editor.next_sheet(-1)
+            return
+        editor.message = ""
+        editor.dispatch_normal("g")           # honour the first 'g' (jump to top)
+        if k == "g":
+            return
+    if k == "g":
+        editor.pending_g = True
+        return
+    editor.message = ""
+    editor.dispatch_normal(k)                  # the shared single-key command set
+
+
+def _visual_key(editor, key: str, char: "str | None") -> None:
+    from .keys import _user_binding
+
+    k = _ARROW_VI.get(key) or char
+    if k is not None and _user_binding(editor, "visual", k):
+        return
+    if k in _VISUAL_MOVE:                       # movement extends the selection
+        editor.move(*_VISUAL_MOVE[k])
+        editor.visual_refresh()
+    elif key == "escape" or k == "v":          # Esc / v cancels
+        editor.cancel_visual()
+    elif k == "y":                             # yank the selection
+        editor.visual_yank()
+    elif k in ("d", "x"):                      # delete/clear the selection
+        editor.visual_delete()
 
 
 def _insert_key(editor, key: str, char: "str | None") -> None:
@@ -160,10 +221,14 @@ def _insert_key(editor, key: str, char: "str | None") -> None:
         editor.cancel_insert()
     elif key == "enter":
         editor.commit_insert(advance=True)
+    elif key == "tab":                          # autocomplete the current token
+        editor.complete()
     elif key == "backspace":
         editor.edit_buf = editor.edit_buf[:-1]
+        editor.refresh_completions()
     elif char is not None and char.isprintable():
         editor.edit_buf += char
+        editor.refresh_completions()
 
 
 def _command_key(editor, key: str, char: "str | None") -> None:
