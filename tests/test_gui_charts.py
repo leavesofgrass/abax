@@ -86,8 +86,105 @@ class TestChartDialog:
         assert dlg.windowTitle() == "Edit embedded chart"
         assert dlg.values() == {"kind": "bar", "source": "A1:A4",
                                 "labels": "B1:B4", "title": "T",
-                                "width": 300, "height": 200}
+                                "width": 300, "height": 200, "options": {}}
         dlg.deleteLater()
+
+
+class TestChartOptionRows:
+    """Per-kind renderer options in the dialog (bins / total / first_col_x)."""
+
+    OPTION_WIDGETS = {"histogram": "_bins", "waterfall": "_total",
+                      "line": "_first_col_x"}
+
+    def test_only_the_active_kinds_options_show(self, win):
+        from abax.gui.dialogs.chart_dialog import ChartDialog
+
+        dlg = ChartDialog(win)
+        for kind in list(self.OPTION_WIDGETS) + ["bar", "scatter", "heatmap"]:
+            dlg._kind.setCurrentText(kind)
+            for owner, attr in self.OPTION_WIDGETS.items():
+                widget = getattr(dlg, attr)
+                assert widget.isHidden() == (owner != kind)
+                assert dlg._form.labelForField(widget).isHidden() == \
+                       (owner != kind)
+        dlg.deleteLater()
+
+    def test_values_emit_only_non_defaults_of_the_active_kind(self, win):
+        from abax.gui.dialogs.chart_dialog import ChartDialog
+
+        dlg = ChartDialog(win)
+        dlg._kind.setCurrentText("histogram")
+        assert dlg.values()["options"] == {}          # default bins omitted
+        dlg._bins.setValue(25)
+        assert dlg.values()["options"] == {"bins": 25}
+
+        dlg._kind.setCurrentText("waterfall")         # bins=25 now irrelevant
+        assert dlg.values()["options"] == {}
+        dlg._total.setChecked(False)
+        assert dlg.values()["options"] == {"total": False}
+
+        dlg._kind.setCurrentText("line")
+        dlg._first_col_x.setChecked(True)
+        assert dlg.values()["options"] == {"first_col_x": True}
+        dlg._first_col_x.setChecked(False)            # back to default -> gone
+        assert dlg.values()["options"] == {}
+        dlg.deleteLater()
+
+    def test_edit_mode_prefills_options_and_round_trips(self, win):
+        from abax.gui.dialogs.chart_dialog import ChartDialog
+
+        chart = ChartObject(id="c1", kind="histogram", source="A1:A9",
+                            options={"bins": 30})
+        dlg = ChartDialog(win, chart=chart)
+        assert dlg._bins.value() == 30
+        assert not dlg._bins.isHidden()
+        assert dlg.values()["options"] == {"bins": 30}
+        dlg._bins.setValue(10)                        # clear back to default
+        assert dlg.values()["options"] == {}
+        dlg.deleteLater()
+
+        chart = ChartObject(id="c2", kind="waterfall", source="A1:A5",
+                            options={"total": False})
+        dlg = ChartDialog(win, chart=chart)
+        assert not dlg._total.isChecked()
+        assert dlg.values()["options"] == {"total": False}
+        dlg._total.setChecked(True)
+        assert dlg.values()["options"] == {}
+        dlg.deleteLater()
+
+    def test_insert_applies_options_and_renders_with_bins(self, win):
+        _fill_numbers(win, rows=8)
+        _select(win, 1, 0, 8, 0)
+        win.insert_embedded_chart({
+            "kind": "histogram", "source": "A2:A9", "labels": "",
+            "title": "spread", "width": 320, "height": 200,
+            "options": {"bins": 4}})
+        chart = win._doc.workbook.sheet.charts[-1]
+        assert chart.options == {"bins": 4}
+        overlay = win._chart_overlays.widgets()[0]
+        assert not overlay.error
+        assert overlay.rendered.startswith("<svg")
+
+    def test_edit_via_dialog_applies_and_clears_options(self, win, monkeypatch):
+        from abax.gui.dialogs.chart_dialog import ChartDialog
+
+        _fill_numbers(win)
+        _select(win, 0, 0, 5, 0)
+        chart = _insert_line_chart(win)
+        assert chart.options == {}
+
+        base = {"kind": "line", "source": "A1:A6", "labels": "", "title": "t",
+                "width": 320, "height": 200}
+        monkeypatch.setattr(ChartDialog, "exec", lambda self: 1)
+        monkeypatch.setattr(ChartDialog, "values", lambda self: dict(
+            base, options={"first_col_x": True}))
+        win.edit_embedded_chart(chart)
+        assert chart.options == {"first_col_x": True}
+
+        monkeypatch.setattr(ChartDialog, "values", lambda self: dict(
+            base, options={}))
+        win.edit_embedded_chart(chart)                # defaults -> key removed
+        assert chart.options == {}
 
 
 class TestInsertUndoDelete:

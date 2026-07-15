@@ -1,7 +1,10 @@
 """Insert / edit an embedded chart — a ChartObject anchored on the active sheet.
 
 The dialog only gathers the fields (kind, source range prefilled from the
-current selection, optional labels range, title, pixel size). Appending to
+current selection, optional labels range, title, pixel size, and the kind's
+renderer options — histogram bins, waterfall total bar, line first-column-x;
+only the selected kind's option rows are shown, and only non-default values
+are written into ``ChartObject.options``). Appending to
 ``sheet.charts`` (insert) or mutating the object (edit) happens in the window's
 ToolsMixin under a single undo checkpoint, mirroring every other sheet
 mutation. Range validity is deliberately not enforced here: a dead or not-yet
@@ -12,6 +15,7 @@ filled range renders as a placeholder box on the grid (see
 from __future__ import annotations
 
 from .._qtcompat import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -76,6 +80,30 @@ class ChartDialog(QDialog):
         self._height.setSuffix(" px")
         form.addRow("Height:", self._height)
 
+        # Per-kind renderer options; only the active kind's rows are shown.
+        self._bins = QSpinBox(self)
+        self._bins.setRange(1, 200)
+        self._bins.setValue(10)
+        form.addRow("Bins:", self._bins)
+
+        self._total = QCheckBox("append a cumulative total bar", self)
+        self._total.setChecked(True)
+        form.addRow("Total bar:", self._total)
+
+        self._first_col_x = QCheckBox(
+            "first source column is the shared x-axis", self)
+        self._first_col_x.setChecked(False)
+        form.addRow("First column is X:", self._first_col_x)
+
+        self._form = form
+        self._option_rows = {
+            "histogram": (self._bins,),
+            "waterfall": (self._total,),
+            "line": (self._first_col_x,),
+        }
+        self._kind.currentTextChanged.connect(self._update_option_rows)
+        self._update_option_rows()
+
         root.addLayout(form)
 
         hint = QLabel(
@@ -91,6 +119,16 @@ class ChartDialog(QDialog):
         buttons.accepted.connect(self._on_ok)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
+
+    def _update_option_rows(self) -> None:
+        """Show only the option rows relevant to the selected kind."""
+        kind = self._kind.currentText()
+        for owner, widgets in self._option_rows.items():
+            for widget in widgets:
+                widget.setVisible(owner == kind)
+                label = self._form.labelForField(widget)
+                if label is not None:
+                    label.setVisible(owner == kind)
 
     # --- data --------------------------------------------------------------
 
@@ -113,6 +151,27 @@ class ChartDialog(QDialog):
         self._title.setText(chart.title)
         self._width.setValue(int(chart.width))
         self._height.setValue(int(chart.height))
+        opts = chart.options or {}
+        self._bins.setValue(int(opts.get("bins", 10)))
+        self._total.setChecked(bool(opts.get("total", True)))
+        self._first_col_x.setChecked(bool(opts.get("first_col_x", False)))
+
+    def _options(self) -> dict:
+        """The selected kind's renderer options, non-default values only.
+
+        A control left at (or reset to) its default writes nothing, so
+        editing a chart back to defaults drops the key from
+        ``ChartObject.options`` and the saved file stays lean.
+        """
+        kind = self._kind.currentText()
+        opts: dict = {}
+        if kind == "histogram" and self._bins.value() != 10:
+            opts["bins"] = int(self._bins.value())
+        if kind == "waterfall" and not self._total.isChecked():
+            opts["total"] = False
+        if kind == "line" and self._first_col_x.isChecked():
+            opts["first_col_x"] = True
+        return opts
 
     def values(self) -> dict:
         """The gathered ChartObject fields (anchor/id are the caller's concern)."""
@@ -123,6 +182,7 @@ class ChartDialog(QDialog):
             "title": self._title.text().strip(),
             "width": int(self._width.value()),
             "height": int(self._height.value()),
+            "options": self._options(),
         }
 
     def _on_ok(self) -> None:

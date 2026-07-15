@@ -618,6 +618,7 @@ class ToolsMixin:
             anchor=(r1, c2 + 2),
             width=int(values.get("width", 480)),
             height=int(values.get("height", 320)),
+            options=dict(values.get("options") or {}),
         )
         sheet.charts.append(chart)
         self._doc.mark_dirty()
@@ -640,6 +641,7 @@ class ToolsMixin:
         chart.title = values["title"]
         chart.width = int(values["width"])
         chart.height = int(values["height"])
+        chart.options = dict(values.get("options") or {})
         self._doc.mark_dirty()
         self.refresh_table()
         self._refresh_undo_history()
