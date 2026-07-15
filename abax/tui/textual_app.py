@@ -18,10 +18,17 @@ they can be unit-tested against an editor without spinning up a live terminal; t
 
 from __future__ import annotations
 
+from .commands import _fmt_num
+
 # Grid geometry — one header row inside the grid widget; the formula bar and
 # status line are separate docked widgets (unlike curses, which counts them here).
 _COL_W = 10
 _GUTTER = 5
+
+# Editor modes that replace the grid with a full-panel overlay (rendered by
+# render_overlay, keys routed by _overlay_key) — the same set the curses view
+# paints specially.
+OVERLAY_MODES = ("browser", "help", "describe", "rpn", "plot")
 
 
 def grid_viewport(width: int, height: int) -> "tuple[int, int]":
@@ -64,8 +71,8 @@ def render_grid(editor, width: int, height: int):
     conditional-format colours — cursor and selection win over both."""
     from rich.text import Text
 
-    from ..core.reference import index_to_col
     from .themes import THEMES, _hex_to_256
+    from ..core.reference import index_to_col
 
     theme = THEMES.get(getattr(editor, "theme_name", "obsidian"), THEMES["obsidian"])
     s_label = _role_style(theme, "label")
@@ -111,6 +118,111 @@ def render_grid(editor, width: int, height: int):
     return out
 
 
+def _scroll_window(idx: int, total: int, visible: int) -> int:
+    """First index to show so ``idx`` stays roughly centred (curses overlay idiom)."""
+    return max(0, min(idx - visible // 2, max(0, total - visible)))
+
+
+def render_overlay(editor, width: int, height: int):
+    """Render the active overlay mode (help / function browser / describe /
+    ``:tasks``·``:critpath`` / RPN / plot) as a Rich ``Text``, from the same editor
+    state the curses painters read. The grid widget swaps to this whenever
+    ``editor.mode`` is one of :data:`OVERLAY_MODES`."""
+    from rich.text import Text
+
+    from .themes import THEMES
+
+    theme = THEMES.get(getattr(editor, "theme_name", "obsidian"), THEMES["obsidian"])
+    s_banner = _role_style(theme, "banner") + " bold"
+    s_sel = _role_style(theme, "accent") + " reverse"
+    s_lcd = _role_style(theme, "lcd")
+    s_label = _role_style(theme, "label")
+    s_dim = _role_style(theme, "dim")
+    mode = editor.mode
+    out = Text()
+
+    def title(text: str) -> None:
+        out.append(text[: width - 1] + "\n", style=s_banner)
+
+    if mode == "browser":
+        from ..core.completion import signature
+
+        title("Function browser — j/k select · Enter insert · Esc close")
+        names = editor.browser
+        visible = max(1, height - 3)
+        start = _scroll_window(editor.browser_idx, len(names), visible)
+        for i, name in enumerate(names[start : start + visible]):
+            sel = (start + i) == editor.browser_idx
+            out.append("  " + name + "\n", style=s_sel if sel else s_lcd)
+        if names:
+            out.append("\n" + signature(names[editor.browser_idx])[: width - 1], style=s_label)
+
+    elif mode == "help":
+        from .editor import HELP_ENTRIES
+
+        title("Help — j/k scroll · g/G top/bottom · Esc/q close")
+        visible = max(1, height - 2)
+        start = _scroll_window(editor.help_idx, len(HELP_ENTRIES), visible)
+        for i, (key, desc) in enumerate(HELP_ENTRIES[start : start + visible]):
+            if desc == "":
+                out.append("  " + key + "\n", style=s_label)
+            else:
+                sel = (start + i) == editor.help_idx
+                out.append(f"  {key:<28} {desc}\n", style=s_sel if sel else s_lcd)
+
+    elif mode == "describe":
+        summary = getattr(editor, "describe_summary", None)
+        count = summary["count"] if isinstance(summary, dict) else 0
+        title(getattr(editor, "describe_title", "") or (
+            f"Describe {editor.describe_range}  (n={count})  ·  "
+            "j/k scroll · g/G top/bottom · Esc/q close"))
+        rows = editor.describe_lines
+        visible = max(1, height - 2)
+        start = _scroll_window(editor.describe_idx, len(rows), visible)
+        for i, (label, value) in enumerate(rows[start : start + visible]):
+            if not label and not value:
+                out.append("\n")
+                continue
+            sel = (start + i) == editor.describe_idx
+            out.append(f"  {label:<20} {value}\n", style=s_sel if sel else s_lcd)
+
+    elif mode == "rpn":
+        rpn = editor._ensure_rpn()
+        title("RPN — tokens + Enter · '<' pull cell · '>' store X · Esc exit")
+        for i, lab in enumerate(("T", "Z", "Y", "X")):
+            v = _fmt_num(rpn.stack[3 - i])
+            out.append(f"   {lab}: {v}\n", style=(s_label + " bold") if lab == "X" else s_lcd)
+        regs = ", ".join(f"{k}={_fmt_num(v)}" for k, v in sorted(rpn.regs.items()))
+        out.append(f"   [{rpn.angle}]  {regs}\n", style=s_dim)
+        out.append("rpn> " + editor.rpn_input, style=s_sel)
+
+    elif mode == "plot":
+        from ..core.graphing import braille_plot
+
+        title(f"y = {editor.plot_expr}   (Esc to close)")
+        xmin, xmax, ymin, ymax = getattr(editor, "plot_bounds", None) or (None, None, None, None)
+        try:
+            canvas = braille_plot(editor.plot_pts, width=max(10, width - 2),
+                                  height=max(4, height - 2),
+                                  xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax)
+            out.append(canvas, style=_role_style(theme, "accent"))
+        except Exception as exc:  # pragma: no cover - defensive
+            out.append(f"plot error: {exc}", style=s_dim)
+
+    return out
+
+
+def _completion_hint(candidates: list) -> str:
+    """The inline hint shown while typing a formula: one function's signature, or
+    a brace-list of the top candidates (mirrors the curses insert line)."""
+    if not candidates:
+        return ""
+    if len(candidates) == 1:
+        from ..core.completion import signature
+        return "   " + signature(candidates[0])
+    return "   {" + " ".join(candidates[:8]) + ("…}" if len(candidates) > 8 else "}")
+
+
 def formula_text(editor) -> str:
     """The formula-bar line: the live edit buffer while inserting, else the
     read-only ``A1  <raw>`` readout (or the reader line in screen-reader mode)."""
@@ -122,12 +234,19 @@ def formula_text(editor) -> str:
 
 
 def status_text(editor) -> str:
-    """The bottom line: the ``:`` command being typed, or ``mode  A1  message``."""
+    """The bottom line: the ``:`` command being typed, the live edit + completion
+    hint while inserting, or ``mode  A1  message`` otherwise."""
     if editor.mode == "command":
         return editor.command_buf or ":"
-    label = {"normal": "NORMAL", "insert": "-- INSERT --",
-             "visual": "-- VISUAL --", "visual-line": "-- VISUAL LINE --"}.get(
-                 editor.mode, editor.mode.upper())
+    if editor.mode == "insert":
+        line = "=> " + editor.edit_buf
+        if editor.completions:
+            line += _completion_hint(editor.completions)
+        elif editor.arg_hint:
+            line += "   " + editor.arg_hint
+        return line
+    label = {"normal": "NORMAL", "visual": "-- VISUAL --",
+             "visual-line": "-- VISUAL LINE --"}.get(editor.mode, editor.mode.upper())
     parts = [label, editor.cursor_a1()]
     if editor.message:
         parts.append(editor.message)
@@ -147,7 +266,9 @@ def handle_key(editor, key: str, char: "str | None") -> None:
     the delegation into :meth:`TuiEditor.dispatch_normal` — so every normal-mode
     command (visual, yank/paste, search, append, …) and user ``init.py`` rebind
     works identically across both front-ends."""
-    if editor.mode == "command":
+    if editor.mode in OVERLAY_MODES:
+        _overlay_key(editor, key, char)
+    elif editor.mode == "command":
         _command_key(editor, key, char)
     elif editor.mode == "insert":
         _insert_key(editor, key, char)
@@ -155,6 +276,60 @@ def handle_key(editor, key: str, char: "str | None") -> None:
         _visual_key(editor, key, char)
     else:
         _normal_key(editor, key, char)
+
+
+def _overlay_key(editor, key: str, char: "str | None") -> None:
+    """Key handling for the full-panel overlay modes (mirrors keys.py's per-overlay
+    handlers). All the list/scroll/insert actions are the editor's own methods."""
+    mode = editor.mode
+    k = _ARROW_VI.get(key) or char
+    close = key == "escape" or k == "q"
+    if mode == "rpn":                          # a text-entry overlay, not a list
+        if key == "enter":
+            editor.rpn_eval()
+        elif key == "escape":
+            editor.mode = "normal"
+        elif key == "backspace":
+            editor.rpn_input = editor.rpn_input[:-1]
+        elif char is not None and char.isprintable():
+            editor.rpn_input += char
+        return
+    if mode == "plot":
+        if close:
+            editor.mode = "normal"
+        return
+    if close:
+        editor.mode = "normal"
+        return
+    if mode == "browser":
+        if key == "enter":
+            editor.browser_insert()
+        elif k == "j":
+            editor.browser_move(1)
+        elif k == "k":
+            editor.browser_move(-1)
+        elif k == "g":
+            editor.browser_idx = 0
+        elif k == "G":
+            editor.browser_idx = max(0, len(editor.browser) - 1)
+    elif mode == "help":
+        if k == "j":
+            editor.help_move(1)
+        elif k == "k":
+            editor.help_move(-1)
+        elif k == "g":
+            editor.help_idx = 0
+        elif k == "G":
+            editor.help_move(1 << 30)
+    elif mode == "describe":
+        if k == "j":
+            editor.describe_move(1)
+        elif k == "k":
+            editor.describe_move(-1)
+        elif k == "g":
+            editor.describe_idx = 0
+        elif k == "G":
+            editor.describe_move(1 << 30)
 
 
 def _normal_key(editor, key: str, char: "str | None") -> None:
@@ -261,8 +436,11 @@ try:
         can_focus = True
 
         def render(self):
-            size = self.size
-            return render_grid(self.app.editor, max(1, size.width), max(1, size.height))
+            editor = self.app.editor
+            w, h = max(1, self.size.width), max(1, self.size.height)
+            if editor.mode in OVERLAY_MODES:
+                return render_overlay(editor, w, h)
+            return render_grid(editor, w, h)
 
     class AbaxTextualApp(App):
         """Textual view over a :class:`TuiEditor`. All logic lives in the editor;

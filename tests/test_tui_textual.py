@@ -21,8 +21,14 @@ from abax.tui.textual_app import (  # noqa: E402
     grid_viewport,
     handle_key,
     render_grid,
+    render_overlay,
     status_text,
 )
+
+
+def _cmd(ed, line):
+    ed.command_buf = line
+    ed.run_command()
 
 
 def _editor():
@@ -110,7 +116,7 @@ def test_status_text_reflects_mode():
     ed = _editor()
     assert "NORMAL" in status_text(ed)
     ed.begin_insert()
-    assert "INSERT" in status_text(ed)
+    assert status_text(ed).startswith("=>")   # insert shows the live edit line
 
 
 # --- visual mode + yank/paste (delegated to the shared editor dispatch) ------
@@ -180,6 +186,69 @@ def test_render_grid_uses_conditional_format_colors(monkeypatch):
     ed.sheet.cond_rules = ["<sentinel-rule>"]  # non-empty so _cond_colors evaluates
     text = render_grid(ed, 80, 24)
     assert "color(196)" in _styles(text)
+
+
+# --- overlay modes (help / browser / rpn / describe) + completions ----------
+
+
+def test_help_overlay_opens_scrolls_and_closes():
+    ed = _editor()
+    handle_key(ed, "?", "?")                  # ? opens help
+    assert ed.mode == "help"
+    assert "Help" in render_overlay(ed, 80, 24).plain
+    before = ed.help_idx
+    handle_key(ed, "j", "j")
+    assert ed.help_idx >= before
+    handle_key(ed, "escape", None)
+    assert ed.mode == "normal"
+
+
+def test_function_browser_opens_and_navigates():
+    ed = _editor()
+    _cmd(ed, ":func")
+    assert ed.mode == "browser"
+    assert "Function browser" in render_overlay(ed, 80, 24).plain
+    idx = ed.browser_idx
+    handle_key(ed, "j", "j")
+    assert ed.browser_idx == idx + 1
+    handle_key(ed, "q", "q")                  # q closes
+    assert ed.mode == "normal"
+
+
+def test_rpn_overlay_evaluates_and_renders():
+    ed = _editor()
+    _cmd(ed, ":rpn")
+    assert ed.mode == "rpn"
+    for ch in "2 3 +":
+        handle_key(ed, ch, ch)
+    handle_key(ed, "enter", None)
+    assert ed._ensure_rpn().stack[0] == 5      # X register
+    assert "X:" in render_overlay(ed, 80, 24).plain
+    handle_key(ed, "escape", None)
+    assert ed.mode == "normal"
+
+
+def test_describe_overlay_renders_lines():
+    ed = _editor()
+    ed.mode = "describe"
+    ed.describe_range = "A1:A3"
+    ed.describe_title = ""
+    ed.describe_lines = [("count", "3"), ("mean", "20")]
+    ed.describe_idx = 0
+    plain = render_overlay(ed, 80, 24).plain
+    assert "Describe" in plain and "mean" in plain
+    handle_key(ed, "j", "j")
+    assert ed.describe_idx == 1
+
+
+def test_insert_completion_hint_in_status():
+    ed = _editor()
+    ed.row, ed.col = 4, 4                        # an empty cell (begin_insert loads "")
+    handle_key(ed, "i", "i")
+    for ch in "=SU":
+        handle_key(ed, ch, ch)
+    assert ed.completions                       # SUM, SUMIF, ...
+    assert "SU" in status_text(ed)
 
 
 # --- live app via Pilot -----------------------------------------------------
