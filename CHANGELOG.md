@@ -20,6 +20,13 @@ All notable changes to abax are documented here. The format follows
   matplotlib PNG) inside the frozen interpreter, alongside exe layout, data
   path, and an offscreen GUI launch.
 
+### Performance
+- **Single-criterion `SUMIF`/`COUNTIF`/`AVERAGEIF` join the numpy accelerator** —
+  they now route through the same vectorized kernels as the `-IFS` family when
+  the accelerator is present, the range is large and finite-numeric, and the
+  criterion is a numeric comparison; text, wildcard, and any dirty block fall
+  back to the exact stdlib loop unchanged (≈1.9× on a 200k-cell `COUNTIF`).
+
 ### Fixed
 - **Undo/redo keeps large workbooks on the windowed store** — `Document`
   retains the `windowed_capacity` policy from open and re-applies it on
