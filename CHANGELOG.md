@@ -10,6 +10,26 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Kind-specific chart options in the Insert/Edit dialog** — histogram bins,
+  waterfall total bar, and line first-column-is-X are now settable from the
+  GUI; only the active kind's option rows are visible, and only non-default
+  values persist into `ChartObject.options`.
+- **Frozen-bundle chart smoke gate** — the Windows release smoke step now
+  verifies embedded chart rendering through both backends (stdlib SVG +
+  matplotlib PNG) inside the frozen interpreter, alongside exe layout, data
+  path, and an offscreen GUI launch.
+
+### Fixed
+- **Undo/redo keeps large workbooks on the windowed store** — `Document`
+  retains the `windowed_capacity` policy from open and re-applies it on
+  undo/redo, so restoring a snapshot of a 150k-cell workbook lands back on
+  the bounded store instead of silently rehydrating every cell into RAM.
+- **Console-bridge interrupt test no longer flakes under load** — the
+  `test_interrupt_stops_a_runaway` timer now fires against a warm worker
+  (not a cold first-spawn), eliminating the race where `CreateProcess` under
+  load outlasted the 1.5 s timer and `interrupt()` fired into nothing.
+
 ## [0.1.15] — 2026-07-14
 
 ### Added
