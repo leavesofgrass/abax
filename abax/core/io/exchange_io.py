@@ -38,10 +38,18 @@ def to_exchange(workbook: Workbook) -> dict:
     return workbook.to_envelope()
 
 
-def workbook_from_json(obj: Any) -> Workbook:
-    """Build a Workbook from any supported JSON shape."""
+def workbook_from_json(obj: Any, *, windowed_capacity: "int | None" = None) -> Workbook:
+    """Build a Workbook from any supported JSON shape.
+
+    ``windowed_capacity`` (the ``windowed_store_capacity`` setting) only
+    matters for our own workbook envelope: sheets the windowing policy selects
+    are built **directly on the windowed store**, so a large native file loads
+    without ever holding every cell in memory (no migrate-after-load spike).
+    Foreign shapes build plain sheets regardless — their cell count isn't known
+    up front — and rely on ``Workbook.apply_windowing_policy`` afterwards.
+    """
     if looks_like_workbook(obj):
-        return Workbook.from_envelope(obj)
+        return Workbook.from_envelope(obj, windowed_capacity=windowed_capacity)
 
     app = ""
     payload = obj
@@ -56,8 +64,9 @@ def workbook_from_json(obj: Any) -> Workbook:
     return Workbook.from_sheets([sheet])
 
 
-def load_json(path: str | Path) -> Workbook:
-    return workbook_from_json(json.loads(Path(path).read_text(encoding="utf-8")))
+def load_json(path: str | Path, *, windowed_capacity: "int | None" = None) -> Workbook:
+    return workbook_from_json(json.loads(Path(path).read_text(encoding="utf-8")),
+                              windowed_capacity=windowed_capacity)
 
 
 # --- shape handlers --------------------------------------------------------

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ._runtime import _HAS_MSGSPEC
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 
 def _migrate_settings(data: dict) -> dict:
@@ -59,6 +59,11 @@ def _migrate_settings(data: dict) -> dict:
         # cells per sheet by spilling the rest to a temp file — for very large
         # data imports. Additive/default-off, so nothing changes for existing users.
         data["schema_version"] = 8
+    if v < 9:
+        # v8 -> v9: new 'chart_backend' ("auto" | "svg" | "matplotlib") choosing
+        # how embedded charts render in the GUI. Additive/defaulted ("auto"), so
+        # older files simply take the default.
+        data["schema_version"] = 9
     return data
 
 
@@ -117,6 +122,11 @@ if _HAS_MSGSPEC:
         # A memory/latency trade-off that matters for very large *data* imports
         # (lots of literal cells). See docs/configuration.md.
         windowed_store_capacity: int = 0
+        # How embedded charts render in the GUI: "auto" = matplotlib when
+        # installed, else the built-in stdlib SVG renderer; "svg" = always the
+        # built-in renderer; "matplotlib" = matplotlib, falling back to SVG
+        # (with a status hint) when it is not installed.
+        chart_backend: str = "auto"
         schema_version: int = SCHEMA_VERSION
 
     _encoder = msgspec.json.Encoder()
@@ -185,6 +195,8 @@ else:
         # A memory/latency trade-off that matters for very large *data* imports
         # (lots of literal cells). See docs/configuration.md.
         windowed_store_capacity: int = 0
+        # See the msgspec branch above for the meaning of chart_backend.
+        chart_backend: str = "auto"
         schema_version: int = SCHEMA_VERSION
 
     def load_settings(path: Path) -> "Settings":

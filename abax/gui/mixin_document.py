@@ -31,6 +31,11 @@ class DocumentMixin:
         update_cluster = getattr(self, "_update_status_cluster", None)
         if update_cluster is not None:
             update_cluster()
+        # Floating embedded-chart overlays re-render here too — this is the one
+        # choke point every edit/recalc/undo/sheet-switch already runs through.
+        refresh_charts = getattr(self, "_refresh_chart_overlays", None)
+        if refresh_charts is not None:
+            refresh_charts()
 
     def commit_table_to_sheet(self) -> None:
         """Push any edited cell back into the sheet model (raw text wins)."""

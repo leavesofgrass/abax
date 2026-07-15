@@ -57,7 +57,9 @@ optional packages, a network connection, or a display.
 
 | I want to… | Go to | Runs? |
 |---|---|---|
+| Embed charts that live in the workbook and refresh on recalc | [embedded-charts](charts/embedded-charts/README.md) | `run.py` |
 | Save histogram / bar / scatter charts as SVG files | [statistical-charts](charts/statistical-charts/README.md) | `run.py` |
+| All ten embeddable kinds, options, both backends | [charts guide](../charts.md) | guide |
 | Plot interactively, sparklines in cells | [data & analysis tools](../data-analysis.md) | guide |
 
 ## Scripting & CLI

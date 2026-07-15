@@ -75,16 +75,25 @@ class Document:
         """Load a file into a Document.
 
         ``windowed_capacity`` is the ``windowed_store_capacity`` setting:
-        ``> 0`` re-homes every sheet into a bounded, disk-spilling cell store
+        ``> 0`` windows every sheet into a bounded, disk-spilling cell store
         at that capacity; ``0`` (the default) **auto-windows only large
         sheets** (>= ``AUTO_WINDOW_THRESHOLD`` populated cells, at the store's
         default capacity); ``< 0`` never windows.
+
+        The native format applies the policy **during** load — a sheet that
+        will be windowed streams straight into the windowed store, so opening
+        a huge ``.abax``/``.json`` never materializes every cell in memory
+        first. Every other format loads plain and then migrates via
+        ``apply_windowing_policy`` (a no-op for the already-windowed native
+        sheets).
         """
         path = Path(path)
         ext = path.suffix.lower()
         if ext in (".json", ".abax"):
             # Smart load: our own workbook envelope, or any foreign exchange JSON.
-            wb = exchange_io.load_json(path)
+            # The windowing policy rides into the loader so a to-be-windowed
+            # sheet is built on the windowed store from the first cell.
+            wb = exchange_io.load_json(path, windowed_capacity=windowed_capacity)
         elif ext in (".csv",):
             wb = _single(csv_io.load_csv(path))
         elif ext in (".tsv", ".tab"):

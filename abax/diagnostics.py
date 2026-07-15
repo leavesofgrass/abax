@@ -41,6 +41,11 @@ OPTIONAL_DEPENDENCIES = {
         "fallback": "zip / tar archives only (no .7z create/extract/open)",
         "purpose": "7-Zip (.7z) archives in the file manager",
     },
+    "matplotlib": {
+        "available": _has("matplotlib"),
+        "fallback": "built-in pure-SVG chart renderer",
+        "purpose": "matplotlib rendering backend for embedded charts",
+    },
     "Qt (PySide6/PyQt6)": {
         "available": rt._HAS_QT,
         "fallback": "TUI / CLI only",

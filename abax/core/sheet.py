@@ -115,6 +115,9 @@ class Sheet:
         # Merged regions as (r1, c1, r2, c2); the top-left is the anchor (its value
         # shows across the block), interior cells are cleared on merge.
         self.merges: list[tuple[int, int, int, int]] = []
+        # Embedded chart objects (core/chartobj.py), persisted in the envelope
+        # (schema v3). Ranges resolve at render time, so recalc refreshes them.
+        self.charts: list = []
         # The cell store — the swap point for the windowed/lazy backing store.
         # Default is DictCellStore (a dict subclass): every populated cell
         # resident, identical behaviour to the bare dict used before. Pass a
@@ -174,13 +177,20 @@ class Sheet:
         ``capacity`` cells resident, spill the rest (``capacity <= 0`` is a
         no-op). Moves every populated cell into a :class:`WindowedCellStore` and
         re-caps the parsed-AST caches to match; the (recomputable) value cache is
-        dropped and repopulates on the next recalc. Re-homing again swaps in a
-        fresh store. See ``docs/configuration.md`` for when this helps.
+        dropped and repopulates on the next recalc. **Idempotent**: a store
+        already windowed at exactly ``capacity`` (e.g. built directly by the
+        native load path — see ``Workbook.from_envelope``) is kept as-is, so
+        re-applying the policy never re-copies cells; a *different* capacity
+        re-homes into a fresh store. See ``docs/configuration.md`` for when
+        this helps.
         """
         if not capacity or capacity <= 0:
             return
         from .cellstore import BoundedCache, WindowedCellStore
 
+        cur = self._cells
+        if isinstance(cur, WindowedCellStore) and cur.capacity == capacity:
+            return  # already windowed at this capacity — nothing to re-home
         new = WindowedCellStore(capacity=capacity)
         for key, cell in list(self._cells.items()):
             new[key] = cell
@@ -449,6 +459,33 @@ class Sheet:
                 if (nr1, nc1) != (nr2, nc2):  # still a real (>1 cell) region
                     new_merges.append((nr1, nc1, nr2, nc2))
         self.merges = new_merges
+
+        # Charts: anchors shift like cells (clamped to the edit point when the
+        # anchored line is deleted — the chart object itself survives), and
+        # source/label ranges shift workbook-wide, so a chart on another sheet
+        # that reads this one tracks the edit too. A wholly deleted range
+        # blanks out: the chart then reports a dead range instead of silently
+        # drawing shifted neighbours.
+        for ch in self.charts:
+            ar, ac = ch.anchor
+            if axis == "row":
+                moved = shift_coord(ar, index, delta)
+                ar = moved if moved is not None else max(index, 0)
+            else:
+                moved = shift_coord(ac, index, delta)
+                ac = moved if moved is not None else max(index, 0)
+            ch.anchor = (ar, ac)
+        chart_hosts = self.workbook.sheets if self.workbook is not None else [self]
+        for host in chart_hosts:
+            for ch in host.charts:
+                for attr in ("source", "labels"):
+                    ref = getattr(ch, attr)
+                    if not ref:
+                        continue
+                    body = ref.rsplit("!", 1)[-1]
+                    fixer = adjust_range if ":" in body else adjust_reference
+                    newref = fixer(ref, self.name, host.name, axis, index, delta)
+                    setattr(ch, attr, "" if newref == REF_ERROR else newref)
 
         # Shift workbook-level named ranges whose target resolves to this sheet
         # (qualified targets shift only when the qualifier matches; unqualified
@@ -1010,10 +1047,14 @@ class Sheet:
         return {to_a1(r, c): cell.raw for (r, c), cell in self._cells.items()}
 
     @classmethod
-    def from_dict(cls, name: str, data: dict) -> "Sheet":
-        sheet = cls(name)
+    def from_dict(cls, name: str, data: dict,
+                  *, cell_store: "CellStore | None" = None) -> "Sheet":
+        sheet = cls(name, cell_store=cell_store)
         # Bulk path: invalidate caches once, not once per cell (the native-format
-        # load path — matches the CSV/Excel/etc. loaders).
+        # load path — matches the CSV/Excel/etc. loaders). With a windowed
+        # ``cell_store`` the cells stream straight into the bounded store —
+        # past-capacity cells spill to disk as they arrive, so at no point do
+        # all of them exist in memory at once (no plain-dict staging copy).
         sheet.set_cells_bulk((*parse_a1(ref), raw) for ref, raw in data.items())
         return sheet
 

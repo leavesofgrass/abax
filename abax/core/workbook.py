@@ -14,13 +14,39 @@ from pathlib import Path
 from .reference import parse_a1, to_a1
 from .sheet import Sheet
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # Auto-windowing kicks in (windowed_store_capacity == 0, the default) for
 # sheets with at least this many populated cells. Below it a plain dict is
 # cheap (~25 MB per 125k cells measured); above it the windowed store's
 # ~50% steady-state saving starts to matter. Tests may patch this down.
 AUTO_WINDOW_THRESHOLD = 100_000
+
+
+def _window_capacity_for(setting: "int | None", ncells: int) -> int:
+    """Resident-cell capacity the windowing policy assigns a sheet — 0 = plain.
+
+    The single home of the ``windowed_store_capacity`` three-way semantics,
+    shared by the load path (which builds the windowed store up front, see
+    :meth:`Workbook.from_envelope`) and by the after-the-fact fallback
+    :meth:`Workbook.apply_windowing_policy`:
+
+    * ``setting > 0`` — every sheet windows at that capacity;
+    * ``setting == 0`` (Auto, the default) — only sheets with at least
+      :data:`AUTO_WINDOW_THRESHOLD` populated cells window, at
+      ``WindowedCellStore.DEFAULT_CAPACITY``;
+    * ``setting < 0`` — never; and ``None`` means "no policy" (used by
+      construction paths whose caller applies the policy itself later).
+    """
+    if setting is None or setting < 0:
+        return 0
+    if setting > 0:
+        return int(setting)
+    if ncells >= AUTO_WINDOW_THRESHOLD:
+        from .cellstore import WindowedCellStore
+
+        return WindowedCellStore.DEFAULT_CAPACITY
+    return 0
 
 
 class RecalcCancelled(Exception):
@@ -289,9 +315,10 @@ class Workbook:
             sheet.use_windowed_store(capacity)
 
     def apply_windowing_policy(self, setting: int) -> None:
-        """Apply the ``windowed_store_capacity`` setting after a file is opened.
+        """Apply the ``windowed_store_capacity`` setting to an open workbook.
 
-        Three-way semantics:
+        Three-way semantics (see :func:`_window_capacity_for`, the shared
+        definition):
 
         * ``setting > 0`` — window **every** sheet at that capacity (the
           explicit opt-in, unchanged).
@@ -301,20 +328,19 @@ class Workbook:
           store — zero change for typical workbooks.
         * ``setting < 0`` — never window (the explicit opt-out).
 
-        Auto only triggers at open time, so the transient migration cost
-        (~1.5x while cells move into the windowed store) is paid where a load
-        spike already exists, not mid-session.
+        This is the **migrate-after-the-fact fallback**: the native envelope
+        loader builds the windowed store *during* load (see
+        :meth:`from_envelope`), so for natively opened files this call is an
+        idempotent no-op (``Sheet.use_windowed_store`` leaves a store already
+        windowed at the requested capacity untouched). It still does the work
+        for every other loader (CSV/Excel/…) and for in-session settings
+        changes, where the transient migration cost (~1.5x while cells move
+        into the windowed store) is unavoidable.
         """
-        if setting > 0:
-            self.use_windowed_stores(setting)
-            return
-        if setting < 0:
-            return
-        from .cellstore import WindowedCellStore
-
         for sheet in self.sheets:
-            if len(sheet._cells) >= AUTO_WINDOW_THRESHOLD:
-                sheet.use_windowed_store(WindowedCellStore.DEFAULT_CAPACITY)
+            cap = _window_capacity_for(setting, len(sheet._cells))
+            if cap:
+                sheet.use_windowed_store(cap)
 
     def add_sheet(self, name: str | None = None) -> Sheet:
         name = name or f"Sheet{len(self.sheets) + 1}"
@@ -434,6 +460,9 @@ class Workbook:
                         **({"merges": [f"{to_a1(r1, c1)}:{to_a1(r2, c2)}"
                                        for (r1, c1, r2, c2) in s.merges]}
                            if s.merges else {}),
+                        # v3: embedded charts (omitted when empty, like the rest).
+                        **({"charts": [ch.to_dict() for ch in s.charts]}
+                           if s.charts else {}),
                     }
                     for s in self.sheets
                 ],
@@ -441,10 +470,23 @@ class Workbook:
         }
 
     @classmethod
-    def from_envelope(cls, env: dict) -> "Workbook":
+    def from_envelope(cls, env: dict, *, windowed_capacity: "int | None" = None) -> "Workbook":
+        """Build a workbook from its exchange envelope.
+
+        ``windowed_capacity`` is the ``windowed_store_capacity`` setting; when
+        given, a sheet the policy would window is **built on a windowed store
+        from the start** — cells stream straight into the bounded store (which
+        spills past-capacity cells to disk as they arrive), so a huge file
+        never materializes fully in a plain dict first. That removes the
+        migrate-after-load memory spike at exactly the moment it hurt most.
+        The default ``None`` applies no policy (plain stores), preserving the
+        behaviour of callers that window afterwards — or never — such as
+        undo/redo snapshots and :meth:`apply_windowing_policy` users.
+        """
         version = env.get("schema_version", 0)
         data = env.get("data", env)  # tolerate bare payloads
         data = _migrate(data, version)
+        from .chartobj import ChartObject
         from .connections import ConnectionRegistry
         from .format.cellstyle import CellStyle
         from .format.condformat import CondRule
@@ -459,7 +501,17 @@ class Workbook:
         wb.projects = ProjectRegistry.from_dict(data.get("projects", {}))
         wb.connections = ConnectionRegistry.from_dict(data.get("connections", {}))
         for s in data.get("sheets", []):
-            sheet = Sheet.from_dict(s["name"], s.get("cells", {}))
+            cells = s.get("cells", {})
+            # Decide the store BEFORE any Cell materializes: the envelope's cell
+            # map is one entry per populated cell, so len() is the exact count
+            # the policy needs, known up front and for free.
+            cap = _window_capacity_for(windowed_capacity, len(cells))
+            store = None
+            if cap:
+                from .cellstore import WindowedCellStore
+
+                store = WindowedCellStore(capacity=cap)
+            sheet = Sheet.from_dict(s["name"], cells, cell_store=store)
             sheet.cond_rules = [CondRule.from_dict(d) for d in s.get("cond_rules", [])]
             sheet.cell_formats = {parse_a1(ref): spec for ref, spec in s.get("formats", {}).items()}
             sheet.cell_styles = {parse_a1(ref): CellStyle.from_dict(d)
@@ -492,6 +544,8 @@ class Workbook:
                     mr1, mc1 = parse_a1(a)
                     mr2, mc2 = parse_a1(b)
                     sheet.merges.append((mr1, mc1, mr2, mc2))
+            # v3 embedded charts (optional; a v1/v2 file simply has none).
+            sheet.charts = [ChartObject.from_dict(d) for d in s.get("charts", [])]
             wb.sheets.append(sheet)
         wb.active = data.get("active", 0)
         wb._add_default_if_empty()
@@ -508,19 +562,21 @@ class Workbook:
         tmp.replace(path)
 
     @classmethod
-    def load_json(cls, path: str | Path) -> "Workbook":
+    def load_json(cls, path: str | Path,
+                  *, windowed_capacity: "int | None" = None) -> "Workbook":
         env = json.loads(Path(path).read_text(encoding="utf-8"))
-        return cls.from_envelope(env)
+        return cls.from_envelope(env, windowed_capacity=windowed_capacity)
 
 
 def _migrate(data: dict, version: int) -> dict:
     """Expand-switch-contract migration hook.
 
     v1 -> v2 added per-sheet layout & fidelity keys (``col_widths`` /
-    ``row_heights`` / ``frozen`` / ``borders`` / ``merges``). They are read with
-    defaults in :meth:`Workbook.from_envelope`, so a v1 file (which lacks them)
-    loads unchanged — no data transform is needed, only the version label.
+    ``row_heights`` / ``frozen`` / ``borders`` / ``merges``); v2 -> v3 added
+    per-sheet embedded ``charts``. All are read with defaults in
+    :meth:`Workbook.from_envelope`, so an older file (which lacks them) loads
+    unchanged — no data transform is needed, only the version label.
     """
-    if version < 2:
-        data["schema_version"] = 2
+    if version < 3:
+        data["schema_version"] = 3
     return data

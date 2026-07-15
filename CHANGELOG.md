@@ -10,6 +10,84 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **`.xlsx` import/export now round-trips formatting fidelity** — per-cell
+  number formats, styles (bold/italic/underline, alignment, text/fill
+  colours), borders, column widths and row heights (with documented
+  pixel ↔ character/point conversions), frozen panes, and merged regions —
+  in both directions, still gracefully optional on `openpyxl`.
+  `docs/file-formats.md` now documents exactly what survives the round-trip.
+- **`.xlsx` conditional formatting round-trips too** — comparison,
+  colour-scale, text, blank, average, top/bottom-N, and duplicate/unique
+  rules carry their fill or CSS styling as Excel differential styles
+  (`regex` rules, which Excel lacks, are skipped on export).
+- **`abax tasks FILE` CLI subcommand** — lists every project's tasks (id,
+  title, status, start → due, assignee) and validates them: overdue tasks
+  (done-like statuses exempt — the same detection as the portfolio health
+  roll-up), missing start/due dates, and `Depends` references to unknown
+  task ids. Exit code **0** = clean / **1** = problems found, so it drops
+  into CI and pre-commit hooks as a project-hygiene gate; `--project NAME`
+  restricts to one project.
+- **`:tasks` and `:critpath` in the TUI** — read-only project-management
+  commands: `:tasks` lists the active project's tasks (id, title, status,
+  due) and `:critpath` shows its CPM critical path (the zero-slack chain,
+  id + title per hop), both in the scrollable overlay already used by
+  `:trace`/`:describe full`. No sheet writes, no checkpoints; the
+  no-projects and dependency-cycle cases report on the status line instead
+  of raising.
+- **Embedded charts (envelope schema v3).** Sheets can now carry chart
+  *objects* (`abax/core/chartobj.py`): a chart kind (line, bar, scatter,
+  histogram, box, violin, Q-Q, ECDF, heatmap, waterfall), an A1 source
+  range (optionally sheet-qualified), an optional labels range, a title, a
+  cell anchor, a pixel size, and kind-specific options. Ranges resolve at
+  **render time** through the normal evaluation path, so a recalc is all it
+  takes to refresh the picture; anchors and ranges shift with row/column
+  insert & delete (workbook-wide — a chart reading another sheet tracks
+  that sheet's edits). Persisted in the workbook envelope as an additive
+  schema **v3** per-sheet `charts` key — omitted when empty, older files
+  load unchanged, and rendering goes through the pure-stdlib SVG renderers.
+  A backend-neutral `chart_data()` shaping pass means every renderer draws
+  identical data.
+- **Matplotlib chart backend (optional `charts` extra).** The same embedded
+  charts can render through matplotlib (`abax/engine/chartmpl.py`) to PNG or
+  SVG — all ten kinds, drawn from the identical `chart_data()` pass, via the
+  object-oriented Figure/Agg API (no pyplot, no global state, safe off the
+  GUI thread). Fully optional: without matplotlib the built-in SVG renderer
+  handles everything, and the new extra is registered across the stack
+  (`pip install "abax[charts]"`, auto-deps, the first-run feature chooser,
+  and `abax doctor`).
+- **GUI: Insert → Embedded chart (on sheet)…** — create, edit, and delete
+  floating charts anchored to a cell (all ten embedded kinds), drawn over
+  the grid; overlays follow scrolling and row/column changes, re-render
+  after every edit and recalc, and a dead range paints a placeholder
+  instead of failing. Right-click a chart to edit or delete; every
+  operation is a single undo step. Also in the command palette.
+- **GUI: `chart_backend` setting** (Preferences → Appearance → Embedded
+  charts; settings schema v9, lazy-migrated) — `auto` = matplotlib when
+  installed else the built-in SVG renderer, `svg` = always built-in,
+  `matplotlib` = matplotlib with SVG fallback and a status-bar hint.
+- **`.xlsx` round-trips embedded line/bar/scatter charts** as native Excel
+  charts (kind, source, title, anchor, and size carried both ways; kinds
+  Excel can't express stay native-envelope-only and are skipped cleanly on
+  export, and foreign chart types are ignored on import).
+- docs: embedded-charts guide (`docs/charts.md` — the model, ten kinds and
+  their data shapes, SVG + matplotlib backends, scripting) plus a tested
+  runnable example (`docs/examples/charts/embedded-charts`) wired into the
+  nav, examples catalog, and cross-links.
+
+### Changed
+- **Large native files now open directly into the windowed cell store.**
+  When the `windowed_store_capacity` policy would window a sheet,
+  `.abax`/`.json` loads build it on the bounded store from the first cell
+  (spilling as cells arrive) instead of loading plain and migrating —
+  eliminating the transient ~1.5× memory spike at open (peak on a
+  150k-cell file now lands below even a plain un-windowed load). Other
+  formats keep the migrate-after-load fallback, and re-applying the policy
+  to an already-windowed sheet is now a no-op.
+- The GUI forwards `windowed_store_capacity` to the background open
+  worker, so windowing happens off the UI thread and the `-1` (never
+  window) setting is honored at load.
+
 ## [0.1.14] — 2026-07-14
 
 ### Added

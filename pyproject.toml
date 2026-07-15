@@ -24,6 +24,11 @@ fast-io  = ["msgspec", "platformdirs"]
 terminal = ["pyte"]                # true PTY terminal (with pywinpty on Windows)
 parquet  = ["pyarrow"]             # Parquet/Feather I/O (via pandas)
 sevenzip = ["py7zr"]               # 7-Zip (.7z) create/extract in the file manager
+# Matplotlib rendering backend for embedded charts. Optional — the pure-stdlib
+# SVG renderer always works without it. (`science` already pulls matplotlib
+# transitively via pingouin -> seaborn; this extra makes it explicit and
+# available on its own.) In `all`, not `thin` (it's a heavy dependency).
+charts   = ["matplotlib"]
 # Jupyter integration (all optional, each with a graceful fallback): notebook
 # schema validation, the abax Jupyter kernel, and the editable-sheet widget.
 jupyter  = ["nbformat", "ipykernel", "anywidget"]
@@ -60,7 +65,7 @@ restricted = ["RestrictedPython"]    # the "restricted" in-process isolation tie
 # terminal), but NONE of the heavy optional data-science libraries. ~0.22 GB.
 thin     = ["abax[gui,tui,excel,fast-io,terminal,sevenzip]"]
 # Everything abax can use, in one shot (the default full-fat set). ~0.84 GB.
-all      = ["abax[thin,parquet,science,jupyter,bayes,stats-io,database,hdf5,nec,satellite,tts,restricted]"]
+all      = ["abax[thin,charts,parquet,science,jupyter,bayes,stats-io,database,hdf5,nec,satellite,tts,restricted]"]
 
 [project.scripts]
 abax = "abax.app:main"

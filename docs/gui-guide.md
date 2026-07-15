@@ -267,6 +267,50 @@ Integer, Currency, Percent, Scientific, and more, from
 format. Formats are stored per cell and applied only when the value is
 displayed, so the underlying number is never changed.
 
+## Embedded charts
+
+Charts can live **on the sheet**: floating over the grid, anchored to a cell,
+saved in the workbook file, and re-rendered from their source range on every
+edit and recalc (see [File formats](file-formats.md) for the envelope schema).
+
+**Insert.** Select the data, then *Insert → Embedded chart (on sheet)…* (also
+in the command palette as *Insert embedded chart*). The dialog asks for:
+
+- **Kind** — one of the ten kinds: `line`, `bar`, `scatter`, `histogram`,
+  `box`, `violin`, `qq`, `ecdf`, `heatmap`, `waterfall`.
+- **Source range** — prefilled from the current selection; A1-style, optionally
+  sheet-qualified (`Data!A1:C10`), so a chart can read another sheet.
+- **Labels range** (optional) — category labels for bar / waterfall / heatmap.
+- **Title** and **size** (pixels).
+
+OK appends the chart to the active sheet as **one undo checkpoint**, anchored
+just right of the selection so it doesn't cover the data it was made from. The
+overlay follows scrolling, tracks row/column inserts and deletes, and only the
+active sheet's charts are shown — switching sheets switches the charts.
+
+**Always current.** Chart ranges re-resolve on every edit and recalculation, so
+the picture never goes stale. A chart that can't render (a deleted source
+sheet, a dead or empty range) paints a small placeholder box carrying the
+reason instead — a broken chart never breaks the grid.
+
+**Edit / delete.** Right-click a chart: **Edit chart…** reopens the dialog
+against that chart; **Delete chart** removes it. Each is a single undo step,
+so `Ctrl+Z` restores exactly what was there.
+
+**Rendering backend.** The `chart_backend` setting (*Preferences → Appearance →
+Embedded charts*, or `settings.json` — see
+[Configuration](configuration.md#settings-fields)) picks the renderer:
+
+- `auto` (default) — matplotlib when it is installed, else the built-in
+  pure-stdlib SVG renderer.
+- `svg` — always the built-in renderer (no dependencies).
+- `matplotlib` — prefer matplotlib; falls back to SVG with a status-bar hint
+  when it isn't installed (`pip install "abax[charts]"` adds it).
+
+Both backends draw from the same data-shaping pass, so they show identical
+data — a workbook authored with matplotlib installed still renders everywhere
+else.
+
 ## Freeze panes
 
 *View → Freeze panes* keeps header rows or columns pinned while you scroll:
@@ -332,7 +376,9 @@ the QPainter calculator faceplates, so the LCD/keypad keep their display fonts.
 manage every persistent setting, so you rarely need to hand-edit `settings.json`:
 
 - **Appearance** — the GUI theme, the TUI theme, the OpenDyslexic font toggle, the
-  default zoom, and the interface toggles (show toolbar, vim-style modal keys).
+  default zoom, the interface toggles (show toolbar, vim-style modal keys), and
+  the embedded-chart render backend (auto / built-in SVG / matplotlib — see
+  [Embedded charts](#embedded-charts)).
 - **Calculator** — the default calculator model, faceplate style, angle mode
   (degrees / radians), and the optional faceplate-art folder.
 - **System** — autosave (on/off + interval); **code execution** (an *allow code
@@ -649,7 +695,9 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
 - **Insert** — Rows / columns (row above `Ctrl++`, row below, column left, column
   right, append row/column, delete row(s) `Ctrl+-`, delete column(s)), Function
   (`Shift+F3`), Equation, Chart / graph, **Business chart** (waterfall / sunburst
-  / treemap / sparkline — SVG with a live preview), Export chart as SVG.
+  / treemap / sparkline — SVG with a live preview), **Embedded chart (on sheet)**
+  (a floating chart anchored to a cell, saved with the workbook — see
+  [Embedded charts](#embedded-charts)), Export chart as SVG.
 - **Format** — Bold (`Ctrl+B`), Italic (`Ctrl+I`), Underline (`Ctrl+U`), Align
   (left/center/right), Text colour, Fill colour, Clear cell styles, Copy / Paste
   format (the format painter), Borders, Merge cells, Unmerge cells, Number
@@ -733,6 +781,9 @@ docs — this is the one-line "what it does" index.
 - **Graph** (*Insert → Chart / graph*) — an HP-48-flavored function grapher,
   painted with QPainter (line/scatter/histogram, regression overlay); *Export
   chart as SVG* writes the current selection to an SVG file.
+- **Embedded chart** (*Insert → Embedded chart (on sheet)*) — create or edit a
+  floating chart anchored to a cell of the sheet, re-rendered on every recalc
+  and saved with the workbook (see [Embedded charts](#embedded-charts)).
 
 **Scientific** (*Tools → Scientific*):
 

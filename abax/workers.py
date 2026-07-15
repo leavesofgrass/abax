@@ -22,11 +22,16 @@ class IOWorker(QObject):
     error = pyqtSignal(str)
     finished = pyqtSignal()
 
-    def __init__(self, op: str, path: str, document=None) -> None:
+    def __init__(self, op: str, path: str, document=None,
+                 windowed_capacity: int = 0) -> None:
         super().__init__()
         self._op = op  # "open" | "save"
         self._path = path
         self._document = document
+        # The windowed_store_capacity setting, forwarded to Document.open so a
+        # large native file is windowed AT LOAD (in this worker thread) instead
+        # of loaded plain and migrated afterwards on the main thread.
+        self._windowed_capacity = windowed_capacity
 
     def run(self) -> None:
         try:
@@ -34,7 +39,7 @@ class IOWorker(QObject):
 
             if self._op == "open":
                 self.progress.emit(10)
-                doc = Document.open(self._path)
+                doc = Document.open(self._path, self._windowed_capacity)
                 self.progress.emit(90)
                 self.result.emit(doc)
             elif self._op == "save":

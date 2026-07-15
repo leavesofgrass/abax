@@ -587,6 +587,93 @@ class ToolsMixin:
 
         BusinessChartDialog(self).exec()
 
+    # --- embedded charts (floating ChartObjects on the sheet) -------------
+
+    def show_insert_chart(self) -> None:
+        """Insert an embedded chart anchored on the active sheet (Insert menu)."""
+        from .dialogs.chart_dialog import ChartDialog
+
+        dlg = ChartDialog(self)
+        if not dlg.exec():
+            return
+        self.insert_embedded_chart(dlg.values())
+
+    def insert_embedded_chart(self, values: dict) -> None:
+        """Append a new ChartObject built from dialog ``values`` (one undo step).
+
+        The chart is anchored just right of the current selection (top-aligned),
+        so it doesn't cover the data it was made from.
+        """
+        from ..core.chartobj import ChartObject, new_chart_id
+
+        sheet = self._doc.workbook.sheet
+        r1, _c1, _r2, c2 = self._selected_bounds()
+        self._doc.checkpoint("insert chart")
+        chart = ChartObject(
+            id=new_chart_id(sheet.charts),
+            kind=values["kind"],
+            source=values["source"],
+            title=values.get("title", ""),
+            labels=values.get("labels", ""),
+            anchor=(r1, c2 + 2),
+            width=int(values.get("width", 480)),
+            height=int(values.get("height", 320)),
+        )
+        sheet.charts.append(chart)
+        self._doc.mark_dirty()
+        self.refresh_table()
+        self._refresh_undo_history()
+        self._set_status(f"inserted {chart.kind} chart {chart.id} ({chart.source})")
+
+    def edit_embedded_chart(self, chart) -> None:
+        """Reopen the chart dialog against ``chart`` and apply (one undo step)."""
+        from .dialogs.chart_dialog import ChartDialog
+
+        dlg = ChartDialog(self, chart=chart)
+        if not dlg.exec():
+            return
+        values = dlg.values()
+        self._doc.checkpoint("edit chart")
+        chart.kind = values["kind"]
+        chart.source = values["source"]
+        chart.labels = values["labels"]
+        chart.title = values["title"]
+        chart.width = int(values["width"])
+        chart.height = int(values["height"])
+        self._doc.mark_dirty()
+        self.refresh_table()
+        self._refresh_undo_history()
+        self._set_status(f"edited chart {chart.id}")
+
+    def delete_embedded_chart(self, chart) -> None:
+        """Remove ``chart`` from the active sheet (one undo step)."""
+        sheet = self._doc.workbook.sheet
+        if chart not in sheet.charts:
+            return
+        self._doc.checkpoint("delete chart")
+        sheet.charts.remove(chart)
+        self._doc.mark_dirty()
+        self.refresh_table()
+        self._refresh_undo_history()
+        self._set_status(f"deleted chart {chart.id}")
+
+    def _refresh_chart_overlays(self) -> None:
+        """(Re)build and re-render the floating chart overlays (refresh_table hook).
+
+        Lazy on both axes: the manager is only created once a sheet actually has
+        charts, so chart-free sessions pay nothing on the (hot) refresh path.
+        """
+        manager = getattr(self, "_chart_overlays", None)
+        if manager is None:
+            table = getattr(self, "_table", None)
+            sheet = self._doc.workbook.sheet
+            if table is None or not getattr(sheet, "charts", None):
+                return
+            from .chart_overlay import ChartOverlayManager
+
+            manager = self._chart_overlays = ChartOverlayManager(self)
+        manager.refresh()
+
     def show_hex_viewer(self) -> None:
         """A streaming offset/hex/ASCII inspector for any file (non-modal)."""
         from .dialogs.hex_dialog import HexDialog

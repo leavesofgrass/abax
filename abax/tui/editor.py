@@ -59,6 +59,8 @@ HELP_ENTRIES: list[tuple[str, str]] = [
     (":live [on|off]", "toggle network live data (REST/WEBSOCKET)"),
     (":extern [on|off]", "toggle closed-workbook external references"),
     (":table [NAME]", "name the current region as a table (Table1[Col] refs) / list tables"),
+    (":tasks", "list the active project's tasks (read-only overlay)"),
+    (":critpath", "show the active project's CPM critical path (read-only)"),
     (":auth HOST HEADER VALUE", "set a session-only live-data request header (:noauth to clear)"),
     (":map [MODE]", "list init.py key rebinds (all modes, or one mode)"),
     (":func [filter]", "browse function names"),
@@ -394,6 +396,10 @@ class TuiEditor:
             self._handle_auth(cmd, args)
         elif cmd == "map":
             self._handle_map(args)
+        elif cmd == "tasks":
+            self._handle_tasks()
+        elif cmd == "critpath":
+            self._handle_critpath()
         else:
             self.message = f"unknown command: {cmd}"
 
@@ -940,6 +946,117 @@ class TuiEditor:
         self.describe_range = ""
         self.describe_idx = 0
         self.mode = "describe"
+
+    # --- read-only PM commands (:tasks / :critpath) ------------------------
+
+    def _active_project(self):
+        """The project ``:tasks``/``:critpath`` show: the first one registered
+        on the active sheet, else the first registered project overall
+        (registry order — case-insensitive by name).  ``None`` when the
+        workbook defines no projects."""
+        reg = getattr(self.doc.workbook, "projects", None)
+        if reg is None or len(reg) == 0:
+            return None
+        on_sheet = reg.for_sheet(self.sheet.name)
+        if on_sheet:
+            return on_sheet[0]
+        names = reg.names()
+        return reg.get(names[0]) if names else None
+
+    def _project_tasks(self, proj):
+        """Parse *proj*'s task rows via its stored geometry — read-only, the
+        same resolution the ``abax tasks``/``schedule`` CLI uses.  ``None``
+        when the project's sheet does not exist."""
+        from ..core.pm.taskmodel import parse_tasks
+
+        sheet = self.doc.workbook.get_sheet(proj.sheet)
+        if sheet is None:
+            return None
+        lc = proj.last_col
+        if lc < 0:
+            _, nc = sheet.used_bounds()
+            lc = nc - 1
+        return parse_tasks(
+            sheet, header_row=proj.header_row, first_col=proj.first_col,
+            last_col=lc,
+            first_data_row=proj.first_data_row if proj.first_data_row >= 0 else None,
+            last_data_row=proj.last_data_row if proj.last_data_row >= 0 else None,
+        )
+
+    def _open_pm_overlay(self, title: str, lines: list[str]) -> None:
+        """Show pre-formatted *lines* in the scrollable overlay (the ``:trace``
+        idiom: whole line as the label, empty value)."""
+        self.describe_lines = [(ln, "") for ln in lines]
+        self.describe_title = title + "  ·  j/k scroll · Esc/q close"
+        self.describe_summary = None
+        self.describe_range = ""
+        self.describe_idx = 0
+        self.mode = "describe"
+
+    def _handle_tasks(self) -> None:
+        """``:tasks`` — list the active project's tasks in the overlay.
+
+        One row per task: id, title, status, due date.  Strictly read-only —
+        no cell writes, no checkpoints.  With no projects defined (or an
+        empty/missing task sheet) it reports on the status line instead of
+        entering the overlay.
+        """
+        proj = self._active_project()
+        if proj is None:
+            self.message = "tasks: no projects defined in this workbook"
+            return
+        tasks = self._project_tasks(proj)
+        if tasks is None:
+            self.message = f"tasks: project sheet {proj.sheet!r} not found"
+            return
+        if not tasks:
+            self.message = f"tasks: {proj.name}: no tasks"
+            return
+        w_id = max(len(t.id) for t in tasks)
+        w_title = max(len(t.title) for t in tasks)
+        w_status = max(len(t.status or "-") for t in tasks)
+        lines = []
+        for t in tasks:
+            due = t.due.isoformat() if t.due else "-"
+            lines.append(f"{t.id:<{w_id}}  {t.title:<{w_title}}  "
+                         f"{(t.status or '-'):<{w_status}}  due {due}")
+        self._open_pm_overlay(f"Tasks — {proj.name} ({len(tasks)} task(s))", lines)
+
+    def _handle_critpath(self) -> None:
+        """``:critpath`` — the active project's CPM critical path, one hop per
+        row (task id + title, in dependency order).
+
+        Runs :func:`~abax.core.pm.schedule.compute_cpm` +
+        :func:`~abax.core.pm.schedule.critical_path` over the project's tasks.
+        Strictly read-only; a dependency cycle (or no projects) reports on the
+        status line instead of raising.
+        """
+        from ..core.pm.schedule import compute_cpm, critical_path
+
+        proj = self._active_project()
+        if proj is None:
+            self.message = "critpath: no projects defined in this workbook"
+            return
+        tasks = self._project_tasks(proj)
+        if tasks is None:
+            self.message = f"critpath: project sheet {proj.sheet!r} not found"
+            return
+        if not tasks:
+            self.message = f"critpath: {proj.name}: no tasks"
+            return
+        try:
+            cpm = compute_cpm(tasks)
+        except ValueError as exc:  # dependency cycle — report, don't crash
+            self.message = f"critpath: {exc}"[:160]
+            return
+        crit = critical_path(cpm)
+        if not crit:
+            self.message = f"critpath: {proj.name}: no zero-slack tasks"
+            return
+        titles = {t.id: t.title for t in tasks}
+        lines = [f"{tid}  {titles.get(tid, '')}".rstrip() for tid in crit]
+        self._open_pm_overlay(
+            f"Critical path — {proj.name} ({len(crit)} task(s))", lines)
 
     def _open_describe(self, rng: str) -> None:
         self.describe_title = ""  # a real describe uses the computed title

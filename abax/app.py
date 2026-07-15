@@ -105,12 +105,17 @@ def _build_parser() -> argparse.ArgumentParser:
                      help="fill EMPTY Start/Due cells with auto-scheduled dates "
                           "and save the workbook (existing dates are never touched)")
 
+    pta = sub.add_parser("tasks", help="list and validate each project's tasks in a workbook")
+    pta.add_argument("file", help="workbook with project definitions (.abax/.json/.xlsx/…)")
+    pta.add_argument("--project", metavar="NAME",
+                     help="restrict the listing to one project (default: every project)")
+
     return p
 
 
 _SUBCOMMANDS = frozenset(
     {"gui", "tui", "view", "convert", "get", "macro", "deps", "doctor", "notebook",
-     "fetch", "sql", "diff", "pipe", "report", "profile", "schedule"})
+     "fetch", "sql", "diff", "pipe", "report", "profile", "schedule", "tasks"})
 
 
 def _normalize_argv(argv: list[str]) -> list[str]:
@@ -192,6 +197,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_profile(args)
     if cmd == "schedule":
         return _cmd_schedule(args)
+    if cmd == "tasks":
+        return _cmd_tasks(args)
 
     # No subcommand: prefer GUI, fall back to TUI, then help.
     from . import _runtime as rt
@@ -396,6 +403,104 @@ def _cmd_schedule(args) -> int:
         doc.save()
         print(f"saved {args.file}")
     return rc
+
+
+def _cmd_tasks(args) -> int:
+    """``abax tasks FILE`` — list each project's tasks, then validate them.
+
+    For every project defined in the workbook (or only ``--project NAME``),
+    print one line per task — id, title, status, start → due, assignee —
+    followed by a validation section flagging:
+
+    - **overdue** tasks (due before today, status not done-like — the same
+      done-detection the portfolio health roll-up uses),
+    - tasks **missing** a start or due date,
+    - **unknown dependency** references (``Depends`` ids that match no task
+      id in the project).
+
+    The listing goes to stdout either way; the exit code is the scriptable
+    gate. Exit codes: **0** = validation found nothing, **1** = validation
+    found problems, **2** = the file can't be opened, the workbook defines no
+    projects, or ``--project`` names an unknown project.
+    """
+    from datetime import date
+
+    from .core.pm.portfolio import overdue_tasks
+    from .core.pm.taskmodel import parse_tasks
+    from .engine.document import Document
+
+    try:
+        doc = Document.open(args.file)
+    except Exception as exc:  # noqa: BLE001 — surface any open failure cleanly
+        print(f"tasks: cannot open {args.file}: {exc}", file=sys.stderr)
+        return 2
+    wb = doc.workbook
+    if args.project is not None and wb.projects.get(args.project) is None:
+        print(f"tasks: no such project: {args.project!r}", file=sys.stderr)
+        return 2
+    projects = []
+    for proj in wb.projects:
+        if args.project is not None and proj.name.upper() != args.project.upper():
+            continue
+        for s in wb.sheets:
+            if s.name == proj.sheet:
+                hr = proj.header_row
+                fc = proj.first_col
+                lc = proj.last_col
+                if lc < 0:
+                    _, nc = s.used_bounds()
+                    lc = nc - 1
+                tasks = parse_tasks(
+                    s, header_row=hr, first_col=fc, last_col=lc,
+                    first_data_row=proj.first_data_row if proj.first_data_row >= 0 else None,
+                    last_data_row=proj.last_data_row if proj.last_data_row >= 0 else None,
+                )
+                projects.append((proj, tasks))
+                break
+    if not projects:
+        print("tasks: no projects defined in this workbook", file=sys.stderr)
+        return 2
+
+    today = date.today()
+    n_problems = 0
+    for proj, tasks in projects:
+        print(f"{proj.name} ({len(tasks)} task(s))")
+
+        # -- listing --------------------------------------------------------
+        w_id = max([len(t.id) for t in tasks], default=0)
+        w_title = max([len(t.title) for t in tasks], default=0)
+        w_status = max([len(t.status or "-") for t in tasks], default=0)
+        for t in tasks:
+            start = t.start.isoformat() if t.start else "-"
+            due = t.due.isoformat() if t.due else "-"
+            line = (f"  {t.id:<{w_id}}  {t.title:<{w_title}}  "
+                    f"{(t.status or '-'):<{w_status}}  {start:>10} -> {due:<10}  "
+                    f"{t.assignee}")
+            print(line.rstrip())
+
+        # -- validation -----------------------------------------------------
+        issues: list[str] = []
+        for t in overdue_tasks(tasks, today):
+            issues.append(f"overdue: {t.id} ({t.title}) was due {t.due.isoformat()}")
+        for t in tasks:
+            missing = [name for name, v in (("start", t.start), ("due", t.due))
+                       if v is None]
+            if missing:
+                issues.append(f"missing {' and '.join(missing)}: {t.id} ({t.title})")
+        ids = {t.id for t in tasks}
+        for t in tasks:
+            for dep in t.depends:
+                if dep not in ids:
+                    issues.append(
+                        f"unknown dependency: {t.id} ({t.title}) depends on {dep!r}")
+        if issues:
+            print(f"  {len(issues)} problem(s):")
+            for msg in issues:
+                print(f"    {msg}")
+            n_problems += len(issues)
+        else:
+            print("  validation: ok")
+    return 1 if n_problems else 0
 
 
 def _cmd_profile(args) -> int:

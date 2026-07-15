@@ -395,3 +395,137 @@ def test_document_open_applies_auto_policy(tmp_path, monkeypatch):
 
     doc2 = Document.open(csv, windowed_capacity=-1)   # never
     assert not isinstance(doc2.workbook.sheet._cells, WindowedCellStore)
+
+
+# --------------------------------------------------------------------------- #
+# Windowing at LOAD time — the native envelope path builds the store directly
+# (no plain-dict staging copy, no migrate-after-load memory spike)
+# --------------------------------------------------------------------------- #
+
+
+def _envelope_with_cells(n: int) -> dict:
+    """An envelope whose sheet has ``n`` literal cells + one SUM over them all."""
+    from abax.core.workbook import Workbook
+
+    wb = Workbook()
+    wb.sheet.set_cells_bulk((r, 0, str(r)) for r in range(n))
+    wb.sheet.set_cell(0, 1, f"=SUM(A1:A{n})")
+    return wb.to_envelope()
+
+
+def test_from_envelope_builds_windowed_store_directly(monkeypatch):
+    """A positive setting lands the sheet ON the windowed store during load:
+    the migration function never runs, residency stays bounded (past-capacity
+    cells spilled as they streamed in), and values — including a formula over
+    the paged range — are correct."""
+    from abax.core.workbook import Workbook
+
+    def _no_migration(self, capacity):
+        raise AssertionError("plain->windowed migration must not run at load")
+
+    monkeypatch.setattr(Sheet, "use_windowed_store", _no_migration)
+    wb = Workbook.from_envelope(_envelope_with_cells(120), windowed_capacity=25)
+    sh = wb.sheet
+    try:
+        assert type(sh._cells) is WindowedCellStore
+        assert sh._cells.capacity == 25
+        assert len(sh._cells) == 121                  # 120 literals + the SUM
+        assert sh._cells.resident_count() <= 25       # bounded THROUGH the load
+        assert sh.get_value(0, 1) == sum(range(120))  # SUM over paged-out cells
+        assert [sh.get_value(r, 0) for r in range(120)] == list(range(120))
+    finally:
+        sh._cells.close()
+
+
+def test_from_envelope_auto_windows_large_sheets_at_load(monkeypatch):
+    """Setting 0 (Auto) applies the threshold DURING load: a big sheet is built
+    on the windowed store at the default capacity, a small one stays plain."""
+    import abax.core.workbook as wbmod
+    from abax.core.workbook import Workbook
+
+    monkeypatch.setattr(wbmod, "AUTO_WINDOW_THRESHOLD", 100)
+    wb = Workbook()
+    wb.sheet.set_cells_bulk((r, 0, str(r)) for r in range(120))
+    wb.add_sheet("small").set_cell(0, 0, "1")
+
+    wb2 = Workbook.from_envelope(wb.to_envelope(), windowed_capacity=0)
+    try:
+        assert isinstance(wb2.sheets[0]._cells, WindowedCellStore)
+        assert wb2.sheets[0]._cells.capacity == WindowedCellStore.DEFAULT_CAPACITY
+        assert type(wb2.get_sheet("small")._cells) is DictCellStore
+        assert wb2.sheets[0].get_value(119, 0) == 119
+    finally:
+        wb2.sheets[0]._cells.close()
+
+
+def test_from_envelope_without_policy_or_negative_stays_plain(monkeypatch):
+    """No ``windowed_capacity`` (callers that apply the policy later — or never,
+    like undo/redo snapshots) and the explicit ``-1`` both keep the plain store,
+    even above the auto threshold."""
+    import abax.core.workbook as wbmod
+    from abax.core.workbook import Workbook
+
+    monkeypatch.setattr(wbmod, "AUTO_WINDOW_THRESHOLD", 10)
+    env = _envelope_with_cells(50)
+    for wb2 in (Workbook.from_envelope(env),
+                Workbook.from_envelope(env, windowed_capacity=-1)):
+        assert type(wb2.sheet._cells) is DictCellStore
+        assert wb2.sheet.get_value(5, 0) == 5
+
+
+def test_document_open_native_windows_at_load_without_a_second_store(
+        tmp_path, monkeypatch):
+    """Opening a large native file constructs ONE windowed store — the loader's
+    — and the delivered sheet holds exactly that instance. The old plain-then-
+    migrate pass would construct a *second* store and swap it in; counting
+    constructions pins the double-copy out (apply_windowing_policy still runs
+    afterwards, as the fallback, and must leave the store untouched)."""
+    import abax.core.workbook as wbmod
+    from abax.core.workbook import Workbook
+    from abax.engine.document import Document
+
+    monkeypatch.setattr(wbmod, "AUTO_WINDOW_THRESHOLD", 5)
+    wb = Workbook()
+    wb.sheet.set_cells_bulk((r, 0, str(r)) for r in range(20))
+    path = tmp_path / "big.abax"
+    wb.save_json(path)
+
+    created: list = []
+    orig_init = WindowedCellStore.__init__
+
+    def counting_init(self, *args, **kwargs):
+        created.append(self)
+        orig_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(WindowedCellStore, "__init__", counting_init)
+    doc = Document.open(path)                     # default 0 -> auto policy
+    sh = doc.workbook.sheet
+    try:
+        assert len(created) == 1                  # built once, at load...
+        assert sh._cells is created[0]            # ...and never re-homed
+        assert [sh.get_value(r, 0) for r in range(20)] == list(range(20))
+    finally:
+        sh._cells.close()
+
+
+def test_use_windowed_store_is_idempotent_at_the_same_capacity():
+    """Re-applying the policy to an already-windowed sheet must not re-copy:
+    the same capacity keeps the very same store object; a different capacity
+    still re-homes into a fresh store with values intact."""
+    sh = Sheet(name="idem")
+    for r in range(40):
+        sh.set_cell(r, 0, str(r))
+    sh.use_windowed_store(10)
+    first = sh._cells
+    assert isinstance(first, WindowedCellStore)
+
+    sh.use_windowed_store(10)                     # same capacity -> no-op
+    assert sh._cells is first
+
+    sh.use_windowed_store(15)                     # different -> re-home
+    try:
+        assert sh._cells is not first
+        assert sh._cells.capacity == 15
+        assert [sh.get_value(r, 0) for r in range(40)] == list(range(40))
+    finally:
+        sh._cells.close()

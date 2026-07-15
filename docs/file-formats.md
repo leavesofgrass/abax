@@ -90,7 +90,7 @@ abax's own format is a self-describing JSON **envelope** produced by
 ```json
 {
   "app": "abax",
-  "schema_version": 2,
+  "schema_version": 3,
   "written_at": "2026-06-29T12:00:00+00:00",
   "data": {
     "active": 0,
@@ -138,6 +138,21 @@ have none of these keys and load unchanged: `from_envelope` reads each with a
 default, so a v1 file simply comes back with no custom widths, freezes, borders,
 or merges. The migration is a bare version-label bump — no data transform — so
 nothing in an older file is rewritten or lost.
+
+### Embedded charts (schema v3)
+
+Schema **v3** adds one more per-sheet key on the same additive pattern:
+
+- `charts` — embedded chart objects (`abax/core/chartobj.py`): each records a
+  chart kind (`line`, `bar`, `scatter`, `histogram`, `box`, `violin`, `qq`,
+  `ecdf`, `heatmap`, `waterfall`), its A1 source range (optionally
+  sheet-qualified), an optional labels range and title, a cell anchor, a pixel
+  size, and kind-specific options. Ranges are resolved at **render time**
+  against current cell values, so a recalc refreshes the picture; anchors and
+  ranges shift with row/column insert & delete like every other range.
+
+As with v2, the key is omitted when a sheet has no charts, a v1/v2 file loads
+unchanged, and the migration is a version-label bump only.
 
 ### `.json` auto-detects native vs foreign
 
@@ -205,6 +220,49 @@ Excel formulas are kept **as text** and re-evaluated by abax rather than read as
 cached values. On export the default writes **raw cell text** (so formulas
 survive the round-trip into Excel); the API can write computed values instead.
 Sheet titles are capped at Excel's 31-character limit.
+
+### What round-trips (formatting fidelity)
+
+Both directions also carry the formatting the native envelope persists, so a
+styled workbook survives `.abax` → `.xlsx` → `.abax` (and a styled `.xlsx`
+imports styled):
+
+- **Number formats** — abax's specs map to Excel format codes (`comma` ↔
+  `#,##0.00`, `currency` ↔ `$#,##0.00`, `percent` ↔ `0.00%`, `sci` ↔
+  `0.000E+00`, `int` ↔ `0`, `fixedN` ↔ `0.00…`, `text` ↔ `@`). Importing a
+  foreign file maps codes back best-effort (any `$` → currency, `%` → percent,
+  …); codes with no abax counterpart (e.g. date masks) are left as general.
+- **Cell styles** — bold/italic/underline, horizontal alignment, text colour,
+  and fill colour (theme/indexed colours in foreign files are skipped; only
+  concrete RGB maps).
+- **Borders** — per-edge thin/medium/thick. Foreign edge styles fold to the
+  nearest weight (`hair`/`dashed`/… → thin, `double`/`mediumDashed`/… → medium).
+- **Layout** — column widths and row heights (abax stores pixels; widths
+  convert to Excel's character units as `chars = (px − 5) / 7`, heights to
+  points as `pt = px × 0.75`, and both invert exactly on import), frozen
+  panes, and merged regions.
+- **Conditional formatting** — comparison rules (`>`, `<`, `>=`, `<=`, `==`,
+  `!=`, `between`), 2- and 3-colour scales, text rules (contains / begins with
+  / ends with), blank/not-blank, above/below average, top/bottom N and %,
+  duplicate/unique — including a rule's fill colour or CSS styling (mapped to
+  an Excel differential style). abax's `regex` kind has no Excel counterpart
+  and is skipped on export; Excel rule types abax has no model for (data bars,
+  icon sets, formula rules) are skipped on import.
+- **Embedded charts** — `line`, `bar`, and `scatter` charts become native
+  Excel charts anchored at the same cell, carrying kind, source range, title,
+  and size (pixels convert to Excel's centimetres and land back within a
+  pixel); a line chart's `first_col_x` option becomes the category axis and is
+  recovered on import. Importing a foreign `.xlsx` rebuilds each mapped chart
+  from its data references (a label column folds back into the source range).
+  The other abax kinds — `histogram`, `box`, `violin`, `qq`, `ecdf`,
+  `heatmap`, `waterfall` — have no Excel counterpart through openpyxl, so they
+  are skipped cleanly on export: the cell data still lands, and those charts
+  survive only in the native `.abax` envelope, not in the `.xlsx`. Foreign
+  chart types abax has no model for (pie, area, 3-D, …) are ignored on import.
+
+The fidelity pass is strictly additive: an unstyled workbook writes a plain
+`.xlsx` exactly as before, and unmappable foreign styling is dropped rather
+than erroring.
 
 If `openpyxl` is not installed, both load and save raise a `RuntimeError` with a
 clear hint:

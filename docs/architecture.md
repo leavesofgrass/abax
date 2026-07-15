@@ -96,13 +96,14 @@ These are enforced by tests and by convention. Don't break them:
   `abax/gui/` imports Qt, and no module — including inside the GUI — imports
   `PySide6`/`PyQt6` directly except `_qtcompat.py`.
 - **All native persistence is JSON.** `.abax`/`.json` files use the workbook
-  JSON envelope (`core/workbook.py`, `schema_version` 2); macro recordings use a
+  JSON envelope (`core/workbook.py`, `schema_version` 3); macro recordings use a
   JSON envelope; settings and state are JSON (`settings.py`, `SCHEMA_VERSION` 5).
   No pickle, no bespoke binary format. **Schema bumps stay back-compatible:** the
   workbook v2 view-fidelity keys (per-sheet `col_widths` / `row_heights` /
-  `frozen` / `borders` / `merges`) are *omitted when empty* so a plain grid's file
-  is byte-for-byte unchanged, and read back with a default so an older v1 file
-  loads untouched (they survive row/column insert & delete); settings v5 added
+  `frozen` / `borders` / `merges`) and the v3 per-sheet `charts` key are
+  *omitted when empty* so a plain grid's file is byte-for-byte unchanged, and
+  read back with a default so an older v1/v2 file loads untouched (they survive
+  row/column insert & delete); settings v5 added
   only defaulted, off/safe fields (iterative-calc knobs, accessibility toggles,
   plugin consent), so older settings files simply take the defaults on lazy
   migration.

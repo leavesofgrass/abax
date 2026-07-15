@@ -33,6 +33,23 @@ def test_settings_migration_v0_to_v1():
     assert migrated["schema_version"] == SCHEMA_VERSION  # chains through to current
 
 
+def test_settings_migration_v8_to_v9_chart_backend(tmp_path):
+    # v8 -> v9 is additive: the version chains to current and the new field is
+    # simply absent from the migrated dict (the dataclass/struct default fills it).
+    data = {"schema_version": 8, "theme": "nord"}
+    migrated = _migrate_settings(data)
+    assert migrated["schema_version"] == SCHEMA_VERSION
+    assert "chart_backend" not in migrated
+    # A v8 settings.json (no chart_backend key) loads and takes the default —
+    # identical under both the msgspec and the stdlib-json backend.
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps(data))
+    loaded = load_settings(path)
+    assert loaded.theme == "nord"
+    assert loaded.chart_backend == "auto"
+    assert Settings().chart_backend == "auto"
+
+
 def test_save_json_is_atomic_and_roundtrips(tmp_path):
     wb = Workbook()
     wb.sheet.set("A1", "=1+2")
@@ -68,7 +85,7 @@ def test_workbook_envelope_is_self_describing(tmp_path):
     wb.save_json(path)
     env = json.loads(path.read_text())
     assert env["app"] == "abax"
-    assert env["schema_version"] == 2
+    assert env["schema_version"] == 3
     assert "written_at" in env
     assert "sheets" in env["data"]
 
