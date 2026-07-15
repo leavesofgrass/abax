@@ -890,11 +890,49 @@ def _make_predicate(criteria: Any) -> Callable[[Any], bool]:
     return make_predicate(criteria)
 
 
+def _single_criterion_spec(rng: RangeValue, criterion: Any):
+    """The ``(op, threshold)`` a single ``*IF`` criterion vectorises to, or None.
+
+    The numpy path is worth taking only when the accelerator is registered, the
+    criteria range clears :data:`_ACCEL_MIN_CELLS`, and the criterion is a *numeric*
+    comparison (:func:`numeric_criterion` — text, wildcard and bool criteria return
+    None here and stay on the exact stdlib loop). The value blocks' finite-numeric /
+    equal-length gating is left to the kernel, which bails on any dirty block, so
+    semantics never change; this only decides whether it is worth *offering* the
+    numpy path at all."""
+    if rng.nrows * rng.ncols < _ACCEL_MIN_CELLS:
+        return None
+    if aggregate_accelerator() is None:
+        return None
+    from ..criteria import numeric_criterion
+    return numeric_criterion(criterion)
+
+
+def _crit_kernel(name):
+    """The named criteria kernel (``countifs`` / ``sumifs`` / ``averageifs``) off
+    the registered accelerator, or None — same seam the ``*IFS`` family reads.
+
+    The single-criterion ``*IF`` functions are ``*IFS`` with one (range, criterion)
+    pair, so they reuse the exact same numpy kernels; ``COUNTIF`` maps to
+    ``countifs``, ``SUMIF``/``AVERAGEIF`` to ``sumifs``/``averageifs`` with the
+    aligned value block."""
+    accel = aggregate_accelerator()
+    return getattr(accel, name, None) if accel is not None else None
+
+
 def _countif(args):
     rng = _arg(args, 0)
     if not isinstance(rng, RangeValue):
         return CellError(CellError.VALUE)
-    pred = _make_predicate(_arg(args, 1))
+    criterion = _arg(args, 1)
+    spec = _single_criterion_spec(rng, criterion)
+    if spec is not None:
+        kernel = _crit_kernel("countifs")
+        if kernel is not None:
+            handled, value = kernel([rng.grid], [spec])
+            if handled:
+                return value
+    pred = _make_predicate(criterion)
     return float(sum(1 for v in rng.flat() if pred(v)))
 
 
@@ -902,8 +940,19 @@ def _sumif(args):
     rng = _arg(args, 0)
     if not isinstance(rng, RangeValue):
         return CellError(CellError.VALUE)
-    pred = _make_predicate(_arg(args, 1))
+    criterion = _arg(args, 1)
     sum_rng = _arg(args, 2)
+    spec = _single_criterion_spec(rng, criterion)
+    if spec is not None:
+        kernel = _crit_kernel("sumifs")
+        if kernel is not None:
+            # sum_range omitted (or non-range) => the criteria range is the value
+            # block, mirroring the stdlib fallback below.
+            value_grid = sum_rng.grid if isinstance(sum_rng, RangeValue) else rng.grid
+            handled, value = kernel(value_grid, [rng.grid], [spec])
+            if handled:
+                return value
+    pred = _make_predicate(criterion)
     crit = rng.flat()
     values = sum_rng.flat() if isinstance(sum_rng, RangeValue) else crit
     total = 0.0
@@ -917,8 +966,19 @@ def _averageif(args):
     rng = _arg(args, 0)
     if not isinstance(rng, RangeValue):
         return CellError(CellError.VALUE)
-    pred = _make_predicate(_arg(args, 1))
+    criterion = _arg(args, 1)
     avg_rng = _arg(args, 2)
+    spec = _single_criterion_spec(rng, criterion)
+    if spec is not None:
+        kernel = _crit_kernel("averageifs")
+        if kernel is not None:
+            value_grid = avg_rng.grid if isinstance(avg_rng, RangeValue) else rng.grid
+            handled, value = kernel(value_grid, [rng.grid], [spec])
+            if handled:
+                # value is None only when the mask matched zero cells -> #DIV/0!,
+                # exactly the stdlib empty-``matched`` outcome below.
+                return value if value is not None else CellError(CellError.DIV0)
+    pred = _make_predicate(criterion)
     crit = rng.flat()
     values = avg_rng.flat() if isinstance(avg_rng, RangeValue) else crit
     matched = [_try_num(s) or 0.0 for c, s in zip(crit, values) if pred(c)]
