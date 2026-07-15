@@ -39,12 +39,10 @@ def win(app):
 
 
 @pytest.fixture()
-def cfg(tmp_path, monkeypatch):
-    """Redirect settings.json persistence into a temp dir so we can read it back."""
-    from abax import _runtime as rt
-
-    monkeypatch.setattr(rt, "CONFIG_DIR", tmp_path)
-    return tmp_path
+def cfg(abax_user_dirs):
+    """The temp dir settings.json persists into (redirected suite-wide by the
+    autouse ``abax_user_dirs`` fixture in conftest) — read it back from here."""
+    return abax_user_dirs["CONFIG_DIR"]
 
 
 def _dialog(win):
