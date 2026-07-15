@@ -10,6 +10,8 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.15] — 2026-07-14
+
 ### Added
 - **`.xlsx` import/export now round-trips formatting fidelity** — per-cell
   number formats, styles (bold/italic/underline, alignment, text/fill
