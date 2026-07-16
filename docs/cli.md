@@ -81,16 +81,29 @@ Requires a Qt binding (`gui` or `gui-pyqt` extra). See [gui-guide.md](gui-guide.
 
 ### `tui [file]` — terminal UI
 
-Launch the curses/Textual TUI, optionally opening a file.
+Launch the terminal UI, optionally opening a file.
 
 ```bash
 abax tui                # empty workbook
 abax tui data.csv       # open a file
+abax tui --curses       # force the SSH-safe curses front-end
 ```
 
-| Argument | Description |
+| Argument / flag | Description |
 |----------|-------------|
 | `file` | Optional spreadsheet to open. |
+| `--textual` | Force the Textual front-end. |
+| `--curses` | Force the curses front-end. |
+
+**Two front-ends, one behaviour.** There are two views over the *same* editor —
+so every key, `:` command, mode, and theme below works identically in either:
+
+- **Textual** (default) — the richer view, used automatically when standard
+  output is an interactive terminal that can drive it.
+- **curses** — the SSH-safe, low-dependency fallback that degrades to
+  8-colour / monochrome. abax falls back to it automatically over SSH, on a
+  non-interactive/dumb terminal, or when Textual isn't installed. Force it with
+  `--curses` (some terminals and remote sessions render it more reliably).
 
 The TUI is modal and vi-flavoured. Navigate with `h`/`j`/`k`/`l` **or the arrow
 keys**. Key features:

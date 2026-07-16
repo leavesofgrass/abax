@@ -61,8 +61,13 @@ core  ──►  engine  ──►  gui / tui
   curses/Textual TUI. These depend on core and engine, never the other way
   around. The TUI is a package split by concern — `capabilities` (terminal
   detection), `themes`, `commands` (parsing), `editor` (the `TuiEditor` state
-  machine), `keys` (keystroke dispatch), `render` (the curses draw loop), and
-  `app` (`run_tui`) — re-exporting its public surface from `tui/__init__.py`. The
+  machine), and `session` (front-end-agnostic setup). It has **two views over
+  that one state machine**: `keys` + `render` + `app` (the curses draw loop,
+  `run_tui`) and `textual_app` (the Textual `App`, `run_textual_tui`). Both only
+  paint the editor and route keys into it — every mode, `:` command, and theme is
+  the editor's, so the views can't diverge. `abax tui` prefers Textual on a
+  capable interactive terminal and falls back to curses over SSH / dumb terminals.
+  The package re-exports its public surface from `tui/__init__.py`. The
   GUI groups its widgets into subpackages: **`gui/grid/`** (the
   virtualized table model/view + frozen panes), **`gui/dialogs/`** (the ~20 modal
   dialogs and browsers), **`gui/calc/`** (the floating calculator panel + painted/
