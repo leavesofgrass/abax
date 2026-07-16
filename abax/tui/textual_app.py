@@ -312,6 +312,12 @@ def handle_key(editor, key: str, char: "str | None") -> None:
     the delegation into :meth:`TuiEditor.dispatch_normal` — so every normal-mode
     command (visual, yank/paste, search, append, …) and user ``init.py`` rebind
     works identically across both front-ends."""
+    # Some terminals send the numpad Enter as LF (0x0A), which Textual reports as
+    # ``ctrl+j`` rather than ``enter`` (CR / 0x0D). Normalise it so the numpad
+    # Enter commits an edit / runs a command exactly like the main Enter — the
+    # curses front-end already accepts LF via its ``_is_enter`` set.
+    if key == "ctrl+j":
+        key = "enter"
     if editor.mode in OVERLAY_MODES:
         _overlay_key(editor, key, char)
     elif editor.mode == "command":

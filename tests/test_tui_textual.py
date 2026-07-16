@@ -93,6 +93,19 @@ def test_handle_key_insert_commit_advances():
     assert (ed.row, ed.col) == (3, 0)              # Enter advances down
 
 
+def test_numpad_enter_as_ctrl_j_commits():
+    # Terminals that send numpad Enter as LF surface it as ctrl+j; it must still
+    # commit an edit like the main Enter key.
+    ed = _editor()
+    ed.row, ed.col = 4, 4
+    handle_key(ed, "i", "i")
+    for c in "=1+2":
+        handle_key(ed, c, c)
+    handle_key(ed, "ctrl+j", None)             # numpad Enter (LF)
+    assert ed.sheet.get_raw(4, 4) == "=1+2"
+    assert ed.mode == "normal"
+
+
 def test_handle_key_insert_escape_discards():
     ed = _editor()
     ed.row, ed.col = 5, 5
