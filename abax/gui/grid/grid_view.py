@@ -45,6 +45,11 @@ from ...core.reference import to_a1
 # Excel-style dynamic-array spill outline colour (a calm blue).
 _SPILL_COLOR = "#3b82f6"
 
+# Formula-edit reference highlighting (Excel's coloured range boxes): outline
+# colours cycled per distinct reference, in refscan's colour-index order —
+# blue, teal, orange, plum, gold. The fill is the same colour at low alpha.
+_REF_COLORS = ("#2563eb", "#10b981", "#f59e0b", "#c084fc", "#eab308")
+
 # Drag fill-handle: the little square at the bottom-right of the selection.
 _FILL_HANDLE_SIZE = 6
 
@@ -229,6 +234,10 @@ class GridDelegate(QStyledItemDelegate):
             editor.textEdited.connect(lambda _t, e=editor: self._show_arg_hint(e))
             editor.cursorPositionChanged.connect(
                 lambda _o, _n, e=editor: self._show_arg_hint(e))
+            # Live-highlight the ranges the formula references while typing
+            # (Excel's coloured boxes); the view clears them on editor close.
+            editor.textEdited.connect(
+                lambda t, v=self._win._table: v.set_formula_refs(t))
         return editor
 
     @staticmethod
@@ -316,6 +325,9 @@ class CellTableView(QTableView):
         self._pending_move: tuple[int, int] | None = None
         self._filling = False
         self._fill_src: tuple[int, int, int, int] | None = None
+        # Ranges referenced by the formula currently being edited (refscan
+        # spans) — painted as coloured boxes over the grid; [] = none.
+        self._formula_refs: list = []
         # Anchor cells the view currently spans (for merges); reset before each
         # re-span in apply_merges so a merge that shrinks/moves is cleaned up.
         self._spanned: list[tuple[int, int]] = []
@@ -415,8 +427,64 @@ class CellTableView(QTableView):
 
     # -- empty-sheet onboarding hint --------------------------------------
 
+    # -- formula-edit reference highlighting -------------------------------
+
+    def set_formula_refs(self, text: "str | None") -> None:
+        """Highlight the ranges a formula references while it is being edited.
+
+        Driven live by the formula bar and the in-cell editor as their text
+        changes; ``None`` or non-formula text clears. Spans resolve against the
+        active sheet (cross-sheet refs are skipped but keep their colour, so
+        the boxes match the TUI's colour assignment exactly).
+        """
+        spans: list = []
+        if text and text.startswith("="):
+            try:
+                from ...core.refscan import refs_for_sheet
+                spans = refs_for_sheet(text, self._win._doc.workbook.sheet.name,
+                                       palette_size=len(_REF_COLORS))
+            except Exception:
+                spans = []
+        if spans != self._formula_refs:
+            self._formula_refs = spans
+            self.viewport().update()
+
+    def _formula_ref_rect(self, span) -> QRect:
+        """Viewport rect of a refscan span, clamped to the model's bounds.
+
+        Built from column/row viewport positions (valid even off-screen) so a
+        partially scrolled-out range still outlines correctly.
+        """
+        max_r, max_c = self.rowCount() - 1, self.columnCount() - 1
+        r1, c1 = min(span.r1, max_r), min(span.c1, max_c)
+        r2, c2 = min(span.r2, max_r), min(span.c2, max_c)
+        x1 = self.columnViewportPosition(c1)
+        y1 = self.rowViewportPosition(r1)
+        x2 = self.columnViewportPosition(c2) + self.columnWidth(c2)
+        y2 = self.rowViewportPosition(r2) + self.rowHeight(r2)
+        return QRect(x1, y1, x2 - x1, y2 - y1)
+
+    def _paint_formula_refs(self) -> None:
+        if not self._formula_refs:
+            return
+        vp = self.viewport()
+        painter = QPainter(vp)
+        for span in self._formula_refs:
+            rect = self._formula_ref_rect(span)
+            if not rect.isValid() or not rect.intersects(vp.rect()):
+                continue
+            color = QColor(_REF_COLORS[span.color])
+            fill = QColor(color)
+            fill.setAlpha(28)
+            painter.setPen(QPen(color, 2))
+            painter.setBrush(QBrush(fill))
+            painter.drawRect(rect.adjusted(1, 1, -2, -2))
+        painter.end()
+
     def paintEvent(self, event) -> None:  # noqa: N802 (Qt override)
         super().paintEvent(event)
+        # Coloured boxes around the ranges the formula being edited references.
+        self._paint_formula_refs()
         # A subtle getting-started hint over a blank sheet. It disappears the
         # instant any cell is populated (every edit triggers a full-extent
         # repaint) or the user starts typing (an editor is open) — so it never
@@ -657,6 +725,7 @@ class CellTableView(QTableView):
 
     def closeEditor(self, editor, hint) -> None:  # noqa: N802 (Qt override)
         super().closeEditor(editor, hint)
+        self.set_formula_refs(None)   # the edit is over — drop the ref boxes
         move, self._pending_move = self._pending_move, None
         if move is not None:
             self.move_cursor_by(*move)

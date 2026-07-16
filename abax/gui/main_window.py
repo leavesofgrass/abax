@@ -134,6 +134,7 @@ class MainWindow(PMMixin, NavigationMixin, DocumentMixin, DocumentIOMixin, Setti
         self._formula_bar.setPlaceholderText("Enter value or =formula, press Enter")
         self._formula_bar.returnPressed.connect(self._commit_formula_bar)
         self._formula_bar.textChanged.connect(self._update_arg_hint)
+        self._formula_bar.textChanged.connect(self._update_formula_refs)
         self._formula_bar.cursorPositionChanged.connect(lambda *_: self._update_arg_hint())
         from .completion import FormulaCompleter
 
@@ -940,6 +941,15 @@ class MainWindow(PMMixin, NavigationMixin, DocumentMixin, DocumentIOMixin, Setti
         else:
             self._set_status(f"Count {nonblank}")
 
+    def _update_formula_refs(self) -> None:
+        """Live coloured boxes around the ranges the formula bar references.
+
+        Only while the bar is actually being edited (has focus) — the bar's
+        text also changes on plain cell navigation, which must not highlight.
+        """
+        text = self._formula_bar.text()
+        self._table.set_formula_refs(text if self._formula_bar.hasFocus() else None)
+
     def _commit_formula_bar(self) -> None:
         row, col = self._table.currentRow(), self._table.currentColumn()
         if row < 0 or col < 0:
@@ -955,6 +965,7 @@ class MainWindow(PMMixin, NavigationMixin, DocumentMixin, DocumentIOMixin, Setti
         # even when the value is unchanged.
         self._table.setCurrentCell(row + 1, col)
         self._table.setFocus()
+        self._table.set_formula_refs(None)   # the edit is committed — clear boxes
 
     def _row_header_menu(self, pos) -> None:
         from ._qtcompat import QMenu
