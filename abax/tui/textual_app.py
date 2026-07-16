@@ -108,6 +108,33 @@ def _cond_colors(sheet) -> dict:
         return {}
 
 
+# Reference-highlight palette (Excel's coloured range boxes): background tints
+# for truecolor themes, foreground tints for 256-palette themes. Order matches
+# refscan's colour indices — blue, teal, orange, plum, olive.
+_REF_BG = ("#1f3a5f", "#1d4a42", "#5a3a20", "#4a2a4a", "#4f4a1f")
+_REF_FG256 = (33, 42, 208, 170, 178)
+
+
+def _ref_cells(editor, top: int, left: int, rows: int, cols: int) -> dict:
+    """``{(row, col): colour_index}`` for cells the in-progress formula
+    references, clipped to the visible window (a ``=SUM(A1:A100000)`` range
+    costs the viewport intersection, never the full rectangle). Empty unless
+    an insert-mode formula is being typed."""
+    if editor.mode != "insert" or not editor.edit_buf.startswith("="):
+        return {}
+    from ..core.refscan import refs_for_sheet
+
+    out: dict = {}
+    for span in refs_for_sheet(editor.edit_buf, editor.sheet.name,
+                               palette_size=len(_REF_BG)):
+        r_lo, r_hi = max(span.r1, top), min(span.r2, top + rows - 1)
+        c_lo, c_hi = max(span.c1, left), min(span.c2, left + cols - 1)
+        for r in range(r_lo, r_hi + 1):
+            for c in range(c_lo, c_hi + 1):
+                out.setdefault((r, c), span.color)
+    return out
+
+
 def render_grid(editor, width: int, height: int):
     """Build the grid body (header + data rows) as a Rich ``Text`` for a widget
     ``width`` x ``height`` cells, syncing the editor's viewport + scroll first so
@@ -136,6 +163,13 @@ def render_grid(editor, width: int, height: int):
     top, left = editor.scroll_row, editor.scroll_col
     vsel = editor.visual_bounds() if editor.mode in ("visual", "visual-line") else None
     cond = _cond_colors(sheet)
+    # Cells the in-progress formula references (Excel's coloured range boxes).
+    refs = _ref_cells(editor, top, left, rows, cols)
+    pal = _HEX.get(theme.name)
+    if pal:
+        ref_styles = [f"{pal['lcd']} on {bg}" for bg in _REF_BG]
+    else:
+        ref_styles = [f"color({n})" for n in _REF_FG256]
 
     out = Text()
     # Column header.
@@ -148,10 +182,13 @@ def render_grid(editor, width: int, height: int):
         out.append(str(r + 1).rjust(_GUTTER - 1) + " ", style=s_dim)
         for c in range(left, left + cols):
             text = sheet.display(r, c)[:_COL_W].ljust(_COL_W) + " "
+            ref_idx = refs.get((r, c))
             if r == editor.row and c == editor.col:
                 style = s_cursor
             elif vsel is not None and vsel[0] <= r <= vsel[2] and vsel[1] <= c <= vsel[3]:
                 style = s_sel
+            elif ref_idx is not None:
+                style = ref_styles[ref_idx]
             elif cond.get((r, c)):
                 style = f"color({_hex_to_256(cond[(r, c)])})"
             elif sheet.in_spill(r, c):

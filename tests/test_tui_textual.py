@@ -215,6 +215,43 @@ def test_render_grid_uses_conditional_format_colors(monkeypatch):
     assert "color(196)" in _styles(text)
 
 
+# --- live reference highlighting while typing a formula ----------------------
+
+
+def test_insert_formula_highlights_referenced_cells():
+    ed = _editor()
+    ed.row, ed.col = 5, 5                       # cursor away from the refs
+    handle_key(ed, "i", "i")
+    for ch in "=A1+B3":
+        handle_key(ed, ch, ch)
+    text = render_grid(ed, 80, 24)
+    styles = _styles(text)
+    # galaxy is truecolor: the first two ref palette backgrounds appear.
+    assert "on #1f3a5f" in styles               # A1 -> colour 0 (blue tint)
+    assert "on #1d4a42" in styles               # B3 -> colour 1 (teal tint)
+
+
+def test_ref_highlight_only_while_editing_a_formula():
+    ed = _editor()
+    ed.row, ed.col = 5, 5
+    text = render_grid(ed, 80, 24)              # normal mode: no ref tints
+    assert "on #1f3a5f" not in _styles(text)
+    handle_key(ed, "i", "i")
+    for ch in "hello":                           # non-formula edit: no tints
+        handle_key(ed, ch, ch)
+    assert "on #1f3a5f" not in _styles(render_grid(ed, 80, 24))
+
+
+def test_ref_highlight_range_clips_to_viewport():
+    ed = _editor()
+    ed.row, ed.col = 5, 5
+    handle_key(ed, "i", "i")
+    for ch in "=SUM(A1:A99999)":                 # far beyond the window
+        handle_key(ed, ch, ch)
+    text = render_grid(ed, 80, 24)              # must render fast and tint col A
+    assert "on #1f3a5f" in _styles(text)
+
+
 # --- overlay modes (help / browser / rpn / describe) + completions ----------
 
 

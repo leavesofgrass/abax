@@ -172,6 +172,10 @@ def _render(stdscr, curses, editor, attr, cap, colors, cond_attr) -> None:
     top, left = editor.scroll_row, editor.scroll_col
     # Active visual selection (r1, c1, r2, c2), or None when not in visual mode.
     vsel = editor.visual_bounds() if editor.mode in ("visual", "visual-line") else None
+    # Cells the in-progress formula references (insert mode): tinted so the user
+    # sees what the formula reads. One colour here — per-ref colours are the
+    # Textual view's; this degraded view keeps to the theme's banner role.
+    ref_cells = _formula_ref_cells(editor, top, left, n_rows, n_cols)
     # Row 0: in screen-reader mode, a single reader-friendly line describing the
     # active cell (ref + value + edit/selection state) — a superset of the
     # formula bar, tinted with the accent role so it stands out as the primary
@@ -207,6 +211,8 @@ def _render(stdscr, curses, editor, attr, cap, colors, cond_attr) -> None:
                 # Highlight the visual selection (bold reverse, like the cursor
                 # but tinted with the accent role to distinguish it).
                 a = attr("accent") | curses.A_REVERSE
+            elif (r, c) in ref_cells:
+                a = attr("banner") | curses.A_BOLD
             else:
                 ca = cond_attr(colors.get((r, c)))
                 if ca is not None:
@@ -256,6 +262,23 @@ def _completion_hint(candidates: list[str]) -> str:
 
         return "   " + signature(candidates[0])
     return "   {" + " ".join(candidates[:8]) + ("…}" if len(candidates) > 8 else "}")
+
+
+def _formula_ref_cells(editor, top: int, left: int, n_rows: int, n_cols: int) -> set:
+    """Visible cells referenced by the formula being typed (insert mode), or an
+    empty set. Ranges are clipped to the window before expanding, so a huge
+    ``=SUM(A1:A100000)`` costs only the viewport intersection."""
+    if editor.mode != "insert" or not editor.edit_buf.startswith("="):
+        return set()
+    from ..core.refscan import refs_for_sheet
+
+    cells: set = set()
+    for span in refs_for_sheet(editor.edit_buf, editor.sheet.name):
+        r_lo, r_hi = max(span.r1, top), min(span.r2, top + n_rows - 1)
+        c_lo, c_hi = max(span.c1, left), min(span.c2, left + n_cols - 1)
+        for r in range(r_lo, r_hi + 1):
+            cells.update((r, c) for c in range(c_lo, c_hi + 1))
+    return cells
 
 
 def _addstr(stdscr, y: int, x: int, text: str, attr_val: int) -> None:
