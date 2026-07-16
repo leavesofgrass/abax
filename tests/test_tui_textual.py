@@ -177,6 +177,20 @@ def test_render_grid_applies_theme_and_cursor_style():
     assert "color(" in styles                 # theme role colours applied
 
 
+def test_galaxy_uses_truecolor_purple_surface():
+    from abax.tui.textual_app import _cursor_style, _role_style, theme_surface
+    from abax.tui.themes import THEMES
+
+    g = THEMES["galaxy"]
+    assert _role_style(g, "label") == "#a78bfa"        # violet headers (not pale)
+    surf = theme_surface(g)
+    assert surf["bg"] == "#1e1e2e" and surf["panel"] == "#181825"
+    assert "#7c3aed" in _cursor_style(g)               # violet cursor block
+    # A 256-only theme keeps the palette-index path and no truecolor surface.
+    assert _role_style(THEMES["hacker"], "lcd").startswith("color(")
+    assert theme_surface(THEMES["hacker"]) is None
+
+
 def test_render_grid_uses_conditional_format_colors(monkeypatch):
     import abax.core.format.condformat as cf
 

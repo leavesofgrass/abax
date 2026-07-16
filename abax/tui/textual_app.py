@@ -43,11 +43,56 @@ def grid_viewport(width: int, height: int) -> "tuple[int, int]":
     return rows, cols
 
 
+# Truecolor palettes for the Textual view — matched to the GUI Theme presets so
+# the two front-ends look the same on a colour terminal. The GUI reads "purple"
+# mostly from its dark violet-tinted background + strong violet accent, not from
+# very-purple text, so the TUI mirrors those. A theme not listed here falls back
+# to its xterm-256 role indices (still fine, just not truecolor).
+_HEX = {
+    "galaxy": {
+        "bg": "#1e1e2e", "panel": "#181825",   # dark violet-tinted base / bars
+        "lcd": "#cdd6f4", "label": "#a78bfa", "dim": "#6c7086",
+        "accent": "#7c3aed", "banner": "#c4b5fd", "cursor": "#7c3aed",
+    },
+}
+
+
 def _role_style(theme, role: str) -> str:
-    """A Rich style for a theme role — the theme's xterm-256 index as ``color(N)``
-    (Rich understands the 256-palette form directly, so the TUI themes map over
-    with no new colour tables)."""
+    """A Rich style for a theme role: the truecolor hex from :data:`_HEX` when the
+    theme has one (matching the GUI), else the theme's xterm-256 index as
+    ``color(N)`` (Rich reads the 256-palette form directly)."""
+    pal = _HEX.get(theme.name)
+    if pal and role in pal:
+        return pal[role]
     return f"color({theme.color(role, '256')})"
+
+
+def _cursor_style(theme) -> str:
+    """The active cell — a solid block. Truecolor themes paint dark text on the
+    accent violet; 256 themes reverse the cursor role."""
+    pal = _HEX.get(theme.name)
+    if pal:
+        return f"{pal['bg']} on {pal['cursor']}"
+    return f"color({theme.color('cursor', '256')}) reverse"
+
+
+def _selection_style(theme) -> str:
+    """A visual-selection cell — light text on the accent violet (truecolor) or a
+    reversed accent (256)."""
+    pal = _HEX.get(theme.name)
+    if pal:
+        return f"{pal['lcd']} on {pal['accent']}"
+    return f"color({theme.color('accent', '256')}) reverse"
+
+
+def theme_surface(theme) -> "dict | None":
+    """Background/foreground/accent hex for the screen + docked bars + grid base,
+    or ``None`` to keep Textual's defaults (a theme with no truecolor palette)."""
+    pal = _HEX.get(theme.name)
+    if not pal:
+        return None
+    return {"bg": pal["bg"], "panel": pal["panel"], "fg": pal["lcd"],
+            "accent": pal["accent"]}
 
 
 def _cond_colors(sheet) -> dict:
@@ -79,7 +124,8 @@ def render_grid(editor, width: int, height: int):
     s_dim = _role_style(theme, "dim")
     s_lcd = _role_style(theme, "lcd")
     s_accent = _role_style(theme, "accent")
-    s_cursor = _role_style(theme, "cursor") + " reverse"
+    s_cursor = _cursor_style(theme)
+    s_sel = _selection_style(theme)
 
     rows, cols = grid_viewport(width, height)
     editor.viewport_rows = rows
@@ -105,7 +151,7 @@ def render_grid(editor, width: int, height: int):
             if r == editor.row and c == editor.col:
                 style = s_cursor
             elif vsel is not None and vsel[0] <= r <= vsel[2] and vsel[1] <= c <= vsel[3]:
-                style = s_accent + " reverse"
+                style = s_sel
             elif cond.get((r, c)):
                 style = f"color({_hex_to_256(cond[(r, c)])})"
             elif sheet.in_spill(r, c):
@@ -448,14 +494,15 @@ try:
 
         CSS = """
         Screen { layers: base; }
-        #formula { dock: top; height: 1; background: $panel; color: $text; }
+        #formula { dock: top; height: 1; }
         #grid { height: 1fr; }
-        #status { dock: bottom; height: 1; background: $panel; color: $text; }
+        #status { dock: bottom; height: 1; }
         """
 
         def __init__(self, editor) -> None:
             super().__init__()
             self.editor = editor
+            self._styled_theme = None
 
         def compose(self):
             yield Static(id="formula")
@@ -464,12 +511,36 @@ try:
 
         def on_mount(self) -> None:
             self.query_one("#grid", _GridView).focus()
+            self._apply_theme_surface()
             self._sync()
+
+        def _apply_theme_surface(self) -> None:
+            """Paint the screen, grid base, and docked bars from the active theme
+            (so galaxy reads as purple-on-black, not white). Re-applied only when
+            the theme actually changes, so it costs nothing per keystroke."""
+            from .themes import THEMES
+
+            name = getattr(self.editor, "theme_name", "galaxy")
+            if name == self._styled_theme:
+                return
+            self._styled_theme = name
+            surface = theme_surface(THEMES.get(name, THEMES["galaxy"]))
+            if surface is None:
+                return
+            self.screen.styles.background = surface["bg"]
+            grid = self.query_one("#grid", _GridView)
+            grid.styles.background = surface["bg"]
+            grid.styles.color = surface["fg"]
+            for wid in ("#formula", "#status"):
+                w = self.query_one(wid, Static)
+                w.styles.background = surface["panel"]
+                w.styles.color = surface["fg"]
 
         def _sync(self) -> None:
             if not self.editor.running:
                 self.exit()
                 return
+            self._apply_theme_surface()
             self.query_one("#formula", Static).update(formula_text(self.editor))
             self.query_one("#status", Static).update(status_text(self.editor))
             self.query_one("#grid", _GridView).refresh()
