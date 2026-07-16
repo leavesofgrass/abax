@@ -346,7 +346,7 @@ sheet.
 
 ## Themes, zoom, and fonts
 
-abax ships a dozen built-in themes under *View → Theme*: Obsidian, Dark One,
+abax ships a dozen built-in themes under *View → Theme*: Galaxy, Dark One,
 **Dracula**, **Tokyo Night**, **Gruvbox Dark**, **Monokai**, Nord, Solarized,
 CRT green, CRT amber, Light, and High contrast — mostly dark, with light and
 high-contrast options. Pick one directly from the submenu, or open the chooser

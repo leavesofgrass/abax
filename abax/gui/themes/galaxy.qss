@@ -1,5 +1,5 @@
-/* Obsidian dark theme — violet accent. {{token}} placeholders filled by
-   theming.apply_theme(). Matches the TUI 'obsidian' theme. */
+/* Galaxy dark theme — purple on black. {{token}} placeholders filled by
+   theming.apply_theme(). Matches the TUI 'galaxy' theme. */
 
 QMainWindow, QWidget {{
     background-color: {bg_primary};

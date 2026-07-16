@@ -127,7 +127,7 @@ class TuiEditor:
         self.browser: list[str] = []  # function-browser entries when mode == browser
         self.browser_idx = 0
         self.help_idx = 0  # scroll offset when mode == help
-        self.theme_name = "obsidian"  # live TUI theme (changeable via :theme)
+        self.theme_name = "galaxy"  # live TUI theme (changeable via :theme)
         from ..core.clipboard import ClipboardManager
 
         self.clips = ClipboardManager()  # text copy history

@@ -50,7 +50,7 @@ from .._qtcompat import (
 
 # (settings key, label) for the theme pickers — order matches the Format > Theme menu.
 _THEMES = [
-    ("obsidian", "Obsidian (default)"),
+    ("galaxy", "Galaxy (default)"),
     ("dark_one", "Dark One"),
     ("dracula", "Dracula"),
     ("tokyo_night", "Tokyo Night"),
@@ -100,7 +100,7 @@ class PreferencesDialog(QDialog):
         self.setWindowTitle("Preferences")
         self.resize(520, 500)
         # Snapshot the live appearance we might change, so Cancel can revert it.
-        self._orig_theme = getattr(self._settings, "theme", "obsidian")
+        self._orig_theme = getattr(self._settings, "theme", "galaxy")
         self._orig_zoom = float(getattr(self._settings, "zoom", 1.0) or 1.0)
         self._orig_dyslexic = bool(getattr(self._settings, "dyslexic_font", False))
         self._orig_toolbar = bool(getattr(self._settings, "show_toolbar", True))
@@ -331,8 +331,8 @@ class PreferencesDialog(QDialog):
     def _load(self) -> None:
         """Populate the widgets from the current settings."""
         s = self._settings
-        self._select(self._theme, getattr(s, "theme", "obsidian"))
-        self._select(self._tui_theme, getattr(s, "tui_theme", "obsidian"))
+        self._select(self._theme, getattr(s, "theme", "galaxy"))
+        self._select(self._tui_theme, getattr(s, "tui_theme", "galaxy"))
         self._dyslexic.setChecked(bool(getattr(s, "dyslexic_font", False)))
         self._zoom.setValue(float(getattr(s, "zoom", 1.0) or 1.0))
         self._show_toolbar.setChecked(bool(getattr(s, "show_toolbar", True)))

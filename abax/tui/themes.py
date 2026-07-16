@@ -17,16 +17,18 @@ class TuiTheme:
 
 THEMES = {
     "mono": TuiTheme("mono", {}),  # attribute-only
-    "obsidian": TuiTheme(
-        "obsidian",
+    "galaxy": TuiTheme(
+        # Purple-on-black (the default). Brighter violets than the old "obsidian"
+        # so the theme is clearly visible on a dark terminal, not a near-white wash.
+        "galaxy",
         {
-            "lcd": (189, 7),
-            "frame": (240, 7),
-            "label": (146, 6),
-            "dim": (244, 7),
-            "accent": (99, 5),
-            "banner": (183, 5),
-            "cursor": (99, 3),
+            "lcd": (141, 5),      # #af87ff light violet — cell text
+            "frame": (60, 5),     # #5f5f87 muted violet-grey
+            "label": (183, 5),    # #d7afff pale violet — column/row headers
+            "dim": (97, 5),       # #875faf muted violet — row-number gutter
+            "accent": (171, 5),   # #d75fd7 magenta-violet — selection / spill
+            "banner": (183, 5),   # #d7afff — overlay titles
+            "cursor": (99, 5),    # #875fff strong violet — reversed to a block
         },
     ),
     "hacker": TuiTheme(

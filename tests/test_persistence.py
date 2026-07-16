@@ -50,6 +50,21 @@ def test_settings_migration_v8_to_v9_chart_backend(tmp_path):
     assert Settings().chart_backend == "auto"
 
 
+def test_settings_migration_v9_to_v10_renames_obsidian_theme(tmp_path):
+    # v9 -> v10: the default dark theme 'obsidian' became 'galaxy' in both
+    # front-ends. A saved 'obsidian' selection remaps; any other theme is kept.
+    migrated = _migrate_settings({"schema_version": 9, "theme": "obsidian",
+                                  "tui_theme": "obsidian"})
+    assert migrated["schema_version"] == SCHEMA_VERSION
+    assert migrated["theme"] == "galaxy" and migrated["tui_theme"] == "galaxy"
+    assert _migrate_settings({"schema_version": 9, "theme": "nord"})["theme"] == "nord"
+    # A v9 settings.json with the old name loads as galaxy end-to-end.
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"schema_version": 9, "theme": "obsidian"}))
+    assert load_settings(path).theme == "galaxy"
+    assert Settings().theme == "galaxy" and Settings().tui_theme == "galaxy"
+
+
 def test_save_json_is_atomic_and_roundtrips(tmp_path):
     wb = Workbook()
     wb.sheet.set("A1", "=1+2")

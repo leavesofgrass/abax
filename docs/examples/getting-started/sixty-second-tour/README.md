@@ -24,7 +24,7 @@ here** — this is a walkthrough; launch the app and follow along.
 
 ## Worth knowing on day one
 
-- **Themes**: *View → Theme* — twelve presets (Obsidian, Dracula, Tokyo
+- **Themes**: *View → Theme* — twelve presets (Galaxy, Dracula, Tokyo
   Night, Gruvbox Dark, Monokai, Nord, Solarized, CRT green/amber,
   High-contrast, Light, Dark One) with a live preview.
 - **The RPN calculator**: `Ctrl+K` — an HP-style keypad that can pull the

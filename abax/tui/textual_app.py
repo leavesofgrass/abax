@@ -74,7 +74,7 @@ def render_grid(editor, width: int, height: int):
     from .themes import THEMES, _hex_to_256
     from ..core.reference import index_to_col
 
-    theme = THEMES.get(getattr(editor, "theme_name", "obsidian"), THEMES["obsidian"])
+    theme = THEMES.get(getattr(editor, "theme_name", "galaxy"), THEMES["galaxy"])
     s_label = _role_style(theme, "label")
     s_dim = _role_style(theme, "dim")
     s_lcd = _role_style(theme, "lcd")
@@ -132,7 +132,7 @@ def render_overlay(editor, width: int, height: int):
 
     from .themes import THEMES
 
-    theme = THEMES.get(getattr(editor, "theme_name", "obsidian"), THEMES["obsidian"])
+    theme = THEMES.get(getattr(editor, "theme_name", "galaxy"), THEMES["galaxy"])
     s_banner = _role_style(theme, "banner") + " bold"
     s_sel = _role_style(theme, "accent") + " reverse"
     s_lcd = _role_style(theme, "lcd")

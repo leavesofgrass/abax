@@ -1,4 +1,4 @@
-/* Light theme — same token structure as obsidian.qss. */
+/* Light theme — same token structure as galaxy.qss. */
 
 QMainWindow, QWidget {{
     background-color: {bg_primary};

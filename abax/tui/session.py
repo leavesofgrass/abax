@@ -56,6 +56,6 @@ def build_session(file: str | None = None, registry=None, *, announce_deps: bool
     # Anchor external-ref paths at the open workbook's directory.
     EXT.set_base_dir(doc.path.parent if getattr(doc, "path", None) else None)
     editor = TuiEditor(doc, registry, settings)
-    theme_name = getattr(settings, "tui_theme", "obsidian")
-    editor.theme_name = theme_name if theme_name in THEMES else "obsidian"
+    theme_name = getattr(settings, "tui_theme", "galaxy")
+    editor.theme_name = theme_name if theme_name in THEMES else "galaxy"
     return editor

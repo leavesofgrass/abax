@@ -9,7 +9,7 @@ class ViewMixin:
     def apply_current_theme(self) -> None:
         from ._qtcompat import QApplication
 
-        name = getattr(self._settings, "theme", "obsidian")
+        name = getattr(self._settings, "theme", "galaxy")
         theme = theme_for(name)
         app = QApplication.instance()
         if app is not None:

@@ -26,7 +26,7 @@ def visible_cols(max_x: int, col_w: int = _COL_W) -> int:
 
 
 def _draw_loop(stdscr, curses, editor, cap: str) -> None:
-    state = {"name": None, "pairs": {}, "cond": {}, "next": 1, "theme": THEMES["obsidian"]}
+    state = {"name": None, "pairs": {}, "cond": {}, "next": 1, "theme": THEMES["galaxy"]}
 
     def rebuild(theme: TuiTheme) -> None:
         state["pairs"], state["cond"], state["next"], state["theme"] = {}, {}, 1, theme
@@ -74,7 +74,7 @@ def _draw_loop(stdscr, curses, editor, cap: str) -> None:
 
     while editor.running:
         if editor.theme_name != state["name"]:
-            rebuild(THEMES.get(editor.theme_name, THEMES["obsidian"]))
+            rebuild(THEMES.get(editor.theme_name, THEMES["galaxy"]))
             state["name"] = editor.theme_name
         # Background data (REST/WEBSOCKET live data, external-workbook refs): while
         # either is enabled, wake the input loop once a second so a source's new

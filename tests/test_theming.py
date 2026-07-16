@@ -15,9 +15,9 @@ def test_every_preset_has_valid_hex_tokens():
             assert _HEX.match(value), f"{name}.{key} = {value!r} is not #rrggbb"
 
 
-def test_every_preset_formats_through_obsidian_qss():
-    """apply_theme() formats obsidian.qss with a theme's tokens — no missing keys."""
-    template = theming._read_qss("obsidian")
+def test_every_preset_formats_through_galaxy_qss():
+    """apply_theme() formats galaxy.qss with a theme's tokens — no missing keys."""
+    template = theming._read_qss("galaxy")
     for name, theme in theming.PRESETS.items():
         # Raises KeyError/IndexError if a token is missing; the assert is the run.
         assert template.format(**theme.tokens())

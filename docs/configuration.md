@@ -12,9 +12,9 @@ JSON encoding uses `msgspec` when the `fast-io` extra is installed and falls bac
 
 | Field | Type | Default | Meaning |
 |-------|------|---------|---------|
-| `theme` | string | `"obsidian"` | GUI theme preset (see [Themes](#themes)). |
+| `theme` | string | `"galaxy"` | GUI theme preset (see [Themes](#themes)). |
 | `vim_mode` | bool | `true` | Vim-style key bindings, on by default. |
-| `tui_theme` | string | `"obsidian"` | TUI color theme. |
+| `tui_theme` | string | `"galaxy"` | TUI color theme. |
 | `zoom` | float | `1.0` | GUI zoom factor. |
 | `dyslexic_font` | bool | `false` | Use the OpenDyslexic font across the GUI (see [OpenDyslexic font](#opendyslexic-font)). |
 | `calc_model` | string | `""` | Last-used calculator model key (e.g. `16c`, `15c`, `ti83`, `alg`); restored on launch. Empty = default (HP-16C). |
@@ -165,11 +165,11 @@ Add more any time: **Tools → Install optional features** or **Preferences → 
 
 ## Themes
 
-The GUI ships a set of theme presets in `abax/gui/theming.py`; the TUI has matching color themes. Set `theme` (GUI) or `tui_theme` (TUI) in `settings.json`, or switch from within the app. An unknown name falls back to the default (`obsidian`).
+The GUI ships a set of theme presets in `abax/gui/theming.py`; the TUI has matching color themes. Set `theme` (GUI) or `tui_theme` (TUI) in `settings.json`, or switch from within the app. An unknown name falls back to the default (`galaxy`).
 
 | Preset | Style |
 |--------|-------|
-| `obsidian` | Default dark theme. |
+| `galaxy` | Default dark theme (purple on black). |
 | `light` | Light theme. |
 | `high_contrast` | High-contrast theme. |
 | `nord` | Nord palette. |

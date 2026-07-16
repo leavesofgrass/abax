@@ -59,7 +59,7 @@ HIGH_CONTRAST = Theme(
 )
 
 # Dark themes matching the star / qv ecosystem palettes. apply_theme() renders
-# any of these through obsidian.qss (token-based) — no per-theme .qss needed.
+# any of these through galaxy.qss (token-based) — no per-theme .qss needed.
 NORD = Theme(
     bg_primary="#2e3440", bg_secondary="#272b35", bg_tertiary="#3b4252",
     fg_primary="#d8dee9", fg_secondary="#7b88a1", accent="#88c0d0",
@@ -92,7 +92,7 @@ CRT_AMBER = Theme(  # P3 amber phosphor
 )
 
 # Popular open-source IDE / editor palettes, mapped onto the token set. All render
-# through obsidian.qss (token-based), so no per-theme .qss is needed.
+# through galaxy.qss (token-based), so no per-theme .qss is needed.
 DRACULA = Theme(  # dracula-theme.com
     bg_primary="#282a36", bg_secondary="#21222c", bg_tertiary="#343746",
     fg_primary="#f8f8f2", fg_secondary="#6272a4", accent="#bd93f9",
@@ -118,7 +118,7 @@ MONOKAI = Theme(  # classic Sublime/TextMate Monokai
 )
 
 PRESETS = {
-    "obsidian": Theme(),
+    "galaxy": Theme(),
     "light": LIGHT,
     "high_contrast": HIGH_CONTRAST,
     "nord": NORD,
@@ -149,7 +149,7 @@ def _read_qss(name: str) -> str:
     base = files("abax.gui").joinpath("themes")
     target = base.joinpath(f"{name}.qss")
     if not target.is_file():
-        target = base.joinpath("obsidian.qss")
+        target = base.joinpath("galaxy.qss")
     return target.read_text(encoding="utf-8")
 
 

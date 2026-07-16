@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ._runtime import _HAS_MSGSPEC
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 
 def _migrate_settings(data: dict) -> dict:
@@ -64,6 +64,14 @@ def _migrate_settings(data: dict) -> dict:
         # how embedded charts render in the GUI. Additive/defaulted ("auto"), so
         # older files simply take the default.
         data["schema_version"] = 9
+    if v < 10:
+        # v9 -> v10: the default dark theme 'obsidian' was renamed 'galaxy'
+        # (purple on black) in both the GUI and the TUI. Remap any saved
+        # selection so existing settings keep resolving to a real theme.
+        for _k in ("theme", "tui_theme"):
+            if data.get(_k) == "obsidian":
+                data[_k] = "galaxy"
+        data["schema_version"] = 10
     return data
 
 
@@ -71,9 +79,9 @@ if _HAS_MSGSPEC:
     import msgspec
 
     class Settings(msgspec.Struct, kw_only=True):
-        theme: str = "obsidian"
+        theme: str = "galaxy"
         vim_mode: bool = True
-        tui_theme: str = "obsidian"
+        tui_theme: str = "galaxy"
         zoom: float = 1.0
         dyslexic_font: bool = False
         calc_model: str = ""
@@ -134,7 +142,17 @@ if _HAS_MSGSPEC:
 
     def load_settings(path: Path) -> Settings:
         try:
-            return _decoder.decode(Path(path).read_bytes())
+            raw = Path(path).read_bytes()
+        except Exception:
+            return Settings()
+        try:
+            # Decode to a dict first so schema migrations (field renames /
+            # value remaps, e.g. obsidian -> galaxy) run before the struct is
+            # built; unknown/removed keys are ignored by the struct conversion.
+            data = msgspec.json.decode(raw)
+            if isinstance(data, dict):
+                return msgspec.convert(_migrate_settings(data), Settings)
+            return _decoder.decode(raw)
         except Exception:
             return Settings()
 
@@ -147,9 +165,9 @@ else:
 
     @dataclass
     class Settings:  # type: ignore[no-redef]
-        theme: str = "obsidian"
+        theme: str = "galaxy"
         vim_mode: bool = True
-        tui_theme: str = "obsidian"
+        tui_theme: str = "galaxy"
         zoom: float = 1.0
         dyslexic_font: bool = False
         calc_model: str = ""

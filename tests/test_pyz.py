@@ -70,7 +70,7 @@ def test_bundled_theme_loads_from_zipapp(tmp_path):
     code = (
         "import sys; sys.path.insert(0, sys.argv[1]);"
         "from abax.gui import theming;"
-        "s = theming._read_qss('obsidian');"
+        "s = theming._read_qss('galaxy');"
         "assert len(s) > 100, 'qss came back empty';"
         "assert len(theming._read_qss('does_not_exist')) > 0, 'fallback failed';"
         "print('ZIPQSS_OK')"

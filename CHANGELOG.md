@@ -10,6 +10,15 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **The default dark theme `obsidian` is renamed `galaxy`** (purple on black) in
+  both the GUI and the TUI, and the TUI palette is brightened so the theme is
+  clearly visible on a dark terminal instead of reading as near-white. Saved
+  settings are migrated automatically (`theme`/`tui_theme` = `"obsidian"` remap
+  to `"galaxy"`; settings schema v10). As part of this, the msgspec settings
+  loader now applies schema migrations too (previously only the stdlib-JSON
+  loader did).
+
 ### Added
 - **Textual terminal UI (preview)** — a richer TUI front-end built on Textual,
   sharing the exact `TuiEditor` state machine (modes, `:` commands, undo/redo)

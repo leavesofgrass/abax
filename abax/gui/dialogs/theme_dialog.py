@@ -19,7 +19,7 @@ from .._qtcompat import (
 from ..theming import PRESETS, theme_for
 
 _NICE = {
-    "obsidian": "Obsidian (default)",
+    "galaxy": "Galaxy (default)",
     "dark_one": "Dark One",
     "dracula": "Dracula",
     "tokyo_night": "Tokyo Night",
@@ -40,7 +40,7 @@ class ThemeDialog(QDialog):
         self._win = window
         self.setWindowTitle("Theme")
         self.resize(300, 400)
-        self._original = getattr(window._settings, "theme", "obsidian")
+        self._original = getattr(window._settings, "theme", "galaxy")
         self._names = list(PRESETS)
         self._build()
 

@@ -40,10 +40,11 @@ def test_parse_command():
 
 
 def test_theme_color_falls_back_to_8():
-    theme = THEMES["obsidian"]
-    # 256-color index vs 8-color fallback differ.
-    assert theme.color("accent", "256") == 99
+    theme = THEMES["galaxy"]
+    # 256-color index vs 8-color fallback differ (galaxy's magenta-violet accent).
+    assert theme.color("accent", "256") == 171
     assert theme.color("accent", "8") == 5
+    assert theme.color("accent", "256") != theme.color("accent", "8")
 
 
 def test_vim_dispatch_navigation():

@@ -69,7 +69,7 @@ def test_loads_current_settings(win):
 
 
 def test_ok_persists_changes(win, cfg):
-    win._settings.theme = "obsidian"
+    win._settings.theme = "galaxy"
     win._settings.code_isolation = "isolated"
     win._settings.autosave_interval = 30
 

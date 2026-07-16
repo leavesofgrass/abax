@@ -63,7 +63,7 @@ class MainWindow(PMMixin, NavigationMixin, DocumentMixin, DocumentIOMixin, Setti
         from . import icons as _icons
         from .theming import theme_for as _theme_for
         _icons.set_icon_color(
-            _theme_for(getattr(self._settings, "theme", "obsidian")).q_color("fg_primary"))
+            _theme_for(getattr(self._settings, "theme", "galaxy")).q_color("fg_primary"))
         from ..core.clipboard import ClipboardManager
         from ..engine.document import Document
         from ..recorder import MacroRecorder
@@ -408,7 +408,7 @@ class MainWindow(PMMixin, NavigationMixin, DocumentMixin, DocumentIOMixin, Setti
         self._act(m_view, "Toggle &OpenDyslexic font", self.toggle_dyslexic_font)
         m_theme = m_view.addMenu("&Theme")
         for label, key in [
-            ("Obsidian", "obsidian"), ("Dark One", "dark_one"),
+            ("Galaxy", "galaxy"), ("Dark One", "dark_one"),
             ("Dracula", "dracula"), ("Tokyo Night", "tokyo_night"),
             ("Gruvbox Dark", "gruvbox_dark"), ("Monokai", "monokai"),
             ("Nord", "nord"), ("Solarized", "solarized"),
