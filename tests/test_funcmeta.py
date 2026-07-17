@@ -86,6 +86,34 @@ def test_handwritten_wins_over_generated():
         assert describe(name)["description"] == DESCRIPTIONS[name], name
 
 
+def test_no_known_family_functions_in_specialty():
+    """Functions belonging to a known family must not fall through to Specialty."""
+    known_family_members = {
+        # stats
+        "AVG", "CHIDIST", "CHIINV", "CHISQ.DIST.RT", "CHISQ.INV.RT",
+        "CONFIDENCE", "CONFIDENCE.NORM", "COVARIANCE.P", "F.DIST.RT",
+        "F.INV.RT", "FDIST", "FINV", "FORECAST", "FORECAST.LINEAR",
+        "INTERCEPT", "MODE.SNGL", "NORM.DIST", "NORM.INV", "NORM.S.INV",
+        "NORMDIST", "NORMINV", "NORMSDIST", "NORMSINV", "PERCENTILE.INC",
+        "QUARTILE.INC", "RMS", "RSQ", "SLOPE", "STDEV.P", "STDEV.S",
+        "TDIST", "TINV", "TTEST", "VAR.P", "VAR.S",
+        # engineering
+        "COMPLEX", "CONVERT", "IMABS", "IMAGINARY", "IMARGUMENT",
+        "IMCONJUGATE", "IMCOS", "IMCOSH", "IMCOT", "IMCSC", "IMCSCH",
+        "IMDIV", "IMEXP", "IMLN", "IMLOG10", "IMLOG2", "IMPOWER",
+        "IMPRODUCT", "IMREAL", "IMSEC", "IMSECH", "IMSIN", "IMSINH",
+        "IMSQRT", "IMSUB", "IMSUM", "IMTAN", "IMTANH",
+        # math
+        "CEILING.MATH", "FLOOR.MATH", "MDETERM", "INTERP",
+        # text
+        "ARRAYTOTEXT", "VALUETOTEXT",
+    }
+    registered = set(function_names())
+    for name in sorted(known_family_members & registered):
+        cat = category_key(name)
+        assert cat != "other", f"{name} is in Specialty but should be categorized"
+
+
 def test_udf_categorized_as_user(monkeypatch):
     import abax.core.functions as fns
 
