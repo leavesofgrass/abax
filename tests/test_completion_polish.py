@@ -99,6 +99,31 @@ def app():
     return QApplication.instance() or QApplication([])
 
 
+def test_gui_completer_creates_no_popup_until_needed(app):
+    # QCompleter.popup() constructs a parentless top-level QListView — the stray
+    # window class that armed the conftest teardown double-free. Constructing a
+    # FormulaCompleter must NOT create it; only an actual completion may.
+    from abax.gui._qtcompat import QApplication, QLineEdit
+    from abax.gui.completion import FormulaCompleter
+
+    before = set(QApplication.topLevelWidgets())
+    le = QLineEdit()
+    fc = FormulaCompleter(le)
+    new = [w for w in QApplication.topLevelWidgets() if w not in before and w is not le]
+    assert new == []                          # no popup, no stray windows
+    assert fc._popup_wired is False
+    # Typing text with no candidates still must not create it.
+    fc._on_edited("plain text")
+    assert fc._popup_wired is False
+    # A real completion finally creates + wires it.
+    le.setText("=SUMI")
+    le.setCursorPosition(5)
+    fc._on_edited("=SUMI")
+    assert fc._popup_wired is True
+    assert fc._completer.popup().isVisible()
+    le.deleteLater()
+
+
 def test_gui_tab_accepts_popup_candidate(app):
     from abax.gui._qtcompat import QLineEdit
     from abax.gui.completion import FormulaCompleter

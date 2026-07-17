@@ -35,12 +35,19 @@ class FormulaCompleter(QObject):
         line_edit.textEdited.connect(self._on_edited)
         # Tab must accept the highlighted candidate instead of moving focus —
         # filter it on both the field and the popup (whichever holds the event).
+        # The popup itself is created LAZILY on the first completion: calling
+        # QCompleter.popup() constructs a parentless top-level QListView, and
+        # creating one per window at construction is exactly the stray window
+        # that armed the test fixture's teardown double-free (see conftest.py's
+        # _dispose_leaked_qt_windows). Until a completion pops, there is no
+        # popup — and nothing to filter.
         line_edit.installEventFilter(self)
-        self._completer.popup().installEventFilter(self)
+        self._popup_wired = False
 
     def eventFilter(self, obj, event) -> bool:  # noqa: N802 (Qt override)
         if (event.type() == QEvent.Type.KeyPress
                 and event.key() in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab)
+                and self._popup_wired
                 and self._completer.popup().isVisible()):
             popup = self._completer.popup()
             index = popup.currentIndex()
@@ -59,11 +66,17 @@ class FormulaCompleter(QObject):
         names, sheets = self._context() if self._context else ((), ())
         candidates = complete(text, cursor, names=names, sheets=sheets)
         if not candidates:
-            self._completer.popup().hide()
+            if self._popup_wired:            # never create the popup just to hide it
+                self._completer.popup().hide()
             return
         token, _ = current_token(text, cursor)
         self._completer.setModel(QStringListModel(candidates, self._completer))
         self._completer.setCompletionPrefix(token)
+        if not self._popup_wired:
+            # First completion for this field: the popup now has to exist —
+            # create it once and give it the Tab-accept filter.
+            self._completer.popup().installEventFilter(self)
+            self._popup_wired = True
         self._completer.complete()
 
     def _insert(self, name: str) -> None:

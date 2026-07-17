@@ -29,6 +29,11 @@ All notable changes to abax are documented here. The format follows
   change made the crash likely per run by creating the popup eagerly in every
   window; validated by an A/B on the same machine (pristine: crash, patched:
   full suite green).
+- **GUI: the formula-bar completer no longer creates its popup at construction**
+  (defense-in-depth for the fix above) — the popup, a parentless top-level
+  widget, is now created lazily on the first real completion, so windows that
+  never complete a formula never own a stray top-level widget. A regression
+  test asserts a fresh `FormulaCompleter` adds zero top-level widgets.
 
 ### Documentation
 - The user guides now cover the 0.1.16 formula-UX features: `cli.md` documents
