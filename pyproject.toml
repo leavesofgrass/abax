@@ -79,7 +79,10 @@ include = ["abax*"]   # auto-discover abax and all subpackages (core/io, core/ca
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+# No "-q" here: addopts stacks with command-line flags, so a conventional
+# `pytest -q > log` ran at -qq — which suppresses the final "N passed in Xs"
+# summary line entirely (TerminalReporter.summary_stats is skipped below -1).
+# Pass -q at the command line when you want the quiet dots.
 
 [tool.ruff]
 line-length = 100
