@@ -228,17 +228,20 @@ def render_overlay(editor, width: int, height: int):
         out.append(text[: width - 1] + "\n", style=s_banner)
 
     if mode == "browser":
-        from ..core.completion import signature
-
         title("Function browser — j/k select · Enter insert · Esc close")
         names = editor.browser
-        visible = max(1, height - 3)
+        visible = max(1, height - 4)
         start = _scroll_window(editor.browser_idx, len(names), visible)
         for i, name in enumerate(names[start : start + visible]):
             sel = (start + i) == editor.browser_idx
             out.append("  " + name + "\n", style=s_sel if sel else s_lcd)
         if names:
-            out.append("\n" + signature(names[editor.browser_idx])[: width - 1], style=s_label)
+            from ..core.funcmeta import describe
+
+            d = describe(names[editor.browser_idx])
+            out.append("\n" + d["signature"][: width - 1], style=s_label)
+            out.append("\n" + f"{d['description']}  [{d['category']}]"[: width - 1],
+                       style=s_dim)
 
     elif mode == "help":
         from .editor import HELP_ENTRIES

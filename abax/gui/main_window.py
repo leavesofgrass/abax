@@ -437,7 +437,7 @@ class MainWindow(PMMixin, NavigationMixin, DocumentMixin, DocumentIOMixin, Setti
         self._reg_icon(self._act(m_rows, "&Delete row(s)", self.delete_row, "Ctrl+-"), "delete_row")
         self._reg_icon(self._act(m_rows, "Delete &column(s)", self.delete_column), "delete_col")
         m_insert.addSeparator()
-        self._act(m_insert, "&Function...", self.show_formula_browser, "Shift+F3")
+        self._act(m_insert, "&Function (Formula manager)...", self.show_formula_browser, "Shift+F3")
         self._reg_icon(self._act(m_insert, "&Equation...", self.show_equation), "equation")
         self._reg_icon(self._act(m_insert, "C&hart / graph...", self.show_graph), "graph")
         self._act(m_insert, "&Business chart (waterfall / treemap / ...)...", self.show_business_chart)
