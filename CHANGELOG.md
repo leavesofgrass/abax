@@ -22,12 +22,21 @@ All notable changes to abax are documented here. The format follows
   bottom-right handle to resize (80×60 minimum). Moves and resizes are each
   a single undo step, never disturb the grid selection underneath, and
   round-trip through save/load.
-- **Formula manager descriptions for 533 of 642 functions** (was ~120) —
+- **Formula manager descriptions for all 642 functions** (was ~120) —
   one-line descriptions are now generated from the formula reference by
   `scripts/gen_funcmeta_descriptions.py` into a checked-in module;
-  hand-written descriptions always take precedence.
+  hand-written descriptions always take precedence. The 98 previously
+  undocumented functions (66 R.* distributions, 32 compat/financial/RF)
+  now have real descriptions.
+- **Example one-liners in the Formula manager** — 172 curated formulas
+  (e.g. `=XLOOKUP(A1, B:B, C:C, "not found")`) shown in the GUI guidance
+  pane and TUI function browser, so users see how to call each function.
 
 ### Fixed
+- **69 functions recategorized out of "Specialty"** — stats compat aliases
+  (CHIDIST, NORM.DIST, STDEV.P, …), the IM* complex-number family, math
+  rounding variants, and text converters are now in their correct families.
+  Only SPARKLINE remains in Specialty.
 - **`R.*` distribution functions now appear under Statistics** in the
   Formula manager (all 66 R-style distribution functions were falling
   through to Specialty).
