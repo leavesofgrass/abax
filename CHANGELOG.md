@@ -10,6 +10,22 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Truecolor surfaces for every Textual TUI theme** — hacker, phosphor,
+  solarized, nord, dark_one, crt_green, and crt_amber now render with a themed
+  background, panel bars, and cursor block (matching the GUI presets where one
+  exists) instead of falling back to 256-colour foregrounds on a default
+  background. Visual-selection text auto-picks dark-on-accent for bright accent
+  colours so selections stay legible in every theme.
+
+### Documentation
+- The user guides now cover the 0.1.16 formula-UX features: `cli.md` documents
+  the TUI's insert-mode Tab completion (prefix-then-cycle), `:` command-line
+  completion, and live formula-reference highlighting; `gui-guide.md` gains
+  "The Formula manager" and "Formula-editing aids" sections (Shift+F3 catalog
+  with guidance, coloured reference boxes, Tab-accept completion, argument
+  hints).
+
 ## [0.1.16] — 2026-07-15
 
 ### Changed
