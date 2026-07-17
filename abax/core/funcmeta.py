@@ -8,8 +8,11 @@ module derives that for every registered function (built-ins **and** UDFs):
   Excel-parity groupings the coverage dashboard uses), then by the module the
   function was registered from, then "Other". UDFs land in "User-defined".
 * **Description** — a hand-written plain-English line for the everyday
-  functions; anything else falls back to the function's docstring first line
-  (when it isn't just a signature), else a category-level hint.
+  functions; then a line harvested from ``docs/formula-reference.md`` (the
+  generated :mod:`._funcmeta_generated`, regenerate with
+  ``py scripts/gen_funcmeta_descriptions.py``); anything else falls back to
+  the function's docstring first line (when it isn't just a signature), else
+  a category-level hint.
 
 Pure stdlib (core). The data is deliberately compact: category lists name only
 functions whose *module* wouldn't already place them correctly.
@@ -17,6 +20,7 @@ functions whose *module* wouldn't already place them correctly.
 
 from __future__ import annotations
 
+from ._funcmeta_generated import GENERATED_DESCRIPTIONS
 from .completion import function_names, signature
 
 # --- categories -------------------------------------------------------------
@@ -286,6 +290,9 @@ def describe(name: str) -> dict:
     key = category_key(up)
     label, blurb = CATEGORIES[key]
     desc = DESCRIPTIONS.get(up)
+    if desc is None:
+        # Harvested from docs/formula-reference.md — hand-written wins above.
+        desc = GENERATED_DESCRIPTIONS.get(up)
     if desc is None:
         from .functions import FUNCTIONS
 

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from abax.core._funcmeta_generated import GENERATED_DESCRIPTIONS
 from abax.core.completion import function_names
-from abax.core.funcmeta import CATEGORIES, catalog, category_key, describe
+from abax.core.funcmeta import CATEGORIES, DESCRIPTIONS, catalog, category_key, describe
 
 
 def test_every_function_lands_in_a_category():
@@ -39,6 +40,38 @@ def test_handwritten_descriptions_and_blurbs():
     assert d["category_blurb"]                          # family guidance exists
     # Case-insensitive by name.
     assert describe("sum")["name"] == "SUM"
+
+
+def test_description_coverage_floor():
+    """Most registered functions get a real description (hand-written or
+    harvested from docs/formula-reference.md), not the category fallback."""
+    covered = 0
+    for name in function_names():
+        expected = DESCRIPTIONS.get(name) or GENERATED_DESCRIPTIONS.get(name)
+        if expected is not None:
+            assert describe(name)["description"] == expected, name
+            covered += 1
+    assert covered >= 500                       # actual: 533 of 642 today
+
+
+def test_generated_descriptions_are_clean():
+    """No markdown artifacts, nothing empty, nothing absurdly long — and the
+    hand-written style (capitalized-ish, trailing period) is matched."""
+    assert GENERATED_DESCRIPTIONS
+    for name, desc in GENERATED_DESCRIPTIONS.items():
+        assert desc and desc == desc.strip(), name
+        assert len(desc) <= 200, (name, desc)
+        for artifact in ("*", "[", "`", "|"):
+            assert artifact not in desc, (name, desc)
+        assert desc.endswith("."), (name, desc)
+
+
+def test_handwritten_wins_over_generated():
+    """A name present in both dicts resolves to the hand-written text."""
+    both = sorted(set(DESCRIPTIONS) & set(GENERATED_DESCRIPTIONS))
+    assert "SUM" in both                        # documented *and* hand-written
+    for name in both:
+        assert describe(name)["description"] == DESCRIPTIONS[name], name
 
 
 def test_udf_categorized_as_user(monkeypatch):
