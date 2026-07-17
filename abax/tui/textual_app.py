@@ -4,8 +4,9 @@ The curses front-end (:mod:`~abax.tui.render` / :mod:`~abax.tui.app`) and this
 Textual one are two *views* over one state machine: :class:`~abax.tui.editor.TuiEditor`
 owns every bit of logic (modes, cursor, the ``:`` command set, undo/redo,
 completions, ``:tasks``/``:critpath``, accessibility). This module only paints the
-editor's state and routes Textual key events into the editor's methods — the
-same contract ``render.py`` + ``keys.py`` implement for curses.
+editor's state and routes Textual key *and mouse* events into the editor's
+methods — the same contract ``render.py`` + ``keys.py`` implement for curses
+(which stays keyboard-only).
 
 Textual needs a capable terminal (real TTY, not the 8-colour/mono SSH degrade the
 curses view targets), so the CLI prefers this when the terminal supports it and
@@ -25,6 +26,9 @@ from .commands import _fmt_num
 _COL_W = 10
 _GUTTER = 5
 
+# Rows the viewport moves per mouse-wheel notch (the conventional three).
+_WHEEL_ROWS = 3
+
 # Editor modes that replace the grid with a full-panel overlay (rendered by
 # render_overlay, keys routed by _overlay_key) — the same set the curses view
 # paints specially.
@@ -41,6 +45,25 @@ def grid_viewport(width: int, height: int) -> "tuple[int, int]":
     rows = max(1, height - 1)
     cols = max(1, (width - _GUTTER) // (_COL_W + 1))
     return rows, cols
+
+
+def grid_hit(editor, x: int, y: int, width: int, height: int) -> "tuple[int, int] | None":
+    """Map a mouse position inside the grid widget to a data ``(row, col)``.
+
+    Inverts the :func:`render_grid` geometry: line 0 is the column header, the
+    first ``_GUTTER`` cells of every line are the row-number gutter, and each
+    data column is ``_COL_W`` + 1 cells wide from the scroll origin
+    (``editor.scroll_row``/``scroll_col``). Returns ``None`` for the header
+    row, the gutter, and the leftover space past the last full column — clicks
+    there are safe no-ops.
+    """
+    rows, cols = grid_viewport(width, height)
+    if y < 1 or y > rows or x < _GUTTER:
+        return None
+    ci = (x - _GUTTER) // (_COL_W + 1)
+    if ci >= cols:
+        return None
+    return editor.scroll_row + (y - 1), editor.scroll_col + ci
 
 
 # Truecolor palettes for the Textual view — matched to the GUI Theme presets so
@@ -575,9 +598,24 @@ try:
     from textual.widgets import Static
 
     class _GridView(Widget):
-        """Full-height grid body; re-renders from editor state on every refresh."""
+        """Full-height grid body; re-renders from editor state on every refresh.
+
+        Mouse support (all state changes delegate into the editor, matching the
+        keyboard pathways): a left click moves the cursor to the cell under it;
+        click-drag anchors a visual selection at the pressed cell (the same
+        :meth:`TuiEditor.begin_visual` the ``v`` key uses) and extends it as
+        the pointer moves, mouse-up leaving the selection active; the wheel
+        scrolls the viewport by :data:`_WHEEL_ROWS` without moving the cursor.
+        Clicks on the header row / row-number gutter are no-ops, and clicks are
+        *ignored* while an insert-mode edit (or the ``:`` line, or an overlay)
+        is open — a stray click can never corrupt the edit buffer.
+        """
 
         can_focus = True
+
+        def __init__(self, **kwargs) -> None:
+            super().__init__(**kwargs)
+            self._mouse_selecting = False  # a button-1 press is being dragged
 
         def render(self):
             editor = self.app.editor
@@ -585,6 +623,81 @@ try:
             if editor.mode in OVERLAY_MODES:
                 return render_overlay(editor, w, h)
             return render_grid(editor, w, h)
+
+        # --- mouse -> editor ------------------------------------------------
+
+        def _hit(self, event) -> "tuple[int, int] | None":
+            """The data cell under a mouse event, or ``None`` when the click
+            must be ignored (header/gutter, or a mode where clicks are unsafe:
+            insert and command edits, and the full-panel overlays)."""
+            editor = self.app.editor
+            if editor.mode in OVERLAY_MODES or editor.mode in ("insert", "command"):
+                return None
+            return grid_hit(editor, int(event.x), int(event.y),
+                            max(1, self.size.width), max(1, self.size.height))
+
+        def on_mouse_down(self, event) -> None:
+            if event.button != 1:
+                return
+            event.stop()
+            cell = self._hit(event)
+            if cell is None:
+                return
+            editor = self.app.editor
+            try:
+                if editor.mode in ("visual", "visual-line"):
+                    editor.cancel_visual()   # a fresh press restarts selection
+                editor.message = ""
+                editor.move(cell[0] - editor.row, cell[1] - editor.col)
+            except Exception as exc:  # noqa: BLE001 — a click must not crash the app
+                editor.message = f"error: {type(exc).__name__}: {exc}"[:120]
+            self._mouse_selecting = True
+            self.capture_mouse()
+            self.app._sync()
+
+        def on_mouse_move(self, event) -> None:
+            if not self._mouse_selecting:
+                return
+            event.stop()
+            editor = self.app.editor
+            cell = self._hit(event)
+            if cell is None or cell == (editor.row, editor.col):
+                return
+            try:
+                if editor.mode not in ("visual", "visual-line"):
+                    editor.begin_visual()    # anchor = the pressed cell (cursor)
+                editor.move(cell[0] - editor.row, cell[1] - editor.col)
+                editor.visual_refresh()
+            except Exception as exc:  # noqa: BLE001
+                editor.message = f"error: {type(exc).__name__}: {exc}"[:120]
+            self.app._sync()
+
+        def on_mouse_up(self, event) -> None:
+            if not self._mouse_selecting:
+                return
+            event.stop()
+            self._mouse_selecting = False    # any selection stays active
+            self.release_mouse()
+            self.app._sync()
+
+        def on_mouse_scroll_down(self, event) -> None:
+            event.stop()
+            self._wheel(_WHEEL_ROWS)
+
+        def on_mouse_scroll_up(self, event) -> None:
+            event.stop()
+            self._wheel(-_WHEEL_ROWS)
+
+        def _wheel(self, delta: int) -> None:
+            """Scroll the viewport, never the cursor. ``_reclamp`` pins the
+            scroll so the cursor stays visible (the render invariant both
+            front-ends share), so wheeling stops at the cursor's window edge."""
+            editor = self.app.editor
+            if editor.mode in OVERLAY_MODES:
+                return
+            editor.scroll_row = max(0, editor.scroll_row + delta)
+            editor._reclamp()
+            self.app._sync()
 
     class AbaxTextualApp(App):
         """Textual view over a :class:`TuiEditor`. All logic lives in the editor;

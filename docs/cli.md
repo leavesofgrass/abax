@@ -105,6 +105,10 @@ so every key, `:` command, mode, and theme below works identically in either:
   non-interactive/dumb terminal, or when Textual isn't installed. Force it with
   `--curses` (some terminals and remote sessions render it more reliably).
 
+The Textual front-end also supports the **mouse**: click a cell to place the
+cursor, click-drag to make a visual selection, and wheel-scroll to move the
+viewport (the cursor stays put). The curses fallback remains keyboard-only.
+
 The TUI is modal and vi-flavoured. Navigate with `h`/`j`/`k`/`l` **or the arrow
 keys**. Key features:
 

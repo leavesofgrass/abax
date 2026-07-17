@@ -19,6 +19,7 @@ from abax.engine.document import Document  # noqa: E402
 from abax.tui import TuiEditor  # noqa: E402
 from abax.tui.textual_app import (  # noqa: E402
     AbaxTextualApp,
+    grid_hit,
     grid_viewport,
     handle_key,
     render_grid,
@@ -51,6 +52,19 @@ def test_grid_viewport_geometry():
     assert grid_viewport(80, 24) == (23, 6)
     # Never returns a non-positive dimension for a tiny window.
     assert grid_viewport(1, 1) == (1, 1)
+
+
+def test_grid_hit_maps_positions_and_rejects_chrome():
+    ed = _editor()
+    # An 80x22 widget: 21 data rows under the header, 6 columns of 11 cells
+    # after the 5-wide row-number gutter (mirrors grid_viewport).
+    assert grid_hit(ed, 5, 1, 80, 22) == (0, 0)             # first cell of A1
+    assert grid_hit(ed, 5 + 2 * 11 + 3, 4, 80, 22) == (3, 2)  # inside C4
+    assert grid_hit(ed, 10, 0, 80, 22) is None              # column-header row
+    assert grid_hit(ed, 4, 3, 80, 22) is None               # row-number gutter
+    assert grid_hit(ed, 5 + 6 * 11, 1, 80, 22) is None      # past the last column
+    ed.scroll_row, ed.scroll_col = 7, 2                     # scroll offsets apply
+    assert grid_hit(ed, 5, 1, 80, 22) == (7, 2)
 
 
 def test_render_grid_shows_values_and_syncs_viewport():
@@ -372,3 +386,94 @@ def test_app_quit_command_exits():
 
     _run(scenario())
     assert ed.running is False
+
+
+# --- mouse: click / drag-select / wheel (Pilot) ------------------------------
+#
+# Default Pilot terminal is 80x24; the grid widget gets 80x22 (formula bar and
+# status line are docked), i.e. 21 data rows under the header and 6 columns of
+# 11 cells after the 5-wide gutter. Offsets below are widget-relative.
+
+
+def test_mouse_click_moves_cursor_via_pilot():
+    ed = _editor()
+    app = AbaxTextualApp(ed)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            grid = app.query_one("#grid")
+            # Line 4, third column: gutter 5 + 2 cols * 11 + 1 -> cell C4.
+            await pilot.click(grid, offset=(28, 4))
+            assert (ed.row, ed.col) == (3, 2)
+            # Header-row and gutter clicks are safe no-ops.
+            await pilot.click(grid, offset=(28, 0))
+            await pilot.click(grid, offset=(2, 2))
+            assert (ed.row, ed.col) == (3, 2)
+
+    _run(scenario())
+
+
+def test_mouse_drag_selects_range_via_pilot():
+    ed = _editor()
+    app = AbaxTextualApp(ed)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            grid = app.query_one("#grid")
+            await pilot.mouse_down(grid, offset=(6, 1))     # press on A1
+            await pilot.hover(grid, offset=(17, 3))         # drag to B3
+            await pilot.mouse_up(grid, offset=(17, 3))
+            assert ed.mode == "visual"                      # still active after up
+            assert ed.visual_bounds() == (0, 0, 2, 1)       # A1:B3
+            assert (ed.row, ed.col) == (2, 1)               # cursor at drag end
+            # 'y' then yanks exactly the dragged range (shared editor pathway).
+            await pilot.press("y")
+            assert ed.mode == "normal"
+            assert ed.clip is not None
+            assert (ed.clip.nrows, ed.clip.ncols) == (3, 2)
+
+    _run(scenario())
+
+
+def test_mouse_wheel_scrolls_without_moving_cursor():
+    from textual.events import MouseScrollDown, MouseScrollUp
+
+    ed = _editor()
+    app = AbaxTextualApp(ed)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            # Park the cursor mid-window so the cursor-visibility clamp lets
+            # the viewport actually move (the cursor must stay on screen).
+            for _ in range(10):
+                await pilot.press("j")
+            assert (ed.row, ed.col) == (10, 0) and ed.scroll_row == 0
+            grid = app.query_one("#grid")
+            grid.post_message(
+                MouseScrollDown(grid, 10, 5, 0, 1, 0, False, False, False))
+            await pilot.pause()
+            assert ed.scroll_row == 3                       # one notch = 3 rows
+            assert (ed.row, ed.col) == (10, 0)              # cursor untouched
+            grid.post_message(
+                MouseScrollUp(grid, 10, 5, 0, -1, 0, False, False, False))
+            await pilot.pause()
+            assert ed.scroll_row == 0
+            assert (ed.row, ed.col) == (10, 0)
+
+    _run(scenario())
+
+
+def test_mouse_click_ignored_during_insert_edit():
+    ed = _editor()
+    app = AbaxTextualApp(ed)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("j", "j", "j", "i", "4", "2")  # editing A4
+            assert ed.mode == "insert" and ed.edit_buf == "42"
+            grid = app.query_one("#grid")
+            await pilot.click(grid, offset=(28, 4))          # would be cell C4
+            assert ed.mode == "insert" and ed.edit_buf == "42"  # buffer intact
+            assert (ed.row, ed.col) == (3, 0)                # cursor never moved
+
+    _run(scenario())
