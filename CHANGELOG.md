@@ -18,6 +18,18 @@ All notable changes to abax are documented here. The format follows
   background. Visual-selection text auto-picks dark-on-accent for bright accent
   colours so selections stay legible in every theme.
 
+### Fixed
+- **Test suite: probabilistic fatal abort (heap corruption) during Qt teardown**
+  — the GUI-window disposal fixture posted `DeferredDelete` to *every* top-level
+  widget, including the formula-bar completer's parentless popup; when the popup
+  was destroyed before its owning window, the window's `~QCompleter` freed it a
+  second time (`Fatal Python error: Aborted`, exit 0xC0000409 on Windows +
+  PySide6 6.11). Disposal is now two passes — real windows first (their popups
+  die with their owners), stray parentless widgets after. The 0.1.16 Tab-accept
+  change made the crash likely per run by creating the popup eagerly in every
+  window; validated by an A/B on the same machine (pristine: crash, patched:
+  full suite green).
+
 ### Documentation
 - The user guides now cover the 0.1.16 formula-UX features: `cli.md` documents
   the TUI's insert-mode Tab completion (prefix-then-cycle), `:` command-line
