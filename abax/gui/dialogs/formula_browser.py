@@ -109,10 +109,21 @@ class FormulaBrowser(QDialog):
         )
 
     def _insert(self) -> None:
+        """Insert ``NAME(`` and hand the user the formula bar to finish it.
+
+        The dialog **closes first**: it is non-modal, so left open it hides the
+        updated bar — and the next grid click would rewrite the bar from the
+        clicked cell, silently discarding the insert (the "Insert did nothing"
+        trap). Closing + focusing the bar makes the state obvious: the stub is
+        visible, the cursor is inside the call, Enter commits to the active cell.
+        """
         item = self._list.currentItem()
         if item is None:
             return
         bar = self._win._formula_bar
-        bar.setText((bar.text() or "=") + item.text() + "(")
+        self.accept()
         bar.setFocus()
-        self._win._set_status(f"inserted {item.text()}(")
+        bar.setText((bar.text() or "=") + item.text() + "(")
+        bar.setCursorPosition(len(bar.text()))
+        self._win._set_status(
+            f"{item.text()}( inserted — type the arguments, Enter commits to the cell")

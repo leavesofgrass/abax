@@ -70,7 +70,13 @@ def test_guidance_pane_shows_signature_description_category(dlg):
     assert "Lookup" in text                  # category label
 
 
-def test_insert_appends_to_formula_bar(dlg):
+def test_insert_appends_to_formula_bar_and_closes(dlg):
+    dlg.show()
     dlg._filter.setText("XLOOKUP")
     dlg._insert()
-    assert dlg._win._formula_bar.text().endswith("XLOOKUP(")
+    bar = dlg._win._formula_bar
+    assert bar.text().endswith("XLOOKUP(")
+    assert bar.cursorPosition() == len(bar.text())   # cursor inside the call
+    # The dialog closes so the focused bar is visible and a grid click can't
+    # silently wipe the insert (the "Insert did nothing" trap).
+    assert dlg.isHidden()
