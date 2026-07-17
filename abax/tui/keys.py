@@ -263,6 +263,9 @@ def _handle_insert(editor: TuiEditor, ch) -> None:
 def _handle_command(editor: TuiEditor, ch) -> None:
     if isinstance(ch, str) and not ch.isprintable() and _user_binding(editor, "command", ch):
         return
+    if ch in ("\t", 9):  # Tab — complete :command / :theme names
+        editor.complete_command()
+        return
     if _is_enter(ch):
         editor.run_command()
     elif ch == "\x1b":

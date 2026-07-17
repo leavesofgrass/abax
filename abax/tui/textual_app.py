@@ -502,6 +502,8 @@ def _command_key(editor, key: str, char: "str | None") -> None:
     if key == "escape":
         editor.mode = "normal"
         editor.command_buf = ""
+    elif key == "tab":                          # complete :command / :theme names
+        editor.complete_command()
     elif key == "enter":
         editor.run_command()
     elif key == "backspace":

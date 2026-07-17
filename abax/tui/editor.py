@@ -121,6 +121,9 @@ class TuiEditor:
         self.edit_buf = ""
         self.completions: list[str] = []
         self.arg_hint = ""
+        # Tab-cycling state: (base_text, candidates, index) while successive
+        # Tabs walk the completion candidates; any other keystroke resets it.
+        self._tab_cycle: "tuple[str, list, int] | None" = None
         self.clip = None  # last copied region (core.fill.Clip)
         self.matches: list = []  # search hits (core.search.Match)
         self.match_idx = 0
@@ -230,6 +233,7 @@ class TuiEditor:
         self.mode = "normal"
         self.completions = []
         self.arg_hint = ""
+        self._tab_cycle = None
         if advance:              # Excel: Enter drops to the cell below
             self.move(1, 0)
 
@@ -238,6 +242,7 @@ class TuiEditor:
         self.mode = "normal"
         self.edit_buf = ""
         self.completions = []
+        self._tab_cycle = None
         self.arg_hint = ""
 
     def _completion_context(self):
@@ -253,6 +258,7 @@ class TuiEditor:
         """Recompute candidate names and the active-call arg hint for the buffer."""
         from ..core.completion import complete, format_hint, signature_hint
 
+        self._tab_cycle = None          # the buffer changed by typing — stop cycling
         cursor = len(self.edit_buf)
         names, sheets = self._completion_context()
         self.completions = complete(self.edit_buf, cursor, names=names, sheets=sheets)
@@ -260,9 +266,19 @@ class TuiEditor:
         self.arg_hint = format_hint(hint) if hint else ""
 
     def complete(self) -> None:
-        """Tab-completion: single match inserts ``NAME(``; many → common prefix."""
+        """Tab-completion: single match inserts ``NAME(``; many extend to the
+        common prefix, then successive Tabs **cycle** through the candidates."""
         from ..core.completion import apply_completion, common_prefix, complete, current_token
 
+        if self._tab_cycle is not None:
+            # Mid-cycle: swap in the next candidate (wrapping), applied against
+            # the buffer as it was when cycling began.
+            base, cands, idx = self._tab_cycle
+            idx = (idx + 1) % len(cands)
+            self.edit_buf, _ = apply_completion(base, len(base), cands[idx])
+            self._tab_cycle = (base, cands, idx)
+            self.completions = cands
+            return
         names, sheets = self._completion_context()
         cands = complete(self.edit_buf, len(self.edit_buf), names=names, sheets=sheets)
         if not cands:
@@ -277,7 +293,49 @@ class TuiEditor:
         if len(prefix) > len(token):
             # token ends at the cursor (end of buffer), so just extend it
             self.edit_buf = self.edit_buf[:start] + prefix
+            self.completions = cands
+            return
+        # Prefix exhausted — begin cycling from the first candidate.
+        base = self.edit_buf
+        self.edit_buf, _ = apply_completion(base, len(base), cands[0])
+        self._tab_cycle = (base, cands, 0)
         self.completions = cands
+
+    def complete_command(self) -> None:
+        """Tab-completion on the ``:`` command line.
+
+        Completes the command word against every dispatched command (aliases
+        included); ``:theme <partial>`` additionally completes theme names.
+        Multiple matches extend to the common prefix and list the candidates
+        on the status line.
+        """
+        from .commands import COMMAND_NAMES
+        from ..core.completion import common_prefix
+
+        body = self.command_buf[1:] if self.command_buf.startswith(":") else self.command_buf
+        if " " in body:
+            head, _, arg = body.partition(" ")
+            if head == "theme":
+                from .themes import THEMES
+
+                cands = sorted(t for t in THEMES if t.startswith(arg))
+            else:
+                return                     # arguments are free-form elsewhere
+        else:
+            head, arg = "", body
+            cands = sorted(c for c in COMMAND_NAMES if c.startswith(body))
+        if not cands:
+            return
+        stem = f":{head} " if head else ":"
+        if len(cands) == 1:
+            self.command_buf = stem + cands[0] + ("" if head else " ")
+            self.message = ""
+            return
+        prefix = common_prefix(cands)
+        if len(prefix) > len(arg):
+            self.command_buf = stem + prefix
+        shown = "  ".join(cands[:10]) + ("  …" if len(cands) > 10 else "")
+        self.message = shown
 
     def begin_command(self) -> None:
         self.mode = "command"

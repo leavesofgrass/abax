@@ -23,6 +23,22 @@ All notable changes to abax are documented here. The format follows
   loader did).
 
 ### Added
+- **Interactive formula editing, everywhere** — while a formula is being typed,
+  every cell/range it references is highlighted live: coloured outline boxes on
+  the GUI grid, per-reference colour tints in the Textual TUI (single accent
+  tint in curses), with one stable colour per distinct reference, Excel-style.
+- **Formula manager** (Insert → Function, `Shift+F3`) — the function browser
+  grew into a manager: functions grouped into categories (math, statistics,
+  text, date & time, lookup, dynamic arrays, financial, engineering, radio/RF,
+  LET & LAMBDA, …, user-defined), a search box, and a guidance pane explaining
+  what the selected function does and what its family is for. Plain-English
+  descriptions for ~120 everyday functions; UDFs appear automatically. The TUI
+  `:func` browser shows the same description + category.
+- **Proper Tab completion** — in the GUI, Tab now accepts the highlighted
+  suggestion in the formula bar and the in-cell editor (previously Enter-only).
+  In the TUI, successive Tabs cycle through the candidates after the common
+  prefix, and the `:` command line Tab-completes command names (and
+  `:theme` names).
 - **Textual terminal UI (preview)** — a richer TUI front-end built on Textual,
   sharing the exact `TuiEditor` state machine (modes, `:` commands, undo/redo)
   with the curses view. `abax tui` now launches Textual on a capable interactive

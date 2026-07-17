@@ -19,3 +19,15 @@ def parse_command(line: str) -> tuple[str, list[str]]:
     if not parts:
         return "", []
     return parts[0], parts[1:]
+
+
+# Every ':' command run_command dispatches (aliases included) — the vocabulary
+# behind command-line Tab completion. Keep in sync with TuiEditor.run_command.
+COMMAND_NAMES: tuple[str, ...] = (
+    "auth", "clip", "clips", "convert", "copy", "critpath", "desc", "describe",
+    "eq", "extern", "f", "fill", "find", "fmt", "func", "functions", "help",
+    "live", "macro", "macros", "map", "noauth", "paste", "pivot", "plot", "pt",
+    "put", "py", "q", "q!", "quit", "r", "rec", "record", "redo", "replace",
+    "rpn", "sheet", "sheets", "sort", "stats", "table", "tasks", "theme", "tr",
+    "trace", "undo", "w", "wq", "write", "x", "yank",
+)
