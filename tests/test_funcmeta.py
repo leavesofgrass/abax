@@ -63,7 +63,7 @@ def test_description_coverage_floor():
         if expected is not None:
             assert describe(name)["description"] == expected, name
             covered += 1
-    assert covered >= 500                       # actual: 533 of 642 today
+    assert covered >= 625                       # actual: 627 of 642 today
 
 
 def test_generated_descriptions_are_clean():

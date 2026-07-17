@@ -407,6 +407,77 @@ swaps density ↔ cumulative ↔ quantile). Example: `=R.QNORM(0.975,0,1)` → `
 | Negative binomial | `R.DNBINOM` `R.PNBINOM` `R.QNBINOM` | `size`, `prob` |
 | Hypergeometric | `R.DHYPER` `R.PHYPER` `R.QHYPER` | `m` (successes), `n` (failures), `k` (draws) |
 
+**Individual R-style function descriptions** (for generator harvesting):
+
+| Function | Description |
+|---|---|
+| `R.DBETA` | Probability density (PDF) of the Beta distribution |
+| `R.DBINOM` | Probability mass (PMF) of the Binomial distribution |
+| `R.DCAUCHY` | Probability density (PDF) of the Cauchy distribution |
+| `R.DCHISQ` | Probability density (PDF) of the Chi-squared distribution |
+| `R.DEXP` | Probability density (PDF) of the Exponential distribution |
+| `R.DF` | Probability density (PDF) of the F distribution |
+| `R.DGAMMA` | Probability density (PDF) of the Gamma distribution |
+| `R.DGEOM` | Probability mass (PMF) of the Geometric distribution |
+| `R.DGUMBEL` | Probability density (PDF) of the Gumbel distribution |
+| `R.DHYPER` | Probability mass (PMF) of the Hypergeometric distribution |
+| `R.DLAPLACE` | Probability density (PDF) of the Laplace distribution |
+| `R.DLNORM` | Probability density (PDF) of the Log-normal distribution |
+| `R.DLOGIS` | Probability density (PDF) of the Logistic distribution |
+| `R.DNBINOM` | Probability mass (PMF) of the Negative binomial distribution |
+| `R.DNORM` | Probability density (PDF) of the Normal distribution |
+| `R.DPARETO` | Probability density (PDF) of the Pareto distribution |
+| `R.DPOIS` | Probability mass (PMF) of the Poisson distribution |
+| `R.DRAYLEIGH` | Probability density (PDF) of the Rayleigh distribution |
+| `R.DSNORM` | Probability density (PDF) of the Skew-normal distribution |
+| `R.DT` | Probability density (PDF) of the Student's t distribution |
+| `R.DUNIF` | Probability density (PDF) of the Uniform distribution |
+| `R.DWEIBULL` | Probability density (PDF) of the Weibull distribution |
+| `R.PBETA` | Cumulative probability (CDF) of the Beta distribution |
+| `R.PBINOM` | Cumulative probability (CDF) of the Binomial distribution |
+| `R.PCAUCHY` | Cumulative probability (CDF) of the Cauchy distribution |
+| `R.PCHISQ` | Cumulative probability (CDF) of the Chi-squared distribution |
+| `R.PEXP` | Cumulative probability (CDF) of the Exponential distribution |
+| `R.PF` | Cumulative probability (CDF) of the F distribution |
+| `R.PGAMMA` | Cumulative probability (CDF) of the Gamma distribution |
+| `R.PGEOM` | Cumulative probability (CDF) of the Geometric distribution |
+| `R.PGUMBEL` | Cumulative probability (CDF) of the Gumbel distribution |
+| `R.PHYPER` | Cumulative probability (CDF) of the Hypergeometric distribution |
+| `R.PLAPLACE` | Cumulative probability (CDF) of the Laplace distribution |
+| `R.PLNORM` | Cumulative probability (CDF) of the Log-normal distribution |
+| `R.PLOGIS` | Cumulative probability (CDF) of the Logistic distribution |
+| `R.PNBINOM` | Cumulative probability (CDF) of the Negative binomial distribution |
+| `R.PNORM` | Cumulative probability (CDF) of the Normal distribution |
+| `R.PPARETO` | Cumulative probability (CDF) of the Pareto distribution |
+| `R.PPOIS` | Cumulative probability (CDF) of the Poisson distribution |
+| `R.PRAYLEIGH` | Cumulative probability (CDF) of the Rayleigh distribution |
+| `R.PSNORM` | Cumulative probability (CDF) of the Skew-normal distribution |
+| `R.PT` | Cumulative probability (CDF) of the Student's t distribution |
+| `R.PUNIF` | Cumulative probability (CDF) of the Uniform distribution |
+| `R.PWEIBULL` | Cumulative probability (CDF) of the Weibull distribution |
+| `R.QBETA` | Quantile (inverse CDF) of the Beta distribution |
+| `R.QBINOM` | Quantile (inverse CDF) of the Binomial distribution |
+| `R.QCAUCHY` | Quantile (inverse CDF) of the Cauchy distribution |
+| `R.QCHISQ` | Quantile (inverse CDF) of the Chi-squared distribution |
+| `R.QEXP` | Quantile (inverse CDF) of the Exponential distribution |
+| `R.QF` | Quantile (inverse CDF) of the F distribution |
+| `R.QGAMMA` | Quantile (inverse CDF) of the Gamma distribution |
+| `R.QGEOM` | Quantile (inverse CDF) of the Geometric distribution |
+| `R.QGUMBEL` | Quantile (inverse CDF) of the Gumbel distribution |
+| `R.QHYPER` | Quantile (inverse CDF) of the Hypergeometric distribution |
+| `R.QLAPLACE` | Quantile (inverse CDF) of the Laplace distribution |
+| `R.QLNORM` | Quantile (inverse CDF) of the Log-normal distribution |
+| `R.QLOGIS` | Quantile (inverse CDF) of the Logistic distribution |
+| `R.QNBINOM` | Quantile (inverse CDF) of the Negative binomial distribution |
+| `R.QNORM` | Quantile (inverse CDF) of the Normal distribution |
+| `R.QPARETO` | Quantile (inverse CDF) of the Pareto distribution |
+| `R.QPOIS` | Quantile (inverse CDF) of the Poisson distribution |
+| `R.QRAYLEIGH` | Quantile (inverse CDF) of the Rayleigh distribution |
+| `R.QSNORM` | Quantile (inverse CDF) of the Skew-normal distribution |
+| `R.QT` | Quantile (inverse CDF) of the Student's t distribution |
+| `R.QUNIF` | Quantile (inverse CDF) of the Uniform distribution |
+| `R.QWEIBULL` | Quantile (inverse CDF) of the Weibull distribution |
+
 **Modern dotted family (left-tail / density forms).** The legacy `TDIST` /
 `FDIST` / `CHIDIST` names are Excel's *right-tail* probabilities; these are the
 modern left-tail/density halves and their inverses, plus the hypothesis tests:
@@ -456,6 +527,32 @@ aliases of their legacy equivalents (same arguments and results):
 | `FORECAST.LINEAR` | `FORECAST` |
 | `SKEW.P` | `SKEWP` |
 | `GAMMALN.PRECISE` | `GAMMALN` |
+
+**Dotted-name alias descriptions** (for generator harvesting — the aliases above
+are documented as equivalent to their legacy names; these one-liners let the
+generated-description layer cover them individually):
+
+| Function | Description |
+|---|---|
+| `BETA.INV` | Inverse of the Beta cumulative distribution |
+| `BETAINV` | Inverse of the Beta cumulative distribution |
+| `ERF.PRECISE` | Gauss error function (full-precision) |
+| `ERFC.PRECISE` | Complementary error function (full-precision) |
+| `FORECAST.LINEAR` | Predicts a value by linear regression through known data |
+| `FVSCHEDULE` | Future value after a series of varying interest rates |
+| `GAMMA.INV` | Inverse of the Gamma cumulative distribution |
+| `GAMMAINV` | Inverse of the Gamma cumulative distribution |
+| `GAMMALN.PRECISE` | Natural logarithm of the Gamma function (full-precision) |
+| `LOGINV` | Inverse of the Log-normal cumulative distribution |
+| `LOGNORM.INV` | Inverse of the Log-normal cumulative distribution |
+| `NORM.S.INV` | Inverse of the standard Normal cumulative distribution |
+| `PERCENTILE.INC` | The k-th percentile (inclusive method) |
+| `QUARTILE.INC` | Quartile value (inclusive method, 0-4) |
+| `SKEW.P` | Population skewness of a dataset |
+| `STDEV.P` | Population standard deviation |
+| `STDEV.S` | Sample standard deviation (same as STDEV) |
+| `VAR.P` | Population variance |
+| `VAR.S` | Sample variance (same as VAR) |
 
 ### Special math and number theory
 
@@ -528,6 +625,7 @@ never phone home. URLs are limited to `http` / `https` / `ws` / `wss`.
 | `WEBSOCKET` | Stream JSON text frames from a WebSocket, showing the latest *path* value | `WEBSOCKET(url, [path])` | `=WEBSOCKET("wss://api.example/ticks","[0].price")` |
 | `WEBSERVICE` | Fetch an HTTP(S) URL's text body **once** (cached for the session); typically fed to `FILTERXML` or text functions | `WEBSERVICE(url)` | `=WEBSERVICE("https://api.example/data.xml")` |
 | `RESTTABLE` | Spill a JSON record list into a range — header row + one row per record; shares a poller with scalar `REST` on the same URL | `RESTTABLE(url, [records_path], [columns], [interval])` | `=RESTTABLE("https://api.x/q","data.items",{"sym";"price"})` |
+| `FILTERXML` | Extracts a value from XML text using an XPath expression | `FILTERXML(xml, xpath)` | `=FILTERXML("<r><i>5</i></r>","//i")` |
 
 `WEBSERVICE` is non-blocking and shares the live-data consent (`#OFF!` when
 disabled, `#N/A` until the fetch lands); it is restricted to http/https.
@@ -824,6 +922,10 @@ negative and cash **in** positive (Excel sign convention); the `type` argument i
 | `DOLLARFR` | Decimal dollar → fractional | `DOLLARFR(decimal, fraction)` | `=DOLLARFR(1.125,16)` | `1.02` |
 | `PDURATION` | Periods to reach a future value | `PDURATION(rate, pv, fv)` | `=PDURATION(0.025,1000,2000)` | periods |
 | `RRI` | Equivalent interest rate for growth | `RRI(nper, pv, fv)` | `=RRI(96,10000,11000)` | rate |
+| `AMORDEGRC` | French declining-balance depreciation (accounting system) | `AMORDEGRC(cost, purchase, first_period, salvage, period, rate, [basis])` | `=AMORDEGRC(2400,DATE(2008,8,19),DATE(2008,12,31),300,1,0.15,1)` | depreciation |
+| `AMORLINC` | French straight-line depreciation (accounting system) | `AMORLINC(cost, purchase, first_period, salvage, period, rate, [basis])` | `=AMORLINC(2400,DATE(2008,8,19),DATE(2008,12,31),300,1,0.15,1)` | depreciation |
+| `FVSCHEDULE` | Future value after a series of varying interest rates | `FVSCHEDULE(principal, schedule)` | `=FVSCHEDULE(1,{0.09,0.11,0.1})` | `1.335` |
+| `ISPMT` | Interest portion of a payment for a given period (straight-line) | `ISPMT(rate, per, nper, pv)` | `=ISPMT(0.1/12,1,36,8000000)` | interest |
 
 **Bonds and securities.** Dates are ISO strings; `frequency` is coupons per
 year (1, 2 or 4); `basis` is the day-count convention (0 = US 30/360 default,
@@ -848,6 +950,10 @@ Coupon schedules walk back from maturity with Excel's end-of-month rule.
 | `PRICEMAT` / `YIELDMAT` | Price / yield of an interest-at-maturity security | `PRICEMAT(settlement, maturity, issue, rate, yld, [basis])` | `=PRICEMAT("2008-02-15","2008-04-13","2007-11-11",0.061,0.061,0)` | `99.984` |
 | `TBILLEQ` | T-bill bond-equivalent yield | `TBILLEQ(settlement, maturity, discount)` | `=TBILLEQ("2008-03-31","2008-06-01",0.0914)` | `0.0942` |
 | `TBILLPRICE` / `TBILLYIELD` | T-bill price / discount yield | `TBILLPRICE(settlement, maturity, discount)` | `=TBILLPRICE("2008-03-31","2008-06-01",0.09)` | `98.45` |
+| `ODDFPRICE` | Price of a security with an odd first period | `ODDFPRICE(settlement, maturity, issue, first_coupon, rate, yld, redemption, frequency, [basis])` | `=ODDFPRICE("2008-11-11","2021-03-01","2008-10-15","2009-03-01",0.0785,0.0625,100,2,1)` | price |
+| `ODDFYIELD` | Yield of a security with an odd first period | `ODDFYIELD(settlement, maturity, issue, first_coupon, rate, pr, redemption, frequency, [basis])` | `=ODDFYIELD("2008-11-11","2021-03-01","2008-10-15","2009-03-01",0.0785,84.5,100,2,1)` | yield |
+| `ODDLPRICE` | Price of a security with an odd last period | `ODDLPRICE(settlement, maturity, last_interest, rate, yld, redemption, frequency, [basis])` | `=ODDLPRICE("2008-02-07","2008-06-15","2007-10-15",0.0375,0.0405,100,2,0)` | price |
+| `ODDLYIELD` | Yield of a security with an odd last period | `ODDLYIELD(settlement, maturity, last_interest, rate, pr, redemption, frequency, [basis])` | `=ODDLYIELD("2008-04-20","2008-06-15","2007-12-24",0.0375,99.875,100,2,0)` | yield |
 
 ### Information
 
@@ -1016,6 +1122,17 @@ POTA / SOTA / contest logs. Callsigns are normalised (uppercased, portable
 | --- | --- | --- | --- |
 | `ISDUPE` | TRUE if `(call, band, mode)` already appears in a prior-QSO range (one QSO per row as `call \| band \| mode`) | `ISDUPE(call, band, mode, [log_range])` | `=ISDUPE("W1AW","20m","SSB",A1:C50)` |
 | `QSOPOINTS` | Point value of one QSO in `mode` under a named ruleset (default `generic` = 1 pt; `fieldday` scores CW/digital 2, phone 1) | `QSOPOINTS(mode, [ruleset])` | `=QSOPOINTS("CW","fieldday")` → `2` |
+
+**Supplementary descriptions** (clean plain-text versions for functions whose
+primary table rows use mathematical notation the generator cannot render):
+
+| Function | Description |
+|---|---|
+| `ISDUPE` | TRUE when the value appears more than once in the range |
+| `MISMATCHLOSS` | Mismatch loss in dB between a source and load impedance |
+| `RETURNLOSS` | Return loss in dB from an impedance mismatch |
+| `VSWR2GAMMA` | Reflection coefficient magnitude from a VSWR value |
+| `VSWRG` | VSWR of a transmission line from Gamma (reflection coefficient) |
 
 For antenna modeling beyond these closed-form functions — the thin-wire Method of
 Moments solver and NEC `.nec` I/O — see [RF toolkit](rf-toolkit.md).
