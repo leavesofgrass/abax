@@ -27,6 +27,11 @@ All notable changes to abax are documented here. The format follows
   `scripts/gen_funcmeta_descriptions.py` into a checked-in module;
   hand-written descriptions always take precedence.
 
+### Fixed
+- **`R.*` distribution functions now appear under Statistics** in the
+  Formula manager (all 66 R-style distribution functions were falling
+  through to Specialty).
+
 ## [0.1.17] — 2026-07-16
 
 ### Added
