@@ -83,6 +83,8 @@ CATEGORIES: dict[str, tuple[str, str]] = {
 _MODULE_CATEGORIES: dict[str, str] = {
     "math_fns": "math", "gnumeric_math": "math",
     "stats_dist": "stats", "gnumeric_stats": "stats", "dist_dotted": "stats",
+    # gnumeric_fns registers only the R.* distribution family (R.DNORM, ...).
+    "gnumeric_fns": "stats",
     "text_datetime_fns": "text",
     "finance_fns": "financial", "finance_bonds": "financial",
     "engineering_fns": "engineering",

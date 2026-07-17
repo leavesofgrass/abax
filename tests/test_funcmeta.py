@@ -34,6 +34,18 @@ def test_common_functions_are_well_placed():
     assert describe("DSUM")["category"] == "Database"
 
 
+def test_r_distributions_are_statistics():
+    """The R.* distribution family (gnumeric_fns) and the dotted compat
+    aliases (dist_dotted) are Statistics, not the Specialty fall-through."""
+    assert category_key("R.DNORM") == "stats"
+    assert describe("R.DNORM")["category"] == "Statistics"
+    assert describe("R.PBINOM")["category"] == "Statistics"
+    assert describe("R.QCHISQ")["category"] == "Statistics"
+    # Dotted compat aliases were already module-mapped; keep them that way.
+    assert describe("CHISQ.DIST")["category"] == "Statistics"
+    assert describe("F.TEST")["category"] == "Statistics"
+
+
 def test_handwritten_descriptions_and_blurbs():
     d = describe("XLOOKUP")
     assert "lookup" in d["description"].lower()
