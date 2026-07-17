@@ -163,6 +163,46 @@ the workbook's defined names and sheet names. The **in-cell editor** gets the
 same completer, so autocomplete follows you whether you edit in the bar or in
 the cell.
 
+## The Formula manager
+
+Don't know the function's name? *Insert → Function (Formula manager)…*
+(`Shift+F3`, also *Formula manager…* in the command palette) opens a browsable
+catalog of every function, in three parts:
+
+- a **category list** — Math & trig, Statistics, Text, Date & time, Logical &
+  information, Lookup & reference, Dynamic arrays, Financial, Engineering,
+  Database, Radio & RF, LET & LAMBDA, Regular expressions, Connected data,
+  User-defined, and Specialty (plus *All functions*);
+- a **search box** that live-filters the function list within the chosen
+  category;
+- a **guidance pane** explaining what the selected function *is and is used
+  for*: the signature, a plain-English description, and the category's blurb.
+
+**Insert** (or double-click a function; Insert is the dialog's default button,
+so `Enter` in the search box triggers it too) closes the dialog and focuses the
+formula bar with `=NAME(` and the cursor inside the call — type the arguments,
+then `Enter` commits to the active cell. User-defined functions registered by
+your macros or `init.py` appear automatically under **User-defined**.
+
+## Formula-editing aids
+
+While a formula is being edited — in the in-cell editor or the focused formula
+bar — the grid outlines every range the formula references with a **coloured
+box** (a 2-px outline plus a faint fill of the same colour), one colour per
+distinct reference (five colours, cycling; a reference mentioned twice keeps
+its one colour). The boxes update live with each keystroke and are cleared the
+moment the edit is committed or the editor closes. Only ranges on the active
+sheet are drawn; a cross-sheet reference still consumes its colour, so the
+assignment matches the TUI's highlighting exactly.
+
+Two more aids while you type:
+
+- the **completion popup** accepts the highlighted candidate with `Tab` as well
+  as `Enter` — Tab never moves focus while the popup is open;
+- the floating **argument hint** (under the formula bar, and anchored below the
+  in-cell editor) shows the current call's signature with the **active
+  parameter** in bold, tracking your cursor through the arguments.
+
 ## Status-bar selection aggregates
 
 Select a range and the status bar shows live aggregates over it, mirroring
@@ -694,7 +734,7 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
   (`Ctrl+T`), Zoom in (`Ctrl+=`), Zoom out (`Ctrl+-`), Reset zoom (`Ctrl+0`).
 - **Insert** — Rows / columns (row above `Ctrl++`, row below, column left, column
   right, append row/column, delete row(s) `Ctrl+-`, delete column(s)), Function
-  (`Shift+F3`), Equation, Chart / graph, **Business chart** (waterfall / sunburst
+  (Formula manager) (`Shift+F3`), Equation, Chart / graph, **Business chart** (waterfall / sunburst
   / treemap / sparkline — SVG with a live preview), **Embedded chart (on sheet)**
   (a floating chart anchored to a cell, saved with the workbook — see
   [Embedded charts](#embedded-charts)), Export chart as SVG.
@@ -774,8 +814,10 @@ docs — this is the one-line "what it does" index.
 
 **Insert / objects:**
 
-- **Function browser** (*Insert → Function*, `Shift+F3`) — searchable list of all
-  functions (built-ins + UDFs).
+- **Formula manager** (*Insert → Function (Formula manager)*, `Shift+F3`) —
+  browse every function (built-ins + UDFs) by category, with a search box and a
+  guidance pane; inserts `=NAME(` into the formula bar (see
+  [The Formula manager](#the-formula-manager)).
 - **Equation editor** (*Insert → Equation*) — LaTeX in, live Unicode preview,
   MathML out.
 - **Graph** (*Insert → Chart / graph*) — an HP-48-flavored function grapher,

@@ -111,6 +111,9 @@ keys**. Key features:
 | Key / command | Action |
 |---|---|
 | `Enter` / `i` / `a` | Edit the current cell. `Enter` also works Excel-style (from navigation it starts editing; while editing it commits and steps down a row). `Esc` cancels an edit (keeps the old value); `Backspace` deletes (works over SSH too). |
+| `Tab` (insert mode) | Complete the function/name at the cursor: a single match inserts `NAME(`; several first extend to the common prefix, then successive Tabs **cycle** through the candidates (wrapping) — any other keystroke resets the cycle. The candidate list and an argument hint show on the status line as you type |
+| `Tab` (`:` line) | Complete the command name (aliases included): a single match completes with a trailing space; several extend to the common prefix and list the candidates on the status line. `:theme <partial>` also completes theme names |
+| Typing a formula | Every cell/range the formula references is live-highlighted in the grid as you type — per-reference colour tints in Textual (five colours cycling, one stable colour per distinct reference), a single tint in the curses fallback. A huge range costs only the visible viewport |
 | `PageUp` / `PageDown` / `Home` / `End` | Page the viewport up/down; jump to the first / last used column of the row |
 | `u` / `Ctrl-R` | Undo / redo (also `:undo` / `:redo`) — destructive actions checkpoint first |
 | `:q` / `:q!` | Quit (`:q` refuses on unsaved edits; `:q!`/`:Q!` force-quit) |
