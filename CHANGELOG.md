@@ -10,6 +10,8 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.16] — 2026-07-15
+
 ### Changed
 - **The default dark theme `obsidian` is renamed `galaxy`** (purple on black) in
   both the GUI and the TUI. On a truecolor terminal the Textual TUI now paints
