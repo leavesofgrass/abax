@@ -33,7 +33,12 @@ def win(app):
     app.processEvents()
 
 
-def _wait(console, app, timeout_ms: int = 10000) -> None:
+# Generous ceiling: this only bounds a hang — the loop exits the moment the
+# worker thread finishes — but the command spawns a fresh Python subprocess
+# and imports abax there, so under heavy CPU contention (parallel agent runs,
+# concurrent CI jobs) the round-trip has been *measured* at 68 s on a machine
+# running several full suites at once. 10 s flaked; give it real headroom.
+def _wait(console, app, timeout_ms: int = 120000) -> None:
     waited = 0
     while console._thread is not None and waited < timeout_ms:
         app.processEvents()
