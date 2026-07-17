@@ -315,6 +315,8 @@ def render_overlay(editor, width: int, height: int):
             out.append("\n" + d["signature"][: width - 1], style=s_label)
             out.append("\n" + f"{d['description']}  [{d['category']}]"[: width - 1],
                        style=s_dim)
+            if d.get("example"):
+                out.append("\n" + d["example"][: width - 1], style=s_dim)
 
     elif mode == "help":
         from .editor import HELP_ENTRIES

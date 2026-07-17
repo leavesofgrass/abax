@@ -103,10 +103,11 @@ class FormulaBrowser(QDialog):
                 self._info.setText("")
             return
         d = describe(name)
-        self._info.setText(
-            f"<b>{d['signature']}</b><br>{d['description']}<br>"
-            f"<i>{d['category']}</i> — {d['category_blurb']}"
-        )
+        parts = [f"<b>{d['signature']}</b><br>{d['description']}"]
+        if d.get("example"):
+            parts.append(f"<br><code>{d['example']}</code>")
+        parts.append(f"<br><i>{d['category']}</i> — {d['category_blurb']}")
+        self._info.setText("".join(parts))
 
     def _insert(self) -> None:
         """Insert ``NAME(`` and hand the user the formula bar to finish it.

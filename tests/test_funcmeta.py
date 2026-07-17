@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abax.core._funcmeta_generated import GENERATED_DESCRIPTIONS
 from abax.core.completion import function_names
-from abax.core.funcmeta import CATEGORIES, DESCRIPTIONS, catalog, category_key, describe
+from abax.core.funcmeta import CATEGORIES, DESCRIPTIONS, EXAMPLES, catalog, category_key, describe
 
 
 def test_every_function_lands_in_a_category():
@@ -112,6 +112,29 @@ def test_no_known_family_functions_in_specialty():
     for name in sorted(known_family_members & registered):
         cat = category_key(name)
         assert cat != "other", f"{name} is in Specialty but should be categorized"
+
+
+def test_describe_includes_example():
+    d = describe("SUM")
+    assert "example" in d
+    assert d["example"].startswith("=")
+
+
+def test_examples_are_valid_formulas():
+    for name, ex in EXAMPLES.items():
+        assert ex.startswith("="), f"{name} example must start with ="
+        assert name in ex.upper() or name.replace(".", "") in ex.upper(), \
+            f"{name} example should contain the function name"
+
+
+def test_examples_coverage():
+    assert len(EXAMPLES) >= 50, f"Expected at least 50 examples, got {len(EXAMPLES)}"
+
+
+def test_describe_example_empty_for_uncurated():
+    """Functions without a curated example get an empty string, not a KeyError."""
+    d = describe("SERIESSUM")
+    assert d["example"] == ""
 
 
 def test_udf_categorized_as_user(monkeypatch):
