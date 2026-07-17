@@ -8,6 +8,25 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
+## [Unreleased]
+
+### Added
+- **Mouse support in the Textual TUI grid** — click places the cursor,
+  click-drag creates a visual selection (same pathway as the `v` key, so
+  `y`/`d` work on it), and the wheel scrolls the viewport three rows per
+  notch without moving the cursor. Clicks during insert mode, the `:` line,
+  and overlays are ignored so a stray click can never corrupt an edit. The
+  curses fallback remains keyboard-only.
+- **Embedded charts can be moved and resized with the mouse** — drag a chart
+  overlay to reposition it (the anchor cell updates on release) and drag the
+  bottom-right handle to resize (80×60 minimum). Moves and resizes are each
+  a single undo step, never disturb the grid selection underneath, and
+  round-trip through save/load.
+- **Formula manager descriptions for 533 of 642 functions** (was ~120) —
+  one-line descriptions are now generated from the formula reference by
+  `scripts/gen_funcmeta_descriptions.py` into a checked-in module;
+  hand-written descriptions always take precedence.
+
 ## [0.1.17] — 2026-07-16
 
 ### Added
