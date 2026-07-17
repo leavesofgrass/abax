@@ -8,7 +8,7 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
-## [Unreleased]
+## [0.1.17] — 2026-07-16
 
 ### Added
 - **Truecolor surfaces for every Textual TUI theme** — hacker, phosphor,
