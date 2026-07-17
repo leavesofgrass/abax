@@ -8,7 +8,7 @@ All notable changes to abax are documented here. The format follows
 > (out of respect for an existing open-source project already using the `qcell`
 > name on GitHub). Historical entries below use the old name.
 
-## [Unreleased]
+## [0.1.18] — 2026-07-17
 
 ### Added
 - **Mouse support in the Textual TUI grid** — click places the cursor,
