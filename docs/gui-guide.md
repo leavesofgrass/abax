@@ -333,6 +333,16 @@ the picture never goes stale. A chart that can't render (a deleted source
 sheet, a dead or empty range) paints a small placeholder box carrying the
 reason instead — a broken chart never breaks the grid.
 
+**Move / resize.** Charts are grabbed directly: press anywhere on one (the
+cursor becomes a four-way move arrow) and drag — on release the chart's anchor
+snaps to the cell under its top-left corner. Hovering shows a small square
+**resize handle** in the bottom-right corner; drag it (diagonal-resize cursor)
+to change the pixel size, down to a floor of 80×60. Each finished drag is a
+single undo step, marks the workbook modified, and the new anchor and size are
+saved in the file. Clicking or dragging a chart never touches the cell
+selection beneath it — the grid only sees mouse presses that land outside
+every chart.
+
 **Edit / delete.** Right-click a chart: **Edit chart…** reopens the dialog
 against that chart; **Delete chart** removes it. Each is a single undo step,
 so `Ctrl+Z` restores exactly what was there.

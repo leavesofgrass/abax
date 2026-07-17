@@ -18,6 +18,14 @@ stdlib renderer; ``matplotlib`` prefers matplotlib and falls back to SVG with a
 one-time status-bar hint. A render failure (dead range, missing sheet, unknown
 kind) never crashes the grid — the overlay paints a placeholder box carrying
 the error message instead.
+
+Overlays are directly manipulable: drag one to move it (the drop snaps its
+anchor to the cell under the top-left corner), drag the bottom-right corner
+handle to resize (clamped to ``MIN_WIDTH×MIN_HEIGHT``). Both commit into the
+chart object through the document checkpoint — a single undo step each, and
+the workbook is marked dirty so the change persists through save/load. Mouse
+presses on an overlay never reach the grid, so grabbing a chart cannot move
+the cell selection beneath it.
 """
 
 from __future__ import annotations
@@ -30,17 +38,24 @@ from ._qtcompat import (
     QPainter,
     QPen,
     QPixmap,
+    QRect,
     QRectF,
     Qt,
     QWidget,
 )
 from ..core.chartobj import ChartError, render_chart
+from ..core.reference import to_a1
 
 # Placeholder palette (theme-neutral: readable on any grid).
 _PLACEHOLDER_BG = "#f4f4f5"
 _PLACEHOLDER_BORDER = "#c2410c"
 _PLACEHOLDER_TEXT = "#7f1d1d"
 _FRAME_COLOR = "#7a8194"
+
+# Direct manipulation (drag-to-move / corner resize), all in pixels.
+HANDLE_SIZE = 12      # hit zone of the bottom-right resize handle
+MIN_WIDTH = 80        # smallest committable chart size
+MIN_HEIGHT = 60
 
 
 def resolve_backend(settings) -> str:
@@ -76,7 +91,15 @@ def _svg_to_pixmap(svg: str, width: int, height: int) -> "QPixmap | None":
 
 
 class ChartOverlay(QWidget):
-    """One floating chart. Paints its pre-rendered pixmap, or a placeholder box."""
+    """One floating chart. Paints its pre-rendered pixmap, or a placeholder box.
+
+    Directly manipulable: a left-press anywhere grabs the chart (drag moves it
+    live), a left-press on the bottom-right corner handle resizes it. Mouse-up
+    hands the final widget geometry to the manager, which commits it into the
+    :class:`~abax.core.chartobj.ChartObject` (one undo checkpoint each). Every
+    press is accepted here so a click on a chart never falls through to the
+    grid and re-selects the cell underneath.
+    """
 
     def __init__(self, manager: "ChartOverlayManager", chart) -> None:
         super().__init__(manager.viewport())
@@ -86,6 +109,11 @@ class ChartOverlay(QWidget):
         self.rendered = None       # last SVG text / PNG bytes (tests + debugging)
         self.backend_used = ""     # "svg" | "matplotlib" (whichever actually drew)
         self.error: "str | None" = None
+        self._drag_mode: "str | None" = None    # None | "move" | "resize"
+        self._press_global = None               # QPoint at mouse-down
+        self._press_geometry = None             # QRect at mouse-down
+        self._hover = False
+        self.setMouseTracking(True)             # cursor feedback without a button
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._context_menu)
 
@@ -110,17 +138,21 @@ class ChartOverlay(QWidget):
                 painter.drawPixmap(rect, self.pixmap)
                 painter.setPen(QPen(QColor(_FRAME_COLOR)))
                 painter.drawRect(rect.adjusted(0, 0, -1, -1))
-                return
-            # Placeholder: a chart must never crash (or blank) the grid paint.
-            painter.fillRect(rect, QColor(_PLACEHOLDER_BG))
-            painter.setPen(QPen(QColor(_PLACEHOLDER_BORDER)))
-            painter.drawRect(rect.adjusted(0, 0, -1, -1))
-            painter.setPen(QPen(QColor(_PLACEHOLDER_TEXT)))
-            flags = (int(Qt.AlignmentFlag.AlignLeft) | int(Qt.AlignmentFlag.AlignTop)
-                     | int(Qt.TextFlag.TextWordWrap))
-            message = self.error or "chart unavailable"
-            painter.drawText(rect.adjusted(6, 4, -6, -4), flags,
-                             f"[{self.chart.id}] {message}")
+            else:
+                # Placeholder: a chart must never crash (or blank) the grid paint.
+                painter.fillRect(rect, QColor(_PLACEHOLDER_BG))
+                painter.setPen(QPen(QColor(_PLACEHOLDER_BORDER)))
+                painter.drawRect(rect.adjusted(0, 0, -1, -1))
+                painter.setPen(QPen(QColor(_PLACEHOLDER_TEXT)))
+                flags = (int(Qt.AlignmentFlag.AlignLeft) | int(Qt.AlignmentFlag.AlignTop)
+                         | int(Qt.TextFlag.TextWordWrap))
+                message = self.error or "chart unavailable"
+                painter.drawText(rect.adjusted(6, 4, -6, -4), flags,
+                                 f"[{self.chart.id}] {message}")
+            if self._hover or self._drag_mode is not None:
+                # The resize affordance: a small filled square in the corner.
+                painter.fillRect(self.handle_rect().adjusted(3, 3, -1, -1),
+                                 QColor(_FRAME_COLOR))
         finally:
             painter.end()
 
@@ -129,6 +161,73 @@ class ChartOverlay(QWidget):
         menu.addAction("Edit chart…", lambda: self._manager.edit(self.chart))
         menu.addAction("Delete chart", lambda: self._manager.delete(self.chart))
         menu.exec(self.mapToGlobal(pos))
+
+    # -- direct manipulation (drag-to-move / corner resize) -----------------
+
+    def handle_rect(self) -> QRect:
+        """The bottom-right resize handle's hit zone, in widget coords."""
+        return QRect(self.width() - HANDLE_SIZE, self.height() - HANDLE_SIZE,
+                     HANDLE_SIZE, HANDLE_SIZE)
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        # Swallow every press: a click on a chart must never fall through to
+        # the table viewport and change the grid selection underneath.
+        event.accept()
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+        self.raise_()   # of stacked charts, the grabbed one comes to the front
+        on_handle = self.handle_rect().contains(event.position().toPoint())
+        self._drag_mode = "resize" if on_handle else "move"
+        self._press_global = event.globalPosition().toPoint()
+        self._press_geometry = self.geometry()
+        self.setCursor(Qt.CursorShape.SizeFDiagCursor if on_handle
+                       else Qt.CursorShape.SizeAllCursor)
+
+    def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        # A double-click must not fall through either (it would start a cell
+        # edit under the chart); treat it as another grab.
+        self.mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        event.accept()
+        if self._drag_mode is None:
+            # No button down (mouse tracking): pure cursor feedback.
+            on_handle = self.handle_rect().contains(event.position().toPoint())
+            self.setCursor(Qt.CursorShape.SizeFDiagCursor if on_handle
+                           else Qt.CursorShape.SizeAllCursor)
+            return
+        # Deltas are in *global* coords: the widget itself moves under the
+        # cursor mid-drag, so local positions would feed back into themselves.
+        delta = event.globalPosition().toPoint() - self._press_global
+        if self._drag_mode == "move":
+            self.move(self._press_geometry.topLeft() + delta)
+        else:
+            self.resize(max(MIN_WIDTH, self._press_geometry.width() + delta.x()),
+                        max(MIN_HEIGHT, self._press_geometry.height() + delta.y()))
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        event.accept()
+        if event.button() != Qt.MouseButton.LeftButton or self._drag_mode is None:
+            return
+        mode, self._drag_mode = self._drag_mode, None
+        if self.geometry() == self._press_geometry:
+            return   # a plain click: nothing moved, nothing to commit
+        if mode == "move":
+            self._manager.commit_move(self)
+        else:
+            self._manager.commit_resize(self)
+
+    def enterEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        self._hover = True
+        self.setCursor(Qt.CursorShape.SizeAllCursor)
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:  # noqa: N802 (Qt override)
+        self._hover = False
+        self.unsetCursor()
+        self.update()
+        super().leaveEvent(event)
 
 
 class ChartOverlayManager:
@@ -159,6 +258,50 @@ class ChartOverlayManager:
 
     def delete(self, chart) -> None:
         self._win.delete_embedded_chart(chart)
+
+    # -- geometry commits (mouse-up of a drag) -------------------------------
+
+    def commit_move(self, overlay: ChartOverlay) -> None:
+        """Persist a finished drag-move: pixels → the model's cell anchor.
+
+        The model stores a plain ``(row, col)`` anchor (no pixel offset), so
+        the drop snaps to the cell under the overlay's top-left corner — the
+        repaint pins it exactly onto that cell. No-op drops (same cell) just
+        snap back without touching the undo stack.
+        """
+        table = self._win._table
+        pos = overlay.pos()
+        anchor = (_cell_index(table.rowAt, pos.y(), table.rowCount()),
+                  _cell_index(table.columnAt, pos.x(), table.columnCount()))
+        if anchor == tuple(overlay.chart.anchor):
+            self._reposition()
+            return
+        chart = overlay.chart
+        self._commit("move chart", lambda: setattr(chart, "anchor", anchor),
+                     f"moved chart {chart.id} to {to_a1(*anchor)}")
+
+    def commit_resize(self, overlay: ChartOverlay) -> None:
+        """Persist a finished handle-drag: the widget size becomes the model size."""
+        chart = overlay.chart
+        width, height = overlay.width(), overlay.height()
+        if (width, height) == (chart.width, chart.height):
+            return
+
+        def apply() -> None:
+            chart.width, chart.height = width, height
+
+        self._commit("resize chart", apply,
+                     f"resized chart {chart.id} to {width}×{height}")
+
+    def _commit(self, label: str, mutate, status: str) -> None:
+        """Checkpoint → mutate → repaint: one undo step, same as insert/edit/delete."""
+        win = self._win
+        win._doc.checkpoint(label)   # snapshot BEFORE the mutation
+        mutate()
+        win._doc.mark_dirty()
+        win.refresh_table()          # re-render + reposition (and title dirty mark)
+        win._refresh_undo_history()
+        win._set_status(status)
 
     # -- sync + render -------------------------------------------------------
 
@@ -239,3 +382,14 @@ class ChartOverlayManager:
             row, col = overlay.chart.anchor
             overlay.move(table.columnViewportPosition(max(0, int(col))),
                          table.rowViewportPosition(max(0, int(row))))
+
+
+def _cell_index(at, coord: int, count: int) -> int:
+    """The row/column under viewport pixel ``coord``, clamped into the grid.
+
+    ``at`` is the table's ``rowAt``/``columnAt`` (which answer ``-1`` past the
+    content's end). A drop above/left of the viewport clamps to the first
+    visible row/column; a drop past the last row/column clamps to the last.
+    """
+    idx = at(max(0, int(coord)))
+    return idx if idx >= 0 else max(0, count - 1)

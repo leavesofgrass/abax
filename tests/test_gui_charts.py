@@ -17,6 +17,10 @@ from abax.core.chartobj import CHART_KINDS, ChartObject  # noqa: E402
 from abax.gui._qtcompat import (  # noqa: E402
     QApplication,
     QEvent,
+    QMouseEvent,
+    QPoint,
+    QPointF,
+    Qt,
     QTableWidgetSelectionRange,
 )
 from abax.settings import Settings  # noqa: E402
@@ -63,6 +67,37 @@ def _insert_line_chart(win, source="A1:A6", **over):
     values.update(over)
     win.insert_embedded_chart(values)
     return win._doc.workbook.sheet.charts[-1]
+
+
+_LEFT = Qt.MouseButton.LeftButton
+_NONE = Qt.MouseButton.NoButton
+_NO_MOD = Qt.KeyboardModifier.NoModifier
+
+
+def _send_mouse(widget, etype, global_pos, button, buttons):
+    """Deliver one synthetic mouse event (positions given in global coords).
+
+    Global coordinates keep a multi-event drag coherent: the overlay moves
+    between events, so widget-local positions are recomputed per event.
+    """
+    local = QPointF(widget.mapFromGlobal(global_pos))
+    QApplication.sendEvent(widget, QMouseEvent(
+        etype, local, QPointF(global_pos), button, buttons, _NO_MOD))
+
+
+def _drag(widget, start, delta):
+    """Left-press at widget-local ``start``, drag by ``delta`` px, release."""
+    g0 = widget.mapToGlobal(QPoint(*start))
+    g1 = g0 + QPoint(*delta)
+    _send_mouse(widget, QEvent.Type.MouseButtonPress, g0, _LEFT, _LEFT)
+    _send_mouse(widget, QEvent.Type.MouseMove, g1, _NONE, _LEFT)
+    _send_mouse(widget, QEvent.Type.MouseButtonRelease, g1, _LEFT, _NONE)
+
+
+def _hover(widget, pos):
+    """A buttonless mouse move (mouse-tracking hover) at widget-local ``pos``."""
+    _send_mouse(widget, QEvent.Type.MouseMove,
+                widget.mapToGlobal(QPoint(*pos)), _NONE, _NONE)
 
 
 class TestChartDialog:
@@ -297,6 +332,120 @@ class TestRenderLifecycle:
         wb.active = 0
         win.refresh_table()
         assert len(win._chart_overlays.widgets()) == 1
+
+
+class TestDragAndResize:
+    """Direct manipulation: drag-to-move + the bottom-right resize handle."""
+
+    def _chart_and_overlay(self, win):
+        _fill_numbers(win)
+        _select(win, 0, 0, 5, 0)
+        chart = _insert_line_chart(win)          # 320x200 anchored at (0, 2)
+        return chart, win._chart_overlays.widgets()[0]
+
+    def test_drag_moves_live_and_commits_anchor(self, win):
+        chart, overlay = self._chart_and_overlay(win)
+        table = win._table
+        assert chart.anchor == (0, 2)
+        win._doc.dirty = False
+        # Aim the top-left 3 px inside cell (3, 4): the drop snaps to that cell.
+        dx = table.columnViewportPosition(4) + 3 - overlay.x()
+        dy = table.rowViewportPosition(3) + 3 - overlay.y()
+        g0 = overlay.mapToGlobal(QPoint(20, 20))
+        g1 = g0 + QPoint(dx, dy)
+        _send_mouse(overlay, QEvent.Type.MouseButtonPress, g0, _LEFT, _LEFT)
+        _send_mouse(overlay, QEvent.Type.MouseMove, g1, _NONE, _LEFT)
+        # Live move: the widget already follows the cursor before mouse-up…
+        assert overlay.pos().x() == table.columnViewportPosition(4) + 3
+        assert chart.anchor == (0, 2)            # …but the model is untouched
+        _send_mouse(overlay, QEvent.Type.MouseButtonRelease, g1, _LEFT, _NONE)
+        # Mouse-up commits pixels -> cell anchor and re-pins onto the cell.
+        assert chart.anchor == (3, 4)
+        assert overlay.pos().x() == table.columnViewportPosition(4)
+        assert overlay.pos().y() == table.rowViewportPosition(3)
+        assert win._doc.dirty                    # a move marks the doc modified
+
+    def test_move_is_one_undo_step(self, win):
+        chart, overlay = self._chart_and_overlay(win)
+        table = win._table
+        dx = table.columnViewportPosition(5) + 2 - overlay.x()
+        _drag(overlay, (20, 20), (dx, 2))
+        assert win._doc.workbook.sheet.charts[0].anchor == (0, 5)
+        win.undo_edit()
+        assert win._doc.workbook.sheet.charts[0].anchor == (0, 2)
+        win.redo_edit()
+        assert win._doc.workbook.sheet.charts[0].anchor == (0, 5)
+
+    def test_resize_commits_size_and_undoes(self, win):
+        chart, overlay = self._chart_and_overlay(win)
+        win._doc.dirty = False
+        _drag(overlay, (overlay.width() - 4, overlay.height() - 4), (60, 40))
+        assert (chart.width, chart.height) == (380, 240)
+        assert (overlay.width(), overlay.height()) == (380, 240)
+        assert chart.anchor == (0, 2)            # a resize never moves the anchor
+        assert win._doc.dirty
+        win.undo_edit()
+        chart = win._doc.workbook.sheet.charts[0]
+        assert (chart.width, chart.height) == (320, 200)
+
+    def test_resize_respects_minimum(self, win):
+        chart, overlay = self._chart_and_overlay(win)
+        from abax.gui.chart_overlay import MIN_HEIGHT, MIN_WIDTH
+
+        _drag(overlay, (overlay.width() - 4, overlay.height() - 4), (-1000, -1000))
+        assert (chart.width, chart.height) == (MIN_WIDTH, MIN_HEIGHT) == (80, 60)
+        assert (overlay.width(), overlay.height()) == (MIN_WIDTH, MIN_HEIGHT)
+
+    def test_drag_leaves_grid_selection_alone(self, win):
+        chart, overlay = self._chart_and_overlay(win)
+        table = win._table
+        _select(win, 1, 0, 3, 0)
+        table.setCurrentCell(1, 0)
+        snapshot = lambda: (  # noqa: E731 - tiny local closure
+            table.currentRow(), table.currentColumn(),
+            [(r.topRow(), r.leftColumn(), r.bottomRow(), r.rightColumn())
+             for r in table.selectedRanges()])
+        before = snapshot()
+        _drag(overlay, (15, 15), (40, 25))       # move…
+        _drag(overlay, (overlay.width() - 4, overlay.height() - 4), (30, 20))  # …resize
+        assert snapshot() == before
+
+    def test_plain_click_commits_nothing(self, win):
+        chart, overlay = self._chart_and_overlay(win)
+        labels_before = win._doc.undo_history()[0]
+        win._doc.dirty = False
+        _drag(overlay, (15, 15), (0, 0))         # press + release, no motion
+        assert chart.anchor == (0, 2)
+        assert not win._doc.dirty
+        assert win._doc.undo_history()[0] == labels_before
+
+    def test_cursor_feedback_and_handle_paint(self, win):
+        chart, overlay = self._chart_and_overlay(win)
+        _hover(overlay, (15, 15))
+        assert overlay.cursor().shape() == Qt.CursorShape.SizeAllCursor
+        _hover(overlay, (overlay.width() - 3, overlay.height() - 3))
+        assert overlay.cursor().shape() == Qt.CursorShape.SizeFDiagCursor
+        overlay._hover = True
+        overlay.repaint()                        # handle-paint path must not raise
+
+    def test_geometry_round_trips_through_native_save(self, win, tmp_path):
+        chart, overlay = self._chart_and_overlay(win)
+        table = win._table
+        dx = table.columnViewportPosition(4) + 3 - overlay.x()
+        dy = table.rowViewportPosition(2) + 3 - overlay.y()
+        _drag(overlay, (20, 20), (dx, dy))       # move to (2, 4)
+        _drag(overlay, (overlay.width() - 4, overlay.height() - 4), (60, 40))
+        assert win._doc.dirty
+        path = tmp_path / "book.abax"
+        win._doc.save(path)
+        assert not win._doc.dirty
+
+        from abax.core.workbook import Workbook
+
+        loaded = Workbook.load_json(path).sheet.charts[0]
+        assert loaded.anchor == chart.anchor == (2, 4)
+        assert (loaded.width, loaded.height) == (chart.width, chart.height) \
+               == (380, 240)
 
 
 class TestBackendChooser:

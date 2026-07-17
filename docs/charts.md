@@ -36,7 +36,10 @@ The objects live in the `sheet.charts` list. On save they become a per-sheet
 `charts` key in the envelope — omitted when the list is empty, so a plain
 grid's file is unchanged, and older v1/v2 files simply load with no charts.
 Only the native format carries chart objects: exporting to `.xlsx`, CSV, or
-any other format writes the *data*, not the charts.
+any other format writes the *data*, not the charts. In the GUI, `anchor` and
+`width`/`height` are also set directly with the mouse — drag a chart to move
+it, drag its corner handle to resize (see
+[the GUI guide](gui-guide.md#embedded-charts)).
 
 Three options are recognised (anything else is ignored, so an option written
 by a newer abax never breaks an older one):
