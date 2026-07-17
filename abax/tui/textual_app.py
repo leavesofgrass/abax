@@ -54,6 +54,46 @@ _HEX = {
         "lcd": "#cdd6f4", "label": "#a78bfa", "dim": "#6c7086",
         "accent": "#7c3aed", "banner": "#c4b5fd", "cursor": "#7c3aed",
     },
+    # From the GUI presets in abax/gui/theming.py (bg_primary/bg_secondary/
+    # fg_primary/fg_secondary/accent); label and banner are lighter tints of the
+    # accent family so headers and overlay titles read distinct from cell text.
+    "solarized": {                             # Solarized Dark (GUI SOLARIZED)
+        "bg": "#002b36", "panel": "#073642",
+        "lcd": "#93a1a1", "label": "#6bb2e0", "dim": "#586e75",
+        "accent": "#268bd2", "banner": "#a5d2ee", "cursor": "#268bd2",
+    },
+    "nord": {                                  # GUI NORD
+        "bg": "#2e3440", "panel": "#272b35",
+        "lcd": "#d8dee9", "label": "#a8d3de", "dim": "#7b88a1",
+        "accent": "#88c0d0", "banner": "#c9e6ed", "cursor": "#88c0d0",
+    },
+    "dark_one": {                              # Atom/One Dark (GUI DARK_ONE)
+        "bg": "#282c34", "panel": "#21252b",
+        "lcd": "#abb2bf", "label": "#8ec7f4", "dim": "#5c6370",
+        "accent": "#61afef", "banner": "#bcdef9", "cursor": "#61afef",
+    },
+    "crt_green": {                             # P1 green phosphor (GUI CRT_GREEN)
+        "bg": "#0a120a", "panel": "#050805",
+        "lcd": "#33ff66", "label": "#a6ffa6", "dim": "#1aa31a",
+        "accent": "#7dff7d", "banner": "#ceffce", "cursor": "#7dff7d",
+    },
+    "crt_amber": {                             # P3 amber phosphor (GUI CRT_AMBER)
+        "bg": "#140d00", "panel": "#0a0600",
+        "lcd": "#ffb000", "label": "#ffdf8f", "dim": "#b37a00",
+        "accent": "#ffd060", "banner": "#ffedbd", "cursor": "#ffd060",
+    },
+    # No GUI preset for these two: dark bases designed around their xterm-256
+    # role colours in abax/tui/themes.py.
+    "hacker": {                                # vivid green on near-black
+        "bg": "#0a0f0a", "panel": "#050a05",
+        "lcd": "#00ff41", "label": "#5cff8a", "dim": "#0e8f2e",
+        "accent": "#87ff00", "banner": "#a0ffc0", "cursor": "#00ff41",
+    },
+    "phosphor": {                              # amber terminal on near-black
+        "bg": "#0f0a05", "panel": "#0a0703",
+        "lcd": "#ffaf00", "label": "#ffc45e", "dim": "#8f6a1f",
+        "accent": "#ffd700", "banner": "#ffe08a", "cursor": "#ffaf00",
+    },
 }
 
 
@@ -76,12 +116,22 @@ def _cursor_style(theme) -> str:
     return f"color({theme.color('cursor', '256')}) reverse"
 
 
+def _luma(hexc: str) -> float:
+    """Perceptual luminance (0–255) of a ``#rrggbb`` string — used to pick a
+    readable text colour to paint over an accent-coloured block."""
+    r, g, b = int(hexc[1:3], 16), int(hexc[3:5], 16), int(hexc[5:7], 16)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
 def _selection_style(theme) -> str:
-    """A visual-selection cell — light text on the accent violet (truecolor) or a
-    reversed accent (256)."""
+    """A visual-selection cell — text on the accent block (truecolor) or a
+    reversed accent (256). Dark accents (galaxy's violet) carry light text;
+    bright accents (nord's cyan, the CRT greens/ambers) carry the dark bg so
+    the selection stays legible."""
     pal = _HEX.get(theme.name)
     if pal:
-        return f"{pal['lcd']} on {pal['accent']}"
+        fg = pal["bg"] if _luma(pal["accent"]) > 110 else pal["lcd"]
+        return f"{fg} on {pal['accent']}"
     return f"color({theme.color('accent', '256')}) reverse"
 
 

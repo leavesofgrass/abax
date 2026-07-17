@@ -9,6 +9,7 @@ and the live app is exercised through Textual's ``run_test`` Pilot (run under
 from __future__ import annotations
 
 import asyncio
+import re
 
 import pytest
 
@@ -23,7 +24,9 @@ from abax.tui.textual_app import (  # noqa: E402
     render_grid,
     render_overlay,
     status_text,
+    theme_surface,
 )
+from abax.tui.themes import THEMES  # noqa: E402
 
 
 def _cmd(ed, line):
@@ -183,25 +186,47 @@ def _styles(text):
 
 def test_render_grid_applies_theme_and_cursor_style():
     ed = _editor()
-    ed.theme_name = "hacker"                  # green theme -> color(46) for lcd
+    ed.theme_name = "mono"                    # palette-free theme -> color(N) path
     text = render_grid(ed, 80, 24)
     styles = _styles(text)
     assert "reverse" in styles                # the cursor cell
-    assert "color(" in styles                 # theme role colours applied
+    assert "color(" in styles                 # 256 fallback role colours applied
 
 
 def test_galaxy_uses_truecolor_purple_surface():
-    from abax.tui.textual_app import _cursor_style, _role_style, theme_surface
-    from abax.tui.themes import THEMES
+    from abax.tui.textual_app import _cursor_style, _role_style
 
     g = THEMES["galaxy"]
     assert _role_style(g, "label") == "#a78bfa"        # violet headers (not pale)
     surf = theme_surface(g)
     assert surf["bg"] == "#1e1e2e" and surf["panel"] == "#181825"
     assert "#7c3aed" in _cursor_style(g)               # violet cursor block
-    # A 256-only theme keeps the palette-index path and no truecolor surface.
-    assert _role_style(THEMES["hacker"], "lcd").startswith("color(")
-    assert theme_surface(THEMES["hacker"]) is None
+    # The palette-free theme keeps the 256-index path and no truecolor surface.
+    assert _role_style(THEMES["mono"], "lcd").startswith("color(")
+    assert theme_surface(THEMES["mono"]) is None
+
+
+_HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
+
+@pytest.mark.parametrize("name", [n for n in THEMES if n != "mono"])
+def test_every_palette_theme_has_truecolor_surface_and_renders(name):
+    surf = theme_surface(THEMES[name])
+    assert isinstance(surf, dict)
+    for key in ("bg", "panel", "fg", "accent"):
+        assert _HEX_RE.match(surf[key]), f"{name}.{key} = {surf.get(key)!r}"
+    ed = _editor()
+    ed.theme_name = name
+    text = render_grid(ed, 80, 24)
+    from rich.text import Text
+
+    assert isinstance(text, Text)
+    assert "10" in text.plain                  # cell values still painted
+    assert " on #" in _styles(text)            # truecolor cursor block, not reverse
+
+
+def test_mono_theme_has_no_truecolor_surface():
+    assert theme_surface(THEMES["mono"]) is None
 
 
 def test_render_grid_uses_conditional_format_colors(monkeypatch):
