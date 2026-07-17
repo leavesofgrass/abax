@@ -36,13 +36,12 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from abax.core.evaluator import evaluate  # noqa: E402
 from abax.core.io import csv_io  # noqa: E402
 from abax.core.parser import parse  # noqa: E402
-from abax.core.tokenizer import tokenize  # noqa: E402
-from abax.core.evaluator import evaluate  # noqa: E402
-from abax.core.workbook import Workbook  # noqa: E402
 from abax.core.reference import to_a1  # noqa: E402
-
+from abax.core.tokenizer import tokenize  # noqa: E402
+from abax.core.workbook import Workbook  # noqa: E402
 
 # --------------------------------------------------------------------------
 # small helpers

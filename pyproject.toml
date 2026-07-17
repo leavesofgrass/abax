@@ -119,6 +119,10 @@ relative-imports-order = "closest-to-furthest"
 # tui/__init__ re-exports the package's public surface (incl. a few private
 # helpers the tests import); intentional re-exports, not unused.
 "abax/tui/__init__.py" = ["F401"]
+# Macro scripts run via exec() with the macro DSL injected into their namespace
+# at runtime (`macro`, `register_function`, `numbers`, `as_number`, `text`,
+# `CellError`, ...), so those names are defined — just not visibly to ruff.
+"macros/*" = ["F821"]
 
 # ── Coverage (pytest-cov / coverage.py) ─────────────────────────────────────
 # Scoped to the engine (abax/core) — the stdlib-only calculation core that every
