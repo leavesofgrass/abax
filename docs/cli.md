@@ -200,6 +200,80 @@ $ abax get budget.abax C10
 | `file` | Spreadsheet to open. |
 | `ref` | An A1-style reference, e.g. `B7`. |
 
+### `fetch url [--sheet NAME]` — print a data URL as a table
+
+`view` for a URL: download `url` to a temporary file, open it with the same
+extension-dispatch loader every other command uses, and print the sheet as a
+plain-text table. Only `http`, `https`, and `ftp` are accepted — `file://` and
+other schemes are refused so a stray URL can never quietly read a local path.
+The transfer has a 30-second timeout and is abandoned past 100 MB.
+
+The format comes from the URL path's extension when it is one abax recognises
+(`.csv`, `.tsv`, `.json`, `.jsonl`, `.xlsx`, `.parquet`, `.ods`, `.md`, `.xml`,
+`.adif`, `.abax`, …) and otherwise from the response's `Content-Type` (`text/csv`,
+`application/json`, …; any other `text/*` is read as CSV). The extension wins when
+both are present — servers mislabel MIME types far more often than people mistype
+a filename.
+
+```bash
+$ abax fetch https://example.org/sunspots.csv
+  | A    | B
+----------------
+1 | Year | Mean
+2 | 2023 | 123.3
+3 | 2024 | 154.8
+4 | 2025 | 138.1
+```
+
+| Argument / flag | Description |
+|-----------------|-------------|
+| `url` | `http`/`https`/`ftp` URL of a data file. |
+| `--sheet NAME` | Which sheet to print — only meaningful for multi-sheet formats such as `.xlsx`. Defaults to the downloaded workbook's active sheet (the first one). |
+
+Only the rendered table reaches standard output — but the download itself lands in
+a temp file that abax does not clean up, so the fetched data stays on disk after
+the command exits. To save the data deliberately, download it yourself and run
+`convert`.
+
+Exit codes: **0** = table printed, **2** = `--sheet` names a sheet the downloaded
+workbook does not have, **4** = the download failed or the file type is not one
+abax can open. A plain web page is the usual **4** — an HTML `<table>` is imported
+through the GUI's *File → Import web table…* instead (see
+[gui-guide.md](gui-guide.md)).
+
+### `sql db query` — query a SQLite database
+
+Run a read-only SQL query against a SQLite file and print the result set as an
+aligned table. It uses the standard library's `sqlite3` driver — no optional
+dependency — through the same `engine.dbapi` reader the GUI's database import
+uses, so cells arrive formatted the way abax formats them: SQL `NULL` becomes an
+empty cell and whole floats collapse to integers. It is a reader; the connection
+is closed without a commit.
+
+```bash
+$ abax sql inventory.db "SELECT name, qty FROM stock ORDER BY qty DESC"
+name    qty
+------  ---
+pears   8
+apples  5
+```
+
+| Argument | Description |
+|----------|-------------|
+| `db` | Path to a `.db` / `.sqlite` file. |
+| `query` | The SQL `SELECT` to run — quote it as a single shell argument. |
+
+The query text is handed to SQLite verbatim, with no parameter binding on this
+path, so build it only from values you trust. Note that `sqlite3` *creates* a
+missing database file rather than refusing it, so a typo in `db` normally surfaces
+as a query error (`no such table: …`) rather than as a failure to open. PostgreSQL
+and MySQL are not reachable from this subcommand — use *File → Import from
+database…* in the GUI, which needs the optional `database` feature.
+
+Exit codes: **0** = the result set was printed (a query matching no rows prints
+just the header line and its rule), **4** = the database could not be opened or
+the query failed; the message goes to standard error.
+
 ### `diff old new` — cell-level workbook diff
 
 Compare two `.abax`/JSON workbooks and print the per-sheet cell differences —
@@ -256,8 +330,11 @@ picking features in the first-run chooser.
 ```bash
 $ abax deps
 Attempted 5 package(s): msgspec, textual, nbformat, anywidget, pyte
-Optional dependencies present: 24/24
+Optional dependencies present: 29/29
 ```
+
+(The denominator is the size of the full-fat set, which is platform-dependent: 29
+on Windows, 28 elsewhere, where the `pywinpty` ConPTY backend isn't needed.)
 
 On first GUI launch abax offers these through a feature chooser — **nothing is
 installed unless you choose it** (see
@@ -456,9 +533,9 @@ outputs and the summary line notes how many cells raised. See
 | Code | Meaning |
 |------|---------|
 | `0` | Success. |
-| `2` | `view`: the requested `--sheet` does not exist. |
+| `2` | `view` / `fetch`: the requested `--sheet` does not exist. |
 | `3` | `convert`: the conversion failed (e.g. a missing optional dependency). |
-| `4` | `macro run` / `notebook run`: the macro/notebook was not found or failed. |
+| `4` | `macro run` / `notebook run`: the macro/notebook was not found or failed. `fetch`: the download failed or the file type is not one abax can open. `sql`: the database could not be opened or the query failed. |
 
 ## See also
 

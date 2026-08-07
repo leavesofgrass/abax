@@ -55,12 +55,12 @@ If you have `just` installed, `just install` runs the full developer setup for y
 |-------|----------|-----------|
 | `gui` | `PySide6-Essentials` (LGPL-3.0) | The Qt desktop GUI — recommended default binding (no QtWebEngine) |
 | `gui-pyqt` | `PyQt6` (GPL/commercial) | An alternative Qt binding; the GUI runs unchanged on either |
-| `tui` | `textual`, `rich` | Richer terminal UI support |
+| `tui` | `textual`, `windows-curses` (Windows only) | Richer terminal UI support — `windows-curses` is what makes the curses TUI run on Windows |
 | `excel` | `openpyxl` | Reading and writing `.xlsx` workbooks |
 | `fast-io` | `msgspec`, `platformdirs` | Faster JSON and OS-correct config/data paths |
-| `terminal` | `pyte` | A true PTY terminal panel (with `pywinpty` on Windows) |
+| `terminal` | `pyte` | A true PTY terminal panel. On Windows the ConPTY backend also needs `pywinpty`, which **no pip extra installs** (not even `all`) — it comes from `abax deps` or the first-launch feature chooser |
 | `parquet` | `pyarrow` | Parquet / Feather I/O |
-| `science` | numpy, pandas, scipy, scikit-learn, statsmodels, lifelines, pingouin, scikit-survival | The data-science / (bio)statistics stack behind the analysis, ML, and graphing tools |
+| `science` | numpy, pandas, scipy, pyarrow, scikit-learn, statsmodels, lifelines, pingouin, scikit-survival | The data-science / (bio)statistics stack behind the analysis, ML, and graphing tools |
 | `bayes` | pymc | Bayesian / probabilistic programming — split out because it's heavy (pytensor + arviz + numba/llvmlite, ~150 MB) |
 | `jupyter` | `nbformat`, `ipykernel`, `anywidget` | Notebook validation, the abax Jupyter kernel, and the editable-sheet widget ([jupyter.md](jupyter.md)) |
 | `sevenzip` | `py7zr` | Create / extract `.7z` archives in the file manager |
@@ -68,8 +68,12 @@ If you have `just` installed, `just install` runs the full developer setup for y
 | `stats-io` | `pyreadstat` | Reading Stata `.dta` / SPSS `.sav` files |
 | `hdf5` | `h5py` | Reading HDF5 `.h5` / `.hdf5` files |
 | `nec` | `PyNEC` | Reference NEC-2 antenna solver (cross-checks the built-in MoM) |
+| `database` | `psycopg[binary]`, `PyMySQL` | Reading tables from a live SQL database — DB-API 2.0 drivers for PostgreSQL and MySQL |
+| `satellite` | `sgp4` | SGP4/TLE satellite pass prediction ([rf-toolkit.md](rf-toolkit.md)) |
+| `tts` | `pyttsx3` | Offline text-to-speech (accessibility) — powers `speak_on_move` |
+| `restricted` | `RestrictedPython` | Compile-time guards for the `restricted` Python-console isolation tier (the AST allowlist runs without it) |
 | **`thin`** | `gui` + `tui` + `excel` + `fast-io` + `terminal` + `sevenzip` | A lean desktop install — every lightweight convenience, none of the heavy data libraries |
-| **`all`** | `thin` + `charts` + `parquet` + `science` + `jupyter` + `bayes` + `stats-io` + `hdf5` + `nec` | One-shot install of everything abax can use (the full-fat set) |
+| **`all`** | `thin` + `charts` + `parquet` + `science` + `jupyter` + `bayes` + `stats-io` + `database` + `hdf5` + `nec` + `satellite` + `tts` + `restricted` | One-shot install of everything abax can use (the full-fat set) |
 
 > **You choose on first launch.** You don't have to pick extras at install time:
 > install just `gui`, and the first time you open abax it shows a short **chooser**
@@ -77,7 +81,7 @@ If you have `just` installed, `just install` runs the full developer setup for y
 > everyday conveniences, ~25 MB) and **All** (everything, recommended) — plus a
 > checkbox per feature so you can pick your own mix. Your choice is fetched in the
 > background (best-effort, non-blocking) and remembered. Re-open it any time from
-> *Tools → Install optional features*. In the TUI/headless, `abax deps` installs
+> *Tools → Install optional features now*. In the TUI/headless, `abax deps` installs
 > everything, or `pip install abax[science]` (etc.) picks specific extras. Opt out
 > of prompting/auto-install entirely with `auto_install: false` or
 > `ABAX_NO_AUTOINSTALL=1`. See [Configuration → Auto-install](configuration.md#auto-install).
@@ -133,12 +137,19 @@ Running abax with **no subcommand** opens the Qt GUI:
 
 ```bash
 abax                 # opens the GUI on an empty workbook
-abax data.csv        # the bare-file form is not a subcommand — use `gui`
+abax data.csv        # a bare file path opens it in the GUI (same as `abax gui data.csv`)
 abax gui             # explicitly open the GUI, empty
 abax gui data.csv    # open the GUI on a file
 ```
 
-If Qt is not installed, abax falls back automatically: it opens the TUI when standard output is a terminal, and otherwise prints help. To open the GUI on a specific file, use the `gui` subcommand with a path.
+A leading argument that is neither a flag nor a real subcommand is treated as a file path and handed to the GUI, so `abax data.csv` is shorthand for `abax gui data.csv`; flags and subcommands pass through untouched.
+
+If Qt is not installed, the fallback applies to `abax` with **no arguments**: it
+opens the TUI when standard output is a terminal, and otherwise prints help. An
+*explicit* GUI invocation does not fall back — `abax gui`, `abax gui data.csv`,
+and the bare-file shorthand `abax data.csv` (which is rewritten to `abax gui
+data.csv`) all report the missing Qt binding, point you at
+`pip install abax[gui]` or `abax tui`, and exit **1**.
 
 ### The terminal UI
 
