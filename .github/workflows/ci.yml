@@ -1,8 +1,11 @@
 name: CI
 
-# Runs on every push and pull request. Three concerns, three jobs:
+# Runs on every push and pull request. Four concerns, four jobs:
 #   check    — lint + test + pyz build across the OS x Python matrix (mirrors
 #              `just check`).
+#   science  — one extra runner that installs the heavy data-science extras and
+#              runs the suite, so the paths the `thin` matrix leaves
+#              importorskip'd are covered on every push, not only at tag time.
 #   coverage — one suite run measuring abax/core + abax/engine; ratchets both
 #              (core floor 81, engine floor 57) on a single runner.
 #   bench    — recalc throughput + memory regression gate vs a committed baseline.
@@ -75,6 +78,47 @@ jobs:
         run: just check
         env:
           QT_QPA_PLATFORM: offscreen
+
+  # ── Science-extras suite (the half the thin matrix silently skips) ─────────
+  # The `check` matrix installs `[dev,thin]`, and `thin` deliberately contains
+  # NONE of the heavy data-science libraries — so eight test modules and ~25
+  # `pytest.importorskip` gates (numpy, pandas, scipy, pyarrow, matplotlib via
+  # pingouin -> seaborn, lifelines) skip silently on all 12 cells of every run.
+  # Until this job the science stack was installed only by release.yml, i.e.
+  # first exercised at tag time: for a project whose headline feature is
+  # statistics and data science, that half was effectively untested in CI.
+  # The fix is deliberately narrow — ONE cell (ubuntu-latest / 3.13), because
+  # the stack is a large download and the code behind those gates is
+  # platform-independent pure Python. It does not widen the 12-cell matrix.
+  #
+  # Still skipped here, their libs living in extras this job doesn't install:
+  # h5py (`hdf5`), pyreadstat (`stats-io`), sgp4 (`satellite`). Widen the
+  # install below if the CI download budget ever allows.
+  science:
+    name: science extras (numpy/pandas/scipy suite the matrix skips)
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # PySide6 6.11 needs libEGL/libGL even offscreen (see the check job).
+      - name: Install headless Qt system libs (Linux)
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1
+
+      - name: Install project (dev + thin + science extras)
+        run: python -m pip install -e ".[dev,thin,science]"
+
+      # Same headless-Qt invocation as the check/coverage jobs: xvfb-run for the
+      # QApplication the GUI tests build, offscreen platform from the job env.
+      - name: Run the full suite (science import gates open)
+        run: xvfb-run -a python -m pytest -n auto
 
   # ── Coverage ratchet on abax/core (+ engine, reported) ─────────────────────
   # A floor, not an aspiration: the core floor is set just under the current
