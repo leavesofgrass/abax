@@ -10,6 +10,39 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- **Documentation corrected against 0.1.18 source** — the getting-started
+  guide claimed the bare-file form (`abax data.csv`) was unsupported and told
+  readers to use `gui`; it has worked all along (a leading non-flag,
+  non-subcommand argument is rewritten to `gui <path>`). The neighbouring
+  "falls back to the TUI if Qt is missing" note is now scoped to `abax` with
+  no arguments — an explicit GUI invocation reports the missing binding and
+  exits 1. The extras table gained the four extras it omitted (`database`,
+  `satellite`, `tts`, `restricted`, all part of `all`), lists
+  `windows-curses` rather than the merely transitive `rich` for `tui`, adds
+  `pyarrow` to `science`, and no longer implies `pywinpty` ships in a pip
+  extra. The CLI guide's dependency-count sample and the Tools menu label
+  were also stale.
+
+### Added
+- **`fetch` and `sql` are documented** — the CLI guide claimed to cover every
+  subcommand but had no section for either, while the headless-CLI example
+  already pointed readers there for exactly those two. Both are now written
+  up from their parsers and handlers, and the exit-code table covers them.
+  Note that `fetch` leaves its downloaded temp file on disk; the guide now
+  says so.
+- **Dedicated tests for `settings`, `diagnostics`, `workers`, and the Windows
+  sandbox** (133 tests). `sandbox_windows` was the notable gap — Linux and
+  macOS each had a dedicated file, the AppContainer tier did not. Its tests
+  surface subprocess stderr and exit codes so the known intermittent
+  "confined child exits immediately" failure is finally diagnosable from a
+  log.
+- **CI job covering the science extras** — the twelve-cell matrix installs
+  `.[dev,thin]`, so every test gated on numpy/pandas/scipy/pyarrow/matplotlib/
+  h5py/pyreadstat/sgp4 skipped silently on each push, leaving that half
+  validated only at release time. One `ubuntu-latest` / Python 3.13 job now
+  installs `.[dev,thin,science]` and runs the suite.
+
 ## [0.1.18] — 2026-07-17
 
 ### Added
