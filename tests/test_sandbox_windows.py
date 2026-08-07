@@ -54,7 +54,14 @@ def _ace_lines(path: str) -> "set[str]":
     Parsed out of ``icacls`` rather than a name lookup so the comparison is
     locale-independent: we only ever compare one snapshot against another.
     """
-    r = subprocess.run(["icacls", path], capture_output=True, text=True, timeout=60)
+    # icacls writes in the console OEM codepage, not UTF-8 — and ci.yml sets
+    # PYTHONUTF8=1 workflow-wide, which would make a bare text=True decode
+    # strict UTF-8 and raise UnicodeDecodeError on the first non-ASCII byte in a
+    # principal name. Decode as OEM, and never let an odd byte fail the run:
+    # every comparison here is snapshot-against-snapshot, so a replaced
+    # character is stable on both sides.
+    r = subprocess.run(["icacls", path], capture_output=True, text=True,
+                       encoding="oem", errors="replace", timeout=60)
     assert r.returncode == 0, f"icacls {path} failed: {r.stdout}{r.stderr}"
     aces = set()
     for raw in r.stdout.splitlines():
@@ -64,6 +71,25 @@ def _ace_lines(path: str) -> "set[str]":
         if line.endswith(")") and ":" in line:   # drops the "N files" summary
             aces.add(line)
     return aces
+
+
+def _explicit_aces(path: str) -> "set[str]":
+    """The *explicit* ACEs of *path* — inherited ones (icacls flag ``(I)``) removed.
+
+    Grant/revoke only ever add and remove explicit ACEs, so this is the set the
+    sandbox actually owns, and the only one a before/after comparison may
+    assume is stable.
+
+    The full ACL is not stable: writing the first explicit ACE onto a directory
+    that had none makes Windows materialise the inherited ACEs into the DACL, so
+    ``_ace_lines`` legitimately grows by entries nobody added. That never shows
+    up on a developer box whose temp directory already carries explicit ACEs,
+    but it does on a hosted CI runner — where it read as "the grant added four
+    ACEs, not one" and failed every Windows cell. Filtering to explicit ACEs
+    tests the promise more precisely, not less: an inherited ACE appearing in
+    the listing is a representation change, never a grant.
+    """
+    return {a for a in _ace_lines(path) if "(I)" not in a.split(":", 1)[-1]}
 
 
 class _FakeProc:
@@ -269,8 +295,12 @@ def test_needed_read_dirs_covers_the_interpreter_prefix():
     # Without read+execute on the base prefix the confined Python cannot even
     # start, so some granted dir must be the prefix or an ancestor of it.
     dirs = sw._needed_read_dirs()
-    prefix = os.path.abspath(sys.base_prefix)
-    assert any(prefix == d or prefix.startswith(d + os.sep) for d in dirs), dirs
+    # normcase both sides: Windows paths are case-insensitive, and sys.prefix
+    # and dirname(sys.executable) need not agree on casing on every machine.
+    prefix = os.path.normcase(os.path.abspath(sys.base_prefix))
+    assert any(prefix == os.path.normcase(d)
+               or prefix.startswith(os.path.normcase(d) + os.sep)
+               for d in dirs), dirs
 
 
 def test_needed_read_dirs_drops_nested_blank_and_missing_entries(tmp_path):
@@ -349,28 +379,35 @@ def test_grant_is_additive_and_revoke_reverts_it_exactly(monkeypatch, tmp_path):
     # Keep the real interpreter prefix out of it — this test is about the ACEs.
     monkeypatch.setattr(sw, "_needed_read_dirs", lambda: [str(readable)])
 
-    before_scratch = _ace_lines(str(scratch))
-    before_read = _ace_lines(str(readable))
+    before_scratch = _explicit_aces(str(scratch))
+    before_read = _explicit_aces(str(readable))
+    # The full ACL too: nothing that already granted access may disappear.
+    all_before_scratch = _ace_lines(str(scratch))
+    all_before_read = _ace_lines(str(readable))
 
     granted = sw._grant_container_access(str(scratch))
     try:
         assert granted == [str(scratch), str(readable)]
 
-        added_scratch = _ace_lines(str(scratch)) - before_scratch
-        added_read = _ace_lines(str(readable)) - before_read
+        added_scratch = _explicit_aces(str(scratch)) - before_scratch
+        added_read = _explicit_aces(str(readable)) - before_read
         # Exactly one new ACE per path, and nothing pre-existing was disturbed.
         assert len(added_scratch) == 1, added_scratch
         assert len(added_read) == 1, added_read
-        assert before_scratch <= _ace_lines(str(scratch))
-        assert before_read <= _ace_lines(str(readable))
+        assert all_before_scratch <= _ace_lines(str(scratch))
+        assert all_before_read <= _ace_lines(str(readable))
         # Scratch is the one writable place; imports are read+execute only.
         assert added_scratch.pop().endswith(":(OI)(CI)(M)")
         assert added_read.pop().endswith(":(OI)(CI)(RX)")
     finally:
         sw._revoke_container_access(granted)
 
-    assert _ace_lines(str(scratch)) == before_scratch
-    assert _ace_lines(str(readable)) == before_read
+    # Our ACEs are gone...
+    assert _explicit_aces(str(scratch)) == before_scratch
+    assert _explicit_aces(str(readable)) == before_read
+    # ...and we destroyed nothing on the way out.
+    assert all_before_scratch <= _ace_lines(str(scratch))
+    assert all_before_read <= _ace_lines(str(readable))
 
 
 def test_grant_omits_paths_icacls_refused(monkeypatch, tmp_path):
@@ -485,10 +522,11 @@ def test_cleanup_process_really_removes_the_acl_grant(monkeypatch, tmp_path):
     scratch.mkdir()
     monkeypatch.setattr(sw, "_needed_read_dirs", lambda: [])
 
-    before = _ace_lines(str(scratch))
+    before = _explicit_aces(str(scratch))
+    all_before = _ace_lines(str(scratch))
     granted = sw._grant_container_access(str(scratch))
     assert granted == [str(scratch)]
-    assert _ace_lines(str(scratch)) != before
+    assert _explicit_aces(str(scratch)) != before
 
     fake = _FakeCtypes()
     proc = _FakeProc()
@@ -497,7 +535,8 @@ def test_cleanup_process_really_removes_the_acl_grant(monkeypatch, tmp_path):
 
     sw.cleanup_process(proc)
 
-    assert _ace_lines(str(scratch)) == before
+    assert _explicit_aces(str(scratch)) == before
+    assert all_before <= _ace_lines(str(scratch))
     assert fake.deleted == ["abax-sandbox-test"]
     assert proc._sandbox_cleanup is None
 
@@ -551,7 +590,7 @@ def test_cleanup_process_survives_a_failing_profile_delete(monkeypatch):
 # --------------------------------------------------------------------------- #
 
 
-def test_the_ctypes_plumbing_is_not_imported_until_a_worker_spawns():
+def test_the_ctypes_plumbing_is_not_imported_until_a_worker_spawns(tmp_path):
     """``_winsandbox_ctypes`` stays unloaded until a strict worker is launched.
 
     The settings UI and ``select_confinement`` touch this strategy on every
@@ -568,6 +607,12 @@ def test_the_ctypes_plumbing_is_not_imported_until_a_worker_spawns():
     )
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join([p for p in sys.path if p])
+    # conftest's abax_user_dirs redirect patches abax._runtime in *this*
+    # process; a child gets a fresh interpreter and would create the real
+    # %APPDATA%/%LOCALAPPDATA% abax dirs on import. Point them at tmp_path so
+    # the suite keeps its promise to stay out of the user's profile.
+    env["APPDATA"] = str(tmp_path / "roaming")
+    env["LOCALAPPDATA"] = str(tmp_path / "local")
     r = subprocess.run([sys.executable, "-c", prog], capture_output=True,
                        text=True, timeout=120, env=env)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -704,7 +749,7 @@ def confined_run(tmp_path_factory):
     scratch.mkdir()
     outside = base / "outside.txt"          # a sibling dir entry, never granted
 
-    baseline = _ace_lines(str(scratch))
+    baseline = _explicit_aces(str(scratch))
     rc, out, err = _spawn_confined(sw.confinement(), _PROBE, str(scratch), {
         "ABAX_PROBE_SCRATCH": str(scratch),
         "ABAX_PROBE_OUTSIDE": str(outside),
@@ -762,5 +807,5 @@ def test_e2e_worker_selftest_passes_inside_the_container(confined_run):
 def test_e2e_cleanup_reverts_the_scratch_grant(confined_run):
     # cleanup_process ran in _spawn_confined's finally; the machine must be back
     # exactly where it started.
-    assert _ace_lines(str(confined_run["scratch"])) == confined_run["baseline"], \
+    assert _explicit_aces(str(confined_run["scratch"])) == confined_run["baseline"], \
         "the AppContainer ACL grant leaked past cleanup"

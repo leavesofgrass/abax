@@ -346,7 +346,7 @@ class _Sink(QObject):
         self.progress.append(pct)
 
 
-def _run_on_thread(app, worker, sink, timeout_s: float = 10.0) -> None:
+def _run_on_thread(app, worker, sink, timeout_s: float = 30.0) -> None:
     """The spec §7 wiring: started→run, finished→quit, then an explicit join.
 
     Nothing here sleeps. ``done`` is set by a direct (in-worker-thread)
@@ -355,9 +355,22 @@ def _run_on_thread(app, worker, sink, timeout_s: float = 10.0) -> None:
     lives on the main thread, so its slot is invoked here), ``QThread.wait``
     joins the OS thread, and a final ``processEvents`` drains the payload
     signals the worker queued back to us.
+
+    The QThread is parented to the QApplication so C++ owns it. Left unparented
+    it would be a plain local, and dropping the last Python reference on return
+    would destroy the C++ object while ``worker`` — which outlives this call, so
+    the caller can assert on it — still carries thread affinity to it. That is a
+    dangling pointer whose consequences depend on PySide6's teardown ordering:
+    exactly the shape of the completer-popup double free that used to abort this
+    suite (see the 0.1.17 changelog). Parenting makes the lifetime explicit
+    instead of leaving it to garbage-collection order.
+
+    The timeout is a generous upper bound, not a synchronisation device — every
+    wait below is a real join, so a healthy run never approaches it. It is set
+    well above what the work needs so a loaded CI runner cannot fail on timing.
     """
     done = threading.Event()
-    thread = QThread()
+    thread = QThread(app)
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
     worker.finished.connect(thread.quit)

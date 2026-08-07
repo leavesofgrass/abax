@@ -117,8 +117,18 @@ jobs:
 
       # Same headless-Qt invocation as the check/coverage jobs: xvfb-run for the
       # QApplication the GUI tests build, offscreen platform from the job env.
+      #
+      # Serial on purpose — NOT `-n auto` like the other jobs. With the science
+      # stack imported, every xdist worker carries numpy + pandas + scipy +
+      # scikit-learn + statsmodels + matplotlib, and four of them on a 4-core
+      # runner exhaust it: the first run of this job died with ENOMEM
+      # ("Cannot allocate memory" spawning a child, and a termios .so that
+      # failed to map) in test_pyz, test_restricted_tier and test_ptyterm —
+      # every one of them a test that shells out to a subprocess, none of them
+      # a science failure. This job exists for signal, not speed, so it trades
+      # a few minutes for not being memory-flaky.
       - name: Run the full suite (science import gates open)
-        run: xvfb-run -a python -m pytest -n auto
+        run: xvfb-run -a python -m pytest
 
   # ── Coverage ratchet on abax/core (+ engine, reported) ─────────────────────
   # A floor, not an aspiration: the core floor is set just under the current
