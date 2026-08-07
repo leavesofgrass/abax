@@ -97,6 +97,10 @@ jobs:
   science:
     name: science extras (numpy/pandas/scipy suite the matrix skips)
     runs-on: ubuntu-latest
+    # A backstop, not an estimate: the suite takes minutes here. Without it a
+    # hung test holds the runner until GitHub's 6-hour ceiling — which is how
+    # this job's second run ended, burning six hours to report nothing.
+    timeout-minutes: 45
     env:
       QT_QPA_PLATFORM: offscreen
     steps:
@@ -127,8 +131,18 @@ jobs:
       # every one of them a test that shells out to a subprocess, none of them
       # a science failure. This job exists for signal, not speed, so it trades
       # a few minutes for not being memory-flaky.
+      #
+      # --timeout names the culprit. Serial running cured the ENOMEM but let a
+      # test that had been failing fast actually execute, and it hung: the job
+      # sat until GitHub's 6-hour ceiling killed it, reporting only "cancelled"
+      # with no test named, because stdout through a pipe is block-buffered and
+      # the last flushed line was far behind the hang. pytest-timeout (already
+      # in the dev extra) fails the test instead and dumps every thread's stack,
+      # so the next occurrence identifies itself. 300s is far above any healthy
+      # test here; timeout_method=thread works even when the hang is inside a
+      # blocking C call.
       - name: Run the full suite (science import gates open)
-        run: xvfb-run -a python -m pytest
+        run: xvfb-run -a python -m pytest --timeout=300 --timeout-method=thread
 
   # ── Coverage ratchet on abax/core (+ engine, reported) ─────────────────────
   # A floor, not an aspiration: the core floor is set just under the current
