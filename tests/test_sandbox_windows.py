@@ -504,7 +504,22 @@ def test_a_zipapp_already_inside_a_granted_directory_is_not_granted_twice(tmp_pa
     archive.write_bytes(b"PK\x05\x06" + b"\x00" * 18)
     scratch = tmp_path / "scratch"
     scratch.mkdir()
-    before = _explicit_aces(str(archive))
+
+    # Ask by SID, not by comparing ACLs.
+    #
+    # NOT `_explicit_aces(archive) == before`: granting an *inheritable*
+    # (OI)(CI) ACE on a directory triggers a propagation pass over its children,
+    # and that pass can rewrite a child's DACL — converting previously-explicit
+    # entries into inherited ones. So the child's explicit set legitimately
+    # changes across a parent grant/revoke on a runner whose temp files carry
+    # explicit ACEs, though not on a dev box whose temp files do not. Comparing
+    # whole ACLs across an operation is not an invariant Windows offers.
+    #
+    # NOT a name match either: "ALL APPLICATION PACKAGES" is localised, so a
+    # substring test would quietly match nothing on a non-English Windows and
+    # this test would pass by finding no ACE rather than by there being none.
+    # `_container_ace_present` matches the well-known SID.
+    assert sw._container_ace_present(str(archive)) is False   # none to begin with
 
     with pytest.MonkeyPatch.context() as mp:
         _as_a_zipapp(mp, archive, prefix)
@@ -515,7 +530,9 @@ def test_a_zipapp_already_inside_a_granted_directory_is_not_granted_twice(tmp_pa
         finally:
             sw._revoke_container_access(granted)
 
-    assert _explicit_aces(str(archive)) == before
+    # The archive never got an ACE of its own — the parent's inheritable one
+    # reached it — and the revoke left none behind.
+    assert sw._container_ace_present(str(archive)) is False
 
 
 # --------------------------------------------------------------------------- #
