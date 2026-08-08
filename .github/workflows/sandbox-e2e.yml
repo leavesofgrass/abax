@@ -1,57 +1,37 @@
-name: sandbox e2e probe
+name: sandbox e2e (hunt)
 
-# Windows sandbox end-to-end — OPT-IN, AND MAY FAIL BY DESIGN.
+# Repeat-runs the Windows AppContainer confinement tier on a hosted runner, to
+# hunt an INTERMITTENT failure. Not a gate — ci.yml's `check` matrix already runs
+# this tier on all four windows-latest cells on every push.
 #
-# WHAT THIS PROBE ALREADY ANSWERED. It was built to test one standing claim: that
-# a GitHub-hosted Windows runner cannot launch an AppContainer-confined child (it
-# "exits immediately"), which was why the whole end-to-end tier was skipped on
-# hosted runners. Two runs against windows-latest, identical both times, settled
-# it — 1 failed, 46 passed:
-#   * FALSE for AppContainer. All five direct-launcher tests
-#     (tests/test_sandbox_windows.py::test_e2e_*, which call sw.custom_spawn)
-#     PASSED, in about four seconds total. Confined code demonstrably could not
-#     write outside its scratch dir or open a socket on that runner. Those five
-#     are no longer gated anywhere: they now run on every push, in ci.yml's
-#     `check` matrix.
-#   * TRUE for ConsoleBridge. The one failure, both times, was
-#     tests/test_sandbox.py::test_windows_strict_worker_runs_and_confines —
-#     the only member of the tier that goes through
-#     abax.gui.console.console_bridge.ConsoleBridge rather than the launcher:
-#       AssertionError: {'output': '', 'error': 'the console process exited',
-#                        'crashed': True, ...}
-#     A real failure in one code path had been generalised into a claim about the
-#     platform, and that claim then suppressed five tests that would have passed
-#     all along.
+# History, because it explains why this file still exists. It began as a probe of
+# a standing claim: that a hosted Windows runner could not launch an
+# AppContainer-confined child. Two runs disproved it (#3) — the five
+# direct-launcher tests passed in about four seconds. The one that did fail
+# turned out to be a mundane device restriction: the confined worker opens
+# os.devnull at startup to keep stray prints out of the frame stream, and an
+# AppContainer denies `nul` (#6). With that fixed the whole tier passes here, the
+# gate was deleted, and the probe's original question is answered.
 #
-# WHAT IT IS FOR NOW. That ConsoleBridge test is the only thing still gated (the
-# `console_bridge_e2e` marker in tests/conftest.py), so this workflow is how you
-# run it on a hosted runner on demand: it sets ABAX_SANDBOX_E2E=1, the opt-in the
-# gate honours, and runs both sandbox files verbosely so the diagnostics land in
-# the log verbatim. Both files, not just the failing one — the five passing
-# test_e2e_* tests in the same run are the control that keeps the diagnosis
-# honest. A FAILURE HERE IS A RESULT, NOT A REGRESSION.
+# What it is for now is #9: a confined child that intermittently dies during
+# interpreter startup with `Failed to import encodings module` /
+# `init_fs_encoding: failed to get the Python codec of the filesystem encoding`.
+# Observed with every icacls grant returning 0, `unreachable` empty, and
+# /findsid confirming the ACE present — so it is NOT the silent-grant-failure
+# mechanism of #8, and a pre-launch check cannot see it. It resisted repetition
+# locally: once, then 15+ clean runs.
 #
-# It lives in its own file rather than as a job in ci.yml for two reasons, both
-# learned the hard way:
-#   * Run conclusion. A job that is expected to fail would drag ci.yml's whole
-#     run red on every commit carrying the marker — including the release
-#     ritual's fast-forward of main and its tag push, since `on: push` there has
-#     no branch filter.
-#   * Dispatch scope. workflow_dispatch is a workflow-level trigger, so putting
-#     it on ci.yml would make a manual run of this probe also fire all twelve
-#     `check` matrix cells, `science`, `coverage` and `bench`.
-#
-# Next question for it, when someone picks the ConsoleBridge failure up: is the
-# worker dying before it can report, or is the bridge's handshake timing out on a
-# slow runner? If it turns out to be unfixable on hosted runners, this is where a
-# self-hosted Windows runner plugs in (RUNNER_ENVIRONMENT=self-hosted is already
-# exempt from the gate) or where a `schedule:` trigger goes.
+# An intermittent failure needs repetition, which is what `runs` gives you.
+# Dispatch it with a higher count when you want to characterise #9; a single
+# green run proves nothing about it.
 
 on:
-  # Launchable from the Actions tab once this file is on the default branch —
-  # the ref selector then allows any branch or tag. Until it merges there, the
-  # [sandbox-e2e] commit-message marker below is the only trigger.
   workflow_dispatch:
+    inputs:
+      runs:
+        description: "How many times to repeat the tier (hunting #9)"
+        required: false
+        default: "5"
   push:
 
 permissions:
@@ -59,23 +39,13 @@ permissions:
 
 jobs:
   sandbox-e2e:
-    name: ConsoleBridge confinement on a hosted runner (opt-in, may fail)
+    name: Windows AppContainer tier, repeated
     # Never on an ordinary push. On a pull_request event head_commit is null and
     # contains(null, ...) is false, so the marker path is push-only by design.
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[sandbox-e2e]')
     runs-on: windows-latest
-    # Budget for the whole job — checkout, a ~0.22 GB [dev,thin] install, and the
-    # tests. Generous on purpose: the in-test worst case is already ~5 minutes
-    # (_spawn_confined bounds itself at 120s, and the strict-worker test makes
-    # three ConsoleBridge.execute calls at 60s each), and a job killed by its own
-    # budget produces exactly the anonymous "cancelled, names no test" outcome
-    # this probe exists to avoid. The per-test --timeout below is the real bound.
-    timeout-minutes: 25
+    timeout-minutes: 30
     env:
-      # The opt-in the conftest gate reads. Without it the ConsoleBridge test —
-      # the only gated one left — would skip here and the probe would measure
-      # nothing; the five test_e2e_* tests run either way.
-      ABAX_SANDBOX_E2E: "1"
       QT_QPA_PLATFORM: offscreen
       PYTHONUTF8: "1"
     steps:
@@ -87,18 +57,32 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
-      # `thin` brings PySide6: test_sandbox.py's strict-worker test drives the
-      # confinement through ConsoleBridge, which imports the GUI console.
+      # `thin` brings PySide6: the ConsoleBridge member of the tier drives the
+      # confinement through the GUI console.
       - name: Install project (dev + thin extras)
         run: python -m pip install -e ".[dev,thin]"
 
-      # Only the sandbox files. -v/-rs so both the per-test outcome and any skip
-      # reason are legible rather than collapsed into dots — a SKIP of the
-      # ConsoleBridge test here would mean the gate misfired and the probe
-      # measured nothing, which must not be mistakable for a pass. --timeout
-      # names a hung confined child instead of letting it consume the job budget
-      # anonymously. Expected shape today: 46 passed, 1 failed, 0 skipped.
-      - name: Run the Windows sandbox tests (verbose diagnostics)
-        run: >-
-          python -m pytest tests/test_sandbox.py tests/test_sandbox_windows.py
-          -v -rs --timeout=300 --timeout-method=thread
+      # -v/-rs so a SKIP is as legible as a failure: a skip here would mean the
+      # tier stopped running and measured nothing, which must never be mistakable
+      # for a pass. --timeout names a hung confined child rather than letting it
+      # consume the job budget anonymously.
+      #
+      # Each iteration is reported separately and the loop does not stop early —
+      # the interesting datum for #9 is *how many* of N runs failed, not that one
+      # did. `$LASTEXITCODE` is checked per iteration and the job fails at the end
+      # if any run did.
+      - name: Repeat the confinement tier
+        shell: pwsh
+        run: |
+          $runs = if ($env:RUNS) { [int]$env:RUNS } else { 5 }
+          $failed = 0
+          for ($i = 1; $i -le $runs; $i++) {
+            Write-Host "--- run $i of $runs ---"
+            python -m pytest tests/test_sandbox.py tests/test_sandbox_windows.py `
+              -m sandbox_e2e -v -rs --timeout=300 --timeout-method=thread
+            if ($LASTEXITCODE -ne 0) { $failed++ ; Write-Host "run $i FAILED" }
+          }
+          Write-Host "=== $failed of $runs runs failed ==="
+          if ($failed -gt 0) { exit 1 }
+        env:
+          RUNS: ${{ github.event.inputs.runs }}
