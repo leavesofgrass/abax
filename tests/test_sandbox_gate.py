@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import ast
 import pathlib
+import sys
 
 import pytest
 
@@ -288,6 +289,12 @@ def test_the_console_bridge_test_carries_both_markers():
     assert CONSOLE_BRIDGE_E2E_MARKER in marks
 
 
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="test_sandbox_windows.py is Windows-only (its own module-level "
+           "pytestmark), so elsewhere the five report as skipped for a reason "
+           "that has nothing to do with the gate under test",
+)
 def test_a_real_collection_on_a_hosted_runner_keeps_the_five(tmp_path):
     """The same invariant, but measured by pytest instead of by reading source.
 
