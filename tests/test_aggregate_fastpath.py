@@ -10,8 +10,11 @@ same arguments.
 
 from __future__ import annotations
 
+import os
 import random
 import time
+
+import pytest
 
 from abax.core.errors import CellError
 from abax.core.functions import (
@@ -93,24 +96,31 @@ def test_numbers_checked_bool_and_blank_rules():
     assert nums == [1.0, 0.0, 3.0, 2.5]   # bools count as 1/0; text/blank skipped
 
 
+@pytest.mark.skipif(
+    os.environ.get("PYTEST_XDIST_WORKER") is not None,
+    reason="wall-clock ratio; under xdist the two measurements race N workers for "
+           "the CPU and the number reflects the scheduler, not the code",
+)
 def test_fastpath_not_slower_on_large_range():
     n = 100_000
     grid = [[float(i)] for i in range(n)]
     args = [RangeValue(grid)]
 
-    def timed(fn) -> float:
-        best = float("inf")
-        for _ in range(3):
-            t0 = time.perf_counter()
-            fn()
-            best = min(best, time.perf_counter() - t0)
-        return best
-
-    fused = timed(lambda: _numbers_checked(args))
-    ref = timed(lambda: _reference(args))
+    # Interleaved, not one-after-the-other: measuring all of `fused` and then all
+    # of `ref` lets a passing load spike land entirely on one of them. Alternating
+    # and taking each one's best exposes both to the same conditions.
+    fused = ref = float("inf")
+    for _ in range(5):
+        t0 = time.perf_counter()
+        _numbers_checked(args)
+        fused = min(fused, time.perf_counter() - t0)
+        t0 = time.perf_counter()
+        _reference(args)
+        ref = min(ref, time.perf_counter() - t0)
 
     # identical numeric result
     assert _numbers_checked(args)[1] == _numbers_from(_flatten(args))
     # the fused walk does strictly less work (one list, one pass); allow generous
     # head-room for timer noise but it must not be materially slower.
-    assert fused <= ref * 1.5
+    assert fused <= ref * 1.5, (
+        f"fused {fused:.6f}s vs reference {ref:.6f}s ({fused / ref:.2f}x)")
