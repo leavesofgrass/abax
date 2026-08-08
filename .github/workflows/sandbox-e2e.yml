@@ -1,0 +1,86 @@
+name: sandbox e2e probe
+
+# Windows AppContainer end-to-end confinement — OPT-IN, AND MAY FAIL BY DESIGN.
+#
+# abax confines untrusted user code on Windows in an AppContainer. The tests
+# that verify the actual security promise — confined code may write its scratch
+# dir, may NOT write a sibling directory, may NOT open a socket — are gated off
+# on GitHub-hosted runners. The stated reason is that a hosted Windows runner
+# cannot launch an AppContainer-confined child (it exits immediately). That
+# claim is plausible but has never been checked: it was formed before
+# tests/test_sandbox_windows.py grew `_diag`, which folds the child's exit code
+# and stderr into every assertion message, and "exits immediately with empty
+# output" is precisely the symptom of having had no diagnostics.
+#
+# This workflow exists to ANSWER that question. It sets ABAX_SANDBOX_E2E=1 — the
+# opt-in the gate in tests/conftest.py honours — and runs only the sandbox tests
+# verbosely so the diagnostics land in the log verbatim. A FAILURE HERE IS A
+# RESULT, NOT A REGRESSION: its output is the evidence for or against the claim.
+#
+# It lives in its own file rather than as a job in ci.yml for two reasons, both
+# learned the hard way:
+#   * Run conclusion. A job that is expected to fail would drag ci.yml's whole
+#     run red on every commit carrying the marker — including the release
+#     ritual's fast-forward of main and its tag push, since `on: push` there has
+#     no branch filter.
+#   * Dispatch scope. workflow_dispatch is a workflow-level trigger, so putting
+#     it on ci.yml would make a manual run of this probe also fire all twelve
+#     `check` matrix cells, `science`, `coverage` and `bench`.
+#
+# If hosted runners turn out to work, delete the gate in tests/conftest.py and
+# let the tier run in ci.yml's `check` matrix. If they genuinely cannot, this is
+# where a self-hosted Windows runner plugs in (RUNNER_ENVIRONMENT=self-hosted is
+# already exempt from the gate) or where a `schedule:` trigger goes.
+
+on:
+  # Launchable from the Actions tab once this file is on the default branch —
+  # the ref selector then allows any branch or tag. Until it merges there, the
+  # [sandbox-e2e] commit-message marker below is the only trigger.
+  workflow_dispatch:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  sandbox-e2e:
+    name: Windows AppContainer confinement (opt-in, may fail)
+    # Never on an ordinary push. On a pull_request event head_commit is null and
+    # contains(null, ...) is false, so the marker path is push-only by design.
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[sandbox-e2e]')
+    runs-on: windows-latest
+    # Budget for the whole job — checkout, a ~0.22 GB [dev,thin] install, and the
+    # tests. Generous on purpose: the in-test worst case is already ~5 minutes
+    # (_spawn_confined bounds itself at 120s, and the strict-worker test makes
+    # three ConsoleBridge.execute calls at 60s each), and a job killed by its own
+    # budget produces exactly the anonymous "cancelled, names no test" outcome
+    # this probe exists to avoid. The per-test --timeout below is the real bound.
+    timeout-minutes: 25
+    env:
+      # The opt-in the conftest gate reads — without it these tests skip here.
+      ABAX_SANDBOX_E2E: "1"
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # `thin` brings PySide6: test_sandbox.py's strict-worker test drives the
+      # confinement through ConsoleBridge, which imports the GUI console.
+      - name: Install project (dev + thin extras)
+        run: python -m pip install -e ".[dev,thin]"
+
+      # Only the sandbox files. -v/-rs so both the per-test outcome and any skip
+      # reason are legible rather than collapsed into dots — a SKIP here would
+      # mean the gate misfired and the probe measured nothing, which must not be
+      # mistakable for a pass. --timeout names a hung confined child instead of
+      # letting it consume the job budget anonymously.
+      - name: Run the Windows AppContainer sandbox tests (verbose diagnostics)
+        run: >-
+          python -m pytest tests/test_sandbox.py tests/test_sandbox_windows.py
+          -v -rs --timeout=300 --timeout-method=thread

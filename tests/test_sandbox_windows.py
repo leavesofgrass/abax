@@ -14,7 +14,9 @@ this file covers three tiers:
   scratch dir, may not write a sibling directory, and may not open an outbound
   socket. Every assertion in that tier prints the child's exit code, stdout and
   stderr, because an AppContainer launch that dies at startup is otherwise
-  undiagnosable from a CI log (see ``_diag``).
+  undiagnosable from a CI log (see ``_diag``). That tier is marked
+  ``sandbox_e2e`` and gated in ``tests/conftest.py`` — off on GitHub-hosted
+  runners unless ``ABAX_SANDBOX_E2E=1``, on everywhere else.
 
 The whole module is Windows-only; the argv/env/describe surface that *does* run
 cross-platform is already covered by ``test_sandbox.py``.
@@ -39,8 +41,6 @@ pytestmark = pytest.mark.skipif(
 # CREATE_NO_WINDOW — what the bridge passes so a confined child never flashes a
 # console window (abax.gui.console.console_bridge._spawn).
 _CREATE_NO_WINDOW = 0x08000000
-
-_HOSTED_CI = os.environ.get("GITHUB_ACTIONS") == "true"
 
 
 # --------------------------------------------------------------------------- #
@@ -727,13 +727,10 @@ def _spawn_confined(strat, code, scratch, extra_env, timeout=120):
             chunks.get("err", b"").decode("utf-8", "replace"))
 
 
-_e2e = pytest.mark.skipif(
-    _HOSTED_CI,
-    reason="the hosted GitHub Windows runner can't launch an AppContainer-confined "
-           "child process (it exits immediately); the confinement itself is "
-           "verified on a real Windows desktop. Every other test in this module "
-           "still runs here.",
-)
+# Gate and reason: tests/conftest.py (sandbox_e2e_skip_reason), shared with
+# test_sandbox.py::test_windows_strict_worker_runs_and_confines so the two cannot
+# drift. Every other test in this module runs everywhere regardless.
+_e2e = pytest.mark.sandbox_e2e
 
 
 @pytest.fixture(scope="module")
