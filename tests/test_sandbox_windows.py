@@ -1432,7 +1432,9 @@ def _diag(rc, out, err) -> str:
             f"\n  stdout    : {out!r}"
             f"\n  stderr    : {err!r}"
             f"\n  (an empty stdout with a non-zero exit code means the confined "
-            f"child died before running the probe)")
+            f"child died before running the probe; on such a failure ``err`` "
+            f"also carries the live ACL snapshot ``_spawn_confined`` takes "
+            f"before teardown — see #9)")
 
 
 def _spawn_confined(strat, code, scratch, extra_env, timeout=120):
@@ -1469,12 +1471,39 @@ def _spawn_confined(strat, code, scratch, extra_env, timeout=120):
             rc = "timed out"
         for t in readers:
             t.join(15)
+        # Snapshot the ACLs BEFORE the finally revokes them — after teardown
+        # every probe answers "no ACE" and proves nothing. Only on a failed
+        # launch, so the happy path pays nothing.
+        #
+        # This is for #9: a confined child that intermittently dies inside
+        # interpreter startup ("Failed to import encodings module"). #8
+        # established the grants all return 0 and /findsid confirms the ACE
+        # present, so the gap is between "the ACE exists" and "the child can
+        # read the file" — which no pre-launch check can see, and which is only
+        # observable in the window between the child dying and teardown. The
+        # failure has resisted reproduction (once, then 15+ clean runs), so the
+        # goal is that the NEXT occurrence is conclusive rather than another
+        # sighting.
+        if rc != 0 and not chunks.get("out"):
+            probe = []
+            try:
+                for path in sw._required_read_targets():
+                    live = sw._container_ace_present(path)
+                    probe.append(f"{'ACE' if live else 'NO ACE!'}  {path}")
+            except Exception as exc:               # never mask the real failure
+                probe.append(f"(ACL probe failed: {exc!r})")
+            chunks["acl"] = ("\n    ".join(
+                ["", "--- required-path ACEs, still granted at this point ---",
+                 *probe,
+                 "a 'NO ACE!' here means the grant was not in force when the "
+                 "child ran (#9)"]).encode("utf-8"))
     finally:
         sw.cleanup_process(proc)
         proc.close_handle()
     return (rc,
             chunks.get("out", b"").decode("utf-8", "replace"),
-            chunks.get("err", b"").decode("utf-8", "replace"))
+            chunks.get("err", b"").decode("utf-8", "replace")
+            + chunks.get("acl", b"").decode("utf-8", "replace"))
 
 
 # The five tests below carry ``@pytest.mark.sandbox_e2e`` spelled out rather than
