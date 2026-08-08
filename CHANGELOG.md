@@ -106,6 +106,40 @@ All notable changes to abax are documented here. The format follows
   with the evidence in place of the claim). Five security tests had been
   suppressed by a diagnosis that was true of one code path and generalised to
   the platform.
+
+  That last test then turned out to fail for an equally mundane reason: the
+  confined worker opens `os.devnull` at startup — to keep stray prints out of
+  the frame stream — and **a Windows AppContainer denies opening `nul`**. It
+  died during interpreter startup before serving a frame, which the parent saw
+  only as "no frame came back". `os.devnull` is still preferred, so an
+  unconfined worker keeps a real file object; a confined one falls back to a
+  write-only sink. With that fixed the whole tier passes on a hosted runner, the
+  gate is deleted outright, and all six confinement tests run in the `check`
+  matrix's four Windows cells on every push.
+- **The sandbox fails closed when it cannot reach what the child needs.**
+  `_grant_container_access` recorded a path only when `icacls` *succeeded* and
+  the launch proceeded regardless, so a failed grant on the interpreter prefix
+  produced a confined child that could not read its own stdlib and died with no
+  traceback — the same silent shape as the `nul` bug above. It now refuses to
+  launch, naming the path, and tears down what it already granted. The scratch
+  dir, the interpreter, and whatever provides the abax package are fatal; any
+  other `sys.path` entry is survivable, because that failure arrives as an
+  ordinary `ModuleNotFoundError` the bridge already captures.
+
+  A failed grant does not always mean the path is unreachable — `C:\Program
+  Files` already carries an inherited `ALL APPLICATION PACKAGES:(RX)`, so a
+  non-elevated abax cannot rewrite that DACL yet the child reads it fine.
+  Refusing on the return code alone would have stopped machine-wide Python
+  installs from sandboxing at all, so a `/findsid` probe is consulted only when
+  a required grant failed, and only ever to *downgrade* a refusal. Two further
+  traps caught by measurement: the shipped `abax.pyz` could not be sandboxed at
+  all (the archive is a *file*, and the read-dir scan only granted directories),
+  and `icacls` accepts `(OI)(CI)` flags on a leaf file, exits 0, and silently
+  discards the whole ACE — only plain `(RX)` takes.
+
+  The revoke half no longer discards its results either: it reports what it
+  could not undo rather than leaving an `ALL APPLICATION PACKAGES` grant
+  standing on a developer's interpreter with no record.
 - **CI job covering the science extras** — the twelve-cell matrix installs
   `.[dev,thin]`, so every test gated on numpy/pandas/scipy/pyarrow/matplotlib/
   h5py/pyreadstat/sgp4 skipped silently on each push, leaving that half
