@@ -418,6 +418,259 @@ def test_backends_diverge_on_type_invalid_values(stdlib_settings, tmp_path):
         assert loaded.vim_mode is True and loaded.theme == "galaxy"
 
 
+# --- cross-backend encoding contract ---------------------------------------
+#
+# The two back ends write the same file to the same path, and a user really does
+# swap between them: ``abax[thin]``/``abax[all]`` pull in msgspec, while a bare
+# ``pip install abax`` and the portable ``abax.pyz`` run the stdlib fallback. So
+# the contract is not "each back end round-trips itself" — it is "what one back
+# end writes, the other reads back *identically*", non-ASCII included.
+#
+# msgspec's JSON is always UTF-8 with non-ASCII left raw. Anything the stdlib
+# branch does with the *platform* encoding silently mangles that on a non-UTF-8
+# locale (cp1252 Windows): no exception, just wrong values that load_settings
+# happily keeps.
+#
+# One script per hazard class, so this cannot pass by luck on some codepage:
+#   ø     representable in cp1252/latin-1 — the classic "looks fine, is wrong"
+#   Ω     outside cp1252 entirely
+#   Й 図  Cyrillic + CJK, multi-byte in UTF-8, outside cp1252
+#   𝄞     non-BMP: a surrogate *pair* once \u-escaped, 4 bytes in UTF-8
+
+_NA_THEME = "nørd"
+_NA_CELL = "Ω1"
+_NA_FILES = [
+    "C:/Users/José/Documents/budsjett-år.abax",   # accented path — the real case
+    "D:/データ/図表.abax",
+    "/home/Йван/score-𝄞.abax",
+]
+
+
+def _non_ascii(cls):
+    """A Settings carrying non-ASCII in the fields a user actually fills."""
+    s = cls()
+    s.theme = _NA_THEME
+    s.last_cell = _NA_CELL
+    s.recent_files = list(_NA_FILES)
+    return s
+
+
+def _assert_non_ascii_intact(loaded):
+    # Codepoints, not just equality: mojibake ("nÃ¸rd") is still a perfectly
+    # ordinary str, and the ordinals say *how* it broke — [110, 195, 184, 114,
+    # 100], five chars, where the UTF-8 pair for ø was read as two cp1252 ones.
+    assert [ord(c) for c in loaded.theme] == [ord(c) for c in _NA_THEME]
+    assert loaded.theme == _NA_THEME
+    assert loaded.last_cell == _NA_CELL
+    assert loaded.recent_files == _NA_FILES
+
+
+def _write_msgspec_shaped(path, mapping):
+    """The bytes msgspec's encoder produces: UTF-8, non-ASCII left raw.
+
+    Spelled out with the stdlib so the expectation still holds on a machine
+    with no msgspec at all — which is exactly where the fallback back end is
+    the only reader a user has.
+    """
+    path.write_bytes(json.dumps(mapping, ensure_ascii=False).encode("utf-8"))
+
+
+def test_persistence_never_relies_on_the_platform_default_encoding(
+        stdlib_settings, tmp_path, monkeypatch):
+    """The regression guard that still works where the default *is* UTF-8.
+
+    Every other test in this group compares bytes against decoded text, so each
+    one only goes red on a host whose default encoding is not UTF-8. CI is not
+    such a host: ``.github/workflows/ci.yml`` sets ``PYTHONUTF8: "1"`` for every
+    job, which puts Python in UTF-8 mode, so ``read_text()`` with no ``encoding=``
+    returns the right string there whether or not the bug is present. Left at
+    that, the whole group would pass on CI against a reverted fix — coverage
+    that cannot fail is not coverage.
+
+    So assert the contract instead of the symptom: every file operation on
+    settings.json must NAME its encoding rather than inherit the ambient one.
+    That is exactly what regressed, it fails on any platform and under any
+    PYTHONUTF8 setting, and it needs no non-UTF-8 locale to detect.
+
+    The spy has to sit on ``read_text``/``write_text``, not on ``Path.open``:
+    ``read_text`` passes its argument through ``io.text_encoding()``, which
+    *returns* ``"utf-8"`` when the interpreter is in UTF-8 mode, so by the time
+    ``open`` is reached an omitted encoding is indistinguishable from an
+    explicit one. (Confirmed the hard way — the first version of this test
+    watched ``Path.open`` and was itself blind under ``PYTHONUTF8=1``.)
+    """
+    path = tmp_path / "settings.json"
+    seen: list = []
+    real_read, real_write = Path.read_text, Path.write_text
+
+    def read_spy(self, encoding=None, *args, **kwargs):
+        if self == path:
+            seen.append(("read_text", encoding))
+        return real_read(self, encoding, *args, **kwargs)
+
+    def write_spy(self, data, encoding=None, *args, **kwargs):
+        if self == path:
+            seen.append(("write_text", encoding))
+        return real_write(self, data, encoding, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_spy)
+    monkeypatch.setattr(Path, "write_text", write_spy)
+    stdlib_settings.save_settings(_non_ascii(stdlib_settings.Settings), path)
+    stdlib_settings.load_settings(path)
+
+    assert {op for op, _ in seen} == {"read_text", "write_text"}, (
+        f"expected both a read and a write of settings.json, saw {seen}")
+    assert all(enc is not None for _, enc in seen), (
+        f"settings.json was accessed with encoding=None — that inherits the "
+        f"platform default, which is the bug this guards: {seen}")
+    # utf-8 either way; the reader additionally tolerates a BOM via -sig.
+    assert all(enc.lower().replace("-", "").replace("_", "") in {"utf8", "utf8sig"}
+               for _, enc in seen), seen
+
+
+@pytest.mark.parametrize("bom", [True, False], ids=["with-bom", "no-bom"])
+def test_a_utf8_bom_does_not_wipe_the_settings(stdlib_settings, tmp_path, bom):
+    """An editor-added BOM must not silently reset the user's config.
+
+    A UTF-8 BOM is not valid JSON, so before this both back ends fell into their
+    ``except Exception`` guard and returned defaults — which the next save then
+    wrote over the top of. VS Code's "UTF-8 with BOM" and PowerShell 5.1
+    redirection both produce one, and neither is exotic on this platform.
+    """
+    path = tmp_path / "settings.json"
+    body = json.dumps({"schema_version": SCHEMA_VERSION, "theme": _NA_THEME,
+                       "last_cell": _NA_CELL, "recent_files": _NA_FILES},
+                      ensure_ascii=False).encode("utf-8")
+    path.write_bytes((b"\xef\xbb\xbf" + body) if bom else body)
+
+    _assert_non_ascii_intact(stdlib_settings.load_settings(path))
+    if _MSGSPEC_BACKEND:                       # both back ends read this file
+        _assert_non_ascii_intact(load_settings(path))
+
+
+def test_stdlib_backend_reads_raw_utf8_non_ascii(stdlib_settings, tmp_path):
+    """A settings.json in msgspec's byte shape loads unmangled under the fallback.
+
+    This is the whole bug: the file is UTF-8, the reader used the locale.
+    """
+    path = tmp_path / "settings.json"
+    _write_msgspec_shaped(path, {"schema_version": SCHEMA_VERSION, "theme": _NA_THEME,
+                                 "last_cell": _NA_CELL, "recent_files": _NA_FILES})
+    assert b"n\xc3\xb8rd" in path.read_bytes()   # raw UTF-8 on disk, not \u00f8
+    _assert_non_ascii_intact(stdlib_settings.load_settings(path))
+
+
+@pytest.mark.skipif(not _MSGSPEC_BACKEND, reason="needs the msgspec back end installed")
+def test_msgspec_written_settings_read_back_under_the_stdlib_backend(stdlib_settings, tmp_path):
+    """msgspec saves -> the stdlib fallback loads. End to end, both real writers."""
+    path = tmp_path / "settings.json"
+    save_settings(_non_ascii(Settings), path)
+    # Prove the file really does carry the hazard, or the assertion below is empty.
+    assert b"n\xc3\xb8rd" in path.read_bytes()
+    _assert_non_ascii_intact(stdlib_settings.load_settings(path))
+
+
+@pytest.mark.skipif(not _MSGSPEC_BACKEND, reason="needs the msgspec back end installed")
+def test_stdlib_written_settings_read_back_under_the_msgspec_backend(stdlib_settings, tmp_path):
+    """...and back the other way: the fallback saves, msgspec loads."""
+    path = tmp_path / "settings.json"
+    stdlib_settings.save_settings(_non_ascii(stdlib_settings.Settings), path)
+    _assert_non_ascii_intact(load_settings(path))
+
+
+def test_stdlib_backend_round_trips_non_ascii_on_its_own(stdlib_settings, tmp_path):
+    # The single-back-end round trip that masked the bug for so long; keep it
+    # pinned so the write side stays correct too.
+    path = tmp_path / "settings.json"
+    stdlib_settings.save_settings(_non_ascii(stdlib_settings.Settings), path)
+    _assert_non_ascii_intact(stdlib_settings.load_settings(path))
+
+
+def test_stdlib_backend_writes_ascii_only_json(stdlib_settings, tmp_path):
+    """Pinned, deliberate divergence: the fallback escapes, msgspec does not.
+
+    Both files decode to the same values (the tests above), but the fallback's
+    bytes stay pure ASCII — ``json.dumps``' ``ensure_ascii`` default. That is
+    kept on purpose: an ASCII-only file is decoded correctly by *every* reader,
+    including already-shipped abax builds whose stdlib loader still reads with
+    the platform encoding. Byte-identity between the back ends is not on the
+    table anyway — msgspec's encoder emits compact JSON, the fallback indents.
+    """
+    path = tmp_path / "settings.json"
+    stdlib_settings.save_settings(_non_ascii(stdlib_settings.Settings), path)
+    raw = path.read_bytes()
+    raw.decode("ascii")                    # no raw multi-byte anywhere
+    assert rb"n\u00f8rd" in raw            # ...because it escaped instead
+    assert rb"\ud834\udd1e" in raw         # non-BMP as a surrogate pair
+
+
+# --- backward compatibility of the fixed reader ----------------------------
+
+
+def _legacy_stdlib_bytes(mapping):
+    """The bytes the *old* stdlib writer produced: ``json.dumps`` defaults.
+
+    ``ensure_ascii=True`` meant those files were pure ASCII, which is why they
+    survived being read back through the locale — and why the fixed reader,
+    which insists on UTF-8, must still read every one of them.
+    """
+    return json.dumps(mapping, indent=2).encode("ascii")
+
+
+def test_legacy_ascii_escaped_file_still_loads(stdlib_settings, tmp_path):
+    path = tmp_path / "settings.json"
+    path.write_bytes(_legacy_stdlib_bytes({"schema_version": SCHEMA_VERSION,
+                                           "theme": _NA_THEME, "last_cell": _NA_CELL,
+                                           "recent_files": _NA_FILES}))
+    _assert_non_ascii_intact(stdlib_settings.load_settings(path))
+    if _MSGSPEC_BACKEND:
+        _assert_non_ascii_intact(load_settings(path))
+
+
+def test_old_file_still_migrates_when_it_carries_non_ascii(stdlib_settings, tmp_path):
+    # SCHEMA_VERSION/_migrate_settings sit in the load path, so the encoding fix
+    # has to leave lazy migration working — in both byte shapes an old file can
+    # have on disk.
+    legacy = {"color_scheme": "obsidian", "sandbox_strict": True, "column_width": 80,
+              "last_cell": _NA_CELL, "recent_files": _NA_FILES}
+    for name, blob in (("ascii.json", _legacy_stdlib_bytes(dict(legacy))),
+                       ("utf8.json", json.dumps(legacy, ensure_ascii=False).encode("utf-8"))):
+        path = tmp_path / name
+        path.write_bytes(blob)
+        for loader in ([stdlib_settings.load_settings, load_settings]
+                       if _MSGSPEC_BACKEND else [stdlib_settings.load_settings]):
+            loaded = loader(path)
+            assert loaded.theme == "galaxy"              # v0 rename + v9 remap
+            assert loaded.code_isolation == "strict"     # v1 -> v2 tri-state
+            assert loaded.schema_version == SCHEMA_VERSION
+            assert loaded.last_cell == _NA_CELL
+            assert loaded.recent_files == _NA_FILES
+
+
+@pytest.mark.parametrize(
+    "blob",
+    [
+        b'{"theme": "n\xf8rd"}',      # cp1252-encoded ø: not valid UTF-8
+        b'{"theme": "\x81\x8d\x90"}',  # undefined in cp1252 *and* invalid UTF-8
+        b"\xff\xfe{\x00\x7d\x00",      # UTF-16LE with a BOM
+    ],
+    ids=["cp1252-bytes", "undecodable", "utf16"],
+)
+def test_undecodable_file_degrades_to_defaults(stdlib_settings, tmp_path, blob):
+    """Garbage bytes still yield defaults rather than escaping load_settings.
+
+    Insisting on UTF-8 turns a locale-decodable-but-wrong file into a decode
+    error; the ``except Exception`` guard has to keep swallowing it. No released
+    abax ever *wrote* these — the old fallback wrote pure ASCII — so this only
+    covers hand-edited or corrupted files.
+    """
+    path = tmp_path / "settings.json"
+    path.write_bytes(blob)
+    assert stdlib_settings.load_settings(path) == stdlib_settings.Settings()
+    if _MSGSPEC_BACKEND:
+        assert load_settings(path) == Settings()
+
+
 def test_config_dir_is_redirected_away_from_the_real_profile(abax_user_dirs):
     # The autouse conftest fixture is what keeps this whole module (and anything
     # it triggers) out of %APPDATA%/abax; persist through it the way abax does.
