@@ -164,17 +164,32 @@ def no_real_acls(monkeypatch):
     ``custom_spawn`` otherwise grants ALL APPLICATION PACKAGES read+execute on
     the whole interpreter prefix, which is both slow and a real machine-wide
     side effect — unwanted in the tests that are only about launcher wiring.
-    """
-    calls = {"granted": [], "revoked": []}
 
-    def _grant(scratch):
-        paths = [scratch, "C:\\fake\\interpreter"]
+    ``calls["unreachable"]`` is the seam for the fail-closed half: assign a list
+    of paths to it *before* calling ``custom_spawn`` and the stub grant reports
+    them as required-but-unreachable, exactly as the real one would when icacls
+    refused the interpreter prefix.
+
+    The stub honours the real signature's out-list: ``custom_spawn`` owns the
+    ``granted`` list so it can revoke what landed even if the grant call raises
+    partway, and a stub that only *returned* the paths would quietly stop
+    exercising that.
+    """
+    calls = {"granted": [], "revoked": [], "unreachable": []}
+
+    def _grant(scratch, granted=None):
+        if granted is None:
+            granted = []
+        granted.extend([scratch, "C:\\fake\\interpreter"])
         calls["granted"].append(scratch)
-        return paths
+        return granted, list(calls["unreachable"])
+
+    def _revoke(granted):
+        calls["revoked"].append(list(granted))
+        return []                      # nothing left standing, as on success
 
     monkeypatch.setattr(sw, "_grant_container_access", _grant)
-    monkeypatch.setattr(sw, "_revoke_container_access",
-                        lambda granted: calls["revoked"].append(list(granted)))
+    monkeypatch.setattr(sw, "_revoke_container_access", _revoke)
     return calls
 
 
@@ -349,6 +364,161 @@ def test_needed_read_dirs_drops_nested_blank_and_missing_entries(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# the zipapp: a sys.path entry that is a *file* (issue #8 follow-up)
+# --------------------------------------------------------------------------- #
+
+
+def _zipapp_shaped_package(tmp_path):
+    """A real zip holding the real ``sandbox_windows`` inside an ``abax`` package.
+
+    Not a stand-in for ``make_pyz.py``'s output — the same *shape*, which is the
+    only thing :func:`_abax_package_dir` reads: a module imported out of an
+    archive *file*. The two siblings it imports are stubbed so the archive stays
+    a few KB and the child never drags in the rest of abax, but
+    ``sandbox_windows`` itself is the shipping file, so the assertion below is
+    about the real function and cannot drift from it.
+    """
+    import zipfile
+
+    source = os.path.abspath(sw.__file__)
+    archive = tmp_path / "abax.pyz"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("abax/__init__.py", "")
+        z.writestr("abax/_runtime.py",
+                   "def console_encoding():\n    return 'oem'\n")
+        z.write(source, "abax/sandbox_windows.py")
+    return archive
+
+
+def test_a_zipapp_puts_the_abax_package_path_on_a_file_not_a_directory(tmp_path):
+    """Constructed, not argued: import the real module out of a real archive.
+
+    ``python abax.pyz`` makes ``sandbox_windows.__file__``
+    ``…\\abax.pyz\\abax\\sandbox_windows.pyc``, so ``_abax_package_dir()`` — two
+    ``dirname``s up — is the **archive itself**, a file. Measured against a
+    ``make_pyz.py`` build and reproduced here in a child interpreter.
+
+    Both halves matter. ``_needed_read_dirs`` filters on ``os.path.isdir`` and so
+    can *never* carry the archive: that is the mechanism by which a required
+    target became permanently unreachable and every strict launch in the shipped
+    portable build refused unconditionally. ``_needed_read_files`` is what fixes
+    it, and a fix that stopped covering this shape would restore the bug in the
+    one build a developer is least likely to run the suite against.
+    """
+    archive = _zipapp_shaped_package(tmp_path)
+    prog = (
+        "import os, sys\n"
+        f"sys.path.insert(0, r'{archive}')\n"
+        "from abax import sandbox_windows as sw\n"
+        "p = sw._abax_package_dir()\n"
+        "nc = os.path.normcase\n"
+        "print('PKGDIR', p)\n"
+        "print('ISDIR', os.path.isdir(p))\n"
+        "print('ISFILE', os.path.isfile(p))\n"
+        "print('IN_DIRS', any(nc(d) == nc(p) for d in sw._needed_read_dirs()))\n"
+        "print('IN_FILES', any(nc(f) == nc(p) for f in sw._needed_read_files()))\n"
+        "print('REQUIRED', any(nc(t) == nc(p) for t in sw._required_read_targets()))\n"
+    )
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    r = subprocess.run([sys.executable, "-c", prog], capture_output=True,
+                       text=True, timeout=120, env=env, cwd=str(tmp_path))
+    assert r.returncode == 0, r.stdout + r.stderr
+    reported = dict(line.split(" ", 1) for line in r.stdout.splitlines() if line)
+
+    assert reported["PKGDIR"] == str(archive), r.stdout
+    assert reported["ISDIR"] == "False"        # the archive is a file...
+    assert reported["ISFILE"] == "True"
+    assert reported["REQUIRED"] == "True"      # ...that the child cannot boot without
+    # The mechanism of the bug, pinned so the fix cannot be "quietly" moved back
+    # into the dirs list, where isdir would drop it again.
+    assert reported["IN_DIRS"] == "False", r.stdout
+    assert reported["IN_FILES"] == "True", r.stdout
+
+
+def _as_a_zipapp(mp, archive, prefix):
+    """Point interpreter introspection at a zipapp launch of *archive*.
+
+    The shape the test above measured on a real archive, applied in-process so
+    the grant path can be exercised against it with real icacls on throwaway
+    paths. *prefix* stands in for the interpreter so no ACE ever lands on this
+    machine's real Python.
+    """
+    mp.setattr(sys, "path", [str(archive), ""])
+    mp.setattr(sys, "base_prefix", str(prefix))
+    mp.setattr(sys, "prefix", str(prefix))
+    mp.setattr(sys, "executable", str(prefix / "python.exe"))
+    mp.setattr(sw, "_abax_package_dir", lambda: str(archive))
+
+
+def test_a_file_shaped_syspath_entry_is_granted_rather_than_refused(tmp_path):
+    """The shipped zipapp must be able to confine at all.
+
+    With the archive on ``sys.path`` and providing ``abax``, it is a required
+    target that no *directory* grant can cover: ``D:\\abax`` is on ``sys.path``
+    only by accident of the CWD. Before the file grant existed this returned
+    ``unreachable == [archive]`` on every call, so ``custom_spawn`` raised
+    ``SandboxGrantError`` unconditionally and strict mode could not be switched
+    on in the portable build at all.
+
+    Real icacls, throwaway paths: the ACE has to actually land, which is the
+    whole point — see the flags test above.
+    """
+    archive = tmp_path / "abax.pyz"
+    archive.write_bytes(b"PK\x05\x06" + b"\x00" * 18)   # a valid empty zip
+    prefix = tmp_path / "prefix"
+    scratch = tmp_path / "scratch"
+    for d in (prefix, scratch):
+        d.mkdir()
+    before = _explicit_aces(str(archive))
+
+    with pytest.MonkeyPatch.context() as mp:
+        _as_a_zipapp(mp, archive, prefix)
+        granted, unreachable = sw._grant_container_access(str(scratch))
+        try:
+            # Nothing about a file-shaped entry is fatal any more...
+            assert unreachable == []
+            # ...because the archive itself was granted, by identity.
+            assert str(archive) in granted
+            assert granted == [str(scratch), str(prefix), str(archive)]
+            # A file takes the flags a file can hold — the directory ACE would
+            # have exited 0 and added nothing (see the test below).
+            added = _explicit_aces(str(archive)) - before
+            assert len(added) == 1, added
+            assert added.pop().endswith(":(RX)")
+        finally:
+            sw._revoke_container_access(granted)
+
+    assert _explicit_aces(str(archive)) == before
+
+
+def test_a_zipapp_already_inside_a_granted_directory_is_not_granted_twice(tmp_path):
+    """The inheritable directory ACE already reaches it.
+
+    The ordinary developer case — ``abax.pyz`` sitting in a checkout that is
+    itself on ``sys.path``. A second, explicit ACE on the file would be one more
+    icacls round trip on every spawn and one more thing teardown has to remove.
+    """
+    prefix = tmp_path / "prefix"
+    prefix.mkdir()
+    archive = prefix / "abax.pyz"
+    archive.write_bytes(b"PK\x05\x06" + b"\x00" * 18)
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    before = _explicit_aces(str(archive))
+
+    with pytest.MonkeyPatch.context() as mp:
+        _as_a_zipapp(mp, archive, prefix)
+        granted, unreachable = sw._grant_container_access(str(scratch))
+        try:
+            assert unreachable == []
+            assert granted == [str(scratch), str(prefix)]   # no separate file ACE
+        finally:
+            sw._revoke_container_access(granted)
+
+    assert _explicit_aces(str(archive)) == before
+
+
+# --------------------------------------------------------------------------- #
 # the icacls layer
 # --------------------------------------------------------------------------- #
 
@@ -376,6 +546,39 @@ def test_icacls_never_raises_when_the_tool_misbehaves(monkeypatch, tmp_path, exc
     assert sw._icacls(str(tmp_path), "/grant", "whatever") is False
 
 
+def test_inheritance_flags_are_silently_dropped_from_a_grant_on_a_file(tmp_path):
+    """Why a file-shaped import root gets a plain ``(RX)``: measured, not assumed.
+
+    ``icacls <file> /grant "<sid>:(OI)(CI)(RX)"`` **exits 0 and adds nothing**.
+    The object/container inheritance flags have nothing to inherit on a leaf, and
+    icacls discards the whole ACE rather than reporting it — a grant that reports
+    success and did nothing, which is the exact class of failure this module
+    exists to make impossible. Reusing the directory ACE for the zipapp archive
+    would therefore have looked like a fix and been none.
+
+    If this ever starts failing, icacls has changed its mind about leaf ACEs and
+    ``_needed_read_files``' rationale wants re-reading; the ``(RX)`` grant abax
+    actually issues is unaffected either way.
+    """
+    target = tmp_path / "abax.pyz"
+    target.write_bytes(b"PK\x05\x06" + b"\x00" * 18)
+    before = _explicit_aces(str(target))
+
+    assert sw._icacls(str(target), "/grant",
+                      f"{sw.ALL_APP_PACKAGES}:(OI)(CI)(RX)") is True
+    assert _explicit_aces(str(target)) == before, \
+        "icacls reported success on a directory-shaped ACE for a file"
+
+    assert sw._icacls(str(target), "/grant", f"{sw.ALL_APP_PACKAGES}:(RX)") is True
+    try:
+        added = _explicit_aces(str(target)) - before
+        assert len(added) == 1, added
+        assert added.pop().endswith(":(RX)")
+    finally:
+        sw._revoke_container_access([str(target)])
+    assert _explicit_aces(str(target)) == before
+
+
 def test_grant_is_additive_and_revoke_reverts_it_exactly(monkeypatch, tmp_path):
     """The documented promise: the ACEs we add never weaken anyone's access and
     the machine is left byte-identical afterwards."""
@@ -385,6 +588,11 @@ def test_grant_is_additive_and_revoke_reverts_it_exactly(monkeypatch, tmp_path):
     readable.mkdir()
     # Keep the real interpreter prefix out of it — this test is about the ACEs.
     monkeypatch.setattr(sw, "_needed_read_dirs", lambda: [str(readable)])
+    # ...and with the prefix out, the real requirements are by construction
+    # ungranted here, so they are patched out too rather than asserted around.
+    # The requirement policy has its own tests below; this one owns the promise
+    # that the ACEs are additive and exactly reverted.
+    monkeypatch.setattr(sw, "_required_read_targets", lambda: [])
 
     before_scratch = _explicit_aces(str(scratch))
     before_read = _explicit_aces(str(readable))
@@ -392,9 +600,10 @@ def test_grant_is_additive_and_revoke_reverts_it_exactly(monkeypatch, tmp_path):
     all_before_scratch = _ace_lines(str(scratch))
     all_before_read = _ace_lines(str(readable))
 
-    granted = sw._grant_container_access(str(scratch))
+    granted, unreachable = sw._grant_container_access(str(scratch))
     try:
         assert granted == [str(scratch), str(readable)]
+        assert unreachable == []          # everything asked for was granted
 
         added_scratch = _explicit_aces(str(scratch)) - before_scratch
         added_read = _explicit_aces(str(readable)) - before_read
@@ -427,10 +636,15 @@ def test_grant_omits_paths_icacls_refused(monkeypatch, tmp_path):
     readable.mkdir()
     monkeypatch.setattr(sw, "_needed_read_dirs",
                         lambda: [str(readable), str(tmp_path / "vanished")])
+    monkeypatch.setattr(sw, "_required_read_targets", lambda: [])
+    missing_scratch = str(tmp_path / "no-such-scratch")
 
-    granted = sw._grant_container_access(str(tmp_path / "no-such-scratch"))
+    granted, unreachable = sw._grant_container_access(missing_scratch)
     try:
         assert granted == [str(readable)]
+        # The scratch dir is the one place the worker may write; a grant that
+        # did not land there is fatal even though the read dirs were fine.
+        assert unreachable == [missing_scratch]
     finally:
         sw._revoke_container_access(granted)
 
@@ -438,7 +652,303 @@ def test_grant_omits_paths_icacls_refused(monkeypatch, tmp_path):
 def test_revoke_tolerates_paths_that_disappeared(tmp_path):
     # A scratch dir deleted before teardown (or a grant that never landed) must
     # not turn cleanup into an exception — cleanup runs from a finally block.
-    sw._revoke_container_access([str(tmp_path / "gone"), str(tmp_path)])
+    # A path that is gone is also not *reported*: its ACL went with it, so there
+    # is no grant left standing to warn anyone about.
+    assert sw._revoke_container_access([str(tmp_path / "gone"), str(tmp_path)]) == []
+
+
+# --------------------------------------------------------------------------- #
+# the grant policy: which failures are fatal (issue #8, grant side)
+# --------------------------------------------------------------------------- #
+
+
+def _grant_failing_on(*doomed):
+    """An ``_icacls`` stand-in that refuses exactly *doomed* and grants the rest."""
+    doomed = {os.path.normcase(os.path.abspath(p)) for p in doomed}
+
+    def _fake(path, *args):
+        return os.path.normcase(os.path.abspath(path)) not in doomed
+
+    return _fake
+
+
+def test_required_read_targets_name_the_interpreter_and_the_abax_package():
+    """The two things the child cannot boot without, named explicitly.
+
+    ``_needed_read_dirs`` is a superset (every ``sys.path`` entry); this is the
+    subset whose absence is not a degraded worker but a dead one — and the abax
+    package's directory belongs in it precisely because the child's whole job is
+    ``from abax.console_worker import main``.
+    """
+    targets = [os.path.normcase(t) for t in sw._required_read_targets()]
+    assert os.path.normcase(os.path.abspath(sys.base_prefix)) in targets
+    assert os.path.normcase(os.path.dirname(os.path.abspath(sys.executable))) in targets
+    provider = os.path.dirname(os.path.dirname(os.path.abspath(sw.__file__)))
+    assert os.path.normcase(provider) in targets
+    for t in sw._required_read_targets():
+        assert os.path.isabs(t), t
+
+
+def test_the_real_required_targets_are_all_covered_by_the_real_read_dirs():
+    """The two halves must agree on this machine, or strict mode never launches.
+
+    ``_needed_read_dirs`` is what actually gets handed to icacls; if a required
+    target stopped being covered by it — a `sys.path` shape nobody anticipated,
+    a minimisation bug — every strict spawn would refuse with the fail-closed
+    error instead of running. That is a safe failure but a total one, so it is
+    worth an assertion rather than a discovery.
+    """
+    dirs = sw._needed_read_dirs()
+    for target in sw._required_read_targets():
+        assert sw._covered_by(target, dirs), (
+            f"{target} is required but no directory in {dirs} covers it")
+
+
+def test_covered_by_accepts_a_parent_and_rejects_a_sibling(tmp_path):
+    parent = tmp_path / "parent"
+    (parent / "child").mkdir(parents=True)
+    sibling = tmp_path / "parentele"          # shares a prefix, is not inside
+    sibling.mkdir()
+
+    assert sw._covered_by(str(parent), [str(parent)])
+    assert sw._covered_by(str(parent / "child"), [str(parent)])
+    # Case-insensitive, like the filesystem: an ancestor spelled differently
+    # still covers, or a grant would be silently judged not to have landed.
+    assert sw._covered_by(str(parent / "child"), [str(parent).upper()])
+    assert not sw._covered_by(str(sibling), [str(parent)])
+    assert not sw._covered_by(str(parent), [str(parent / "child")])
+
+
+def test_grant_reports_a_required_path_it_could_not_reach(monkeypatch, tmp_path):
+    """The fail-closed signal: a refused grant on the interpreter prefix.
+
+    Without this the launcher spawns a child that cannot read its own stdlib and
+    dies during interpreter startup with no output at all — indistinguishable
+    from issue #6, which is why that class took months to see.
+    """
+    scratch = tmp_path / "scratch"
+    prefix = tmp_path / "prefix"
+    for d in (scratch, prefix):
+        d.mkdir()
+    monkeypatch.setattr(sw, "_needed_read_dirs", lambda: [str(prefix)])
+    monkeypatch.setattr(sw, "_required_read_targets", lambda: [str(prefix)])
+    monkeypatch.setattr(sw, "_icacls", _grant_failing_on(str(prefix)))
+    # No pre-existing ACE to fall back on.
+    monkeypatch.setattr(sw, "_container_ace_present", lambda path: False)
+
+    granted, unreachable = sw._grant_container_access(str(scratch))
+
+    assert granted == [str(scratch)]      # the failed path is not revocable
+    assert unreachable == [str(prefix)]
+
+
+def test_grant_survives_a_syspath_entry_that_is_not_required(monkeypatch, tmp_path, caplog):
+    """A redundant ``sys.path`` directory is a warning, not a refusal.
+
+    It may hold nothing the worker imports, and if it does the failure surfaces
+    as an ordinary ModuleNotFoundError on the child's stderr — which the bridge
+    already reports. Refusing here would trade a silent failure for a spurious
+    one on any machine with an exotic PYTHONPATH.
+    """
+    scratch = tmp_path / "scratch"
+    prefix = tmp_path / "prefix"
+    extra = tmp_path / "some-syspath-entry"
+    for d in (scratch, prefix, extra):
+        d.mkdir()
+    monkeypatch.setattr(sw, "_needed_read_dirs", lambda: [str(prefix), str(extra)])
+    monkeypatch.setattr(sw, "_required_read_targets", lambda: [str(prefix)])
+    monkeypatch.setattr(sw, "_icacls", _grant_failing_on(str(extra)))
+    monkeypatch.setattr(sw, "_container_ace_present", lambda path: False)
+
+    with caplog.at_level("WARNING", logger=sw.__name__):
+        granted, unreachable = sw._grant_container_access(str(scratch))
+
+    assert granted == [str(scratch), str(prefix)]
+    assert unreachable == []              # survivable: the spawn goes ahead
+    assert str(extra) in caplog.text      # but it is not silent
+
+
+def test_grant_accepts_a_required_path_that_is_already_container_readable(
+        monkeypatch, tmp_path):
+    """The Program Files case: the grant fails and the child reads it anyway.
+
+    A non-elevated abax cannot rewrite the DACL of a machine-wide Python
+    install, but Windows already grants ALL APPLICATION PACKAGES read+execute
+    under ``C:\\Program Files``. Refusing there would break strict mode on every
+    all-users installation, so a pre-existing ACE downgrades the refusal.
+    """
+    scratch = tmp_path / "scratch"
+    prefix = tmp_path / "prefix"
+    for d in (scratch, prefix):
+        d.mkdir()
+    asked = []
+    monkeypatch.setattr(sw, "_needed_read_dirs", lambda: [str(prefix)])
+    monkeypatch.setattr(sw, "_required_read_targets", lambda: [str(prefix)])
+    monkeypatch.setattr(sw, "_icacls", _grant_failing_on(str(prefix)))
+    monkeypatch.setattr(sw, "_container_ace_present",
+                        lambda path: asked.append(path) or True)
+
+    granted, unreachable = sw._grant_container_access(str(scratch))
+
+    assert unreachable == []
+    assert asked == [str(prefix)], "the pre-existing-ACE probe was never consulted"
+    # Still not in the revoke list: we added no ACE there, so we remove none.
+    assert granted == [str(scratch)]
+
+
+def test_the_ace_probe_is_not_consulted_when_every_grant_landed(monkeypatch, tmp_path):
+    """The ordinary path pays nothing for the fallback.
+
+    ``/findsid`` is a second icacls round trip per required path; running it on
+    every successful spawn would be pure latency on the hot path.
+    """
+    scratch = tmp_path / "scratch"
+    prefix = tmp_path / "prefix"
+    for d in (scratch, prefix):
+        d.mkdir()
+    monkeypatch.setattr(sw, "_needed_read_dirs", lambda: [str(prefix)])
+    monkeypatch.setattr(sw, "_required_read_targets", lambda: [str(prefix)])
+    monkeypatch.setattr(sw, "_icacls", lambda *a: True)
+
+    def _never(path):
+        raise AssertionError(f"the /findsid probe ran for {path} on a clean grant")
+
+    monkeypatch.setattr(sw, "_container_ace_present", _never)
+    granted, unreachable = sw._grant_container_access(str(scratch))
+    assert unreachable == []
+    assert granted == [str(scratch), str(prefix)]
+
+
+def test_scratch_is_required_even_when_a_parent_grant_covers_it(monkeypatch, tmp_path):
+    """Read access to an ancestor is not write access to the scratch dir.
+
+    The scratch dir is granted ``(M)`` and everything else ``(RX)``, so treating
+    "inside something we granted" as good enough would wave through a worker
+    that cannot write a single byte — which fails later, at the first temp file,
+    pointing nowhere near the ACL that caused it.
+    """
+    scratch = tmp_path / "outer" / "scratch"
+    scratch.mkdir(parents=True)
+    outer = tmp_path / "outer"
+    monkeypatch.setattr(sw, "_needed_read_dirs", lambda: [str(outer)])
+    monkeypatch.setattr(sw, "_required_read_targets", lambda: [])
+    monkeypatch.setattr(sw, "_icacls", _grant_failing_on(str(scratch)))
+
+    granted, unreachable = sw._grant_container_access(str(scratch))
+
+    assert granted == [str(outer)]
+    assert unreachable == [str(scratch)]
+
+
+# --- the pre-existing-ACE probe ---------------------------------------------
+
+
+def test_container_ace_probe_agrees_with_the_real_icacls():
+    """Against the real tool: a system dir every AppContainer can read, and a
+    path that cannot be listed at all."""
+    system_root = os.environ.get("SystemRoot") or "C:\\Windows"
+    # ALL APPLICATION PACKAGES has RX on %SystemRoot% on every supported
+    # Windows — an AppContainer that could not read it could not run anything.
+    assert sw._container_ace_present(system_root) is True
+    assert sw._container_ace_present("C:\\no-such-dir-abax-8\\nope") is False
+
+
+@pytest.mark.parametrize("rc,stdout,expected", [
+    (0, "SID Found: C:\\probe.\r\nSuccessfully processed 1 files\r\n", True),
+    (0, "No files with a matching SID was found\r\n"
+        "Successfully processed 1 files; Failed processing 0 files\r\n", False),
+    # A localised "found" line still names the path; a localised "not found"
+    # line still cannot. The path is the discriminator, never the wording.
+    (0, "SID gefunden: C:\\probe.\r\n", True),
+    (0, "Kein Objekt mit einer entsprechenden SID gefunden\r\n", False),
+    # An error echoes the path too — but exits non-zero, which is what keeps
+    # "The system cannot find the path specified" from reading as a hit.
+    (3, "C:\\probe: The system cannot find the path specified.\r\n", False),
+])
+def test_container_ace_probe_reads_findsid_by_path_not_by_wording(
+        monkeypatch, rc, stdout, expected):
+    seen = {}
+
+    def _fake_run(argv, **kwargs):
+        seen["argv"] = argv
+        seen["kwargs"] = kwargs
+        return subprocess.CompletedProcess(argv, rc, stdout, "")
+
+    monkeypatch.setattr(sw.subprocess, "run", _fake_run)
+    assert sw._container_ace_present("C:\\probe") is expected
+    assert seen["argv"] == ["icacls", "C:\\probe", "/findsid", sw.ALL_APP_PACKAGES]
+    # No /T: this asks about the one path, not about every file beneath it.
+    assert "/T" not in seen["argv"]
+    # Same encoding policy as _icacls (issue #5): the console codepage, never
+    # strict — a replaced byte must not turn the probe into an exception.
+    assert seen["kwargs"].get("encoding") == sw.console_encoding()
+    assert seen["kwargs"].get("errors") == "replace"
+
+
+def test_the_ace_probe_waits_far_less_than_the_grant_calls_do(monkeypatch):
+    """It runs on the refusal path, and the refusal path is the GUI thread.
+
+    ``/findsid`` with no ``/T`` is one non-recursive lookup — ~30 ms measured —
+    but it is consulted once per *required* target, and only when a required
+    grant already failed. That path is synchronous inside a Qt slot
+    (``_run_macro``, Run script), so inheriting ``_icacls``' 60-second timeout
+    means three stalled probes can freeze the window for three minutes before
+    the user is told anything. A timeout can only ever answer False, and False
+    never upgrades a refusal, so a short wait cannot cost an answer — only the
+    waiting.
+    """
+    seen = {}
+
+    def _fake_run(argv, **kwargs):
+        seen.update(kwargs)
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(sw.subprocess, "run", _fake_run)
+    sw._container_ace_present("C:\\probe")
+
+    assert 0 < seen["timeout"] <= 10, seen["timeout"]
+
+
+@pytest.mark.parametrize("exc", [
+    FileNotFoundError("icacls not on PATH"),
+    subprocess.TimeoutExpired("icacls", 60),
+])
+def test_container_ace_probe_answers_false_when_the_tool_misbehaves(monkeypatch, exc):
+    """False is the conservative answer: the probe may only ever downgrade a
+    refusal, so a broken tool must not be able to wave a launch through."""
+    def _boom(*a, **k):
+        raise exc
+
+    monkeypatch.setattr(sw.subprocess, "run", _boom)
+    assert sw._container_ace_present("C:\\probe") is False
+
+
+# --------------------------------------------------------------------------- #
+# the revoke side reports what it could not undo (issue #8, revoke side)
+# --------------------------------------------------------------------------- #
+
+
+def test_revoke_reports_and_logs_grants_it_could_not_remove(monkeypatch, tmp_path, caplog):
+    """A failed revoke leaves a machine-wide ACE standing; it must not do so
+    silently. It still must not raise — teardown continues past a failure."""
+    left = tmp_path / "prefix"
+    also = tmp_path / "site-packages"
+    for d in (left, also):
+        d.mkdir()
+    monkeypatch.setattr(sw, "_icacls", lambda *a: False)
+
+    with caplog.at_level("WARNING", logger=sw.__name__):
+        still_standing = sw._revoke_container_access([str(left), str(also)])
+
+    assert still_standing == [str(left), str(also)]
+    assert str(left) in caplog.text and str(also) in caplog.text
+    assert any(r.levelname == "WARNING" for r in caplog.records), caplog.records
+
+
+def test_revoke_reports_nothing_when_every_removal_succeeds(tmp_path):
+    # The real tool, on a real path: removing an ACE that isn't there succeeds,
+    # so the ordinary teardown reports an empty list.
+    assert sw._revoke_container_access([str(tmp_path)]) == []
 
 
 # --------------------------------------------------------------------------- #
@@ -509,6 +1019,111 @@ def test_custom_spawn_grants_nothing_when_the_profile_cannot_be_created(
     assert fake.spawns == []
 
 
+def test_custom_spawn_refuses_to_launch_when_a_required_grant_failed(
+        fake_ctypes, no_real_acls):
+    """Issue #8, the grant side: do not spawn a child that cannot work.
+
+    ``_needed_read_dirs`` hands back the interpreter's base prefix, so a failed
+    grant there means the confined child cannot read its own stdlib: it dies
+    inside interpreter startup with an empty stdout and a bare exit code, which
+    is exactly what issue #6 looked like for months. Refusing is the only
+    outcome that can be read from a log.
+    """
+    fake = fake_ctypes()
+    no_real_acls["unreachable"] = ["C:\\fake\\interpreter"]
+
+    with pytest.raises(OSError) as excinfo:
+        sw.confinement().custom_spawn(["x.exe"], {}, "C:\\scratch", 0)
+
+    assert isinstance(excinfo.value, sw.SandboxGrantError)
+    # The message has to name the path — an anonymous refusal is the same
+    # undiagnosable failure wearing a different hat.
+    assert "C:\\fake\\interpreter" in str(excinfo.value)
+    # Nothing was launched...
+    assert fake.spawns == []
+    # ...and the machine is back where it started: the grants that did land are
+    # revoked and the container profile is deleted.
+    assert no_real_acls["revoked"] == [["C:\\scratch", "C:\\fake\\interpreter"]]
+    assert fake.deleted == [sw._profile_name()]
+
+
+def test_a_refusal_is_not_replaced_by_a_failing_profile_delete(fake_ctypes, no_real_acls):
+    """The refusal has to survive its own teardown.
+
+    Deleting the container profile can fail — a zombie child still holds it,
+    which is what ``test_cleanup_process_survives_a_failing_profile_delete``
+    exists for. Unguarded, that ``OSError`` is raised *while* the
+    ``SandboxGrantError`` is being handled and **replaces** it: the launch fails
+    with "profile in use", ``isinstance(exc, SandboxGrantError)`` is False, and
+    the path that could not be granted survives only in ``__context__`` — which
+    is nowhere any caller looks. Naming the path is the entire contract of the
+    refusal, so the delete is guarded exactly as ``cleanup_process`` guards it.
+    """
+    fake = fake_ctypes(delete_error=OSError("profile in use"))
+    no_real_acls["unreachable"] = ["C:\\fake\\interpreter"]
+
+    with pytest.raises(OSError) as excinfo:
+        sw.confinement().custom_spawn(["x.exe"], {}, "C:\\scratch", 0)
+
+    assert isinstance(excinfo.value, sw.SandboxGrantError), excinfo.value
+    assert "C:\\fake\\interpreter" in str(excinfo.value)
+    assert "profile in use" not in str(excinfo.value)
+    # ...and the teardown still ran all the way through, both halves of it.
+    assert no_real_acls["revoked"] == [["C:\\scratch", "C:\\fake\\interpreter"]]
+    assert fake.deleted == [sw._profile_name()]
+    assert fake.spawns == []
+
+
+def test_custom_spawn_undoes_grants_applied_before_an_unexpected_failure(
+        fake_ctypes, monkeypatch):
+    """The grant runs inside the teardown's reach, and reports as it goes.
+
+    ``_grant_container_access`` opens machine-wide ACLs one icacls call at a
+    time, and the fail-closed change widened it further with a ``/findsid``
+    subprocess and several log calls. If anything in there raises, a caller
+    holding only its *return value* has nothing to revoke with: every ACE that
+    already landed is unrevokable and the container profile leaks beside them.
+    Hence the out-list, and hence a ``finally`` rather than ``except OSError`` —
+    the exception that gets you here need not be an ``OSError`` at all.
+    """
+    fake = fake_ctypes()
+    revoked = []
+
+    def _grant_then_die(scratch, granted=None):
+        # Tolerates a caller that passes no out-list, so what this test pins is
+        # the leak itself and not a TypeError from the seam.
+        if granted is None:
+            granted = []
+        granted.append(scratch)
+        granted.append("C:\\fake\\interpreter")
+        raise RuntimeError("the icacls layer blew up")
+
+    monkeypatch.setattr(sw, "_grant_container_access", _grant_then_die)
+    monkeypatch.setattr(sw, "_revoke_container_access", _recording_revoke(revoked))
+
+    with pytest.raises(RuntimeError, match="blew up"):
+        sw.confinement().custom_spawn(["x.exe"], {}, "C:\\scratch", 0)
+
+    assert revoked == [["C:\\scratch", "C:\\fake\\interpreter"]]
+    assert fake.deleted == [sw._profile_name()]
+    assert fake.spawns == []
+
+
+def test_custom_spawn_launches_when_nothing_is_unreachable(fake_ctypes, no_real_acls):
+    # The discriminator for the test above: with the same wiring and an empty
+    # unreachable list the spawn goes ahead untouched, so a refusal cannot be
+    # mistaken for "the launcher always refuses now".
+    fake = fake_ctypes()
+    assert no_real_acls["unreachable"] == []
+
+    proc = sw.confinement().custom_spawn(["x.exe"], {}, "C:\\scratch", 0)
+
+    assert proc is fake.proc
+    assert len(fake.spawns) == 1
+    assert no_real_acls["revoked"] == []
+    assert fake.deleted == []
+
+
 # --------------------------------------------------------------------------- #
 # cleanup_process
 # --------------------------------------------------------------------------- #
@@ -516,9 +1131,10 @@ def test_custom_spawn_grants_nothing_when_the_profile_cannot_be_created(
 
 def test_cleanup_process_ignores_a_process_it_never_confined():
     # The bridge calls cleanup_process on whatever worker just died, including
-    # an ordinary non-strict Popen. That must be a no-op, not an AttributeError.
+    # an ordinary non-strict Popen. That must be a no-op, not an AttributeError
+    # — and it reports no leftover grants, because it made none.
     plain = _FakeProc()
-    assert sw.cleanup_process(plain) is None
+    assert sw.cleanup_process(plain) == []
     assert not hasattr(plain, "_sandbox_cleanup")
 
 
@@ -528,11 +1144,13 @@ def test_cleanup_process_really_removes_the_acl_grant(monkeypatch, tmp_path):
     scratch = tmp_path / "scratch"
     scratch.mkdir()
     monkeypatch.setattr(sw, "_needed_read_dirs", lambda: [])
+    monkeypatch.setattr(sw, "_required_read_targets", lambda: [])
 
     before = _explicit_aces(str(scratch))
     all_before = _ace_lines(str(scratch))
-    granted = sw._grant_container_access(str(scratch))
+    granted, unreachable = sw._grant_container_access(str(scratch))
     assert granted == [str(scratch)]
+    assert unreachable == []
     assert _explicit_aces(str(scratch)) != before
 
     fake = _FakeCtypes()
@@ -540,7 +1158,7 @@ def test_cleanup_process_really_removes_the_acl_grant(monkeypatch, tmp_path):
     proc._sandbox_cleanup = (granted, "abax-sandbox-test")
     proc._sandbox_ctypes = fake
 
-    sw.cleanup_process(proc)
+    assert sw.cleanup_process(proc) == []      # nothing left standing
 
     assert _explicit_aces(str(scratch)) == before
     assert all_before <= _ace_lines(str(scratch))
@@ -562,15 +1180,24 @@ def test_cleanup_process_is_idempotent(tmp_path):
     assert fake.deleted == ["abax-sandbox-test"]
 
 
+def _recording_revoke(revoked, still_standing=()):
+    """A ``_revoke_container_access`` stand-in: records, reports, never raises."""
+    def _revoke(granted):
+        revoked.append(list(granted))
+        return list(still_standing)
+
+    return _revoke
+
+
 def test_cleanup_process_reverts_acls_even_without_the_ctypes_module(monkeypatch, tmp_path):
     # If the lazy plumbing import never happened there is no profile to delete,
     # but the ACL grants still exist and must still come back off.
     revoked = []
-    monkeypatch.setattr(sw, "_revoke_container_access", revoked.append)
+    monkeypatch.setattr(sw, "_revoke_container_access", _recording_revoke(revoked))
     proc = _FakeProc()
     proc._sandbox_cleanup = (["C:\\scratch"], "abax-sandbox-test")
 
-    sw.cleanup_process(proc)
+    assert sw.cleanup_process(proc) == []
 
     assert revoked == [["C:\\scratch"]]
     assert proc._sandbox_cleanup is None
@@ -580,7 +1207,7 @@ def test_cleanup_process_survives_a_failing_profile_delete(monkeypatch):
     # Deleting a profile can fail (still in use by a zombie child). The ACLs are
     # the security-relevant half, so cleanup must complete regardless.
     revoked = []
-    monkeypatch.setattr(sw, "_revoke_container_access", revoked.append)
+    monkeypatch.setattr(sw, "_revoke_container_access", _recording_revoke(revoked))
     fake = _FakeCtypes(delete_error=OSError("profile in use"))
     proc = _FakeProc()
     proc._sandbox_cleanup = (["C:\\scratch"], "abax-sandbox-test")
@@ -590,6 +1217,103 @@ def test_cleanup_process_survives_a_failing_profile_delete(monkeypatch):
 
     assert revoked == [["C:\\scratch"]]
     assert proc._sandbox_cleanup is None
+
+
+def test_cleanup_process_surfaces_the_grants_it_could_not_revoke(monkeypatch):
+    """Issue #8, the revoke side: teardown must not swallow a leak.
+
+    ``cleanup_process`` is the bridge's entry point; if a revoke fails there,
+    an ALL APPLICATION PACKAGES ACE is left standing on a real interpreter
+    prefix. Returning the paths is what lets the caller say so — and what a
+    future ``abax doctor`` check would look for after an interrupted run.
+    """
+    revoked = []
+    monkeypatch.setattr(
+        sw, "_revoke_container_access",
+        _recording_revoke(revoked, still_standing=["C:\\Python313"]))
+    fake = _FakeCtypes()
+    proc = _FakeProc()
+    proc._sandbox_cleanup = (["C:\\scratch", "C:\\Python313"], "abax-sandbox-test")
+    proc._sandbox_ctypes = fake
+
+    left = sw.cleanup_process(proc)
+
+    assert left == ["C:\\Python313"]
+    # A reported failure must not abort the rest of teardown.
+    assert revoked == [["C:\\scratch", "C:\\Python313"]]
+    assert fake.deleted == ["abax-sandbox-test"]
+    assert proc._sandbox_cleanup is None
+
+
+# --------------------------------------------------------------------------- #
+# the refusal must reach the GUI as a response, never as an exception
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("name,call", [
+    ("execute", lambda b: b.execute("1 + 1", {"sheets": []})),
+    ("execute_script", lambda b: b.execute_script("x = 1", "C:\\s.py",
+                                                  {"sheets": []})),
+    ("execute_macro", lambda b: b.execute_macro("m", [], None, {"sheets": []})),
+])
+def test_a_refusal_surfaces_as_a_response_not_an_exception(monkeypatch, name, call):
+    """``SandboxGrantError`` must not unwind out of a Qt slot.
+
+    ``ConsoleBridge._roundtrip`` calls ``_spawn`` for every execution op, and two
+    of the three callers run *synchronously on the GUI thread*: ``_run_macro``
+    (``abax/gui/mixin_macros.py``) and the Run-script path both call the bridge
+    from inside a Qt slot with nothing catching around them. Only the console is
+    protected, and only by ``FuncWorker.run``'s blanket ``except Exception``. A
+    refusal escaping there is an exception unwinding through Qt — for a
+    condition the user is *supposed* to be told about in a message box.
+
+    So it comes back as the response ``_STRICT_UNAVAILABLE`` already uses, which
+    all three callers handle: ``_apply_exec_response`` shows ``error`` and leaves
+    the workbook untouched. The path stays in the message, because that is the
+    only part of a confinement failure anyone can act on.
+    """
+    from abax.gui.console import console_bridge as cb
+
+    def _refuse():
+        raise sw.SandboxGrantError(
+            "AppContainer confinement was not established: the confined worker "
+            "could not be granted access to C:\\Python313 — refusing to launch.")
+
+    bridge = cb.ConsoleBridge()
+    monkeypatch.setattr(bridge, "_spawn", _refuse)
+    try:
+        resp = call(bridge)          # must not raise
+    finally:
+        bridge.close()
+
+    assert "C:\\Python313" in resp["error"], (name, resp)
+    assert resp["output"] == ""
+    assert resp["envelope"] == {"sheets": []}     # the workbook crosses back intact
+    # Exactly the shape the strict-unavailable refusal returns — in particular
+    # not "crashed", which would send _apply_exec_response down the "the worker
+    # process exited" branch and describe a crash that never happened.
+    assert set(resp) == {"output", "error", "envelope"}, resp
+
+
+def test_an_ordinary_spawn_failure_still_propagates(monkeypatch):
+    """The discriminator: only the *refusal* is converted.
+
+    An ``OSError`` from ``CreateProcessW`` is not a policy decision the user can
+    act on, and the bridge has always let it reach the caller. Swallowing every
+    ``OSError`` here would hide a broken launcher behind a tidy message box.
+    """
+    from abax.gui.console import console_bridge as cb
+
+    def _boom():
+        raise OSError("CreateProcessW failed: 5")
+
+    bridge = cb.ConsoleBridge()
+    monkeypatch.setattr(bridge, "_spawn", _boom)
+    try:
+        with pytest.raises(OSError, match="CreateProcessW"):
+            bridge.execute("1 + 1", {"sheets": []})
+    finally:
+        bridge.close()
 
 
 # --------------------------------------------------------------------------- #

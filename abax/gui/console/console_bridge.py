@@ -29,6 +29,13 @@ from ... import sandbox
 from ...console_worker import _read_frame, _write_frame
 from ...proclimits import assign_windows_job, close_windows_job
 
+# Unconditional despite the name: sandbox_windows is pure stdlib and imports
+# cleanly on any OS (all Windows-only work is inside method bodies), and it is
+# the module `sandbox.select_confinement()` loads anyway the moment a strict
+# bridge is built. Only the exception type is wanted — an `except` clause has to
+# name it before `_spawn` is called, so it cannot be imported lazily there.
+from ...sandbox_windows import SandboxGrantError
+
 _BOOT = "from abax.console_worker import main; main()"
 
 # Returned in place of a worker response when strict mode was requested but no
@@ -138,7 +145,31 @@ class ConsoleBridge:
             return {"output": "", "error": _STRICT_UNAVAILABLE,
                     "envelope": payload.get("envelope", {})}
         if not self._alive():
-            self._spawn()
+            try:
+                self._spawn()
+            except SandboxGrantError as exc:
+                # The other half of the same fail-closed rule, decided one layer
+                # down: strict mode *is* available, but a path the confined
+                # worker cannot boot without could not be made reachable, so
+                # `custom_spawn` refused rather than launching a child that dies
+                # in interpreter startup with no output.
+                #
+                # It has to leave here as a *response*, not as an exception. Two
+                # of the three execution entry points — `_run_macro`
+                # (abax/gui/mixin_macros.py) and the Run-script path — call
+                # `execute_macro`/`execute_script` synchronously on the GUI
+                # thread, so a raise unwinds out of a Qt slot; only the console
+                # is protected, by `FuncWorker.run`'s blanket except. Returning
+                # the same shape `_STRICT_UNAVAILABLE` returns means all three
+                # callers already handle it: `_apply_exec_response` shows
+                # `error` in a message box and leaves the workbook alone.
+                #
+                # `str(exc)` and not a generic line, because the message names
+                # the path that could not be granted — which is the only thing
+                # that makes this diagnosable, and the reason the exception
+                # exists at all.
+                return {"output": "", "error": str(exc),
+                        "envelope": payload.get("envelope", {})}
         watchdog = None
         if timeout is not None and timeout > 0:
             watchdog = threading.Timer(timeout, self.interrupt)
