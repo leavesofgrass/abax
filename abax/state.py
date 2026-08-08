@@ -1,8 +1,9 @@
 """Runtime state with a write-ahead journal — survives crashes.
 
-Journal first, apply, unlink (per spec §3f). On startup, replay an interrupted
-write before loading the main state file. Never raises in ``flush`` because it
-is called from ``atexit``/``SIGTERM``.
+Journal first, apply, unlink (per spec §3f). On startup, load the main state
+file and then replay an interrupted write *over* it — the journal entry is the
+newer of the two, so it wins. Never raises in ``flush`` because it is called
+from ``atexit``/``SIGTERM``.
 
 Both files are written and read back by abax alone, so their encoding is a
 contract abax has with itself: UTF-8 on both sides, via
@@ -92,6 +93,15 @@ class StateManager:
     @classmethod
     def load(cls, path: Path) -> "StateManager":
         mgr = cls(path)
+        # Main file first, journal second. The other order looks equivalent and
+        # is not: replaying into ``_state`` and *then* assigning the parsed main
+        # file over it drops the replayed entry on every run where the main file
+        # is readable — i.e. the normal one — which leaves the journal doing
+        # nothing except in the rare case that the main file is missing too.
+        try:
+            mgr._state = json.loads(_read_text(mgr._path))
+        except Exception:
+            pass
         if mgr._journal.exists():  # replay interrupted write on startup
             try:
                 entry = json.loads(_read_text(mgr._journal))
@@ -99,8 +109,4 @@ class StateManager:
             except Exception:
                 pass
             mgr._journal.unlink(missing_ok=True)
-        try:
-            mgr._state = json.loads(_read_text(mgr._path))
-        except Exception:
-            pass
         return mgr

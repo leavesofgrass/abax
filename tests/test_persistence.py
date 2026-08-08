@@ -139,3 +139,23 @@ def test_state_journal_replay(tmp_path):
     mgr = StateManager.load(path)
     assert mgr.get("pending") == 7
     assert not journal.exists()  # replayed and cleaned up
+
+
+def test_state_journal_replay_wins_over_the_main_state_file(tmp_path):
+    """The point of a write-ahead journal: the replayed entry is the newer write.
+
+    The crash this models is the ordinary one — journal written, process killed
+    before ``flush``, and a perfectly readable ``state.json`` still on disk
+    holding the previous value. Replaying *before* the main file is parsed makes
+    the load order decide the winner, and the older file wins; the journal then
+    does nothing except in the one case where there is nothing to recover.
+    """
+    path = tmp_path / "state.json"
+    journal = path.with_suffix(".journal")
+    path.write_text(json.dumps({"k": "old", "untouched": "keep"}))
+    journal.write_text(json.dumps({"key": "k", "value": "new"}))
+
+    mgr = StateManager.load(path)
+    assert mgr.get("k") == "new"            # journal beats the older main file
+    assert mgr.get("untouched") == "keep"   # ...and replay merges, not replaces
+    assert not journal.exists()

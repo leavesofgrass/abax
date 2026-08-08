@@ -187,14 +187,12 @@ _STATE_ROUNDTRIP_CHILD = """
     p.write_bytes(json.dumps({"last_file": value}, ensure_ascii=False).encode("utf-8"))
     loaded = StateManager.load(p).get("last_file")
 
-    # ...and the same through the crash-replay path. No main state file here,
-    # deliberately: StateManager.load replays the journal into _state and then
-    # assigns _state = json.loads(<main file>), so a readable main file discards
-    # the replayed entry outright. That clobber is a real defect but it is not
-    # an *encoding* defect - it reproduces with a pure-ASCII value - so this
-    # test stays inside the scenario where replay is observable rather than
-    # asserting behaviour the journal has never had.
+    # ...and the same through the crash-replay path, with a main state file
+    # present, which is what a real crash leaves behind. The replayed entry has
+    # to win over it, so a mis-decode of the journal shows up as the stale value
+    # rather than as nothing at all.
     p2 = root / "s2.json"
+    p2.write_bytes(json.dumps({"last_file": "stale"}).encode("utf-8"))
     (root / "s2.journal").write_bytes(
         json.dumps({"key": "last_file", "value": value},
                    ensure_ascii=False).encode("utf-8"))
@@ -340,13 +338,13 @@ def test_a_legacy_state_file_heals_itself_on_the_next_flush(tmp_path, cp1252_def
 def test_a_legacy_journal_replays_instead_of_being_dropped(tmp_path, cp1252_default):
     """The journal is the same contract, and the same legacy files exist for it.
 
-    No main state file here, deliberately: ``load`` replays the journal into
-    ``_state`` and then assigns over it, so replay is only observable when the
-    main file is absent.
+    A main state file is present, as after a real crash: the replayed entry is
+    the newer write, so it has to overwrite the value already on disk.
     """
     from abax.state import StateManager
 
     p = tmp_path / "state.json"
+    p.write_bytes(json.dumps({"last_file": "stale"}).encode("utf-8"))
     _write_legacy_cp1252(p.with_suffix(".journal"),
                          {"key": "last_file", "value": _LEGACY_STATE["last_file"]})
 

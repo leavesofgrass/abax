@@ -205,7 +205,17 @@ def test_windows_strict_worker_runs_and_confines():
         env = Workbook().to_envelope()
         # Benign command runs (confinement lets the worker function).
         r = b.execute("put('A1','5'); print('ok', cell('A1'))", env, timeout=60)
-        assert not r.get("crashed"), r
+        # Spell the diagnosis out rather than dumping the dict: pytest truncates
+        # a long repr, and for months the CI log showed "'crashed': True, ...}"
+        # with the stderr cut off — which is most of why #6 went undiagnosed.
+        # elapsed is the discriminator: near-zero means the worker died on its
+        # own, ~60s means it hung and the watchdog killed it.
+        assert not r.get("crashed"), (
+            "the confined worker never returned a frame."
+            f"\n  exit code : {r.get('exit_code')!r}"
+            f"\n  elapsed   : {r.get('elapsed')!r}s  (timeout was 60s)"
+            f"\n  stderr    : {r.get('stderr')!r}"
+            f"\n  error     : {r.get('error')!r}")
         assert "ok 5" in r["output"]
         assert Workbook.from_envelope(r["envelope"]).sheet.get("A1") == 5
 

@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 
 from ... import sandbox
 from ...console_worker import _read_frame, _write_frame
@@ -143,6 +144,7 @@ class ConsoleBridge:
             watchdog = threading.Timer(timeout, self.interrupt)
             watchdog.daemon = True
             watchdog.start()
+        started = time.monotonic()
         try:
             _write_frame(self._proc.stdin, json.dumps(payload).encode("utf-8"))
             data = _read_frame(self._proc.stdout)
@@ -153,6 +155,15 @@ class ConsoleBridge:
                 watchdog.cancel()
         if data is None:
             reason = self._dead_reason()
+            # A dead worker and a worker the watchdog killed produce the same
+            # "no frame came back", and for a long time the payload could not
+            # tell them apart — which is most of why #6 stayed undiagnosed.
+            # exit_code and elapsed are the discriminator: a startup death
+            # returns near-instantly with a non-zero code, while a hang returns
+            # at ~timeout because `interrupt` fired. Additive keys; `stderr`
+            # keeps its meaning for the two GUI callers that display it.
+            exit_code = getattr(self._proc, "returncode", None)
+            elapsed = time.monotonic() - started
             dead, self._proc = self._proc, None
             self._close_job()
             # Revert the dead worker's confinement side effects (Windows profile
@@ -167,7 +178,8 @@ class ConsoleBridge:
                     pass
             return {"output": "", "error": "the console process exited",
                     "envelope": payload.get("envelope", {}), "crashed": True,
-                    "stderr": reason}
+                    "stderr": reason, "exit_code": exit_code,
+                    "elapsed": round(elapsed, 3)}
         return json.loads(data)
 
     def execute(self, source: str, envelope: dict,
