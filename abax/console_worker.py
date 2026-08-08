@@ -196,13 +196,46 @@ def _write_frame(stream, payload: bytes) -> None:
     stream.flush()
 
 
+class _NullWriter(io.TextIOBase):
+    """A text sink that throws writes away without touching the filesystem.
+
+    ``open(os.devnull, "w")`` is the usual way to do this and works everywhere
+    except the one place this worker most needs it: inside a Windows
+    AppContainer, opening ``nul`` is denied. The confined worker therefore died
+    during startup with ``PermissionError: [Errno 13] Permission denied: 'nul'``
+    before it could serve a single frame (see #6) — and because the parent only
+    saw "no frame came back", that was invisible for months.
+    """
+
+    def write(self, s: str) -> int:      # noqa: D102 - TextIOBase contract
+        return len(s)
+
+    def writable(self) -> bool:          # noqa: D102
+        return True
+
+
+def _discarding_stdout():
+    """The sink stray prints go to. Prefers the real ``os.devnull``.
+
+    Kept as the first choice rather than always using :class:`_NullWriter` so
+    the ordinary unconfined worker keeps a genuine file object — anything that
+    reaches for ``sys.stdout.fileno()`` still gets one. The fallback is for the
+    confined case, where there is no device to open.
+    """
+    try:
+        return open(os.devnull, "w", encoding="utf-8")
+    except OSError:
+        # PermissionError inside an AppContainer; ENOENT on an exotic host.
+        return _NullWriter()
+
+
 def main() -> None:
     # Reserve the real stdout pipe for framing; discard stray prints (e.g. from
     # imports) so they can't corrupt the frame stream. (User code's own output is
     # captured per-command in handle().) Real errors still go to stderr.
     out = sys.stdout.buffer
     inp = sys.stdin.buffer
-    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+    sys.stdout = _discarding_stdout()
 
     # Sandbox Phase 2: cap memory / CPU / file size / process count so a
     # runaway is killed by the OS. (On Windows the parent assigns a Job

@@ -119,3 +119,56 @@ def test_dispatch_routes_ops(tmp_path):
                                "cursor": None, "envelope": _env()})["output"]
     # No op defaults to the console path (wire-compat with old parents).
     assert "45" in w.dispatch({"code": "print(45)", "envelope": _env()})["output"]
+
+
+# --- startup: the stray-print sink ------------------------------------------
+#
+# The worker reserves the real stdout pipe for framing and sends stray prints
+# (from imports, say) to a sink, so they cannot corrupt the frame stream.
+# `open(os.devnull, "w")` is the usual way and works everywhere except the one
+# place this worker most needs it: inside a Windows AppContainer, opening `nul`
+# is denied, so the confined worker died at startup with PermissionError before
+# serving a frame. The parent saw only "no frame came back" (#6).
+
+
+def test_discarding_stdout_prefers_a_real_file():
+    """The unconfined path keeps a genuine file object, so anything reaching
+    for sys.stdout.fileno() still gets one."""
+    from abax.console_worker import _discarding_stdout
+
+    sink = _discarding_stdout()
+    try:
+        assert sink.fileno() >= 0
+    finally:
+        sink.close()
+
+
+def test_discarding_stdout_survives_a_denied_devnull(monkeypatch):
+    """The AppContainer case, simulated: opening the device is refused."""
+    import abax.console_worker as cw
+
+    def _denied(*args, **kwargs):
+        raise PermissionError(13, "Permission denied", "nul")
+
+    monkeypatch.setattr(cw, "open", _denied, raising=False)
+    sink = cw._discarding_stdout()          # must not raise
+    assert sink.write("swallowed") == len("swallowed")
+    assert sink.writable() is True
+
+
+def test_the_sink_really_discards(capsys):
+    """A print into it neither raises nor reaches real stdout.
+
+    That second half is the point: the whole reason for the sink is that a
+    stray print must not reach the pipe the frame protocol owns.
+    """
+    import contextlib
+
+    from abax.console_worker import _NullWriter
+
+    sink = _NullWriter()
+    with contextlib.redirect_stdout(sink):
+        print("this must vanish")
+    assert capsys.readouterr().out == ""
+    # Write-only by design; a reader would imply it was buffering somewhere.
+    assert sink.readable() is False
