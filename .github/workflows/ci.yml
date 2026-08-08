@@ -120,29 +120,29 @@ jobs:
         run: python -m pip install -e ".[dev,thin,science]"
 
       # Same headless-Qt invocation as the check/coverage jobs: xvfb-run for the
-      # QApplication the GUI tests build, offscreen platform from the job env.
+      # QApplication the GUI tests build, offscreen platform from the job env,
+      # `-n auto` as the coverage job already uses.
       #
-      # Serial on purpose — NOT `-n auto` like the other jobs. With the science
-      # stack imported, every xdist worker carries numpy + pandas + scipy +
-      # scikit-learn + statsmodels + matplotlib, and four of them on a 4-core
-      # runner exhaust it: the first run of this job died with ENOMEM
-      # ("Cannot allocate memory" spawning a child, and a termios .so that
-      # failed to map) in test_pyz, test_restricted_tier and test_ptyterm —
-      # every one of them a test that shells out to a subprocess, none of them
-      # a science failure. This job exists for signal, not speed, so it trades
-      # a few minutes for not being memory-flaky.
+      # This job briefly ran serially, on the theory that four xdist workers
+      # each carrying numpy + pandas + scipy + scikit-learn + statsmodels +
+      # matplotlib exhausted the runner — its first run died with ENOMEM in
+      # test_pyz, test_restricted_tier and test_ptyterm. That was the wrong
+      # reading. The real cause was test_proclimits applying its rlimits to the
+      # pytest process itself (fixed in 58e99c1): only the one worker that ran
+      # that file was capped, which is exactly why only its tests failed.
+      # Memory was never the constraint — that same run completed 4499 tests in
+      # 99s — and going serial made it worse, spreading the cap over every
+      # remaining test and turning a fast failure into a hang that burned six
+      # hours against GitHub's job ceiling.
       #
-      # --timeout names the culprit. Serial running cured the ENOMEM but let a
-      # test that had been failing fast actually execute, and it hung: the job
-      # sat until GitHub's 6-hour ceiling killed it, reporting only "cancelled"
-      # with no test named, because stdout through a pipe is block-buffered and
-      # the last flushed line was far behind the hang. pytest-timeout (already
-      # in the dev extra) fails the test instead and dumps every thread's stack,
-      # so the next occurrence identifies itself. 300s is far above any healthy
-      # test here; timeout_method=thread works even when the hang is inside a
-      # blocking C call.
+      # --timeout is what finally named it, and it stays. A hung test now fails
+      # with every thread's stack dumped instead of the job dying anonymously —
+      # stdout through a pipe is block-buffered, so the last flushed line sits
+      # far behind a hang and cannot be used to find one. 300s is far above any
+      # healthy test here; timeout_method=thread fires even inside a blocking
+      # C call, and works per-worker under xdist.
       - name: Run the full suite (science import gates open)
-        run: xvfb-run -a python -m pytest --timeout=300 --timeout-method=thread
+        run: xvfb-run -a python -m pytest -n auto --timeout=300 --timeout-method=thread
 
   # ── Coverage ratchet on abax/core (+ engine, reported) ─────────────────────
   # A floor, not an aspiration: the core floor is set just under the current
