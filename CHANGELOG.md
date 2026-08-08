@@ -11,6 +11,28 @@ All notable changes to abax are documented here. The format follows
 ## [Unreleased]
 
 ### Fixed
+- **Implicit text encodings, swept as a class rather than one at a time** —
+  twelve call sites across nine modules left their encoding to the platform
+  default, so what abax read back depended on the machine it ran on. Two had
+  already shipped as bugs from that single root cause: `settings.py` reading a
+  UTF-8 `settings.json` as the platform locale (issue #1, fixed in 3e40240),
+  and `sandbox_windows._icacls` decoding `icacls` output as *strict* UTF-8
+  (issue #5). `icacls` writes the console OEM codepage, and CI sets
+  `PYTHONUTF8=1` for every job, so one non-ASCII byte in an ACL principal name
+  — routine on a localised Windows install: *Administratoren*,
+  *Utilisateurs*, *Администраторы* — raised `UnicodeDecodeError`, which escaped
+  a handler that caught only `OSError`/`SubprocessError`. On the *revoke* path
+  that is a leak, not a crash: `_revoke_container_access` aborted partway and
+  left the machine-wide ALL-APPLICATION-PACKAGES grant standing on the
+  interpreter prefix and every `sys.path` directory, with nothing left to
+  revert it. `_icacls` now decodes the console codepage with
+  `errors="replace"` (agreeing with the test helper added in 147eb6f) and its
+  `except` is broad, because a teardown that raises has no second chance.
+  The other ten: the OS clipboard bridge (`os_copy`/`os_paste`, which
+  round-trips the user's own text in *both* directions), the `:!cmd` shell
+  passthrough and its timeout path, file-manager command buttons, both pandoc
+  bridges, the state journal's four reads and writes, and two bare `open()`
+  calls the earlier sweep had missed.
 - **`abax gui` named the wrong Qt binding when none was installed** — it said
   "PyQt6 is not installed" and pointed at `pip install abax[gui]`, which
   installs PySide6. The check behind it (`_HAS_QT`) accepts *either* binding,
@@ -35,6 +57,31 @@ All notable changes to abax are documented here. The format follows
   were also stale.
 
 ### Added
+- **A shared text-encoding policy, and a sweep that enforces it**
+  (`tests/test_encoding_policy.py`). `abax._runtime` — dependency-free,
+  the one sanctioned cross-layer import — now owns `read_text_utf8` /
+  `write_text_utf8` for the files abax writes and reads back, and
+  `console_encoding()` for subprocess pipes. Those are deliberately *not* the
+  same answer: a file abax round-trips with itself must be UTF-8 on both sides,
+  whereas a pipe carries whatever the child emits, so forcing UTF-8 there would
+  be the same bug with a friendlier default. The new tests include an AST sweep
+  of the whole package that fails on any future call site leaving an encoding
+  implicit, so the eighth occurrence is caught at review rather than in an issue
+  report. The two behavioural tests run in child interpreters under
+  `-X warn_default_encoding` and under a forced non-UTF-8 locale, because
+  `PYTHONUTF8=1` makes `read_text()` default to UTF-8 anyway — a round-trip
+  assertion in-process passes on CI whether or not the bug is present, which is
+  exactly the trap the issue #1 fix fell into.
+
+  The one user-visible behaviour change: a `state.json` or journal written by
+  an older abax under a non-UTF-8 locale is **migrated, not discarded**. It is
+  read as UTF-8, falls back once to the platform encoding if that fails, and
+  the next save rewrites it as UTF-8, so it heals itself. Reading it as UTF-8
+  with `errors="replace"` instead would have turned a recoverable file into a
+  permanently corrupted one, since the mangled text gets written straight back.
+  A strict read would have been worse still: the decode error is swallowed by
+  `load()`, which loses the whole dict rather than one key, and the next flush
+  overwrites the file with `{}`.
 - **`fetch` and `sql` are documented** — the CLI guide claimed to cover every
   subcommand but had no section for either, while the headless-CLI example
   already pointed readers there for exactly those two. Both are now written

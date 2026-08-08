@@ -100,6 +100,91 @@ EXCHANGE_DIR = DATA_DIR / "exchange"
 for _d in (CONFIG_DIR, DATA_DIR, CACHE_DIR, LOG_DIR, EXCHANGE_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
+# --- text encoding policy --------------------------------------------------
+# abax has shipped the same defect twice, from the same root cause: a call that
+# left the encoding implicit and so silently inherited whatever the platform
+# said that day. Issue #1 was settings.py reading a UTF-8 settings.json back as
+# the platform locale (mojibake, and on some bytes a silent reset to defaults);
+# issue #5 was sandbox_windows._icacls decoding icacls output as strict UTF-8
+# under ci.yml's PYTHONUTF8=1. ~40 other call sites spell the encoding out by
+# hand, which is exactly why the two that forgot went unnoticed for so long.
+# These are the shared spellings, so the next site has something to copy.
+#
+# _runtime is the home because it is dependency-free (a bare `pip install abax`
+# and the portable abax.pyz keep working), it is already the one sanctioned
+# cross-layer import, and it already owns CONFIG_DIR/DATA_DIR.
+#
+# Two different problems hide under "encoding bug", and they do NOT take the
+# same fix:
+#
+#   FILES abax writes and reads back — settings.json, the state journal — are a
+#   contract between abax and itself. UTF-8 on both sides, always. Use
+#   read_text_utf8 / write_text_utf8.
+#
+#   SUBPROCESS PIPES carry whatever the child emits, which on Windows is
+#   usually the console OEM codepage and is not UTF-8. Forcing UTF-8 there
+#   would be as wrong as leaving it implicit, just differently — so there is no
+#   read/write pair for pipes, only console_encoding() to name the codec, and
+#   each call site passes encoding=/errors= itself (see console_encoding).
+
+TEXT_ENCODING = "utf-8"
+# Readers accept a BOM; writers never emit one. An editor that adds one (VS
+# Code's "UTF-8 with BOM", PowerShell 5.1 redirection) would otherwise make a
+# file abax wrote itself unreadable — settings.py hit exactly this and the two
+# halves of that fix must not drift apart again.
+TEXT_ENCODING_READ = "utf-8-sig"
+
+
+def read_text_utf8(path, *, errors: str = "strict") -> str:
+    """Read a file abax owns. UTF-8, tolerating a BOM."""
+    return Path(path).read_text(encoding=TEXT_ENCODING_READ, errors=errors)
+
+
+def write_text_utf8(path, text: str, *, errors: str = "strict") -> None:
+    """Write a file abax owns. UTF-8, never a BOM."""
+    Path(path).write_text(text, encoding=TEXT_ENCODING, errors=errors)
+
+
+def console_encoding() -> str:
+    """The codec for text pipes to and from a **console child process**.
+
+    A captured pipe is not a terminal, so the child does not get to negotiate:
+    Windows console programs (``icacls``, ``cmd /c ...``, ``clip``) write the
+    **OEM** codepage, which is neither UTF-8 nor the ANSI codepage. Elsewhere
+    the locale's preferred encoding is the child's best guess.
+
+    Callers pair this with ``errors="replace"``. Every consumer of these pipes
+    either shows the text to a human or compares one snapshot against another,
+    so a byte we cannot decode must degrade to U+FFFD — never take down the
+    feature. That is the actual lesson of issue #5: the crash was not caused by
+    guessing the encoding wrong, it was caused by guessing *strictly*.
+
+    Not for a child that is **defined** to speak UTF-8 regardless of locale —
+    pandoc, for instance. Those sites pass ``encoding="utf-8"`` literally, and
+    are right to; a blanket helper applied there would reintroduce the bug from
+    the other side.
+
+    One caveat worth naming, since misplaced trust in a default is the whole
+    bug class: off Windows this reports UTF-8 whenever *we* are in UTF-8 mode
+    (``PYTHONUTF8=1``, which ci.yml sets), because ``getpreferredencoding``
+    answers for this interpreter rather than for the child's locale. Modern
+    POSIX locales are UTF-8 anyway, so the two agree in practice — and where
+    they would not, ``errors="replace"`` at every call site keeps the mismatch
+    to a mangled character rather than a traceback.
+    """
+    if sys.platform == "win32":
+        import codecs
+
+        try:
+            codecs.lookup("oem")
+        except LookupError:  # pragma: no cover - CPython on Windows always has it
+            pass
+        else:
+            return "oem"
+    import locale
+
+    return locale.getpreferredencoding(False) or TEXT_ENCODING
+
 # --- optional aggregate accelerator ---------------------------------------
 # The stdlib core reduces ranges itself; the engine layer may inject a faster
 # numpy-backed reducer here for large all-numeric ranges. core reads the slot

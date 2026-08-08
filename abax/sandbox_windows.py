@@ -40,6 +40,8 @@ import os
 import subprocess
 import sys
 
+from ._runtime import console_encoding
+
 # The well-known SID for "ALL APPLICATION PACKAGES" — the group every
 # AppContainer process belongs to. Granting it read/execute on a path makes that
 # path reachable from inside any AppContainer.
@@ -154,11 +156,33 @@ def _needed_read_dirs() -> "list[str]":
 
 
 def _icacls(path: str, *args: str) -> bool:
+    """Run one ``icacls`` operation. True on success; **never** raises.
+
+    ``icacls`` writes the console **OEM** codepage, not UTF-8, and ci.yml sets
+    ``PYTHONUTF8=1`` for every job — so a bare ``text=True`` decodes strictly as
+    UTF-8 and dies on the first non-ASCII byte in a principal name. Localised
+    Windows installs have those as a matter of course (*Administratoren*,
+    *Utilisateurs*, *Администраторы*). Hence ``encoding=console_encoding()``,
+    which is ``"oem"`` here, matching ``tests/test_sandbox_windows.py::
+    _ace_lines``; the shipping code and the test must read the same command the
+    same way.
+
+    We never look at the output — only ``returncode`` — so ``errors="replace"``
+    costs nothing and means the decode cannot fail at all. The ``except`` is
+    broad on purpose, as a second line of defence: the caller that matters is
+    :func:`_revoke_container_access`, and it has no second chance. Every other
+    failure mode here already degrades to ``False``; one that escapes as an
+    unexpected type aborts the teardown partway and leaves the machine-wide
+    ALL-APPLICATION-PACKAGES grant standing on the interpreter prefix and every
+    ``sys.path`` directory, with nothing left to revert it. Returning ``False``
+    loses an ACL operation; raising leaks the grant the sandbox exists to undo.
+    """
     try:
         r = subprocess.run(["icacls", path, *args], capture_output=True,
-                           text=True, timeout=60)
+                           text=True, encoding=console_encoding(),
+                           errors="replace", timeout=60)
         return r.returncode == 0
-    except (OSError, subprocess.SubprocessError):
+    except Exception:
         return False
 
 

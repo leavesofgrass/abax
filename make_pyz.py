@@ -22,8 +22,21 @@ _STDLIB_OK = {"hashlib", "os", "sys", "zipfile", "pathlib", "importlib"}
 
 
 def verify_bootstrap_stdlib_only() -> None:
-    """Fail the build if pyz_main.py imports anything outside stdlib."""
-    tree = ast.parse((ROOT / "pyz_main.py").read_text())
+    """Fail the build if pyz_main.py imports anything outside stdlib.
+
+    The source is handed to :func:`ast.parse` as **bytes** on purpose. Python
+    source is UTF-8 by language definition (PEP 3120), not by locale, so the
+    compiler applies the source-encoding rules itself and no platform default
+    ever enters the path — the same policy :mod:`abax._runtime` documents, one
+    step stronger because there is no decode to get wrong. A bare
+    ``read_text()`` here read Python source with whatever codec the machine
+    happened to prefer: ``pyz_main.py``'s docstring contains a U+2014 EM DASH
+    (bytes ``E2 80 94`` at offset 90), so it is not ASCII-decodable, and this
+    is the script that builds the shipped ``abax.pyz`` — it died with
+    UnicodeDecodeError wherever the default was ASCII (POSIX under ``LC_ALL=C``,
+    which is how a clean container builds) and mojibaked silently on cp1252.
+    """
+    tree = ast.parse((ROOT / "pyz_main.py").read_bytes())
     for node in ast.walk(tree):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             names = (

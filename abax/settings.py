@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ._runtime import _HAS_MSGSPEC
+from ._runtime import _HAS_MSGSPEC, read_text_utf8, write_text_utf8
 
 SCHEMA_VERSION = 10
 
@@ -241,19 +241,25 @@ else:
     # still land on by downgrading or reaching for an older abax.pyz. Mutual
     # readability is the contract; the encoding= on read is what delivers it.
     #
-    # Read as utf-8-sig, write as utf-8: the -sig codec strips a UTF-8 BOM when
-    # one is present and is plain utf-8 when it is not, so a settings.json saved
-    # by an editor that adds a BOM (VS Code's "UTF-8 with BOM", PowerShell 5.1
-    # redirection) still loads instead of silently resetting to defaults. We
-    # never write one. The msgspec branch strips the same three bytes for the
-    # same reason — the two back ends diverging on encoding is what caused this
-    # bug in the first place, so they do not get to diverge on the BOM either.
-    _READ_ENCODING = "utf-8-sig"
-    _WRITE_ENCODING = "utf-8"
+    # Read as utf-8-sig, write as utf-8 — via _runtime's read_text_utf8 /
+    # write_text_utf8 rather than a pair of constants spelled out here. The -sig
+    # codec strips a UTF-8 BOM when one is present and is plain utf-8 when it is
+    # not, so a settings.json saved by an editor that adds a BOM (VS Code's
+    # "UTF-8 with BOM", PowerShell 5.1 redirection) still loads instead of
+    # silently resetting to defaults. We never write one. The msgspec branch
+    # strips the same three bytes for the same reason — the two back ends
+    # diverging on encoding is what caused this bug in the first place, so they
+    # do not get to diverge on the BOM either.
+    #
+    # This module is where the drift happened, so this module does not get to
+    # keep its own copy of the answer. _runtime owns the spelling now; it is
+    # dependency-free (imported unconditionally at the top of this file, so the
+    # no-msgspec fallback here still needs nothing but the stdlib), and reusing
+    # it is what keeps the ~40 hand-written call sites from disagreeing again.
 
     def load_settings(path: Path) -> "Settings":
         try:
-            data = json.loads(Path(path).read_text(encoding=_READ_ENCODING))
+            data = json.loads(read_text_utf8(path))
             data = _migrate_settings(data)
             return Settings(
                 **{k: v for k, v in data.items() if k in Settings.__dataclass_fields__}
@@ -262,4 +268,4 @@ else:
             return Settings()
 
     def save_settings(s: "Settings", path: Path) -> None:
-        Path(path).write_text(json.dumps(asdict(s), indent=2), encoding=_WRITE_ENCODING)
+        write_text_utf8(path, json.dumps(asdict(s), indent=2))

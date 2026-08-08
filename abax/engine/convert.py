@@ -83,9 +83,15 @@ def pandoc_convert(src: str, dst: str, timeout: int = 180) -> None:
             "pandoc is not installed. Install it from Tools → Install optional "
             "features, or `pip install pypandoc_binary`.")
     try:
+        # pandoc writes UTF-8 on both pipes regardless of locale, so utf-8 is the
+        # child-matching choice here, not console_encoding(). Its stderr is
+        # surfaced to the user and may name the offending file, so it is exactly
+        # the string most likely to be non-ASCII — and the one that must not
+        # raise on its way to the error dialog.
         proc = subprocess.run(
             [exe, "--standalone", src, "-o", dst],
-            capture_output=True, text=True, timeout=timeout)
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=timeout)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ConvertError(str(exc)) from exc
     if proc.returncode != 0:

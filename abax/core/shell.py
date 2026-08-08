@@ -17,6 +17,8 @@ import os
 import subprocess
 from dataclasses import dataclass
 
+from .._runtime import console_encoding
+
 
 @dataclass
 class Result:
@@ -50,12 +52,20 @@ def run(command: str, cwd: str | None = None, timeout: float = 30.0,
     variables — e.g. abax's ``$ABAX_*`` selection context — into ``os.environ``
     themselves). On timeout, return a :class:`Result` with a nonzero
     ``returncode`` and a note in ``stderr`` rather than raising.
+
+    The child is whatever the user typed at ``:!cmd``, and its output is shown
+    to them verbatim, so the pipes are decoded with the **console** codepage
+    (``cmd`` and everything it runs writes OEM on Windows, not UTF-8) and with
+    ``errors="replace"``. A terminal that raises UnicodeDecodeError instead of
+    printing one U+FFFD would be a worse terminal.
     """
     try:
         proc = subprocess.run(
             _shell_command(command),
             capture_output=True,
             text=True,
+            encoding=console_encoding(),
+            errors="replace",
             timeout=timeout,
             cwd=cwd,
             env=env,
@@ -63,10 +73,13 @@ def run(command: str, cwd: str | None = None, timeout: float = 30.0,
     except subprocess.TimeoutExpired as exc:
         out = exc.stdout or ""
         err = exc.stderr or ""
+        # Partial output from a timeout can still arrive as bytes. Decode it the
+        # same way the non-timeout path does — a bare .decode() would default to
+        # UTF-8 and mojibake exactly the output the successful path got right.
         if isinstance(out, bytes):
-            out = out.decode(errors="replace")
+            out = out.decode(console_encoding(), errors="replace")
         if isinstance(err, bytes):
-            err = err.decode(errors="replace")
+            err = err.decode(console_encoding(), errors="replace")
         note = f"abax: command timed out after {timeout:g}s"
         err = f"{err}\n{note}" if err else note
         return Result(stdout=out, stderr=err, returncode=124)

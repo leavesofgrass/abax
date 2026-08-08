@@ -202,7 +202,7 @@ def main() -> None:
     # captured per-command in handle().) Real errors still go to stderr.
     out = sys.stdout.buffer
     inp = sys.stdin.buffer
-    sys.stdout = open(os.devnull, "w")
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
 
     # Sandbox Phase 2: cap memory / CPU / file size / process count so a
     # runaway is killed by the OS. (On Windows the parent assigns a Job

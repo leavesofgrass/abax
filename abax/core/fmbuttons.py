@@ -27,6 +27,8 @@ import os
 import subprocess
 from dataclasses import dataclass, field
 
+from .._runtime import console_encoding
+
 
 def _quote(path: str) -> str:
     """Quote a path for a shell command if it needs it (empty stays empty)."""
@@ -106,13 +108,21 @@ def run_button(button: Button, ctx: Context, *, timeout: float | None = None) ->
     Returns a :class:`RunResult`. A command that cannot start (or times out) comes
     back with a non-zero return code and the reason in ``stderr`` rather than
     raising, so the file manager can show it.
+
+    The captured output goes straight to a human, and the child is an arbitrary
+    shell command, so its pipes speak the console codepage rather than UTF-8 —
+    ``git status`` on a repo with an accented filename is enough to hit it.
+    ``errors="replace"`` keeps that promise of "shows the reason rather than
+    raising" honest: a byte we cannot decode must not become the exception the
+    docstring says cannot happen.
     """
     command = expand(button.command, ctx)
     cwd = ctx.directory if os.path.isdir(ctx.directory) else None
     try:
         proc = subprocess.run(
             command, shell=True, cwd=cwd, timeout=timeout,
-            capture_output=button.capture, text=True)
+            capture_output=button.capture, text=True,
+            encoding=console_encoding(), errors="replace")
     except subprocess.TimeoutExpired:
         return RunResult(command, 124, "", f"timed out after {timeout}s")
     except OSError as exc:

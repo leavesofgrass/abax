@@ -318,7 +318,7 @@ def _can_write_outside(scratch: str) -> "str | None":
             candidates.append(os.path.join(base, ".abax_sandbox_escape_probe"))
     for path in candidates:
         try:
-            with open(path, "w") as fh:
+            with open(path, "w", encoding="utf-8") as fh:
                 fh.write("escape")
             os.remove(path)
             return path            # writing succeeded -> confinement failed

@@ -24,6 +24,8 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 
+from .._runtime import console_encoding
+
 LABEL_MAX = 40
 
 
@@ -157,10 +159,61 @@ class ClipboardManager:
 # --- OS clipboard bridge ---------------------------------------------------
 
 
+# Helpers whose pipe encoding is fixed by the display protocol they speak,
+# not by this process's locale: Wayland's clipboard offers text as the MIME
+# type ``text/plain;charset=utf-8``, and the X11 tools exchange the
+# ``UTF8_STRING`` selection target. Both are UTF-8 whatever ``LC_ALL`` says.
+_UTF8_TOOLS = frozenset({"wl-copy", "wl-paste", "xclip", "xsel"})
+
+
+def _tool_encoding(cmd: "list[str]") -> str:
+    """The codec for *cmd*'s pipes — a property of the tool, not of our locale."""
+    name = os.path.basename(cmd[0]).lower() if cmd else ""
+    if name.endswith(".exe"):
+        name = name[:-4]
+    return "utf-8" if name in _UTF8_TOOLS else console_encoding()
+
+
 def _run(cmd: "list[str]", text_in: "str | None" = None):
+    """Drive one OS clipboard tool. None if it could not be run.
+
+    This runs in **both** directions and round-trips the user's own clipboard
+    text, the most likely thing in abax to be non-ASCII, so leaving the codec to
+    the platform default is how a paste turns into mojibake or a
+    ``UnicodeDecodeError``. But there is no single right codec for "the
+    clipboard tool" either — it differs per tool, so :func:`_tool_encoding`
+    picks from the argv:
+
+    * ``wl-copy``/``wl-paste``, ``xclip``/``xsel`` — **UTF-8, by protocol.**
+      Wayland's clipboard offers ``text/plain;charset=utf-8`` and the X11 tools
+      use the ``UTF8_STRING`` selection target, so the bytes on the pipe are
+      UTF-8 even under a latin-1 ``LC_ALL``, where our own locale would be the
+      wrong answer in both directions. This is the ``pandoc`` case from
+      :func:`abax._runtime.console_encoding`: a child *defined* to speak UTF-8
+      names it literally.
+
+    * ``clip`` and ``powershell -Command Get-Clipboard`` on Windows —
+      :func:`~abax._runtime.console_encoding`. These really are console
+      programs, and a redirected console pipe gets the OEM codepage; there is
+      no protocol guarantee to lean on. (``subprocess`` applies one
+      ``encoding=`` to stdin and stdout alike, and Windows' console input and
+      output are strictly ANSI and OEM — the two cannot both be named, and OEM
+      is the right single answer for a captured pipe.)
+
+    * ``pbcopy``/``pbpaste`` on macOS — ``console_encoding()`` as well, which
+      off Windows is the locale's codec. Unlike the Wayland/X11 tools these
+      follow the user's ``LANG``/``LC_CTYPE`` rather than a wire format, so the
+      locale *is* their contract and forcing UTF-8 would be the same mistake in
+      the other direction. In practice the two agree: a macOS locale is UTF-8
+      in every configuration a user is likely to have.
+
+    ``errors="replace"`` throughout: a clipboard tool is a convenience, and a
+    character we cannot map should cost that character, not the whole paste.
+    """
     try:
         return subprocess.run(cmd, input=text_in, capture_output=True,
-                              text=True, timeout=2)
+                              text=True, encoding=_tool_encoding(cmd),
+                              errors="replace", timeout=2)
     except (OSError, subprocess.SubprocessError):
         return None
 

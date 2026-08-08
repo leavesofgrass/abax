@@ -95,11 +95,20 @@ def to_mathml(latex: str) -> str:
     """
     if pandoc_available():
         try:
+            # pandoc is one of the children that is *defined* to speak UTF-8 on
+            # both pipes, whatever the locale — so this is the case where naming
+            # utf-8 is right and console_encoding() would be wrong. Both
+            # directions carry non-ASCII routinely: LaTeX in, MathML out.
+            # errors="replace" because a mangled glyph still renders, whereas an
+            # exception would skip the pure-Python fallback below and lose the
+            # formula entirely.
             result = subprocess.run(
                 [_pandoc_binary(), "-f", "markdown", "-t", "html", "--mathml"],
                 input=f"${latex}$",
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=15,
             )
             if result.returncode == 0:

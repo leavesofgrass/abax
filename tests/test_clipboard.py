@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import io
+import subprocess
+
+import pytest
 
 import abax.core.clipboard as clip
+from abax._runtime import console_encoding
 from abax.core.clipboard import ClipboardManager, ClipEntry
 
 
@@ -170,3 +174,71 @@ def test_osc52_runs_without_raising(monkeypatch):
     monkeypatch.setattr(clip.sys, "stdout", buf)
     clip.osc52("some text")  # must not raise
     assert "\033]52;c;" in buf.getvalue()
+
+
+# --- the codec on the helper's pipes ---------------------------------------
+#
+# The clipboard bridge round-trips the user's own text, so it is the likeliest
+# non-ASCII string in abax — and the right codec is a property of the *tool*,
+# not of our locale. wl-copy/wl-paste speak Wayland's
+# ``text/plain;charset=utf-8`` and xclip/xsel exchange ``UTF8_STRING``, so
+# those pipes are UTF-8 under a latin-1 LC_ALL too; the Windows console tools
+# and pbcopy/pbpaste follow the locale. One codec for all of them is wrong for
+# one group or the other, whichever one is picked.
+
+
+def _spy_on_subprocess(monkeypatch) -> dict:
+    """Capture the kwargs of the next ``subprocess.run`` inside the bridge."""
+    seen: dict = {}
+
+    def fake_run(cmd, **kwargs):
+        seen["cmd"] = cmd
+        seen["kwargs"] = kwargs
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(clip.subprocess, "run", fake_run)
+    return seen
+
+
+@pytest.mark.parametrize("cmd", [
+    ["wl-copy"],
+    ["wl-paste", "-n"],
+    ["xclip", "-selection", "clipboard"],
+    ["xclip", "-selection", "clipboard", "-o"],
+    ["xsel", "-b", "-i"],
+    ["xsel", "-b", "-o"],
+])
+def test_wayland_and_x11_helpers_are_utf8_whatever_the_locale(monkeypatch, cmd):
+    """These four are UTF-8 by protocol, so the parent's locale is not the answer."""
+    seen = _spy_on_subprocess(monkeypatch)
+    clip._run(cmd, "héllo Ω")
+    assert seen["kwargs"]["encoding"] == "utf-8", (
+        f"{cmd[0]} exchanges UTF-8 by protocol; got "
+        f"{seen['kwargs']['encoding']!r}")
+    assert seen["kwargs"]["errors"] == "replace"
+
+
+@pytest.mark.parametrize("cmd", [
+    ["clip"],
+    ["powershell", "-NoProfile", "-Command", "Get-Clipboard"],
+    ["pbcopy"],
+    ["pbpaste"],
+])
+def test_console_and_locale_driven_helpers_use_the_shared_policy(monkeypatch, cmd):
+    """Windows' console tools and pbcopy/pbpaste follow the locale/codepage.
+
+    Pinned to ``console_encoding()`` rather than to a literal: hardcoding
+    "utf-8" would be the same defect with a nicer-looking default, and
+    hardcoding "oem" would be wrong off Windows.
+    """
+    seen = _spy_on_subprocess(monkeypatch)
+    clip._run(cmd)
+    assert seen["kwargs"]["encoding"] == console_encoding()
+    assert seen["kwargs"]["errors"] == "replace"
+
+
+def test_a_windows_exe_suffix_does_not_change_the_tool(monkeypatch):
+    """``shutil.which`` can hand back ``wl-copy.exe`` (WSL/MSYS); still UTF-8."""
+    seen = _spy_on_subprocess(monkeypatch)
+    clip._run(["C:/msys64/usr/bin/wl-copy.EXE"], "x")
+    assert seen["kwargs"]["encoding"] == "utf-8"
