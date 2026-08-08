@@ -289,6 +289,12 @@ class DocumentIOMixin:
         The fetch (network) and the parse both run off the UI thread: a FuncWorker
         downloads to a temp file whose extension is guessed from the URL / content
         type, then hands it to the same extension-dispatch loader as File → Open.
+        The downloaded file is deleted as soon as it has been parsed, so the
+        import leaves no copy of the *download* behind. (A sheet big enough to
+        trip the windowed store — 100k populated cells, see
+        ``workbook.AUTO_WINDOW_THRESHOLD`` — still spills cells to its own
+        ``abax-cellspill-*.db`` in temp for as long as the workbook is open;
+        that is the store's business, not the fetch's.)
         """
         from ._qtcompat import QInputDialog
 
@@ -303,8 +309,11 @@ class DocumentIOMixin:
             from ..core.io import urlfetch
             from ..engine.document import Document
 
-            path = urlfetch.fetch_url(url)
-            return Document.open(path)
+            # Document.open reads the file eagerly (every loader closes it
+            # before returning), so the Document stays valid once ``fetched``
+            # has removed the download on the way out of the block.
+            with urlfetch.fetched(url) as path:
+                return Document.open(path)
 
         from ..workers import FuncWorker
 

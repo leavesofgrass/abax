@@ -7,6 +7,7 @@ real server.
 
 from __future__ import annotations
 
+import argparse
 import io
 
 import pytest
@@ -155,3 +156,114 @@ def test_fetch_url_wraps_urlerror(monkeypatch, tmp_path):
 
     with pytest.raises(UrlFetchError):
         fetch_url("http://example.test/data.csv", dest_dir=str(tmp_path))
+
+
+# --- fetched(): the download must not outlive its consumer ------------------
+#
+# A successful fetch_url leaves a full copy of the (possibly private) remote
+# data in the temp directory. Every caller is expected to consume the download
+# inside urlfetch.fetched(), which removes it afterwards no matter how the
+# block exits. These tests pin that contract and the two production callers.
+
+
+def _redirect_tempdir(monkeypatch, tmp_path):
+    """Point bare ``tempfile`` (no ``dest_dir=``) at ``tmp_path``.
+
+    The production callers do not pass ``dest_dir``, so this is how a test can
+    watch what they leave behind in "the system temp directory".
+    """
+    monkeypatch.setattr(urlfetch.tempfile, "tempdir", str(tmp_path))
+
+
+def test_fetched_removes_the_download_on_success(monkeypatch, tmp_path):
+    _patch_urlopen(monkeypatch, _FakeResponse(b"a,b\n1,2\n", "text/csv"))
+
+    with urlfetch.fetched("http://example.test/data.csv", dest_dir=str(tmp_path)) as path:
+        inside = path
+        assert inside.exists()
+        assert inside.read_bytes() == b"a,b\n1,2\n"
+
+    assert not inside.exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_fetched_removes_the_download_when_the_body_raises(monkeypatch, tmp_path):
+    _patch_urlopen(monkeypatch, _FakeResponse(b"a,b\n1,2\n", "text/csv"))
+
+    seen = []
+    with pytest.raises(ValueError):
+        with urlfetch.fetched(
+            "http://example.test/data.csv", dest_dir=str(tmp_path)
+        ) as path:
+            seen.append(path)
+            raise ValueError("consumer blew up")
+
+    assert seen and not seen[0].exists()
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_fetched_tolerates_an_already_removed_download(monkeypatch, tmp_path):
+    _patch_urlopen(monkeypatch, _FakeResponse(b"a,b\n1,2\n", "text/csv"))
+
+    with urlfetch.fetched("http://example.test/data.csv", dest_dir=str(tmp_path)) as path:
+        path.unlink()  # a consumer that moved/consumed the file itself
+
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_document_opened_inside_fetched_survives_the_cleanup(monkeypatch, tmp_path):
+    """Document.open must read eagerly — the GUI returns a doc past the block."""
+    from abax.engine.document import Document
+
+    _patch_urlopen(monkeypatch, _FakeResponse(b"a,b\n1,2\n3,4\n", "text/csv"))
+
+    with urlfetch.fetched("http://example.test/data.csv", dest_dir=str(tmp_path)) as path:
+        doc = Document.open(str(path))
+
+    assert list(tmp_path.iterdir()) == []
+    sheet = doc.workbook.sheet
+    assert sheet.get_value(1, 0) == 1.0
+    assert sheet.get_value(2, 1) == 4.0
+
+
+# --- the CLI caller: abax fetch --------------------------------------------
+
+
+def test_cmd_fetch_leaves_no_temp_file_on_success(monkeypatch, tmp_path, capsys):
+    from abax import app
+
+    _patch_urlopen(monkeypatch, _FakeResponse(b"a,b\n1,2\n", "text/csv"))
+    _redirect_tempdir(monkeypatch, tmp_path)
+
+    rc = app._cmd_fetch(argparse.Namespace(url="http://example.test/data.csv", sheet=None))
+
+    assert rc == 0
+    assert "a" in capsys.readouterr().out
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_cmd_fetch_leaves_no_temp_file_on_bad_sheet(monkeypatch, tmp_path):
+    from abax import app
+
+    _patch_urlopen(monkeypatch, _FakeResponse(b"a,b\n1,2\n", "text/csv"))
+    _redirect_tempdir(monkeypatch, tmp_path)
+
+    rc = app._cmd_fetch(
+        argparse.Namespace(url="http://example.test/data.csv", sheet="nope")
+    )
+
+    assert rc == 2
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_cmd_fetch_leaves_no_temp_file_when_open_fails(monkeypatch, tmp_path):
+    from abax import app
+
+    # .bin has no loader, so the download succeeds and Document.open raises.
+    _patch_urlopen(monkeypatch, _FakeResponse(b"\x00\x01", "application/octet-stream"))
+    _redirect_tempdir(monkeypatch, tmp_path)
+
+    rc = app._cmd_fetch(argparse.Namespace(url="http://example.test/blob", sheet=None))
+
+    assert rc == 4
+    assert list(tmp_path.iterdir()) == []

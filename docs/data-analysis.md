@@ -412,7 +412,7 @@ engine on this page is exposed by name, so anything a dialog does you can script
 | `goalseek` | `goal_seek(sheet, target_ref, target_value, changing_ref)` |
 | `html_report` | `sheet_to_html`, `workbook_to_html` |
 | `chartsvg` | `line_svg` / `bar_svg` / `scatter_svg` / `histogram_svg` |
-| `urlfetch` | fetch remote data |
+| `urlfetch` | fetch remote data — prefer `with urlfetch.fetched(url) as p:`, which deletes the download afterwards; bare `fetch_url` leaves it in temp for you to clean up |
 | `cell(ref)` / `put(ref, v)` | read/write a single cell |
 | `read_matrix("A1:C9")` / `write_matrix("E1", mat)` | range ↔ list-of-lists of floats |
 | `sheet_to_df("A1:C9")` / `df_to_sheet(df, "E1")` | range ↔ pandas DataFrame |

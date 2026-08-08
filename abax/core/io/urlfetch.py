@@ -5,7 +5,9 @@ The app already knows how to open spreadsheets and data files by *extension*
 to that existing extension-dispatch loader: it streams the URL down to a temp
 file whose suffix is guessed from the URL path (preferred) or the response
 content-type, and hands back the ``Path``. The caller then opens it as if the
-user had picked a local file.
+user had picked a local file — from inside :func:`fetched`, which removes the
+download again when the block ends so remote data does not accumulate in the
+system temp directory.
 
 Kept to ``urllib.request`` on purpose so the whole ``core`` layer stays free of
 third-party imports. Only ``http``/``https``/``ftp`` are allowed — ``file://``
@@ -20,11 +22,13 @@ through :mod:`abax.core.io.webtable` with :func:`fetch_html_tables` /
 
 from __future__ import annotations
 
+import contextlib
 import pathlib
 import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Iterator
 
 from . import webtable
 
@@ -143,6 +147,13 @@ def fetch_url(
     ``file://``) raises :class:`UrlFetchError` to avoid local-file surprises.
     The response is streamed in chunks and aborted if it exceeds ``max_bytes``.
     ``dest_dir`` selects the temp directory (default: the system temp).
+
+    **The caller owns the returned file.** On failure this function removes its
+    own partial download, but on success the file is left on disk deliberately
+    so the caller can open it — and nothing here will ever remove it. Prefer
+    :func:`fetched`, which wraps this call in a context manager that deletes
+    the download once you are done with it; reach for ``fetch_url`` directly
+    only when the file genuinely has to outlive the fetching scope.
     """
     scheme = urllib.parse.urlsplit(url).scheme.lower()
     if scheme not in _ALLOWED_SCHEMES:
@@ -184,7 +195,13 @@ def fetch_url(
 
 
 def _unlink_quietly(tmp: object) -> None:
-    """Best-effort removal of a partially written temp file."""
+    """Best-effort removal of a partially written temp file.
+
+    Takes the ``NamedTemporaryFile`` **object** (its ``.name`` is a full path).
+    Never hand it a ``pathlib.Path``: ``Path.name`` is the *basename*, so it
+    would delete a same-named file in the current working directory instead.
+    Use :func:`_remove_quietly` for paths.
+    """
     name = getattr(tmp, "name", None)
     if not name:
         return
@@ -192,6 +209,45 @@ def _unlink_quietly(tmp: object) -> None:
         pathlib.Path(name).unlink()
     except OSError:
         pass
+
+
+def _remove_quietly(path: pathlib.Path) -> None:
+    """Best-effort removal of a downloaded file, given its full path."""
+    try:
+        path.unlink()
+    except OSError:
+        pass
+
+
+@contextlib.contextmanager
+def fetched(url: str, **kwargs) -> Iterator[pathlib.Path]:
+    """Fetch ``url`` and yield the downloaded ``Path``, deleting it on exit.
+
+    :func:`fetch_url` hands back a temp file that nothing else ever removes, so
+    every successful fetch used to leave a full copy of the remote data — which
+    may be private — sitting in the system temp directory forever (on Windows,
+    temp is not reliably swept). Both production callers only need the file long
+    enough to parse it into a workbook, so the lifetime belongs here, in one
+    place, rather than in a ``try``/``finally`` copy-pasted at each call site
+    that a third caller could forget to write.
+
+    Use it as::
+
+        with urlfetch.fetched(url) as path:
+            doc = Document.open(str(path))
+
+    Every loader behind ``Document.open`` reads the file eagerly and closes it,
+    so a Document built inside the block stays fully valid after the download is
+    gone. ``kwargs`` pass straight through to :func:`fetch_url` (``timeout``,
+    ``max_bytes``, ``dest_dir``). Removal is best-effort and never masks an
+    exception raised by the body; a consumer that already moved or deleted the
+    file is fine.
+    """
+    path = fetch_url(url, **kwargs)
+    try:
+        yield path
+    finally:
+        _remove_quietly(path)
 
 
 # --- HTML pages -> tables --------------------------------------------------

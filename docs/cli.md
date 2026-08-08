@@ -230,10 +230,10 @@ $ abax fetch https://example.org/sunspots.csv
 | `url` | `http`/`https`/`ftp` URL of a data file. |
 | `--sheet NAME` | Which sheet to print — only meaningful for multi-sheet formats such as `.xlsx`. Defaults to the downloaded workbook's active sheet (the first one). |
 
-Only the rendered table reaches standard output — but the download itself lands in
-a temp file that abax does not clean up, so the fetched data stays on disk after
-the command exits. To save the data deliberately, download it yourself and run
-`convert`.
+Only the rendered table reaches standard output: the temporary download is deleted
+as soon as the workbook has been parsed — on a bad `--sheet` and on a failed open
+too — so `fetch` leaves nothing behind on disk. To keep the data, download it
+yourself and run `convert`.
 
 Exit codes: **0** = table printed, **2** = `--sheet` names a sheet the downloaded
 workbook does not have, **4** = the download failed or the file type is not one

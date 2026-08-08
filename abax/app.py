@@ -660,9 +660,12 @@ def _cmd_fetch(args) -> int:
     from .core.io import urlfetch
     from .engine.document import Document
 
+    # The download lives only as long as the ``fetched`` block: Document.open
+    # reads the file eagerly, so every exit below (4, 2 and 0) leaves nothing
+    # of the fetched data behind in the temp directory.
     try:
-        path = urlfetch.fetch_url(args.url)
-        doc = Document.open(str(path))
+        with urlfetch.fetched(args.url) as path:
+            doc = Document.open(str(path))
     except Exception as exc:  # noqa: BLE001 - surface network/parse failures cleanly
         print(f"fetch failed: {exc}", file=sys.stderr)
         return 4
