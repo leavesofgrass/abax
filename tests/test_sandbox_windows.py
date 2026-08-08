@@ -14,9 +14,16 @@ this file covers three tiers:
   scratch dir, may not write a sibling directory, and may not open an outbound
   socket. Every assertion in that tier prints the child's exit code, stdout and
   stderr, because an AppContainer launch that dies at startup is otherwise
-  undiagnosable from a CI log (see ``_diag``). That tier is marked
-  ``sandbox_e2e`` and gated in ``tests/conftest.py`` — off on GitHub-hosted
-  runners unless ``ABAX_SANDBOX_E2E=1``, on everywhere else.
+  undiagnosable from a CI log (see ``_diag``). These five tests run
+  **everywhere** — developer machines, self-hosted runners, and GitHub-hosted
+  ones, where they are covered by ci.yml's ``check`` matrix on every push. They
+  were gated off on hosted runners for a long time on the belief that such a
+  runner could not launch a confined child at all; the probe workflow measured it
+  and they pass there in about four seconds. The ``sandbox_e2e`` marker they
+  carry is for selection (``-m sandbox_e2e``) and skips nothing; the one test
+  that really is gated on hosted runners is
+  ``test_sandbox.py::test_windows_strict_worker_runs_and_confines``, which goes
+  through ConsoleBridge and carries ``console_bridge_e2e`` as well.
 
 The whole module is Windows-only; the argv/env/describe surface that *does* run
 cross-platform is already covered by ``test_sandbox.py``.
@@ -674,15 +681,17 @@ sys.stdout.flush()
 def _diag(rc, out, err) -> str:
     """Everything needed to debug an AppContainer launch from a CI log alone.
 
-    The known intermittent failure is a confined child that exits immediately;
-    when that happens ``out`` is empty and ``err``/``rc`` are the only evidence,
-    so they go into every assertion message rather than being swallowed.
+    The failure mode worth naming is a confined child that exits at startup: then
+    ``out`` is empty and ``err``/``rc`` are the only evidence, so they go into
+    every assertion message rather than being swallowed. That is what the
+    ConsoleBridge path does on a hosted runner; these five, launching through
+    ``custom_spawn``, do not — which is only knowable because of this function.
     """
     return (f"\n  exit code : {rc!r}"
             f"\n  stdout    : {out!r}"
             f"\n  stderr    : {err!r}"
-            f"\n  (an empty stdout with a non-zero exit code is the known "
-            f"'confined worker exits immediately' failure)")
+            f"\n  (an empty stdout with a non-zero exit code means the confined "
+            f"child died before running the probe)")
 
 
 def _spawn_confined(strat, code, scratch, extra_env, timeout=120):
@@ -727,10 +736,11 @@ def _spawn_confined(strat, code, scratch, extra_env, timeout=120):
             chunks.get("err", b"").decode("utf-8", "replace"))
 
 
-# Gate and reason: tests/conftest.py (sandbox_e2e_skip_reason), shared with
-# test_sandbox.py::test_windows_strict_worker_runs_and_confines so the two cannot
-# drift. Every other test in this module runs everywhere regardless.
-_e2e = pytest.mark.sandbox_e2e
+# The five tests below carry ``@pytest.mark.sandbox_e2e`` spelled out rather than
+# hidden behind a module-level alias: tests/test_sandbox_gate.py parses this file
+# to pin the invariant that they are marked for *selection* and never for the
+# skip, and a reader scanning for what runs on CI should not have to resolve an
+# alias to find out.
 
 
 @pytest.fixture(scope="module")
@@ -758,17 +768,18 @@ def confined_run(tmp_path_factory):
             "scratch": scratch, "outside": outside, "baseline": baseline}
 
 
-@_e2e
+@pytest.mark.sandbox_e2e
 def test_e2e_confined_child_runs_to_completion(confined_run):
-    """A container the interpreter cannot boot in is not confinement, it is the
-    known intermittent launch failure — fail loudly, with the evidence."""
+    """A container the interpreter cannot boot in is not confinement, it is a
+    launch failure wearing confinement's clothes — fail loudly, with the
+    evidence, rather than letting the four assertions below pass vacuously."""
     assert "PROBE_DONE" in confined_run["out"], \
         "the confined child never finished its probes" + confined_run["diag"]
     assert confined_run["rc"] == 0, \
         "the confined child exited non-zero" + confined_run["diag"]
 
 
-@_e2e
+@pytest.mark.sandbox_e2e
 def test_e2e_scratch_is_writable_and_its_parent_is_not(confined_run):
     out, diag = confined_run["out"], confined_run["diag"]
     # The worker has to be able to work: the scratch dir is the one writable spot.
@@ -780,7 +791,7 @@ def test_e2e_scratch_is_writable_and_its_parent_is_not(confined_run):
         "escape file materialised outside scratch" + diag
 
 
-@_e2e
+@pytest.mark.sandbox_e2e
 def test_e2e_no_capabilities_means_no_network(confined_run):
     out, diag = confined_run["out"], confined_run["diag"]
     assert "NET_REACHED" not in out, "outbound socket reached the stack" + diag
@@ -788,7 +799,7 @@ def test_e2e_no_capabilities_means_no_network(confined_run):
         "the network probe reported neither denial nor escape" + diag
 
 
-@_e2e
+@pytest.mark.sandbox_e2e
 def test_e2e_worker_selftest_passes_inside_the_container(confined_run):
     """The production fail-closed gate must pass under a real AppContainer.
 
@@ -800,7 +811,7 @@ def test_e2e_worker_selftest_passes_inside_the_container(confined_run):
         "selftest reported an escape inside the container" + confined_run["diag"]
 
 
-@_e2e
+@pytest.mark.sandbox_e2e
 def test_e2e_cleanup_reverts_the_scratch_grant(confined_run):
     # cleanup_process ran in _spawn_confined's finally; the machine must be back
     # exactly where it started.

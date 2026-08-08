@@ -184,10 +184,15 @@ def test_windows_confinement_available():
 
 
 @pytest.mark.skipif(not _win, reason="AppContainer is Windows-only")
-# Real-AppContainer tier; gate and reason: tests/conftest.py
-# (sandbox_e2e_skip_reason). test_windows_confinement_available above still
-# exercises the strategy wherever this is skipped.
+# Two markers, two jobs. `sandbox_e2e` says what this test does — launches a real
+# AppContainer-confined child — and selects the tier from the command line.
+# `console_bridge_e2e` says how it reaches it, and is the ONE thing the gate in
+# tests/conftest.py skips: on a GitHub-hosted runner this worker never returns a
+# frame, while the five direct-launcher test_e2e_* tests in
+# test_sandbox_windows.py pass on the same runner. See
+# console_bridge_e2e_skip_reason, and #6 for the unexplained half.
 @pytest.mark.sandbox_e2e
+@pytest.mark.console_bridge_e2e
 def test_windows_strict_worker_runs_and_confines():
     """The headline test: a strict worker on Windows runs benign code but user
     code cannot write outside scratch or open a socket, and cleanup reverts the

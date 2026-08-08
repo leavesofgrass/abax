@@ -34,9 +34,21 @@ All notable changes to abax are documented here. The format follows
 - **Dedicated tests for `settings`, `diagnostics`, `workers`, and the Windows
   sandbox** (133 tests). `sandbox_windows` was the notable gap — Linux and
   macOS each had a dedicated file, the AppContainer tier did not. Its tests
-  surface subprocess stderr and exit codes so the known intermittent
-  "confined child exits immediately" failure is finally diagnosable from a
-  log.
+  surface subprocess stderr and exit codes, which is what made the
+  long-standing "confined child exits immediately" failure diagnosable at
+  last — see below.
+- **Windows AppContainer confinement is now verified on every push.** The
+  end-to-end tier — confined code may write its scratch dir, and may not write
+  beside it or open a socket — was skipped on GitHub Actions entirely, on the
+  claim that a hosted Windows runner cannot launch a confined child. An opt-in
+  probe workflow tested that claim and disproved it: run twice on
+  `windows-latest`, identically, all five direct-launcher tests passed in about
+  four seconds. The failure is real but deterministic and narrower than
+  believed — it belongs to the `ConsoleBridge` worker path, not to
+  AppContainer, and only that one test stays gated (now behind its own marker,
+  with the evidence in place of the claim). Five security tests had been
+  suppressed by a diagnosis that was true of one code path and generalised to
+  the platform.
 - **CI job covering the science extras** — the twelve-cell matrix installs
   `.[dev,thin]`, so every test gated on numpy/pandas/scipy/pyarrow/matplotlib/
   h5py/pyreadstat/sgp4 skipped silently on each push, leaving that half

@@ -1,21 +1,35 @@
 name: sandbox e2e probe
 
-# Windows AppContainer end-to-end confinement — OPT-IN, AND MAY FAIL BY DESIGN.
+# Windows sandbox end-to-end — OPT-IN, AND MAY FAIL BY DESIGN.
 #
-# abax confines untrusted user code on Windows in an AppContainer. The tests
-# that verify the actual security promise — confined code may write its scratch
-# dir, may NOT write a sibling directory, may NOT open a socket — are gated off
-# on GitHub-hosted runners. The stated reason is that a hosted Windows runner
-# cannot launch an AppContainer-confined child (it exits immediately). That
-# claim is plausible but has never been checked: it was formed before
-# tests/test_sandbox_windows.py grew `_diag`, which folds the child's exit code
-# and stderr into every assertion message, and "exits immediately with empty
-# output" is precisely the symptom of having had no diagnostics.
+# WHAT THIS PROBE ALREADY ANSWERED. It was built to test one standing claim: that
+# a GitHub-hosted Windows runner cannot launch an AppContainer-confined child (it
+# "exits immediately"), which was why the whole end-to-end tier was skipped on
+# hosted runners. Two runs against windows-latest, identical both times, settled
+# it — 1 failed, 46 passed:
+#   * FALSE for AppContainer. All five direct-launcher tests
+#     (tests/test_sandbox_windows.py::test_e2e_*, which call sw.custom_spawn)
+#     PASSED, in about four seconds total. Confined code demonstrably could not
+#     write outside its scratch dir or open a socket on that runner. Those five
+#     are no longer gated anywhere: they now run on every push, in ci.yml's
+#     `check` matrix.
+#   * TRUE for ConsoleBridge. The one failure, both times, was
+#     tests/test_sandbox.py::test_windows_strict_worker_runs_and_confines —
+#     the only member of the tier that goes through
+#     abax.gui.console.console_bridge.ConsoleBridge rather than the launcher:
+#       AssertionError: {'output': '', 'error': 'the console process exited',
+#                        'crashed': True, ...}
+#     A real failure in one code path had been generalised into a claim about the
+#     platform, and that claim then suppressed five tests that would have passed
+#     all along.
 #
-# This workflow exists to ANSWER that question. It sets ABAX_SANDBOX_E2E=1 — the
-# opt-in the gate in tests/conftest.py honours — and runs only the sandbox tests
-# verbosely so the diagnostics land in the log verbatim. A FAILURE HERE IS A
-# RESULT, NOT A REGRESSION: its output is the evidence for or against the claim.
+# WHAT IT IS FOR NOW. That ConsoleBridge test is the only thing still gated (the
+# `console_bridge_e2e` marker in tests/conftest.py), so this workflow is how you
+# run it on a hosted runner on demand: it sets ABAX_SANDBOX_E2E=1, the opt-in the
+# gate honours, and runs both sandbox files verbosely so the diagnostics land in
+# the log verbatim. Both files, not just the failing one — the five passing
+# test_e2e_* tests in the same run are the control that keeps the diagnosis
+# honest. A FAILURE HERE IS A RESULT, NOT A REGRESSION.
 #
 # It lives in its own file rather than as a job in ci.yml for two reasons, both
 # learned the hard way:
@@ -27,10 +41,11 @@ name: sandbox e2e probe
 #     it on ci.yml would make a manual run of this probe also fire all twelve
 #     `check` matrix cells, `science`, `coverage` and `bench`.
 #
-# If hosted runners turn out to work, delete the gate in tests/conftest.py and
-# let the tier run in ci.yml's `check` matrix. If they genuinely cannot, this is
-# where a self-hosted Windows runner plugs in (RUNNER_ENVIRONMENT=self-hosted is
-# already exempt from the gate) or where a `schedule:` trigger goes.
+# Next question for it, when someone picks the ConsoleBridge failure up: is the
+# worker dying before it can report, or is the bridge's handshake timing out on a
+# slow runner? If it turns out to be unfixable on hosted runners, this is where a
+# self-hosted Windows runner plugs in (RUNNER_ENVIRONMENT=self-hosted is already
+# exempt from the gate) or where a `schedule:` trigger goes.
 
 on:
   # Launchable from the Actions tab once this file is on the default branch —
@@ -44,7 +59,7 @@ permissions:
 
 jobs:
   sandbox-e2e:
-    name: Windows AppContainer confinement (opt-in, may fail)
+    name: ConsoleBridge confinement on a hosted runner (opt-in, may fail)
     # Never on an ordinary push. On a pull_request event head_commit is null and
     # contains(null, ...) is false, so the marker path is push-only by design.
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[sandbox-e2e]')
@@ -57,7 +72,9 @@ jobs:
     # this probe exists to avoid. The per-test --timeout below is the real bound.
     timeout-minutes: 25
     env:
-      # The opt-in the conftest gate reads — without it these tests skip here.
+      # The opt-in the conftest gate reads. Without it the ConsoleBridge test —
+      # the only gated one left — would skip here and the probe would measure
+      # nothing; the five test_e2e_* tests run either way.
       ABAX_SANDBOX_E2E: "1"
       QT_QPA_PLATFORM: offscreen
       PYTHONUTF8: "1"
@@ -76,11 +93,12 @@ jobs:
         run: python -m pip install -e ".[dev,thin]"
 
       # Only the sandbox files. -v/-rs so both the per-test outcome and any skip
-      # reason are legible rather than collapsed into dots — a SKIP here would
-      # mean the gate misfired and the probe measured nothing, which must not be
-      # mistakable for a pass. --timeout names a hung confined child instead of
-      # letting it consume the job budget anonymously.
-      - name: Run the Windows AppContainer sandbox tests (verbose diagnostics)
+      # reason are legible rather than collapsed into dots — a SKIP of the
+      # ConsoleBridge test here would mean the gate misfired and the probe
+      # measured nothing, which must not be mistakable for a pass. --timeout
+      # names a hung confined child instead of letting it consume the job budget
+      # anonymously. Expected shape today: 46 passed, 1 failed, 0 skipped.
+      - name: Run the Windows sandbox tests (verbose diagnostics)
         run: >-
           python -m pytest tests/test_sandbox.py tests/test_sandbox_windows.py
           -v -rs --timeout=300 --timeout-method=thread
