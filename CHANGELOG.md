@@ -11,6 +11,16 @@ All notable changes to abax are documented here. The format follows
 ## [Unreleased]
 
 ### Fixed
+- **`abax gui` named the wrong Qt binding when none was installed** — it said
+  "PyQt6 is not installed" and pointed at `pip install abax[gui]`, which
+  installs PySide6. The check behind it (`_HAS_QT`) accepts *either* binding,
+  so the message described a test that was not happening, and a user following
+  it literally installed the package it had not named. It now names the
+  condition and offers both extras with their licences: `abax[gui]` (PySide6,
+  LGPL, the default) and `abax[gui-pyqt]` (PyQt6, GPL/commercial). Two test
+  modules had the same drift, gating on `PySide6` specifically while their
+  bodies import through the binding-agnostic `_qtcompat` seam — so they skipped
+  on a PyQt6-only install despite being perfectly runnable.
 - **Documentation corrected against 0.1.18 source** — the getting-started
   guide claimed the bare-file form (`abax data.csv`) was unsupported and told
   readers to use `gui`; it has worked all along (a leading non-flag,

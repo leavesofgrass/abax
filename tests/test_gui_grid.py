@@ -1,7 +1,7 @@
 """The virtualized model/view grid: editing, refresh, and Excel keyboard nav.
 
 Runs the real ``MainWindow`` offscreen (like ``test_faceplate``). Skips cleanly
-when PyQt6 is not installed, so the zero-optional-deps suite stays green.
+when no Qt binding is installed, so the zero-optional-deps suite stays green.
 """
 
 from __future__ import annotations

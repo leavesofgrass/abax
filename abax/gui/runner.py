@@ -38,8 +38,13 @@ def run_gui(file: str | None = None, registry=None) -> int:
     from .. import _runtime as rt
 
     if not rt._HAS_QT:
+        # rt._HAS_QT is binding-agnostic (PySide6 *or* PyQt6), so the message must
+        # name the condition, not one binding — and each command must name the
+        # extra that actually installs the binding beside it (`gui` is PySide6).
         print(
-            "PyQt6 is not installed. Install it with:  pip install abax[gui]\n"
+            "No Qt binding is installed. Install one with:\n"
+            "  pip install abax[gui]       (PySide6, LGPL - the default)\n"
+            "  pip install abax[gui-pyqt]  (PyQt6, GPL/commercial)\n"
             "or use the TUI:  abax tui",
             file=sys.stderr,
         )

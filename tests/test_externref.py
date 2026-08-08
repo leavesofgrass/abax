@@ -173,7 +173,7 @@ def test_gui_external_toggle_and_poll():
     import os
 
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    pytest.importorskip("PySide6")
+    pytest.importorskip("abax.gui._qtcompat")
     from abax.core import externref
     from abax.gui._qtcompat import QApplication
     from abax.gui.main_window import MainWindow

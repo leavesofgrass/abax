@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-pytest.importorskip("PySide6", reason="Qt binding required for GUI dialog tests")
+pytest.importorskip("abax.gui._qtcompat",
+                    reason="Qt binding required for GUI dialog tests")
 
 from abax.core.workbook import Workbook
 from abax.gui._qtcompat import QApplication
