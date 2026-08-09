@@ -2,9 +2,10 @@
 
 There is no gate any more, and this file exists to keep it that way.
 
-Seven tests verify abax's Windows security promise: confined code may write its
-scratch dir, may not write beside it or open a socket, and two confinements in
-one process stay two containers (#10). They were skipped on
+Eight tests verify abax's Windows security promise: confined code may write its
+scratch dir, may not write beside it or open a socket, two confinements in
+one process stay two containers (#10), and a live worker keeps the grants it
+shares with a sibling that tore down (#11). They were skipped on
 GitHub Actions for months on a claim about hosted runners that turned out to be
 false (#3), and then on a narrower claim that turned out to be one mundane
 device restriction (#6 — the confined worker could not open ``nul``). For that
@@ -12,7 +13,7 @@ whole period the guarantee held only as long as someone remembered to run the
 suite on a Windows desktop, and nothing anywhere went red to say otherwise.
 
 That is the failure mode being guarded: a skip is silent. Re-widen a condition,
-invert a boolean, or add a module-level ``pytestmark``, and seven security tests
+invert a boolean, or add a module-level ``pytestmark``, and eight security tests
 stop running while the suite still reports success. So the *absence* of a gate
 gets tests, exactly as the gate itself did.
 
@@ -35,7 +36,7 @@ _TESTS = pathlib.Path(__file__).parent
 
 #: The tier, by file and count. Spelled out so losing a member is a failure
 #: rather than a silently smaller run.
-_TIER = {"test_sandbox.py": 1, "test_sandbox_windows.py": 6}
+_TIER = {"test_sandbox.py": 1, "test_sandbox_windows.py": 7}
 
 
 def _marked_functions(filename: str) -> "set[str]":

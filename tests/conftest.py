@@ -15,21 +15,29 @@ so an autouse fixture no-ops it for the whole suite. The only exception is
 ``test_tts.py``, which tests the TTS machinery itself and already drives it with
 *fake* pyttsx3 engines (no audio) — it must see the real implementation.
 
-**No gate.** ``sandbox_e2e`` marks the seven tests that launch a real
+**No gate.** ``sandbox_e2e`` marks the eight tests that launch a real
 AppContainer-confined child. It *selects* the tier (``-m sandbox_e2e``) and
 skips nothing, anywhere.
+
+**Give the confinement's session-scoped ACL grants back before pytest exits.**
+``sandbox_windows`` holds the shared read grants for the life of the process and
+sweeps them from an ``atexit`` hook (issue #11); in a test run "the process" is
+pytest, so without ``sandbox_session_grants_swept`` that sweep lands ~20 s of
+DACL walking *after* the summary line, where it reads as a hang.
 """
 
 from __future__ import annotations
+
+import sys
 
 import pytest
 
 # --- the Windows AppContainer end-to-end tier ---------------------------------
 #
-# Seven tests launch a REAL AppContainer-confined child: the six ``test_e2e_*``
+# Eight tests launch a REAL AppContainer-confined child: the seven ``test_e2e_*``
 # in ``test_sandbox_windows.py``, which call ``sandbox_windows.custom_spawn``
 # directly, and ``test_sandbox.py::test_windows_strict_worker_runs_and_confines``,
-# which reaches the same confinement through ``ConsoleBridge``. All seven carry
+# which reaches the same confinement through ``ConsoleBridge``. All eight carry
 # ``@pytest.mark.sandbox_e2e``, and it skips nothing — the marker exists so the
 # tier can be selected (``-m sandbox_e2e``), not so it can be turned off.
 #
@@ -61,6 +69,44 @@ def pytest_configure(config):
         f"{SANDBOX_E2E_MARKER}: launches a real OS-confined child process. "
         "Selection only -- this marker never skips anything.",
     )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def sandbox_session_grants_swept():
+    """Run the Windows confinement's exit sweep when the *test* session ends.
+
+    ``abax.sandbox_windows`` grants ALL APPLICATION PACKAGES read+execute on the
+    interpreter prefix and every ``sys.path`` directory once per process and
+    revokes them once, at process exit, from an ``atexit`` hook — the design that
+    closes issue #11's window (see the note above ``_hold_session_grant``).
+
+    Here the process is pytest, and any strict-mode test leaves those grants
+    standing for the rest of the run. That is correct and deliberate; what is
+    unhelpful is *when* the hook then collects them. An ``atexit`` sweep of the
+    real prefix is ~20 s of DACL walking that happens after pytest has printed
+    its summary and settled its exit code, so it looks exactly like a hang. Doing
+    it here makes it part of the run.
+
+    Not a substitute for the hook and not a check of it: this calls the same
+    production function, and leaves it registered and holding nothing. The
+    hook's own behaviour is tested in ``test_sandbox_windows.py``.
+
+    **The sweep is machine-wide, not suite-wide.** The ACE names ALL APPLICATION
+    PACKAGES, so this removes it for every process on the box — including a real
+    abax running strict mode beside the suite, whose live worker loses its stdlib
+    the moment this fires. Running the tests and the app at the same time on one
+    machine is asking for exactly issue #9. Same hazard as any second abax
+    exiting; it is just easier to hit here because a test run ends often.
+    """
+    yield
+    if sys.platform != "win32":
+        return
+    try:
+        from abax.sandbox_windows import _revoke_session_grants
+
+        _revoke_session_grants()
+    except Exception:          # never let cleanup fail a green run
+        pass
 
 
 @pytest.fixture(autouse=True)

@@ -27,7 +27,13 @@ stdlib ``_winapi`` primitives (the same ones ``subprocess`` uses) and returning
 a small Popen-compatible handle the bridge drives exactly like a normal worker.
 
 The ALL-APPLICATION-PACKAGES ACEs we add are **additive** (read/execute only;
-they never weaken anyone's access) and are **reverted** on teardown. Both halves
+they never weaken anyone's access) and are **reverted** — but on two different
+clocks, because they have two different owners. The scratch dir's ``(M)`` grant
+belongs to one worker and comes off at that worker's teardown. The *shared*
+read grants (interpreter prefix, ``sys.path``) belong to every confinement in
+the process, are taken once per session, and come off once, at process exit;
+see the note above :func:`_hold_session_grant` for the three measurements that
+forced that split. Both halves
 of that bookkeeping are load-bearing and neither is allowed to fail quietly: a
 grant the container genuinely needs and did not get refuses the launch
 (:class:`SandboxGrantError`, naming the path) rather than spawning a child that
@@ -68,16 +74,19 @@ bridge (unrevoked grant paths *and* an undeleted profile name), and the worker's
 own selftest. Installing a handler is an abax-wide
 change and deliberately not made here; see ``dev/lessons-learned.md``.
 
-Pure stdlib (ctypes, _winapi, msvcrt, os, sys, subprocess for icacls). No deps.
-Imports cleanly on any OS — all Windows-only work is inside method bodies.
+Pure stdlib (atexit, ctypes, _winapi, msvcrt, os, sys, threading, subprocess for
+icacls). No deps. Imports cleanly on any OS — all Windows-only work is inside
+method bodies.
 """
 
 from __future__ import annotations
 
+import atexit
 import logging
 import os
 import subprocess
 import sys
+import threading
 
 from ._runtime import console_encoding
 
@@ -231,6 +240,11 @@ class WindowsAppContainer:
             launched = True
         finally:
             if not launched:
+                # Takes back this worker's scratch grant, and deliberately not
+                # the shared read grants: those belong to the session (see
+                # `_hold_session_grant`), a refused launch is not the end of the
+                # session, and revoking them here would reopen the ~20 s window
+                # for whatever spawns next — for a launch that is failing anyway.
                 _revoke_container_access(granted)
                 # Guarded for a sharper reason than in `cleanup_process`:
                 # deleting a profile can fail (measured: `hr=0x80070020` while
@@ -525,6 +539,17 @@ def _container_ace_present(path: str) -> bool:
     silent. False, the conservative answer, is therefore also the safe one, and
     the worker's own fail-closed selftest still runs on the other side of the
     launch.
+
+    **That is true of the refusal caller, and NOT of the other one.**
+    :func:`_hold_session_grant` asks this to decide whether a grant can be
+    *skipped*, so there ``True`` is the load-bearing answer: True means launch
+    without walking the tree. A wrong True there launches a child into a tree it
+    cannot read. That is not hypothetical — icacls writes the root's DACL first
+    and the leaves last, so during another process's sweep this answers True
+    while the tree is half-stripped (measured; see the note above
+    ``_hold_session_grant`` and #9). Do not loosen this probe on the strength of
+    the "False is the safe answer" argument above; it only holds for the caller
+    it was written for.
     """
     try:
         r = subprocess.run(["icacls", path, "/findsid", ALL_APP_PACKAGES],
@@ -567,6 +592,327 @@ def _icacls(path: str, *args: str) -> bool:
         return False
 
 
+# The shared read grants are held for the SESSION, not for one worker (issue #11)
+# ------------------------------------------------------------------------------
+# `_grant_container_access` puts an ALL-APPLICATION-PACKAGES ACE on the
+# interpreter prefix and on every `sys.path` directory. Those paths are
+# **shared** — every confinement in this process needs exactly the same ones,
+# only the scratch dir differs — while teardown is **per worker**:
+# `cleanup_process(proc)` runs when one bridge's worker closes. abax has two
+# long-lived strict-capable bridges in the GUI process
+# (`abax/gui/console/pyconsole.py` and `abax/gui/mixin_macros.py`), so one
+# worker's teardown really does fire while another's child is live.
+#
+# Three things were measured against the real icacls on this platform, and the
+# third is the one that chose the design:
+#
+# 1. **The grants are not refcounted by Windows.** `icacls /grant` is idempotent
+#    for a principal — granting twice adds one ACE — so a single `/remove`
+#    deletes it. Grant twice, `/remove` once, and `_container_ace_present`
+#    answers False. Two workers' granted lists share 4 of 5 paths.
+#
+# 2. **The AppContainer access check is not cached.** Stripping the ACE from
+#    under a *live* confined worker breaks its very next import, immediately:
+#
+#        A <- 'IMPORT statistics'   =>  ModuleNotFoundError: No module named ...
+#        A <- 'PING'                =>  PONG      (still up; it did not die)
+#
+#    A worker that has silently lost its standard library and a healthy pulse.
+#
+# 3. **Grant and revoke are not atomic.** Each is a DACL propagation walk — an
+#    inheritable `(OI)(CI)` ACE rewrites the DACL of every file underneath — and
+#    across the ~5 paths involved that walk was timed at 19.4-21.6 SECONDS.
+#    During a revoke walk the tree is half-stripped, and every child spawned
+#    into that window dies:
+#
+#        t= 0.8s             exit=0x00000000  'READY / IMPORTS-OK'
+#        t= 3.3s .. 20.0s    exit=0x00000001  Fatal Python error: init_fs_encoding
+#        t=20.8s             exit=0xC0000022  no output at all
+#
+#    That is issue #9's fatal text, reproduced from this mechanism.
+#
+# (3) is why this is a session-scoped grant and **not a refcount**. A refcount
+# fixes (1) and (2) — the last holder revokes, so no live sibling is stripped —
+# and leaves (3) entirely untouched: the 1->0 transition still opens a ~20 s
+# window, and a worker that starts inside it still dies with no output. Even a
+# perfect count is not sufficient. A refcounted implementation was written,
+# reviewed and deliberately discarded on exactly this reasoning.
+#
+# So the shared paths are granted **once per process** and revoked **once, at
+# process exit**. There is no 1->0 transition during the session at all, so
+# there is no window for a starting worker to fall into.
+#
+# SCOPE THAT CLAIM TO ONE PROCESS — it is not machine-wide, and the difference
+# is issue #9. The ACE names ALL APPLICATION PACKAGES, which is shared by every
+# process on the box, so a *second* abax exiting walks the same DACLs this one
+# is relying on. Measured: with P1 holding the grants and a live worker, P2's
+# exit sweep running, and P1 spawning every 3 s through it, 1 spawn of 7 died —
+# at t=4.0 s the /findsid probe answered True (icacls writes the ROOT's DACL
+# first and the leaves last, so the root reads "present" while the tree is still
+# being stripped), the grant was skipped, and the child died with
+#   Fatal Python error: init_fs_encoding: failed to get the Python codec ...
+# i.e. #9 exactly. Closing that needs a machine-scoped holder record, not a
+# per-process one; it is tracked on #9 rather than pretended away here.
+#
+# The same change removes
+# a second, purely-UX defect that was hiding inside this bug: every strict spawn
+# used to pay a full grant walk *and* a full revoke walk, so the first strict
+# console command of a session took twenty seconds to start and so did every one
+# after it. Measured end to end on this machine, over the real interpreter
+# prefix and `sys.path`:
+#
+#        spawn 1   grant 18.67 s    worker teardown 0.01 s
+#        spawn 2   grant  0.05 s    worker teardown 0.01 s
+#        spawn 3   grant  0.05 s    worker teardown 0.01 s
+#        exit sweep      18.57 s    (once, and the machine is left as found)
+#
+# The teardown figure is the scratch dir alone, which is what a worker's teardown
+# now owns; the 0.05 s is four `/findsid` probes.
+#
+# **Not the scratch dir.** It is `mkdtemp`'d per bridge, granted `(M)` rather
+# than `(RX)`, and shared with nobody. It carries real WRITE access, and a temp
+# dir reachable from every AppContainer on the machine after its worker is gone
+# is a genuine exposure, so its revoke stays per-worker and unconditional. It is
+# not in this table, and `_revoke_container_access` treats "not in the table" as
+# "remove it" precisely so that stays true by construction.
+#
+# **Self-healing, not self-trusting.** The table is a record of intent, never of
+# fact: if something outside abax strips an ACE, a later spawn must repair it.
+# The discarded refcount trusted its own count absolutely — with `held > 0` it
+# returned success without ever checking the ACE was there — which turns a
+# transient strip into a permanent one. So every reuse is checked against the
+# machine, and the check is a `/findsid` probe rather than an unconditional
+# re-grant because a redundant `/grant` is not cheap. Measured here, interpreter
+# prefix (~69k files):
+#
+#        cold grant, ACE absent        16.79 s
+#        redundant grant #2 / #3 / #4  16.71 / 16.40 / 16.52 s
+#        /findsid probe                 8.5 - 15.3 ms
+#
+# icacls walks the whole tree whether or not the ACE is already present, so
+# "just re-grant every time" hands straight back the 20-s-per-spawn defect this
+# design exists to remove. The probe is ~1800x cheaper than the work it decides
+# about, and it runs once per shared path per spawn — four of them, 0.05 s in
+# total, which is the whole cost of the second and every later strict spawn.
+#
+# **The lock.** Both bridges spawn and tear down from worker threads
+# (`abax/workers.py` FuncWorker), so two first-use grants genuinely race. It is
+# held *across* the icacls call, not merely across the dict access: dropping it
+# in between would let a second spawn read "held" and launch while the first
+# spawn's ~20 s walk had not landed — a child with no access and a table
+# asserting it has some. The waiter's cost is bounded by `_icacls`' own 60 s
+# timeout, and it is the wait it would otherwise have spent re-granting anyway.
+# `threading` is free at import: `subprocess`, which this module already
+# imports, has loaded it (measured). `atexit` is a builtin module, so importing
+# it touches no file — which matters, because this module is on the confined
+# worker's spawn path.
+#
+# **What a crash costs, stated plainly.** This table is in memory. If the
+# process dies between a grant and the exit sweep — killed, hard crash, power
+# loss — the shared ACEs are left standing on the interpreter prefix and every
+# `sys.path` directory with nothing left to revert them. That exposure is not
+# new; an unrevoked grant always leaked exactly this way. What changed is the
+# window: it used to be one worker's lifetime and it is now the whole session.
+# Nothing here sweeps a *previous* run's leftovers, deliberately: a sweeper has
+# to tell an ACE abax left behind from one the machine legitimately carries — an
+# all-users Python under `C:\Program Files` has these ACEs by default, which is
+# the entire reason `_container_ace_present` exists — and that is separate work
+# with its own failure modes. `abax doctor` is where it would belong, not
+# teardown.
+_SESSION_GRANTS_LOCK = threading.Lock()
+
+#: ``{normcased path: (path as granted, the ACE string used)}`` — the shared
+#: read grants this process is holding until it exits. The ACE is kept so a
+#: repair can re-issue the *same* grant rather than guess at one.
+_SESSION_GRANTS: "dict[str, tuple[str, str]]" = {}
+
+#: The PID the exit sweep was registered in, or None. See
+#: :func:`_register_session_sweep` for why the answer is a PID and not a bool.
+_SESSION_SWEEP_PID: "int | None" = None
+
+#: How long the exit sweep will wait for a spawn in flight to finish before
+#: sweeping anyway. Bounded because this runs during interpreter shutdown and a
+#: hung `icacls` must not wedge the process on the way out; generous enough to
+#: cover a grant that is already most of the way through its DACL walk.
+_SESSION_SWEEP_LOCK_WAIT = 5
+
+
+def _shared_key(path: str) -> str:
+    """The session-table key for *path* — one entry per path, however spelled.
+
+    The same normalisation :func:`_covered_by` uses, and for the same reason:
+    two bridges can arrive at one directory through differently-cased
+    ``sys.path`` entries, and two entries for one ACE would let the exit sweep
+    issue two ``/remove`` calls for it while a reuse check missed the first.
+    """
+    return os.path.normcase(os.path.abspath(path))
+
+
+def _session_grant_paths() -> "list[str]":
+    """The shared paths this process is currently holding for the session.
+
+    Nothing in this module calls it. It exists so a test — and any future
+    diagnostic — can read the table without duplicating :func:`_shared_key`'s
+    convention or touching it without the lock.
+    """
+    with _SESSION_GRANTS_LOCK:
+        return [path for path, _ace in _SESSION_GRANTS.values()]
+
+
+def _is_session_grant(path: str) -> bool:
+    """True when *path* is held for the session, so no teardown may revoke it.
+
+    Deliberately **without** the lock, which is a latency decision and a safety
+    argument rather than an oversight. The latency: this runs once per path in
+    every teardown, and ``ConsoleBridge`` closes a worker from the GUI thread, so
+    taking a lock another thread may be holding for a 20 s DACL walk would freeze
+    the window for that long — to answer a question that walk cannot change.
+
+    The safety: a single ``in`` on a dict is atomic, and the only answer that
+    could do harm is a False for a path that really is held, which cannot happen.
+    A key is inserted *before* :func:`_hold_session_grant` returns True, and
+    returning True is the only thing that puts the path into a caller's
+    ``granted`` list — so by the time any teardown can be looking at a path, its
+    key is already in the table. The one removal is :func:`_revoke_session_grants`
+    clearing the lot at exit, after which a stray ``/remove`` finds no ACE and
+    succeeds anyway.
+    """
+    return _shared_key(path) in _SESSION_GRANTS
+
+
+def _register_session_sweep() -> None:
+    """Arm :func:`_revoke_session_grants` for process exit. Called under the lock.
+
+    Registered **lazily, from the first successful shared grant**, rather than at
+    import — and that is the whole answer to "must not fire in a child".
+    :mod:`abax.sandbox_windows` is imported inside the confined worker too
+    (``abax/console_worker.py`` calls ``select_confinement().apply_in_child``),
+    and a hook armed at import time would be armed there as well. A child never
+    grants anything — ``apply_in_child`` returns immediately, confinement having
+    been established by the parent at ``CreateProcess`` time — so it never
+    reaches this function and never registers. The registration follows the
+    grant because the grant is the thing that needs undoing.
+
+    The PID is recorded rather than a bare "done" flag so the hook can refuse to
+    run in a process that did not do the granting. Windows has no ``fork`` and
+    ``multiprocessing`` re-imports this module fresh in the child, so nothing
+    on this platform can inherit the registration today; the guard is there
+    because "revoked the parent's grants from a child" is a silent, machine-wide
+    failure, and one comparison is cheap insurance against a future platform or
+    a future launcher that does inherit it.
+    """
+    global _SESSION_SWEEP_PID
+    if _SESSION_SWEEP_PID is not None:
+        return
+    # Register FIRST, record second. The other order means a register that
+    # raises or no-ops still marks the module "armed", every later call
+    # short-circuits above, and nothing ever revokes the machine-wide grants —
+    # silently, which is the worst failure this module has. This way a failed
+    # register simply leaves it unarmed and the next grant tries again.
+    atexit.register(_revoke_session_grants)
+    _SESSION_SWEEP_PID = os.getpid()
+
+
+def _revoke_session_grants() -> "list[str]":
+    """Remove every shared grant this process is holding. The exit sweep.
+
+    **Never raises, under any circumstances.** It runs from ``atexit``, where a
+    traceback is printed to a stderr the windowed ``abaxw.exe`` does not have and
+    where module globals are already being torn down; an exception here would
+    also abandon the remaining paths. Everything is inside one guard for that
+    reason, and the guard catches :class:`BaseException` rather than
+    :class:`Exception` because interpreter shutdown can deliver things that are
+    neither — the point is that the process exits, not that this succeeds.
+
+    Returns the paths whose ``/remove`` failed, for the direct caller (a test, or
+    a future ``abax doctor``); ``atexit`` discards it, which is exactly why the
+    failure is logged as well.
+
+    The lock is taken with a timeout rather than unconditionally: a spawn in
+    flight holds it for the length of a DACL walk, and waiting out a full 60 s
+    ``icacls`` timeout on the way out of the process is worse than sweeping
+    beside it. The table is emptied under whatever lock we got, so a concurrent
+    ``_hold_session_grant`` either ran before us (its path is in our snapshot) or
+    runs after — and that second case is not free, so do not read it as
+    harmless: a grant landing after the table is cleared and this loop has
+    finished is never revoked by anything, which is the same permanent
+    machine-wide ACE the crash case above describes. It needs the timeout to
+    expire *and* a spawn to complete during shutdown, so it is narrow, but it is
+    a leak rather than a wasted walk.
+
+    Also worth knowing before changing this: the sweep is a full DACL walk,
+    measured at 19.0-19.4 s over the four real paths here. abax's entry point
+    returns normally, so this does run — after the last window is gone. On the
+    shipped windowed ``abaxw.exe`` that means the UI vanishes while the process
+    sits in the task list for ~19 s doing I/O with nothing on screen to explain
+    it. That is a deliberate trade: it replaced a ~19 s walk on *every* worker
+    teardown during the session.
+    """
+    try:
+        if _SESSION_SWEEP_PID is not None and _SESSION_SWEEP_PID != os.getpid():
+            # Armed in another process and inherited into this one. Those ACEs
+            # are the parent's and the parent is still using them; removing them
+            # here would strip a live confinement from inside its own child. See
+            # `_register_session_sweep` for why this cannot happen on Windows
+            # today and why it is checked anyway.
+            return []
+        got = _SESSION_GRANTS_LOCK.acquire(timeout=_SESSION_SWEEP_LOCK_WAIT)
+        try:
+            held = list(_SESSION_GRANTS.values())
+            _SESSION_GRANTS.clear()
+        finally:
+            if got:
+                _SESSION_GRANTS_LOCK.release()
+        failed = []
+        for path, _ace in held:
+            if _icacls(path, "/remove", ALL_APP_PACKAGES):
+                continue
+            if not os.path.exists(path):
+                continue                   # its ACL went with it; nothing leaked
+            failed.append(path)
+        if failed:
+            _log.warning(
+                "sandbox: %d shared ALL APPLICATION PACKAGES grant(s) could not "
+                "be revoked at exit and are still standing on: %s",
+                len(failed), ", ".join(failed))
+        return failed
+    except BaseException:                  # noqa: BLE001 - see the docstring
+        return []
+
+
+def _hold_session_grant(path: str, ace: str, granted: "list[str]") -> bool:
+    """Make sure the shared ALL APPLICATION PACKAGES grant on *path* is in force.
+
+    Applies *ace* with icacls on first use in this process, and thereafter only
+    when the machine says the ACE has gone — checked with
+    :func:`_container_ace_present` (~10 ms) rather than assumed from the table,
+    so an ACE removed by something outside abax is repaired by the next spawn
+    instead of skipped forever. On success *path* is appended to *granted*,
+    which is what makes it count as reachable for
+    :func:`_unreachable_requirements`; it is **not** thereby made revocable —
+    :func:`_revoke_container_access` refuses to remove anything in the table.
+
+    Returns False when the grant genuinely did not land, and then the caller is
+    told the honest thing: the path is not in *granted*, so it is not covered,
+    so ``custom_spawn`` refuses the launch if it was required. The table entry is
+    left as it was — it records what this session intends to hold, and the next
+    spawn will probe and try the repair again.
+
+    Everything is inside the lock, including the icacls call: see the note above.
+    """
+    key = _shared_key(path)
+    with _SESSION_GRANTS_LOCK:
+        if key in _SESSION_GRANTS and _container_ace_present(path):
+            granted.append(path)           # already in force; no walk, no window
+            return True
+        if not _icacls(path, "/grant", ace):
+            return False
+        _SESSION_GRANTS[key] = (path, ace)
+        _register_session_sweep()
+        granted.append(path)
+        return True
+
+
 def _grant_container_access(
         scratch: str,
         granted: "list[str] | None" = None) -> "tuple[list[str], list[str]]":
@@ -574,9 +920,14 @@ def _grant_container_access(
 
     Returns ``(granted, unreachable)``:
 
-    * ``granted`` — the paths an ACE really landed on, for later revocation. A
-      path icacls refused is *not* in it: teardown must not ``/remove`` an ACE
-      it never added, and the caller must not believe the container can reach it.
+    * ``granted`` — the paths this confinement can **reach**. An ACE is in force
+      on every one of them, though not necessarily applied by this call: the
+      shared read paths are held for the session (see the note above
+      :func:`_hold_session_grant`), so a path an earlier spawn already granted
+      is verified here rather than re-granted. It is also the list teardown is
+      handed, and teardown removes the subset it owns — the scratch dir, not the
+      session's. A path icacls refused is in neither sense present: the caller
+      must not believe the container can reach it.
     * ``unreachable`` — the *required* paths (see the policy note above) the
       container still cannot reach. Non-empty means the caller must not spawn.
 
@@ -587,31 +938,31 @@ def _grant_container_access(
     """
     if granted is None:
         granted = []
-    # The scratch dir: full modify (the worker writes here).
+    # The scratch dir: full modify (the worker writes here). Deliberately *not*
+    # session-held — it is this worker's own `mkdtemp`, it carries write access,
+    # and it is granted and revoked unconditionally with the worker.
     if _icacls(scratch, "/grant", f"{ALL_APP_PACKAGES}:(OI)(CI)(M)"):
         granted.append(scratch)
     else:
         _log.warning("sandbox: could not grant the confined worker write access "
                      "to its scratch dir %s", scratch)
     # Read + execute on the interpreter and import dirs, inheritable so one ACE
-    # covers the whole tree.
+    # covers the whole tree. Shared with every other confinement in this process,
+    # hence held for the session rather than granted per worker.
     for d in _needed_read_dirs():
-        if _icacls(d, "/grant", f"{ALL_APP_PACKAGES}:(OI)(CI)(RX)"):
-            granted.append(d)
-        else:
+        if not _hold_session_grant(d, f"{ALL_APP_PACKAGES}:(OI)(CI)(RX)", granted):
             _log.warning("sandbox: could not grant the confined worker read "
                          "access to %s", d)
     # ...and on the file-shaped import roots (a zipapp archive), which take a
     # plain (RX): the inheritance flags above are silently discarded on a leaf,
     # see `_needed_read_files`. Anything already under a granted directory is
     # skipped — the inheritable ACE reaches it, and a redundant explicit ACE is
-    # one more thing teardown has to remove.
+    # one more thing the exit sweep has to remove. Shared for the same reason the
+    # directories are: two bridges import the package from one archive.
     for f in _needed_read_files():
         if _covered_by(f, granted):
             continue
-        if _icacls(f, "/grant", f"{ALL_APP_PACKAGES}:(RX)"):
-            granted.append(f)
-        else:
+        if not _hold_session_grant(f, f"{ALL_APP_PACKAGES}:(RX)", granted):
             _log.warning("sandbox: could not grant the confined worker read "
                          "access to %s", f)
     return granted, _unreachable_requirements(scratch, granted)
@@ -638,8 +989,26 @@ def _unreachable_requirements(scratch: str, granted: "list[str]") -> "list[str]"
 
 
 def _revoke_container_access(granted: "list[str]") -> "list[str]":
-    """Remove the ACEs :func:`_grant_container_access` added. **Never raises**;
-    returns the paths that could not be revoked.
+    """Remove the per-worker ACEs. **Never raises**; returns what would not go.
+
+    Per-worker: a path held for the session (see the note above
+    :func:`_hold_session_grant`) is skipped here — the whole design is that
+    there is no 1->0 transition mid-session for a starting worker to fall into,
+    and a teardown that removed one would put the window straight back. The
+    scratch dir is not in that table and so comes off unconditionally, which is
+    the half that matters most: it carries ``(M)``, and a writable temp dir left
+    reachable from every AppContainer on the machine is a real exposure. Any
+    path a caller hands in without having taken it through
+    :func:`_grant_container_access` is likewise removed unconditionally, so the
+    "remove it" branch is the default and only an explicit session entry buys an
+    exemption.
+
+    **A path deliberately kept is not a path that leaked**, and the two must not
+    reach :func:`cleanup_process` looking alike: one says "an ALL APPLICATION
+    PACKAGES ACE is standing on your interpreter prefix and nothing will ever
+    take it off", the other says "this process is still using it and will drop
+    it on the way out". Only the first is in the returned list. The skip happens
+    before any icacls call, so a held path is never even attempted.
 
     Teardown has to continue past a failure — that was fixed deliberately in
     issue #5, and it runs from ``finally`` blocks and from the crashed-worker
@@ -662,6 +1031,8 @@ def _revoke_container_access(granted: "list[str]") -> "list[str]":
     """
     failed = []
     for path in granted:
+        if _is_session_grant(path):
+            continue                   # this process holds it until it exits
         if _icacls(path, "/remove", ALL_APP_PACKAGES):
             continue
         if not os.path.exists(path):
@@ -679,7 +1050,11 @@ def cleanup_process(proc) -> "list[str]":
     process. Called by the bridge when it closes a confined worker.
 
     Returns **what teardown could not clear** — empty for the ordinary case, and
-    empty for a process this module never confined. Never raises. Two kinds of
+    empty for a process this module never confined. Never raises. A shared read
+    path this teardown left standing *on purpose*, because the process holds it
+    for the session and revokes it at exit, is not in the list either: it is not
+    a leftover, it is live state with an owner (see
+    :func:`_revoke_container_access`). Two kinds of
     leftover go in the one list, and they are told apart by shape:
 
     * an absolute **path** — an ALL APPLICATION PACKAGES ACE still standing on

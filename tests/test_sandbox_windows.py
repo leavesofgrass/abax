@@ -13,10 +13,14 @@ this file covers three tiers:
 * **End-to-end** — one real AppContainer-confined child: it may write its
   scratch dir, may not write a sibling directory, and may not open an outbound
   socket; plus a sixth that runs 24 real confinements from four threads at once
-  and checks they are 24 separate containers (issue #10). Every assertion in
+  and checks they are 24 separate containers (issue #10), and a seventh that
+  holds one confined worker open across a second worker's teardown, because the
+  read grants the two share are held for the *session* and an unconditional
+  per-worker ``/remove`` used to take the survivor's stdlib with it (issue #11).
+  Every assertion in
   that tier prints the child's exit code, stdout and
   stderr, because an AppContainer launch that dies at startup is otherwise
-  undiagnosable from a CI log (see ``_diag``). These six tests run
+  undiagnosable from a CI log (see ``_diag``). These seven tests run
   **everywhere** — developer machines, self-hosted runners, and GitHub-hosted
   ones, where they are covered by ci.yml's ``check`` matrix on every push. They
   were gated off on hosted runners for a long time on the belief that such a
@@ -34,10 +38,12 @@ cross-platform is already covered by ``test_sandbox.py``.
 from __future__ import annotations
 
 import os
+import queue
 import string
 import subprocess
 import sys
 import threading
+import time
 
 import pytest
 
@@ -51,6 +57,11 @@ pytestmark = pytest.mark.skipif(
 # CREATE_NO_WINDOW — what the bridge passes so a confined child never flashes a
 # console window (abax.gui.console.console_bridge._spawn).
 _CREATE_NO_WINDOW = 0x08000000
+
+#: The production ``_icacls``, captured before any test can replace it. The
+#: session-grant cleanup fixture needs the real tool to undo a real ACE even in
+#: a test whose whole point was to monkeypatch the fake one in.
+_REAL_ICACLS = sw._icacls
 
 
 # --------------------------------------------------------------------------- #
@@ -205,6 +216,92 @@ def no_real_acls(monkeypatch):
     monkeypatch.setattr(sw, "_grant_container_access", _grant)
     monkeypatch.setattr(sw, "_revoke_container_access", _revoke)
     return calls
+
+
+@pytest.fixture(autouse=True)
+def session_grants_isolated():
+    """Undo, per test, what ``sandbox_windows`` deliberately holds per session.
+
+    The shared read grants are taken once per *process* and revoked once, at
+    interpreter exit (issue #11) — which is right for abax and exactly wrong for
+    a test suite. Without this fixture the first test to grant the real
+    interpreter prefix would hold it for the remaining thousands of tests, and
+    the next test that meant to observe a grant would instead observe a reuse and
+    silently assert nothing.
+
+    So every entry a test adds is removed *for real* afterwards, with the icacls
+    captured at import — the test may well have replaced ``sw._icacls`` with a
+    fake, and a fake cannot take an ACE off a directory. The table is then put
+    back exactly as it was found: an entry that was already there belongs to
+    whoever put it there (the module-scoped ``confined_run``, for instance).
+
+    ``_SESSION_SWEEP_PID`` is deliberately *not* restored. Arming the exit sweep
+    is a one-way, once-per-process act and ``atexit`` has already been told; a
+    reset would let the next test arm a second hook. The armed hook is harmless
+    here precisely because this fixture leaves it nothing to do — which is worth
+    something as a check in itself. The tests that are *about* arming manage
+    their own registration (see ``_no_real_atexit``).
+    """
+    before = dict(sw._SESSION_GRANTS)
+    try:
+        yield
+    finally:
+        added = [v for k, v in sw._SESSION_GRANTS.items() if k not in before]
+        sw._SESSION_GRANTS.clear()
+        sw._SESSION_GRANTS.update(before)
+        for path, _ace in added:
+            if os.path.exists(path):
+                _REAL_ICACLS(path, "/remove", sw.ALL_APP_PACKAGES)
+
+
+@pytest.fixture
+def own_session_table(monkeypatch):
+    """Give this test a private, empty copy of the session grant table.
+
+    Two reasons, and both are consequences of the table being process-wide by
+    design rather than of anything wrong with it:
+
+    * ``_revoke_session_grants`` is the *whole-table* exit sweep. A test that
+      calls it against the shared table would revoke grants the rest of the run
+      is holding — ``test_sandbox.py``'s strict-worker test runs earlier and
+      leaves the real interpreter prefix held, deliberately — and each of those
+      costs ~17 s of DACL walking to take off and put back.
+    * a test that asserts the table's *contents* would otherwise have to spell
+      out whatever the wider suite happens to be holding, which is a different
+      list depending on which files were selected.
+
+    Swapping the module attribute is enough: every function here reads the
+    global by name at call time. Whatever the test leaves in the private table
+    is revoked on the way out, with the real icacls, in case the test's own
+    sweep did not run.
+    """
+    private: "dict[str, tuple[str, str]]" = {}
+    monkeypatch.setattr(sw, "_SESSION_GRANTS", private)
+    yield private
+    for path, _ace in list(private.values()):
+        if os.path.exists(path):
+            _REAL_ICACLS(path, "/remove", sw.ALL_APP_PACKAGES)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def session_grants_swept_at_module_exit():
+    """Run the production exit sweep when this module is finished, not at exit.
+
+    The end-to-end tier grants ALL APPLICATION PACKAGES read+execute across the
+    *real* interpreter prefix and ``sys.path``, and by design nothing during the
+    session takes those off — the module-scoped ``confined_run`` in particular
+    outlives the per-test fixture above, so its grants are not "added by a test"
+    and are not cleaned up by it.
+
+    Left alone, the real ``atexit`` hook would collect them, which is correct but
+    lands ~20 s of DACL walking *after* pytest has printed its summary and
+    settled its exit code — where it reads as a hang rather than as work. Sweeping
+    here makes it deterministic and visible, and leaves the armed hook with
+    nothing to do, which is itself the check that this fixture and the production
+    one agree about what is outstanding.
+    """
+    yield
+    sw._revoke_session_grants()
 
 
 # --------------------------------------------------------------------------- #
@@ -506,7 +603,8 @@ def _as_a_zipapp(mp, archive, prefix):
     mp.setattr(sw, "_abax_package_dir", lambda: str(archive))
 
 
-def test_a_file_shaped_syspath_entry_is_granted_rather_than_refused(tmp_path):
+def test_a_file_shaped_syspath_entry_is_granted_rather_than_refused(
+        tmp_path, own_session_table):
     """The shipped zipapp must be able to confine at all.
 
     With the archive on ``sys.path`` and providing ``abax``, it is a required
@@ -518,6 +616,12 @@ def test_a_file_shaped_syspath_entry_is_granted_rather_than_refused(tmp_path):
 
     Real icacls, throwaway paths: the ACE has to actually land, which is the
     whole point — see the flags test above.
+
+    The archive is a *shared* import root, so like the read dirs it is held for
+    the session and removed by the exit sweep rather than by the worker's
+    teardown (issue #11); both owners run below, and the machine ends where it
+    started either way. ``own_session_table`` keeps that sweep from reaching
+    grants the rest of the run is holding.
     """
     archive = tmp_path / "abax.pyz"
     archive.write_bytes(b"PK\x05\x06" + b"\x00" * 18)   # a valid empty zip
@@ -543,16 +647,24 @@ def test_a_file_shaped_syspath_entry_is_granted_rather_than_refused(tmp_path):
             assert added.pop().endswith(":(RX)")
         finally:
             sw._revoke_container_access(granted)
+            # The worker's teardown is not this ACE's owner: the archive is on
+            # every confinement's import path, so it is the session's.
+            held = _explicit_aces(str(archive)) - before
+            sw._revoke_session_grants()
 
+    assert len(held) == 1, "a shared import root came off with one worker"
     assert _explicit_aces(str(archive)) == before
 
 
-def test_a_zipapp_already_inside_a_granted_directory_is_not_granted_twice(tmp_path):
+def test_a_zipapp_already_inside_a_granted_directory_is_not_granted_twice(
+        tmp_path, own_session_table):
     """The inheritable directory ACE already reaches it.
 
     The ordinary developer case — ``abax.pyz`` sitting in a checkout that is
     itself on ``sys.path``. A second, explicit ACE on the file would be one more
-    icacls round trip on every spawn and one more thing teardown has to remove.
+    icacls round trip on every spawn and one more thing the exit sweep has to
+    remove — and the sweep runs below, against ``own_session_table``'s private
+    copy, because the read dir is now the session's and not the worker's.
     """
     prefix = tmp_path / "prefix"
     prefix.mkdir()
@@ -585,9 +697,10 @@ def test_a_zipapp_already_inside_a_granted_directory_is_not_granted_twice(tmp_pa
             assert granted == [str(scratch), str(prefix)]   # no separate file ACE
         finally:
             sw._revoke_container_access(granted)
+            sw._revoke_session_grants()      # the read dir's owner, not the worker
 
     # The archive never got an ACE of its own — the parent's inheritable one
-    # reached it — and the revoke left none behind.
+    # reached it — and the revokes left none behind.
     assert sw._container_ace_present(str(archive)) is False
 
 
@@ -652,9 +765,20 @@ def test_inheritance_flags_are_silently_dropped_from_a_grant_on_a_file(tmp_path)
     assert _explicit_aces(str(target)) == before
 
 
-def test_grant_is_additive_and_revoke_reverts_it_exactly(monkeypatch, tmp_path):
+def test_grant_is_additive_and_revoke_reverts_it_exactly(
+        monkeypatch, tmp_path, own_session_table):
     """The documented promise: the ACEs we add never weaken anyone's access and
-    the machine is left byte-identical afterwards."""
+    the machine is left byte-identical afterwards.
+
+    Two owners now revert it, not one, and the test says so rather than papering
+    over it (issue #11): the scratch dir's ``(M)`` grant comes off at the
+    worker's teardown, the shared read grant at the process's exit sweep. The
+    intermediate assertion — that the read dir's ACE is *still there* after the
+    worker teardown — is the design, not a leak, and pinning it here is what
+    stops a future "tidy-up" quietly restoring the per-worker ``/remove`` that
+    stripped a live sibling's stdlib. ``own_session_table`` scopes the sweep to
+    this test's own grants.
+    """
     scratch = tmp_path / "scratch"
     scratch.mkdir()
     readable = tmp_path / "importable"
@@ -689,9 +813,21 @@ def test_grant_is_additive_and_revoke_reverts_it_exactly(monkeypatch, tmp_path):
         assert added_scratch.pop().endswith(":(OI)(CI)(M)")
         assert added_read.pop().endswith(":(OI)(CI)(RX)")
     finally:
-        sw._revoke_container_access(granted)
+        worker_leaks = sw._revoke_container_access(granted)
+        mid_read = _explicit_aces(str(readable))
+        mid_scratch = _explicit_aces(str(scratch))
+        sweep_leaks = sw._revoke_session_grants()
+
+    # The worker's teardown took its own writable grant and nothing else, and
+    # reported nothing: the read dir it left standing has an owner and a
+    # scheduled removal, so it is live state rather than a leak.
+    assert worker_leaks == []
+    assert mid_scratch == before_scratch
+    assert len(mid_read - before_read) == 1, \
+        "the worker's teardown removed a read grant the whole session shares"
 
     # Our ACEs are gone...
+    assert sweep_leaks == []
     assert _explicit_aces(str(scratch)) == before_scratch
     assert _explicit_aces(str(readable)) == before_read
     # ...and we destroyed nothing on the way out.
@@ -1022,6 +1158,603 @@ def test_revoke_reports_nothing_when_every_removal_succeeds(tmp_path):
     # The real tool, on a real path: removing an ACE that isn't there succeeds,
     # so the ordinary teardown reports an empty list.
     assert sw._revoke_container_access([str(tmp_path)]) == []
+
+
+# --------------------------------------------------------------------------- #
+# the shared read grants are held for the session (issue #11)
+# --------------------------------------------------------------------------- #
+#
+# The read grants land on paths every confinement in the process needs — the
+# interpreter prefix, the `sys.path` directories — while teardown belongs to one
+# worker, and abax runs two long-lived strict-capable bridges in the GUI process
+# (`pyconsole.py`'s worker persists between commands, `mixin_macros.py`'s does
+# not). Three measurements, all against the real icacls on this platform, set
+# the shape of the fix and are restated in `sandbox_windows` beside the code:
+#
+#   1. `icacls /grant` is idempotent for a principal, so one `/remove` strips an
+#      ACE two workers are sharing.
+#   2. The AppContainer access check is not cached, so a live worker loses its
+#      stdlib on its *next* import — while staying up and answering.
+#   3. Grant and revoke are not atomic. Each is a DACL propagation walk timed at
+#      19.4-21.6 s, and every child spawned into a revoke walk dies:
+#      `Fatal Python error: init_fs_encoding`, then `0xC0000022` with no output
+#      at all — issue #9's text, from this mechanism.
+#
+# (3) is why refcounting is not enough and was discarded: even a perfect count
+# leaves a ~20 s window at the last teardown. Holding the grants for the session
+# removes the 1->0 transition entirely, and with it the window.
+#
+# The scratch dir is emphatically *not* session-held: it is per-worker, carries
+# `(M)` write access, and is revoked unconditionally at that worker's teardown.
+#
+# Every test here goes through the autouse `session_grants_isolated` fixture,
+# because the table it exercises is process-wide by design.
+
+
+def _icacls_spy(monkeypatch, calls):
+    """Record every icacls operation *and still perform it for real*.
+
+    The promise is about how many times the tool is invoked — one grant for two
+    spawns, and none at all on the second — and no amount of ACL snapshotting
+    can see that: a path granted once and a path granted twice have identical
+    ACLs, which is exactly why the old bookkeeping bug was invisible. So the
+    calls are counted. The ACL is still asserted separately, because a test that
+    only counted calls would pass just as happily if the grant never landed.
+    """
+    real = sw._icacls
+
+    def _spy(path, *args):
+        ok = real(path, *args)
+        calls.append((args[0], os.path.normcase(os.path.abspath(path))))
+        return ok
+
+    monkeypatch.setattr(sw, "_icacls", _spy)
+    return calls
+
+
+def _ops(calls, verb, path):
+    """The recorded *verb* operations against *path*."""
+    key = os.path.normcase(os.path.abspath(str(path)))
+    return [c for c in calls if c == (verb, key)]
+
+
+@pytest.fixture
+def shared_paths(monkeypatch, tmp_path, own_session_table):
+    """A throwaway stand-in for the interpreter prefix, plus two scratch dirs.
+
+    Real directories and the real ``icacls``, so the ACL assertions mean
+    something, but nowhere near the real ``sys.path`` — a test that granted the
+    actual interpreter prefix would pay ~17 s each way for it. The private
+    session table comes with it, so every table assertion below can name exactly
+    what this test put there.
+    """
+    shared = tmp_path / "interpreter"
+    console = tmp_path / "scratch-console"
+    macro = tmp_path / "scratch-macros"
+    for d in (shared, console, macro):
+        d.mkdir()
+    monkeypatch.setattr(sw, "_needed_read_dirs", lambda: [str(shared)])
+    monkeypatch.setattr(sw, "_needed_read_files", lambda: [])
+    monkeypatch.setattr(sw, "_required_read_targets", lambda: [str(shared)])
+    return shared, console, macro
+
+
+@pytest.fixture
+def no_real_atexit(monkeypatch):
+    """Capture ``atexit.register`` calls instead of really arming the sweep.
+
+    Arming for real inside a test would leave a hook that fires at the end of the
+    whole pytest run, against a table other tests own. The tests that care about
+    arming want to count registrations anyway, which is what this returns.
+    """
+    registered: list = []
+    monkeypatch.setattr(sw.atexit, "register", registered.append)
+    monkeypatch.setattr(sw, "_SESSION_SWEEP_PID", None)
+    return registered
+
+
+def test_a_second_confinement_does_no_icacls_work_for_a_held_shared_path(
+        monkeypatch, shared_paths):
+    """The core of the design, with the real tool on throwaway paths.
+
+    Console spawns, then the macro runner spawns. The shared path is granted
+    once; the second confinement neither re-grants it (a redundant ``/grant`` is
+    a full DACL walk — measured at the same 16.5 s as a cold one, so it is not a
+    cheap no-op) nor treats it as unreachable.
+    """
+    shared, console_scratch, macro_scratch = shared_paths
+    baseline = _explicit_aces(str(shared))
+    calls = _icacls_spy(monkeypatch, [])
+
+    console, unreachable = sw._grant_container_access(str(console_scratch))
+    assert unreachable == []
+    assert len(_ops(calls, "/grant", shared)) == 1
+    assert sw._container_ace_present(str(shared)) is True
+    assert sw._session_grant_paths() == [str(shared)]
+
+    macro, unreachable = sw._grant_container_access(str(macro_scratch))
+
+    assert unreachable == [], "the second confinement thought the path unreachable"
+    assert str(shared) in macro, "the reused path was not reported as reachable"
+    assert len(_ops(calls, "/grant", shared)) == 1, \
+        "the second spawn paid a second ~20 s grant walk for a path already held"
+    # One ACE, not two, and the table holds one entry however many spawns saw it.
+    assert len(_explicit_aces(str(shared)) - baseline) == 1
+    assert sw._session_grant_paths() == [str(shared)]
+
+
+def test_a_workers_teardown_leaves_the_shared_grant_standing(
+        monkeypatch, shared_paths):
+    """The reproduction shape, at unit level: macro tears down, console lives.
+
+    An unconditional ``/remove`` here is what stripped the surviving worker's
+    stdlib. It must not happen at *any* teardown, not merely at the non-final
+    ones — that is the difference between this design and the refcount, and the
+    reason there is no window for a starting worker to fall into.
+    """
+    shared, console_scratch, macro_scratch = shared_paths
+    calls = _icacls_spy(monkeypatch, [])
+
+    console, _ = sw._grant_container_access(str(console_scratch))
+    macro, _ = sw._grant_container_access(str(macro_scratch))
+
+    assert sw._revoke_container_access(macro) == []
+    assert _ops(calls, "/remove", shared) == [], \
+        "one worker's teardown removed a grant its live sibling was still using"
+    assert sw._container_ace_present(str(shared)) is True
+
+    # ...and the *last* teardown does not remove it either. Nothing during the
+    # session does; only the exit sweep.
+    assert sw._revoke_container_access(console) == []
+    assert _ops(calls, "/remove", shared) == []
+    assert sw._container_ace_present(str(shared)) is True
+    assert sw._session_grant_paths() == [str(shared)]
+
+
+def test_each_worker_revokes_its_own_scratch_dir_regardless(
+        monkeypatch, shared_paths):
+    """Scratch is per-worker, so it is never session-held and never kept back.
+
+    ``mkdtemp`` per bridge, ``(M)`` rather than ``(RX)``, shared with nobody: if
+    the session table swept it up with the read dirs, the first worker to finish
+    would leave its own *writable* directory reachable from every AppContainer on
+    the machine until abax exited — the one grant with real write access.
+    """
+    shared, console_scratch, macro_scratch = shared_paths
+    calls = _icacls_spy(monkeypatch, [])
+
+    console, _ = sw._grant_container_access(str(console_scratch))
+    macro, _ = sw._grant_container_access(str(macro_scratch))
+    assert sw._container_ace_present(str(macro_scratch)) is True
+
+    assert sw._revoke_container_access(macro) == []
+
+    # The macro's own scratch went, unconditionally and immediately...
+    assert len(_ops(calls, "/remove", macro_scratch)) == 1
+    assert sw._container_ace_present(str(macro_scratch)) is False
+    # ...while the shared path and the sibling's scratch are untouched.
+    assert sw._container_ace_present(str(shared)) is True
+    assert sw._container_ace_present(str(console_scratch)) is True
+    # Neither scratch dir is in the session table; only the shared read dir is.
+    held = {os.path.normcase(p) for p in sw._session_grant_paths()}
+    assert held == {os.path.normcase(str(shared))}
+
+    assert sw._revoke_container_access(console) == []
+    assert sw._container_ace_present(str(console_scratch)) is False
+
+
+def test_a_path_held_for_the_session_is_not_reported_as_a_leak(
+        monkeypatch, shared_paths):
+    """Through ``cleanup_process``, the entry point the bridge actually calls.
+
+    Its return value means "these are still on the machine and nothing will ever
+    take them off". A shared path deliberately left standing, with an owner and a
+    scheduled removal, is not that — and reporting it would train whoever reads
+    the list (a future ``abax doctor``) to ignore it.
+
+    The contrast at the end is the point, and it is what makes this more than a
+    tautology: the *same* teardown, with a revoke that genuinely fails, must put
+    the worker's own scratch dir in the list. One list, two paths, one reported.
+    """
+    shared, console_scratch, macro_scratch = shared_paths
+    procs = []
+    for scratch in (console_scratch, macro_scratch):
+        granted, unreachable = sw._grant_container_access(str(scratch))
+        assert unreachable == []
+        proc = _FakeProc()
+        proc._sandbox_cleanup = (granted, f"abax-sandbox-test-{scratch.name}")
+        proc._sandbox_ctypes = _FakeCtypes()
+        procs.append(proc)
+    console, macro = procs
+
+    assert sw.cleanup_process(macro) == [], \
+        "a path held for the session was reported as a leak"
+    assert sw._container_ace_present(str(shared)) is True
+    assert sw._container_ace_present(str(macro_scratch)) is False
+
+    # Now the same teardown with a tool that refuses everything. The scratch dir
+    # is a real leak and must be named; the shared path is still not one, and is
+    # not even attempted — the skip happens before any icacls call.
+    monkeypatch.setattr(sw, "_icacls", lambda *a: False)
+    assert sw.cleanup_process(console) == [str(console_scratch)]
+
+
+def test_an_externally_removed_ace_is_repaired_by_the_next_spawn(
+        monkeypatch, shared_paths):
+    """The table is a record of intent, never of fact.
+
+    This is the failure the discarded refcount shipped: it trusted its own count
+    absolutely, so a transient strip by anything outside abax became a permanent
+    one — the table said "held", the grant was skipped, and every later worker
+    launched into a stripped tree. The current code must ask the machine, and it
+    asks with ``/findsid`` (~10 ms) rather than by re-granting blind, because a
+    redundant ``/grant`` costs the same full DACL walk as a cold one.
+    """
+    shared, console_scratch, macro_scratch = shared_paths
+
+    console, _ = sw._grant_container_access(str(console_scratch))
+    assert sw._container_ace_present(str(shared)) is True
+
+    # Something outside abax takes the ACE off — an admin, another tool, an
+    # `icacls /reset`, a restored backup.
+    assert _REAL_ICACLS(str(shared), "/remove", sw.ALL_APP_PACKAGES) is True
+    assert sw._container_ace_present(str(shared)) is False
+    assert sw._session_grant_paths() == [str(shared)], \
+        "the table forgot the path, so this would be a first grant, not a repair"
+
+    calls = _icacls_spy(monkeypatch, [])
+    macro, unreachable = sw._grant_container_access(str(macro_scratch))
+
+    assert len(_ops(calls, "/grant", shared)) == 1, \
+        "the next spawn trusted the table and skipped a grant that had gone"
+    assert sw._container_ace_present(str(shared)) is True
+    assert unreachable == []
+    assert str(shared) in macro
+
+
+def test_the_exit_sweep_removes_the_session_grants(shared_paths):
+    """The one place the shared ACEs come off, and it is at process exit."""
+    shared, console_scratch, _macro = shared_paths
+    baseline = _explicit_aces(str(shared))
+
+    granted, unreachable = sw._grant_container_access(str(console_scratch))
+    assert unreachable == []
+    assert sw._container_ace_present(str(shared)) is True
+    # The worker's teardown runs first and leaves it alone, exactly as it does
+    # in production; the sweep is what is being measured.
+    assert sw._revoke_container_access(granted) == []
+    assert sw._container_ace_present(str(shared)) is True
+
+    assert sw._revoke_session_grants() == []
+
+    assert sw._container_ace_present(str(shared)) is False
+    assert _explicit_aces(str(shared)) == baseline, \
+        "the exit sweep did not leave the machine as it found it"
+    assert sw._session_grant_paths() == []
+
+
+def test_the_exit_sweep_reports_and_logs_what_it_could_not_remove(
+        monkeypatch, shared_paths, caplog):
+    """A crash is not the only way to leak: a failing ``/remove`` leaks too.
+
+    ``atexit`` discards the return value, which is why the log line is there as
+    well — and why the function returns one at all, for a direct caller and for
+    a future ``abax doctor``.
+    """
+    shared, console_scratch, _macro = shared_paths
+    sw._grant_container_access(str(console_scratch))
+    monkeypatch.setattr(sw, "_icacls", lambda *a: False)
+
+    with caplog.at_level("WARNING", logger=sw.__name__):
+        failed = sw._revoke_session_grants()
+
+    assert failed == [str(shared)]
+    assert str(shared) in caplog.text
+    assert any(r.levelname == "WARNING" for r in caplog.records), caplog.records
+    # The table is emptied either way: the process is going, and an entry that
+    # outlived the sweep is a lie about what is still owned.
+    assert sw._session_grant_paths() == []
+
+
+def test_the_exit_sweep_does_not_report_a_path_that_no_longer_exists(
+        monkeypatch, tmp_path, own_session_table):
+    """A tmp tree deleted before exit took its ACL with it; nothing leaked."""
+    gone = tmp_path / "went-away"
+    gone.mkdir()
+    monkeypatch.setattr(sw, "_icacls", lambda *a: True)
+    monkeypatch.setattr(sw, "_container_ace_present", lambda p: False)
+    assert sw._hold_session_grant(str(gone), "irrelevant", []) is True
+    gone.rmdir()
+    monkeypatch.setattr(sw, "_icacls", lambda *a: False)
+
+    assert sw._revoke_session_grants() == []
+
+
+@pytest.mark.parametrize("exc", [
+    KeyboardInterrupt(),
+    RuntimeError("dictionary changed size during iteration"),
+    SystemExit(1),
+])
+def test_the_exit_sweep_never_raises(monkeypatch, shared_paths, exc):
+    """It runs from ``atexit``, during interpreter shutdown.
+
+    A traceback there goes to a stderr the windowed ``abaxw.exe`` does not have,
+    and it abandons every path after the one that raised. The guard catches
+    ``BaseException`` rather than ``Exception`` on purpose: shutdown can deliver
+    things that are neither, and the contract is that the process exits — not
+    that the sweep succeeds.
+    """
+    _shared, console_scratch, _macro = shared_paths
+    sw._grant_container_access(str(console_scratch))
+
+    def _boom(*a, **k):
+        raise exc
+
+    monkeypatch.setattr(sw, "_icacls", _boom)
+    assert sw._revoke_session_grants() == []
+
+
+def test_a_shared_grant_icacls_refused_is_not_recorded_as_held(
+        monkeypatch, tmp_path, own_session_table):
+    """Only a grant that landed may register, or fail-closed stops working.
+
+    A path whose grant failed is not reachable, is not in ``granted``, and — the
+    half this test exists for — is not in the session table either. Recording it
+    would make the next confinement probe, find nothing, and... re-grant, which
+    is survivable; but it would also make *this* spawn's ``unreachable`` come
+    back empty and wave the launch through.
+    """
+    shared = tmp_path / "prefix"
+    scratch = tmp_path / "scratch"
+    for d in (shared, scratch):
+        d.mkdir()
+    monkeypatch.setattr(sw, "_needed_read_dirs", lambda: [str(shared)])
+    monkeypatch.setattr(sw, "_needed_read_files", lambda: [])
+    monkeypatch.setattr(sw, "_required_read_targets", lambda: [str(shared)])
+    monkeypatch.setattr(sw, "_container_ace_present", lambda path: False)
+    monkeypatch.setattr(sw, "_icacls", _grant_failing_on(str(shared)))
+
+    granted, unreachable = sw._grant_container_access(str(scratch))
+
+    assert granted == [str(scratch)]
+    assert unreachable == [str(shared)], "the fail-closed refusal stopped working"
+    assert sw._session_grant_paths() == [], \
+        "a grant that failed registered a hold on an ACE that does not exist"
+
+
+def test_a_refused_launch_keeps_the_session_grant_and_drops_the_scratch_one(
+        fake_ctypes, monkeypatch, tmp_path, own_session_table):
+    """``custom_spawn``'s fail-closed teardown, split the way the design splits.
+
+    The refusal revokes ``granted`` from a ``finally``. The worker's own scratch
+    dir must come off — it is writable and its worker will never exist. The
+    shared path must *not*: a refused launch is not the end of the session, the
+    next spawn will want it, and revoking it here would reopen the ~20 s window
+    for that next spawn — on behalf of a launch that is failing anyway.
+    """
+    fake_ctypes()
+    shared = tmp_path / "syspath-entry"
+    doomed = tmp_path / "prefix"
+    scratch = tmp_path / "scratch"
+    for d in (shared, doomed, scratch):
+        d.mkdir()
+    monkeypatch.setattr(sw, "_needed_read_dirs", lambda: [str(shared), str(doomed)])
+    monkeypatch.setattr(sw, "_needed_read_files", lambda: [])
+    monkeypatch.setattr(sw, "_required_read_targets", lambda: [str(doomed)])
+    monkeypatch.setattr(sw, "_container_ace_present", lambda path: False)
+    calls = []
+
+    def _icacls(path, *args):
+        calls.append((args[0], path))
+        return path != str(doomed)
+
+    monkeypatch.setattr(sw, "_icacls", _icacls)
+
+    with pytest.raises(sw.SandboxGrantError) as caught:
+        sw.confinement().custom_spawn(["x.exe"], {}, str(scratch), 0)
+
+    assert str(doomed) in str(caught.value), "the refusal stopped naming the path"
+    # The worker's own writable grant is gone...
+    assert ("/remove", str(scratch)) in calls
+    # ...the shared one is kept, and kept honestly: it is in the table, so the
+    # next spawn will find it and verify it rather than assume it.
+    assert ("/remove", str(shared)) not in calls
+    assert sw._session_grant_paths() == [str(shared)]
+    # The path that never got an ACE was neither recorded nor removed.
+    assert ("/remove", str(doomed)) not in calls
+
+
+def test_the_exit_sweep_is_armed_by_the_first_grant_and_only_once(
+        monkeypatch, shared_paths, no_real_atexit):
+    """Armed lazily, from the grant — which is what keeps it out of the child.
+
+    Registering at import would arm it inside the confined worker too, since
+    ``console_worker.py`` imports this module to call ``apply_in_child`` (the
+    test below measures that half in a real child interpreter). A *second*
+    registration would mean a second sweep at exit, walking DACLs the first
+    already stripped.
+
+    The second grant here is deliberately a **repair** — the ACE is stripped from
+    under the session first — because a plain second spawn takes the reuse fast
+    path and never reaches the arming code at all. Only the repair path calls it
+    twice, so only the repair path can tell a guarded registration from an
+    unguarded one.
+    """
+    shared, console_scratch, macro_scratch = shared_paths
+
+    sw._grant_container_access(str(console_scratch))
+    assert no_real_atexit == [sw._revoke_session_grants]
+    assert sw._SESSION_SWEEP_PID == os.getpid()
+
+    assert _REAL_ICACLS(str(shared), "/remove", sw.ALL_APP_PACKAGES) is True
+    granted, _unreachable = sw._grant_container_access(str(macro_scratch))
+
+    assert str(shared) in granted, "the repair did not happen; nothing was re-armed"
+    assert no_real_atexit == [sw._revoke_session_grants], \
+        "a second grant armed a second exit sweep"
+
+
+def test_nothing_a_confined_child_does_arms_the_exit_sweep(tmp_path):
+    """``sandbox_windows`` is imported inside the worker; the sweep must not be.
+
+    ``abax/console_worker.py`` calls ``select_confinement().apply_in_child``, so
+    everything below runs *inside the confined child*. A hook armed there would,
+    at that child's exit, revoke the **parent's** grants — machine-wide, silently,
+    while the parent's other worker was still running on them. That is the exact
+    shape of the bug this whole change exists to remove, delivered from the one
+    process that has no idea it is doing it.
+
+    Measured in a fresh interpreter rather than in-process, because the property
+    is about *import* and this module has long since been imported here: an
+    in-process check can only ever assert about calls, and would sail straight
+    past an ``atexit.register`` at module level. The child does the full
+    child-side surface — the strategy is selected and ``apply_in_child`` is
+    called, exactly as ``console_worker`` does it — and then reports whether
+    anything armed.
+    """
+    prog = (
+        "import atexit, sys\n"
+        f"sys.path.insert(0, {os.path.dirname(os.path.dirname(os.path.abspath(sw.__file__)))!r})\n"
+        "from abax import sandbox as sb, sandbox_windows as sw\n"
+        "after_import = atexit._ncallbacks()\n"
+        f"scratch = {str(tmp_path)!r}\n"
+        "strat = sb.select_confinement()\n"
+        "strat.available(); strat.describe()\n"
+        "strat.wrap_argv([sys.executable, '-c', 'pass'], scratch)\n"
+        "strat.child_env({'PATH': 'C:\\\\Windows'}, scratch)\n"
+        "strat.apply_in_child(scratch)\n"
+        "sw._profile_name(); sw._needed_read_dirs(); sw._needed_read_files()\n"
+        "print('SWEEP_PID', sw._SESSION_SWEEP_PID)\n"
+        "print('HELD', sw._session_grant_paths())\n"
+        "print('ADDED_BY_CHILD_WORK', atexit._ncallbacks() - after_import)\n"
+    )
+    r = subprocess.run([sys.executable, "-c", prog], capture_output=True,
+                       text=True, timeout=120)
+    assert r.returncode == 0, r.stdout + r.stderr
+    reported = dict(line.split(" ", 1) for line in r.stdout.splitlines() if line)
+
+    # The direct signal: nothing in the child armed the sweep, so nothing at the
+    # child's exit will revoke what the parent granted.
+    assert reported["SWEEP_PID"] == "None", r.stdout
+    assert reported["HELD"] == "[]", r.stdout
+    assert reported["ADDED_BY_CHILD_WORK"] == "0", r.stdout
+
+
+def test_the_exit_sweep_refuses_to_run_in_a_process_that_did_not_arm_it(
+        monkeypatch, shared_paths):
+    """Belt and braces for the same hazard, from the other end.
+
+    Windows has no ``fork`` and ``multiprocessing`` re-imports this module fresh,
+    so nothing here can inherit the registration today. The check costs one
+    comparison and the failure it guards against — a child revoking its parent's
+    machine-wide grants — is silent and total.
+    """
+    shared, console_scratch, _macro = shared_paths
+    sw._grant_container_access(str(console_scratch))
+    held = sw._session_grant_paths()
+    calls = []
+    monkeypatch.setattr(sw, "_icacls",
+                        lambda path, *a: calls.append((a[0], path)) is None)
+    monkeypatch.setattr(sw, "_SESSION_SWEEP_PID", os.getpid() + 1)
+
+    assert sw._revoke_session_grants() == []
+
+    assert calls == [], "a child process revoked its parent's grants"
+    assert sw._session_grant_paths() == held
+    assert sw._container_ace_present(str(shared)) is True
+
+
+def test_concurrent_first_use_grants_the_shared_path_exactly_once(
+        monkeypatch, tmp_path, own_session_table):
+    """The lock must be held *across* the icacls call, not just the dict access.
+
+    Both bridges spawn from worker threads (``abax/workers.py``'s FuncWorker), so
+    two first-use grants genuinely race. What makes the race dangerous is the
+    shape of a real ``icacls /grant``: it is a DACL propagation walk that writes
+    the root first and the leaves last, so ``/findsid`` — which asks about the
+    root — answers "present" long before the container can actually read the
+    tree. A second spawn that probes mid-walk sees the ACE, skips the grant, and
+    launches a child into a half-propagated tree, which is precisely how measured
+    (3) kills children: ``Fatal Python error: init_fs_encoding``.
+
+    The fake models that ordering, and the ordering is the whole point: the
+    effect lands at the *end* of the walk, not at the start. An earlier fake in
+    this file's history set the flag and then slept, which is backwards — it
+    modelled an instantaneous write followed by an irrelevant pause, and no
+    amount of threading against it could reproduce the window.
+
+    Seeded as a *repair* (the table already knows the path, the ACE has gone) so
+    every thread reaches the probe. icacls is faked because 60 real DACL walks
+    would take twenty minutes; the ACL behaviour is pinned against the real tool
+    by the tests above.
+    """
+    shared = str(tmp_path / "interpreter")
+    key = sw._shared_key(shared)
+    monkeypatch.setattr(sw, "_needed_read_dirs", lambda: [shared])
+    monkeypatch.setattr(sw, "_needed_read_files", lambda: [])
+    monkeypatch.setattr(sw, "_required_read_targets", lambda: [])
+
+    walk = 0.4
+    state = {"visible": False, "complete": False}
+    state_lock = threading.Lock()
+    ops: list[str] = []
+
+    def _fake_icacls(path, *args):
+        if sw._shared_key(path) != key:
+            return True                       # a scratch dir; instant and local
+        with state_lock:
+            ops.append(args[0])
+        if args[0] == "/grant":
+            time.sleep(walk / 4)              # the root's DACL is written early
+            with state_lock:
+                state["visible"] = True       # ...so /findsid can already see it
+            time.sleep(walk * 3 / 4)          # the leaves take the rest
+            with state_lock:
+                state["complete"] = True      # only now can a child read the tree
+        else:
+            time.sleep(walk)
+            with state_lock:
+                state["visible"] = state["complete"] = False
+        return True
+
+    monkeypatch.setattr(sw, "_icacls", _fake_icacls)
+    monkeypatch.setattr(sw, "_container_ace_present",
+                        lambda path: state["visible"])
+    # The repair shape: this session holds the path, and the ACE has been
+    # stripped from under it.
+    sw._SESSION_GRANTS[key] = (shared, f"{sw.ALL_APP_PACKAGES}:(OI)(CI)(RX)")
+
+    threads = 6
+    early: list[str] = []
+    reported: list[str] = []
+    barrier = threading.Barrier(threads)
+
+    def _spawn(worker: int) -> None:
+        barrier.wait(30)
+        time.sleep(worker * walk / (threads + 1))   # arrive across the window
+        granted, _unreachable = sw._grant_container_access(
+            os.path.join(str(tmp_path), f"scratch-{worker}"))
+        with state_lock:
+            if not state["complete"]:
+                early.append(f"w{worker}")
+        failed = sw._revoke_container_access(granted)
+        if failed:
+            reported.append(f"w{worker}: {failed}")
+
+    runners = [threading.Thread(target=_spawn, args=(i,)) for i in range(threads)]
+    for t in runners:
+        t.start()
+    for t in runners:
+        t.join(120)
+    assert not any(t.is_alive() for t in runners), "a grant cycle hung"
+
+    assert early == [], (
+        f"{len(early)} spawn(s) of {threads} were told the shared path was ready "
+        f"while the grant walk was still propagating: {early}")
+    assert ops == ["/grant"], (
+        "the shared path's icacls sequence was not a single grant — either two "
+        f"spawns granted at once or a teardown removed it: {ops}")
+    assert sw._session_grant_paths() == [shared]
 
 
 # --------------------------------------------------------------------------- #
@@ -1855,10 +2588,229 @@ def test_e2e_worker_selftest_passes_inside_the_container(confined_run):
 
 @pytest.mark.sandbox_e2e
 def test_e2e_cleanup_reverts_the_scratch_grant(confined_run):
-    # cleanup_process ran in _spawn_confined's finally; the machine must be back
-    # exactly where it started.
+    # cleanup_process ran in _spawn_confined's finally; the worker's own writable
+    # grant must be back exactly where it started. Only that one: the shared read
+    # grants belong to the session and come off at the exit sweep (issue #11),
+    # which `session_grants_swept_at_module_exit` runs for this module.
     assert _explicit_aces(str(confined_run["scratch"])) == confined_run["baseline"], \
         "the AppContainer ACL grant leaked past cleanup"
+
+
+# --------------------------------------------------------------------------- #
+# end-to-end: a live worker survives a sibling's teardown (issue #11)
+# --------------------------------------------------------------------------- #
+
+# A confined child that stays up and answers commands — the shape of the console
+# bridge's worker, which persists between commands and is therefore *sitting* in
+# the window a sibling's teardown used to close on it. The probes above all run
+# to completion in milliseconds, which is precisely why an earlier attempt at
+# this hypothesis measured 0 failures in 16 launches: the overlap was too short
+# to be in. `-u` and an explicit flush because both ends are pipes.
+_LIVE_PROBE = r"""
+import importlib, sys
+
+def _say(msg):
+    sys.stdout.write(msg + "\n")
+    sys.stdout.flush()
+
+_say("READY")
+while True:
+    line = sys.stdin.readline()
+    if not line:
+        break
+    verb, _, arg = line.strip().partition(" ")
+    if verb == "EXIT":
+        break
+    try:
+        if verb == "IMPORT":
+            importlib.import_module(arg)
+        elif verb == "WRITE":
+            with open(arg, "w", encoding="utf-8") as fh:
+                fh.write("alive")
+        _say("OK %s %s" % (verb, arg))
+    except BaseException as exc:
+        _say("FAIL %s %s %s: %s" % (verb, arg, type(exc).__name__, exc))
+"""
+
+
+class _LiveWorker:
+    """One long-lived AppContainer-confined child, driven over its pipes.
+
+    Deliberately not built on :func:`_spawn_confined`: that helper's whole shape
+    is "run to completion, then tear down", and the defect this exercises needs
+    a worker that is still alive *while* another confinement's teardown runs.
+
+    Both pipes are pumped on threads — a child that fills its stderr buffer while
+    the test is waiting on stdout would hang, and a hang here is indistinguishable
+    from the failure being looked for.
+    """
+
+    def __init__(self, strat, scratch: str) -> None:
+        env = strat.child_env(dict(os.environ), scratch)
+        # The commands carry paths; keep both ends on one encoding rather than
+        # on whatever console codepage the child inherits.
+        env["PYTHONIOENCODING"] = "utf-8"
+        self.proc = strat.custom_spawn([sys.executable, "-u", "-c", _LIVE_PROBE],
+                                       env, scratch, _CREATE_NO_WINDOW)
+        self.replies: "queue.Queue[str]" = queue.Queue()
+        self.errors: "list[str]" = []
+        for stream, sink in ((self.proc.stdout, self.replies.put),
+                             (self.proc.stderr, self.errors.append)):
+            threading.Thread(target=self._pump, args=(stream, sink),
+                             daemon=True).start()
+
+    @staticmethod
+    def _pump(stream, sink) -> None:
+        try:
+            while True:
+                line = stream.readline()
+                if not line:
+                    return
+                sink(line.decode("utf-8", "replace").rstrip("\r\n"))
+        except OSError as exc:                     # pipe torn down under us
+            sink(repr(exc))
+
+    def ask(self, command: str, timeout: float = 60) -> str:
+        try:
+            self.proc.stdin.write((command + "\n").encode("utf-8"))
+        except OSError as exc:
+            return f"<could not send {command!r}: {exc!r}>{self.diag()}"
+        return self.reply(timeout)
+
+    def reply(self, timeout: float = 60) -> str:
+        try:
+            return self.replies.get(timeout=timeout)
+        except queue.Empty:
+            return f"<no reply within {timeout}s>{self.diag()}"
+
+    def diag(self) -> str:
+        return _diag(self.proc.poll(), "", "\n".join(self.errors))
+
+    def close(self) -> "list[str]":
+        """Stop the child and tear its confinement down. Returns cleanup's list.
+
+        Never raises: it runs from ``finally`` blocks, and a teardown that did
+        not run would leave a real AppContainer profile on the machine.
+        """
+        try:
+            self.proc.stdin.write(b"EXIT\n")
+            self.proc.stdin.close()
+        except OSError:
+            pass
+        try:
+            self.proc.wait(timeout=60)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+        leaked = sw.cleanup_process(self.proc)
+        self.proc.close_handle()
+        return leaked
+
+
+@pytest.mark.sandbox_e2e
+def test_e2e_a_live_worker_survives_a_second_workers_teardown(tmp_path):
+    """Issue #11 as the GUI process actually reaches it, with real ACLs.
+
+    The console's worker is long-lived; the macro runner spawns its own, finishes
+    and tears down. Both need the same interpreter prefix, ``icacls /remove`` is
+    not refcounted by Windows, and the macro's teardown therefore used to strip
+    the running console worker's read access to its own stdlib — while it was
+    still running.
+
+    Three assertions, because they fail differently and any one alone would be a
+    trap:
+
+    * the ACE is still *listed* after the sibling's teardown — the bookkeeping;
+    * the surviving child can still *read* through it — the access, which no ACL
+      query can speak for, since a listing says nothing about what a running
+      process's cached handles will still be allowed to do;
+    * the second confinement issued **no** ``/grant`` for the shared paths — the
+      half that is only true of a session-scoped grant and not of a refcount, and
+      the reason the second strict command of a session no longer costs ~20 s.
+
+    The first two really do fail without the fix. Measured directly, by stripping
+    the ACE under a live worker: its very next import failed immediately with
+    ``ModuleNotFoundError``, while ``PING`` still answered ``PONG`` — a worker
+    with no standard library and a healthy pulse. And a *fresh* launch during the
+    ~20 s revoke walk dies with ``Fatal Python error: init_fs_encoding``, then
+    ``0xC0000022`` with no output at all: issue #9's shape, which is why this is
+    not fixed by counting holders.
+
+    Nothing is stubbed. This grants ALL APPLICATION PACKAGES read+execute across
+    the real interpreter prefix and ``sys.path`` — as ``confined_run`` above
+    already does, at the same ~20 s — and the session-scoped hold is what makes
+    the *second* confinement free rather than a second full walk.
+    """
+    strat = sw.confinement()
+    dirs = sw._needed_read_dirs()
+    base = os.path.abspath(sys.base_prefix)
+    shared = next((d for d in dirs if sw._covered_by(base, [d])), None)
+    assert shared, f"no directory in {dirs} covers the interpreter at {base}"
+
+    console_scratch = tmp_path / "console"
+    macro_scratch = tmp_path / "macros"
+    for d in (console_scratch, macro_scratch):
+        d.mkdir()
+
+    console = _LiveWorker(strat, str(console_scratch))
+    try:
+        assert console.reply() == "READY", \
+            "the long-lived confined worker never started" + console.diag()
+        assert console.ask("IMPORT json").startswith("OK"), \
+            "the confined worker could not import at all" + console.diag()
+        assert sw._container_ace_present(shared) is True
+        assert shared in sw._session_grant_paths()
+
+        # The macro runner spawns while the console's worker is live. Spy on
+        # icacls across just this spawn: the shared read paths must cost nothing.
+        calls: list[tuple] = []
+        with pytest.MonkeyPatch.context() as mp:
+            _icacls_spy(mp, calls)
+            macro = _LiveWorker(strat, str(macro_scratch))
+        try:
+            assert macro.reply() == "READY", \
+                "the second confined worker never started" + macro.diag()
+            own = os.path.normcase(os.path.abspath(str(macro_scratch)))
+            shared_grants = [c for c in calls
+                             if c[0] == "/grant" and c[1] != own]
+            assert shared_grants == [], (
+                "the second confinement re-walked the shared DACLs instead of "
+                f"reusing the grant already in force: {shared_grants}")
+            # ...and it did do its own per-worker work.
+            assert _ops(calls, "/grant", macro_scratch), calls
+            assert sw._container_ace_present(str(macro_scratch)) is True
+        finally:
+            macro_leaked = macro.close()
+
+        # The macro runner is gone. Its own scratch grant went with it...
+        assert macro_leaked == [], f"the macro teardown reported leaks: {macro_leaked}"
+        assert sw._container_ace_present(str(macro_scratch)) is False, \
+            "a per-worker scratch grant outlived its worker"
+        # ...and the shared grant did not, because the process still needs it.
+        # The machine first, the bookkeeping after: a mutation that breaks this
+        # should be caught by what the OS says, not by what the table says.
+        assert sw._container_ace_present(shared) is True, (
+            f"the macro runner's teardown removed {shared} while the console's "
+            "worker was still confined and still reading from it")
+
+        # The measurement that matters: a module this child has not imported
+        # yet, so it is a real open() through the container's access check
+        # rather than something the loader already mapped.
+        reply = console.ask("IMPORT xml.dom.minidom")
+        assert reply.startswith("OK"), (
+            "the surviving confined worker lost its stdlib when its sibling tore "
+            f"down: {reply}" + console.diag())
+        alive = console_scratch / "still-alive.txt"
+        assert console.ask(f"WRITE {alive}").startswith("OK"), \
+            "the surviving worker lost its scratch dir" + console.diag()
+        assert alive.read_text(encoding="utf-8") == "alive"
+    finally:
+        console_leaked = console.close()
+
+    assert console_leaked == [], f"the console teardown reported leaks: {console_leaked}"
+    # Even the *last* teardown leaves the shared grant alone — that is the whole
+    # difference from a refcount, and it is what closes issue #9's window.
+    assert sw._container_ace_present(shared) is True
+    assert shared in sw._session_grant_paths()
 
 
 # --------------------------------------------------------------------------- #
