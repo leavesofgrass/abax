@@ -95,11 +95,34 @@ def create_app_container_profile(name: str) -> ctypes.c_void_p:
 
 
 def delete_app_container_profile(name: str) -> None:
+    """Delete the AppContainer profile *name*. Raises ``OSError`` on failure.
+
+    The HRESULT is checked and reported in the same shape
+    :func:`create_app_container_profile` reports its own. It used to be
+    discarded, which made a failed delete completely invisible — no exception,
+    no log, no return value — and made the ``except OSError`` guards in
+    :func:`abax.sandbox_windows.cleanup_process` and
+    :meth:`~abax.sandbox_windows.WindowsAppContainer.custom_spawn` dead code:
+    nothing they wrapped could raise.
+
+    Measured on this platform, with a handle held open under
+    ``%LOCALAPPDATA%\\Packages\\<name>``: ``hr=0x80070020``
+    (``ERROR_SHARING_VIOLATION``), and *both* halves of the profile survive the
+    call — the ``HKCU\\...\\AppContainer\\Mappings`` registry entry and the
+    ``Packages`` tree. That is a real leak that used to report success.
+
+    Deleting a name that is not there is **not** a failure, so the guard cannot
+    fire on a redundant teardown: measured ``hr=0x00000000`` both for a profile
+    already deleted and for one never created.
+    """
     _k32, userenv, _adv = _dlls()
     fn = userenv.DeleteAppContainerProfile
     fn.restype = ctypes.c_long
     fn.argtypes = [wintypes.LPCWSTR]
-    fn(name)
+    hr = fn(name)
+    if hr != 0:
+        raise OSError(
+            f"AppContainer profile delete failed: hr=0x{hr & 0xFFFFFFFF:08x}")
 
 
 # --- confined process launch -------------------------------------------------

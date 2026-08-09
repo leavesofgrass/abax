@@ -15,7 +15,7 @@ so an autouse fixture no-ops it for the whole suite. The only exception is
 ``test_tts.py``, which tests the TTS machinery itself and already drives it with
 *fake* pyttsx3 engines (no audio) — it must see the real implementation.
 
-**No gate.** ``sandbox_e2e`` marks the six tests that launch a real
+**No gate.** ``sandbox_e2e`` marks the seven tests that launch a real
 AppContainer-confined child. It *selects* the tier (``-m sandbox_e2e``) and
 skips nothing, anywhere.
 """
@@ -26,10 +26,10 @@ import pytest
 
 # --- the Windows AppContainer end-to-end tier ---------------------------------
 #
-# Six tests launch a REAL AppContainer-confined child: the five ``test_e2e_*`` in
-# ``test_sandbox_windows.py``, which call ``sandbox_windows.custom_spawn``
+# Seven tests launch a REAL AppContainer-confined child: the six ``test_e2e_*``
+# in ``test_sandbox_windows.py``, which call ``sandbox_windows.custom_spawn``
 # directly, and ``test_sandbox.py::test_windows_strict_worker_runs_and_confines``,
-# which reaches the same confinement through ``ConsoleBridge``. All six carry
+# which reaches the same confinement through ``ConsoleBridge``. All seven carry
 # ``@pytest.mark.sandbox_e2e``, and it skips nothing — the marker exists so the
 # tier can be selected (``-m sandbox_e2e``), not so it can be turned off.
 #
@@ -43,8 +43,8 @@ import pytest
 # of the frame stream. One mundane device restriction, generalised into a claim
 # about the platform, suppressing six security tests for months.
 #
-# With that fixed, all six pass on a hosted runner and the gate has nothing left
-# to gate. abax's Windows confinement guarantee — confined code may write its
+# With that fixed, those six pass on a hosted runner and the gate has nothing
+# left to gate. abax's Windows confinement guarantee — confined code may write its
 # scratch dir, and may not write beside it or open a socket — is now verified on
 # every push by ci.yml's ``check`` matrix on its four windows-latest cells.
 #

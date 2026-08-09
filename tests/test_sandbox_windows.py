@@ -12,9 +12,11 @@ this file covers three tiers:
   degrades to "not granted" instead of raising.
 * **End-to-end** — one real AppContainer-confined child: it may write its
   scratch dir, may not write a sibling directory, and may not open an outbound
-  socket. Every assertion in that tier prints the child's exit code, stdout and
+  socket; plus a sixth that runs 24 real confinements from four threads at once
+  and checks they are 24 separate containers (issue #10). Every assertion in
+  that tier prints the child's exit code, stdout and
   stderr, because an AppContainer launch that dies at startup is otherwise
-  undiagnosable from a CI log (see ``_diag``). These five tests run
+  undiagnosable from a CI log (see ``_diag``). These six tests run
   **everywhere** — developer machines, self-hosted runners, and GitHub-hosted
   ones, where they are covered by ci.yml's ``check`` matrix on every push. They
   were gated off on hosted runners for a long time on the belief that such a
@@ -32,6 +34,7 @@ cross-platform is already covered by ``test_sandbox.py``.
 from __future__ import annotations
 
 import os
+import string
 import subprocess
 import sys
 import threading
@@ -119,7 +122,12 @@ class _FakeCtypes:
         self.created: list[str] = []
         self.deleted: list[str] = []
         self.spawns: list[tuple] = []
-        self.proc = _FakeProc()
+        self.procs: list[_FakeProc] = []
+
+    @property
+    def proc(self):
+        """The handle from the most recent spawn."""
+        return self.procs[-1]
 
     def create_app_container_profile(self, name):
         self.created.append(name)
@@ -136,7 +144,13 @@ class _FakeCtypes:
         self.spawns.append((list(argv), dict(env), sid, creationflags))
         if self.spawn_error is not None:
             raise self.spawn_error
-        return self.proc
+        # A *fresh* handle per spawn, because the real launcher returns one and
+        # because `custom_spawn` hangs each confinement's teardown state off it
+        # (``proc._sandbox_cleanup``). A fake that handed both spawns the same
+        # object would silently let the second overwrite the first's profile
+        # name — precisely the class of shared-state bug this file now covers.
+        self.procs.append(_FakeProc())
+        return self.procs[-1]
 
 
 @pytest.fixture
@@ -294,14 +308,56 @@ def test_apply_in_child_is_a_noop_even_for_a_bogus_scratch():
 # --------------------------------------------------------------------------- #
 
 
-def test_profile_name_is_stable_per_process_and_legal():
-    name = sw._profile_name()
-    assert name == sw._profile_name()          # stable within a process
-    assert name.endswith(str(os.getpid()))     # unique across live abax runs
-    # CreateAppContainerProfile rejects names over 64 chars or containing path
-    # separators / wildcards.
-    assert 0 < len(name) <= 64
-    assert not (set(name) & set("\\/:*?\"<>|"))
+def test_profile_name_is_fresh_for_every_confinement():
+    """Unique per *confinement*, not per process (issue #10).
+
+    The old name was ``f"abax-sandbox-{os.getpid()}"`` and this test asserted it
+    was *stable within a process*, which is exactly the property that was wrong:
+    abax runs two confined workers in the GUI process — ``pyconsole.py`` and
+    ``mixin_macros.py`` each build their own strict ``ConsoleBridge`` — and one
+    name puts both in one container, because
+    ``create_app_container_profile`` answers ``ALREADY_EXISTS`` by deriving the
+    existing SID rather than failing. The first teardown then deletes the
+    container the other worker is still living in.
+
+    Stability was never a requirement of anything: ``custom_spawn`` mints the
+    name once and carries it to teardown through ``proc._sandbox_cleanup``, so
+    nothing recomputes it and nothing compares two computations.
+    """
+    names = [sw._profile_name() for _ in range(500)]
+    assert len(set(names)) == len(names), "profile names repeated within a process"
+    for name in names:
+        # Still identifiable as abax's on a machine carrying ~150 other
+        # AppContainers, and still traceable to a run: a leaked profile is a
+        # registry mapping plus a %LOCALAPPDATA%\\Packages directory, and the
+        # only clue to its origin is this name.
+        assert name.startswith("abax-sandbox-"), name
+        assert name.split("-")[2] == str(os.getpid()), name
+
+
+def test_profile_name_fits_the_measured_appcontainer_name_limits(monkeypatch):
+    """The length and charset limits, measured against the real API — not read
+    off the documentation and not assumed.
+
+    ``CreateAppContainerProfile`` on this platform accepts a 64-character name
+    and rejects 65 with ``hr=0x80070057`` (``E_INVALIDARG``); it rejects ``\\``
+    and ``/`` with ``0x80070003``, ``*`` and ``?`` with ``0x8007007b``, and
+    ``:`` with ``0x8007010b``. Hyphens, digits and ASCII letters are accepted.
+
+    The PID is the only unbounded-looking part, so the check is run against a
+    full-width one: a Windows PID is a DWORD, so ``4294967295`` is the widest
+    that can ever be formatted here. 13 + 10 + 1 + 12 = 36, leaving 28 spare —
+    a random suffix could double and still fit.
+    """
+    legal = set(string.ascii_lowercase + string.digits + "-")
+    for pid in (1, os.getpid(), 4294967295):
+        monkeypatch.setattr(os, "getpid", lambda pid=pid: pid)
+        name = sw._profile_name()
+        assert 0 < len(name) <= 64, (len(name), name)
+        assert set(name) <= legal, sorted(set(name) - legal)
+        # Spelled out as well as bounded by the allowlist above, so the failure
+        # names the actual rejection rather than an anonymous set difference.
+        assert not (set(name) & set("\\/:*?\"<>|")), name
 
 
 def test_needed_read_dirs_are_absolute_existing_directories():
@@ -981,7 +1037,12 @@ def test_custom_spawn_passes_flags_sid_and_argv_through(fake_ctypes, no_real_acl
     proc = sw.confinement().custom_spawn(argv, env, "C:\\scratch", _CREATE_NO_WINDOW)
 
     assert proc is fake.proc
-    assert fake.created == [sw._profile_name()]
+    # One profile, minted by the launcher — not recomputed here. `_profile_name`
+    # is fresh on every call now (issue #10), so a test that called it again to
+    # compare would be asserting the bug back into existence.
+    created, = fake.created
+    assert created.startswith("abax-sandbox-")
+    assert created == proc._sandbox_cleanup[1]
     (got_argv, got_env, got_sid, flags), = fake.spawns
     assert got_argv == argv
     assert got_env == env
@@ -1002,7 +1063,10 @@ def test_custom_spawn_records_what_cleanup_must_undo(fake_ctypes, no_real_acls):
     proc = sw.confinement().custom_spawn(["x.exe"], {}, "C:\\scratch", 0)
     granted, profile = proc._sandbox_cleanup
     assert granted == ["C:\\scratch", "C:\\fake\\interpreter"]
-    assert profile == sw._profile_name()
+    # The name the launcher actually created, carried through verbatim: it is
+    # per-spawn now, so this handle is the *only* record of which profile this
+    # worker's teardown must delete.
+    assert fake.created == [profile]
     assert proc._sandbox_ctypes is fake
 
 
@@ -1018,7 +1082,7 @@ def test_custom_spawn_fails_closed_when_createprocess_fails(fake_ctypes, no_real
         sw.confinement().custom_spawn(["x.exe"], {}, "C:\\scratch", 0)
 
     assert no_real_acls["revoked"] == [["C:\\scratch", "C:\\fake\\interpreter"]]
-    assert fake.deleted == [sw._profile_name()]
+    assert fake.deleted == fake.created    # exactly its own profile, not "a" profile
 
 
 def test_custom_spawn_grants_nothing_when_the_profile_cannot_be_created(
@@ -1061,7 +1125,7 @@ def test_custom_spawn_refuses_to_launch_when_a_required_grant_failed(
     # ...and the machine is back where it started: the grants that did land are
     # revoked and the container profile is deleted.
     assert no_real_acls["revoked"] == [["C:\\scratch", "C:\\fake\\interpreter"]]
-    assert fake.deleted == [sw._profile_name()]
+    assert fake.deleted == fake.created    # exactly its own profile, not "a" profile
 
 
 def test_a_refusal_is_not_replaced_by_a_failing_profile_delete(fake_ctypes, no_real_acls):
@@ -1087,7 +1151,7 @@ def test_a_refusal_is_not_replaced_by_a_failing_profile_delete(fake_ctypes, no_r
     assert "profile in use" not in str(excinfo.value)
     # ...and the teardown still ran all the way through, both halves of it.
     assert no_real_acls["revoked"] == [["C:\\scratch", "C:\\fake\\interpreter"]]
-    assert fake.deleted == [sw._profile_name()]
+    assert fake.deleted == fake.created    # exactly its own profile, not "a" profile
     assert fake.spawns == []
 
 
@@ -1122,7 +1186,7 @@ def test_custom_spawn_undoes_grants_applied_before_an_unexpected_failure(
         sw.confinement().custom_spawn(["x.exe"], {}, "C:\\scratch", 0)
 
     assert revoked == [["C:\\scratch", "C:\\fake\\interpreter"]]
-    assert fake.deleted == [sw._profile_name()]
+    assert fake.deleted == fake.created    # exactly its own profile, not "a" profile
     assert fake.spawns == []
 
 
@@ -1139,6 +1203,69 @@ def test_custom_spawn_launches_when_nothing_is_unreachable(fake_ctypes, no_real_
     assert len(fake.spawns) == 1
     assert no_real_acls["revoked"] == []
     assert fake.deleted == []
+
+
+# --------------------------------------------------------------------------- #
+# two confined workers in one process (issue #10)
+# --------------------------------------------------------------------------- #
+
+
+def test_two_confinements_in_one_process_get_distinct_profile_names(
+        fake_ctypes, no_real_acls):
+    """The GUI process really does confine twice.
+
+    ``pyconsole.py`` and ``mixin_macros.py`` each build their own
+    ``ConsoleBridge``, and both are strict when ``code_isolation == "strict"``.
+    With a per-*process* name the second ``CreateAppContainerProfile`` returns
+    ``ALREADY_EXISTS``, which ``create_app_container_profile`` handles by
+    *deriving* the existing SID — so the second spawn does not fail, it just
+    quietly joins the first worker's container. Two "isolated" workers sharing
+    one jail is not an isolation boundary, and the shared name outlives both of
+    them: the first teardown deletes the profile, and a later spawn that derives
+    that same name gets a SID with no profile behind it.
+    """
+    fake = fake_ctypes()
+    strat = sw.confinement()
+
+    console = strat.custom_spawn(["x.exe"], {}, "C:\\scratch-console", 0)
+    macros = strat.custom_spawn(["x.exe"], {}, "C:\\scratch-macros", 0)
+
+    first, second = fake.created
+    assert first != second, "both confined workers landed in the same container"
+    # Each handle carries its own name to teardown; neither overwrote the other.
+    assert console._sandbox_cleanup[1] == first
+    assert macros._sandbox_cleanup[1] == second
+    assert console is not macros
+
+
+def test_each_teardown_deletes_only_the_profile_it_created(fake_ctypes, no_real_acls):
+    """The half of the collision that outlives the two workers colliding.
+
+    Deleting a profile does not kill a child already confined by it — measured
+    on this platform with ``DeleteAppContainerProfile`` fired 0, 5, 20, 50 and
+    150 ms after launch: rc=0 every time, the child still printing and
+    importing. What a shared name costs is the *next* launch: once
+    ``cleanup_process`` deletes a profile another confinement is still using,
+    any spawn deriving that name gets a SID with no profile behind it and fails
+    at ``CreateProcessW``. So the invariant is not merely "the names differ" but
+    "the console's teardown never names the macro runner's profile".
+    """
+    fake = fake_ctypes()
+    strat = sw.confinement()
+    console = strat.custom_spawn(["x.exe"], {}, "C:\\scratch-console", 0)
+    macros = strat.custom_spawn(["x.exe"], {}, "C:\\scratch-macros", 0)
+    console_profile, macros_profile = fake.created
+
+    assert sw.cleanup_process(console) == []
+    assert fake.deleted == [console_profile]
+    assert macros_profile not in fake.deleted, \
+        "one worker's teardown deleted the other's live container"
+    # ...and the survivor still knows what to delete when its own turn comes.
+    assert macros._sandbox_cleanup == (["C:\\scratch-macros",
+                                        "C:\\fake\\interpreter"], macros_profile)
+
+    assert sw.cleanup_process(macros) == []
+    assert fake.deleted == [console_profile, macros_profile]
 
 
 # --------------------------------------------------------------------------- #
@@ -1236,6 +1363,60 @@ def test_cleanup_process_survives_a_failing_profile_delete(monkeypatch):
     assert proc._sandbox_cleanup is None
 
 
+def test_cleanup_process_surfaces_a_profile_it_could_not_delete(monkeypatch):
+    """The profile side of the same rule: continuing is not swallowing.
+
+    ``test_cleanup_process_survives_a_failing_profile_delete`` above pins that
+    teardown *continues* past a failed delete — deliberate, the ACLs are the
+    security-relevant half. But for a long time continuing was all that
+    happened, and the failure was invisible in every direction at once:
+    ``delete_app_container_profile`` discarded ``DeleteAppContainerProfile``'s
+    HRESULT, so the ``except OSError`` that was supposed to catch this could not
+    fire at all, and the profile leaked reporting success.
+
+    What leaks is not nothing: measured on this platform, a delete attempted
+    while any handle is open under ``%LOCALAPPDATA%\\Packages\\<name>`` returns
+    ``hr=0x80070020`` (``ERROR_SHARING_VIOLATION``) and leaves both the registry
+    mapping and the profile tree in place — the same class of leftover as an
+    unrevoked ACE, and reported the same way.
+    """
+    revoked = []
+    monkeypatch.setattr(sw, "_revoke_container_access", _recording_revoke(revoked))
+    fake = _FakeCtypes(delete_error=OSError(
+        "AppContainer profile delete failed: hr=0x80070020"))
+    proc = _FakeProc()
+    proc._sandbox_cleanup = (["C:\\scratch"], "abax-sandbox-4242-0badc0ffee11")
+    proc._sandbox_ctypes = fake
+
+    leaked = sw.cleanup_process(proc)
+
+    # The profile *name*: it identifies both halves of the leak (the
+    # `HKCU\\...\\AppContainer\\Mappings` entry and the `Packages` tree), and its
+    # `abax-sandbox-` prefix is what tells it apart from the ACL paths sharing
+    # the list.
+    assert leaked == ["abax-sandbox-4242-0badc0ffee11"]
+    # ...and the rest of teardown still ran, exactly as the test above requires.
+    assert revoked == [["C:\\scratch"]]
+    assert fake.deleted == ["abax-sandbox-4242-0badc0ffee11"]
+    assert proc._sandbox_cleanup is None
+
+
+def test_cleanup_process_reports_both_kinds_of_leftover_together(monkeypatch):
+    # A teardown can fail on both halves at once, and one report has to carry
+    # both — a future `abax doctor` reading this list gets the whole picture or
+    # it gets a misleading one. Paths first, then the profile: teardown order.
+    revoked = []
+    monkeypatch.setattr(
+        sw, "_revoke_container_access",
+        _recording_revoke(revoked, still_standing=["C:\\Python313"]))
+    fake = _FakeCtypes(delete_error=OSError("profile in use"))
+    proc = _FakeProc()
+    proc._sandbox_cleanup = (["C:\\Python313"], "abax-sandbox-7-deadbeef")
+    proc._sandbox_ctypes = fake
+
+    assert sw.cleanup_process(proc) == ["C:\\Python313", "abax-sandbox-7-deadbeef"]
+
+
 def test_cleanup_process_surfaces_the_grants_it_could_not_revoke(monkeypatch):
     """Issue #8, the revoke side: teardown must not swallow a leak.
 
@@ -1331,6 +1512,96 @@ def test_an_ordinary_spawn_failure_still_propagates(monkeypatch):
             bridge.execute("1 + 1", {"sheets": []})
     finally:
         bridge.close()
+
+
+# --------------------------------------------------------------------------- #
+# the ctypes plumbing: HRESULTs are checked, never discarded
+# --------------------------------------------------------------------------- #
+
+
+class _FakeWinFn:
+    """A stand-in for a ``ctypes`` function pointer.
+
+    Callable, and — the part a plain function or bound method cannot do —
+    accepts the ``restype`` / ``argtypes`` assignments the code under test makes
+    before calling it.
+    """
+
+    def __init__(self, hr: int) -> None:
+        self._hr = hr
+        self.calls: list[str] = []
+        self.restype = None
+        self.argtypes = None
+
+    def __call__(self, name):
+        self.calls.append(name)
+        return self._hr
+
+
+class _FakeUserenv:
+    """``userenv.dll`` reduced to the one entry point under test."""
+
+    def __init__(self, hr: int) -> None:
+        self.DeleteAppContainerProfile = _FakeWinFn(hr)
+
+
+def _fake_dlls(userenv):
+    """A ``_dlls()`` replacement. Patching the *function* rather than its cache
+    matters: ``_dlls`` memoises on its own ``__dict__``, so a real call anywhere
+    earlier in the run would otherwise have pinned the genuine DLLs."""
+    return lambda: (object(), userenv, object())
+
+
+def test_delete_app_container_profile_raises_on_a_failed_hresult(monkeypatch):
+    """Issue #10, the dead-error-handling half.
+
+    ``DeleteAppContainerProfile`` answers with an HRESULT and this wrapper used
+    to throw it away, which made a failed delete invisible in every direction at
+    once — no exception, no log, no return value — and made the
+    ``except OSError`` guards in :mod:`abax.sandbox_windows` dead code: nothing
+    they wrapped could raise.
+
+    The failure is real and reproducible: measured on this platform with a
+    handle held open under ``%LOCALAPPDATA%\\Packages\\<name>``, the call
+    returns ``hr=0x80070020`` (``ERROR_SHARING_VIOLATION``) and the profile —
+    registry mapping and directory both — survives.
+
+    The value arrives **signed**, because ``restype`` is ``ctypes.c_long``; a
+    check spelled ``hr > 0`` would pass every real Windows error code straight
+    through, so the sentinel here is the signed form of 0x80070020 rather than
+    the number a reader would write down.
+    """
+    import abax._winsandbox_ctypes as C
+
+    userenv = _FakeUserenv(-2147024864)        # 0x80070020 through a c_long
+    monkeypatch.setattr(C, "_dlls", _fake_dlls(userenv))
+
+    with pytest.raises(OSError) as excinfo:
+        C.delete_app_container_profile("abax-sandbox-42-c0ffeebabe")
+
+    # Reported the way `create_app_container_profile` reports its own failures:
+    # the unsigned HRESULT, which is the only form anyone can look up.
+    assert "0x80070020" in str(excinfo.value)
+    assert userenv.DeleteAppContainerProfile.calls == ["abax-sandbox-42-c0ffeebabe"]
+
+
+def test_delete_app_container_profile_is_quiet_when_the_profile_is_already_gone(
+        monkeypatch):
+    """S_OK, and therefore no exception, for a name that is not there.
+
+    Measured: deleting a profile that exists, one already deleted, and one never
+    created all return ``hr=0x00000000``. That is what makes the check above
+    safe to add — ``cleanup_process`` and ``custom_spawn``'s refusal path can
+    both reach a delete for the same name, and a redundant teardown must not
+    start reporting a leak that does not exist.
+    """
+    import abax._winsandbox_ctypes as C
+
+    userenv = _FakeUserenv(0)
+    monkeypatch.setattr(C, "_dlls", _fake_dlls(userenv))
+
+    assert C.delete_app_container_profile("abax-sandbox-42-c0ffeebabe") is None
+    assert userenv.DeleteAppContainerProfile.calls == ["abax-sandbox-42-c0ffeebabe"]
 
 
 # --------------------------------------------------------------------------- #
@@ -1506,11 +1777,12 @@ def _spawn_confined(strat, code, scratch, extra_env, timeout=120):
             + chunks.get("acl", b"").decode("utf-8", "replace"))
 
 
-# The five tests below carry ``@pytest.mark.sandbox_e2e`` spelled out rather than
-# hidden behind a module-level alias: tests/test_sandbox_gate.py parses this file
-# to pin the invariant that they are marked for *selection* and never for the
-# skip, and a reader scanning for what runs on CI should not have to resolve an
-# alias to find out.
+# The six tests below (five here, plus the concurrency reproduction at the end of
+# the file) carry ``@pytest.mark.sandbox_e2e`` spelled out rather than hidden
+# behind a module-level alias: tests/test_sandbox_gate.py parses this file to pin
+# the invariant that they are marked for *selection* and never for the skip, and
+# a reader scanning for what runs on CI should not have to resolve an alias to
+# find out.
 
 
 @pytest.fixture(scope="module")
@@ -1587,3 +1859,352 @@ def test_e2e_cleanup_reverts_the_scratch_grant(confined_run):
     # exactly where it started.
     assert _explicit_aces(str(confined_run["scratch"])) == confined_run["baseline"], \
         "the AppContainer ACL grant leaked past cleanup"
+
+
+# --------------------------------------------------------------------------- #
+# end-to-end: concurrent confinements in one process (issue #10)
+# --------------------------------------------------------------------------- #
+
+# Reports the container the child actually landed in, so "two workers, two
+# jails" is read off the OS rather than inferred from the two names the parent
+# chose. ``TokenAppContainerSid`` is TOKEN_INFORMATION_CLASS 31; a token that is
+# not in a container has no such SID, so an unconfined child cannot reach the
+# print at all.
+_CONCURRENT_PROBE = r"""
+import ctypes, os, sys
+from ctypes import wintypes
+
+k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+adv = ctypes.WinDLL("advapi32", use_last_error=True)
+k32.GetCurrentProcess.restype = wintypes.HANDLE
+adv.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD,
+                                 ctypes.POINTER(wintypes.HANDLE)]
+adv.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p,
+                                    wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+adv.ConvertSidToStringSidW.argtypes = [ctypes.c_void_p,
+                                       ctypes.POINTER(wintypes.LPWSTR)]
+
+token = wintypes.HANDLE()
+if not adv.OpenProcessToken(k32.GetCurrentProcess(), 0x0008, ctypes.byref(token)):
+    raise SystemExit("OpenProcessToken failed")
+size = wintypes.DWORD()
+adv.GetTokenInformation(token, 31, None, 0, ctypes.byref(size))
+buf = (ctypes.c_byte * max(size.value, 8))()
+if not adv.GetTokenInformation(token, 31, buf, ctypes.sizeof(buf),
+                               ctypes.byref(size)):
+    raise SystemExit("TokenAppContainerSid unavailable — not in a container")
+text = wintypes.LPWSTR()
+adv.ConvertSidToStringSidW(ctypes.cast(buf, ctypes.POINTER(ctypes.c_void_p))[0],
+                           ctypes.byref(text))
+print("APPCONTAINER_SID", text.value)
+
+# The (M) grant: this container's own scratch dir, in a temp tree an
+# AppContainer has no default access to at all.
+with open(os.path.join(os.environ["ABAX_PROBE_SCRATCH"], "mine.txt"), "w") as fh:
+    fh.write(os.environ["ABAX_PROBE_TAG"])
+print("SCRATCH_WRITE_OK")
+# The (RX) grant, exercised after startup so it is this container's access being
+# measured and not a section the loader already mapped.
+import xml.etree.ElementTree            # noqa: F401
+print("STDLIB_READ_OK")
+print("CHILD_DONE")
+sys.stdout.flush()
+"""
+
+
+def _interpreter_read_paths() -> "list[str]":
+    """The paths a confined child must read to reach its first bytecode.
+
+    ``_required_read_targets()`` minus the abax package dir — the concurrency
+    probe imports nothing but the stdlib, and the package dir is the abax
+    checkout, whose ACLs that test has no business rewriting. Deduped through
+    the production :func:`~abax.sandbox_windows._covered_by`, so a venv whose
+    ``Scripts`` dir sits under its own base prefix yields one entry, not two.
+
+    One function because two callers must agree on the answer: the test hoists
+    a grant onto these paths and then verifies it took, and
+    :func:`_one_confinement` probes these same paths when a child dies.
+    """
+    paths: list[str] = []
+    for raw in (os.path.dirname(sys.executable), sys.base_prefix):
+        path = os.path.abspath(raw)
+        if not sw._covered_by(path, paths):
+            paths.append(path)
+    return paths
+
+
+def _acl_snapshot(paths: "list[str]") -> str:
+    """Which of *paths* ALL APPLICATION PACKAGES can reach, rendered for a
+    failure message.
+
+    Must be taken while the grants are still in force — after teardown every
+    probe answers "no ACE" and proves nothing — which is why the callers run it
+    before ``cleanup_process`` rather than after. ``_spawn_confined`` above
+    carries the same block for the single-child probes, and for the same reason:
+    a child that dies inside interpreter startup ("Failed to import encodings
+    module") produces no stdout and a bare exit code, so whether the grant it
+    needed was actually in place is the only fact worth having.
+    """
+    lines = []
+    try:
+        for path in paths:
+            lines.append(f"{'ACE' if sw._container_ace_present(path) else 'NO ACE!'}"
+                         f"  {path}")
+    except Exception as exc:                   # never mask the real failure
+        lines.append(f"(ACL probe failed: {exc!r})")
+    return "\n    ".join(
+        ["", "--- ACEs, still granted at this point ---", *lines,
+         "a 'NO ACE!' here means the grant was not in force when the child ran"])
+
+
+def _one_confinement(scratch: str, tag: str) -> dict:
+    """One complete confinement — profile, launch, drain, teardown.
+
+    Emphatically **not** "as ``ConsoleBridge`` performs it", which this
+    docstring used to claim: the caller stubs ``_needed_read_dirs``,
+    ``_needed_read_files`` and ``_required_read_targets`` to ``[]``, so every
+    grant a real bridge makes on the interpreter and ``sys.path`` — and with
+    them ``custom_spawn``'s fail-closed check, which has nothing left to
+    check — is switched off here and replaced by one hoisted grant made once for
+    all 24 cycles. What *is* the real thing is the per-confinement half this
+    test is about: profile name, SID, launch, the scratch grant and revoke, and
+    teardown.
+
+    Split out from :func:`_spawn_confined` rather than reusing it because this
+    one is called from several threads at once and must not share a scratch dir,
+    a profile, or a result slot with its siblings.
+    """
+    strat = sw.confinement()
+    env = strat.child_env(dict(os.environ), scratch)
+    env["ABAX_PROBE_SCRATCH"] = scratch
+    env["ABAX_PROBE_TAG"] = tag
+    try:
+        proc = strat.custom_spawn([sys.executable, "-c", _CONCURRENT_PROBE], env,
+                                  scratch, _CREATE_NO_WINDOW)
+    except Exception as exc:                  # the collision's loudest symptom
+        return {"tag": tag, "spawn_error": f"{type(exc).__name__}: {exc}"}
+    profile = proc._sandbox_cleanup[1]
+    err: dict[str, bytes] = {}
+
+    def _drain():
+        try:
+            err["b"] = proc.stderr.read()
+        except OSError as exc:
+            err["b"] = repr(exc).encode()
+
+    reader = threading.Thread(target=_drain, daemon=True)
+    reader.start()
+    out: bytes = b""
+    rc: "int | str | None" = None
+    acl = ""
+    try:
+        try:
+            proc.stdin.close()
+        except OSError:
+            pass
+        out = proc.stdout.read()
+        rc = proc.wait(timeout=120)
+        reader.join(15)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        out, rc = b"", "timed out"
+    finally:
+        # Snapshot BEFORE the cleanup below revokes the scratch grant, and only
+        # when this child failed, so the happy path pays nothing. The caller's
+        # hoisted interpreter grant is machine-global and unrefcounted; if it
+        # was stripped, every child here dies during interpreter startup with an
+        # empty stdout, and this is what says so instead of leaving 24 silent
+        # corpses to be read as 24 successful confinements.
+        if rc != 0 or b"CHILD_DONE" not in out:
+            acl = _acl_snapshot([scratch, *_interpreter_read_paths()])
+        leaked = sw.cleanup_process(proc)
+        proc.close_handle()
+    return {"tag": tag, "spawn_error": None, "profile": profile, "rc": rc,
+            "out": out.decode("utf-8", "replace"),
+            "err": err.get("b", b"").decode("utf-8", "replace"),
+            "acl": acl, "leaked": leaked}
+
+
+def _profile_dirs() -> "set[str]":
+    """abax's AppContainer profiles as they exist on disk right now.
+
+    ``CreateAppContainerProfile`` writes a registry mapping under
+    ``HKCU\\...\\AppContainer\\Mappings\\<SID>`` *and* a
+    ``%LOCALAPPDATA%\\Packages\\<name>`` tree, and ``DeleteAppContainerProfile``
+    removes both together (measured). The directory is the half that can be
+    listed by *name*, so a leak is visible here without a SID lookup.
+    """
+    packages = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Packages")
+    if not os.path.isdir(packages):
+        return set()
+    return {n for n in os.listdir(packages) if n.startswith("abax-sandbox-")}
+
+
+@pytest.mark.sandbox_e2e
+def test_e2e_concurrent_confinements_in_one_process_do_not_collide(tmp_path):
+    """Real containers, real children, all at once — the issue #10 reproduction.
+
+    abax confines twice in the GUI process (``pyconsole.py`` and
+    ``mixin_macros.py``), and with the old per-*process* profile name the two
+    collided: ``CreateAppContainerProfile`` answered ``ALREADY_EXISTS``,
+    ``create_app_container_profile`` derived the existing SID instead of
+    failing, both workers ended up in one container, and the first teardown
+    deleted it. Measured on this platform at exactly this shape — 4 concurrent
+    cycles, 6 rounds each — **7 of 24 launches failed** (``AppContainer profile
+    failed: hr=0x8000ffff / 0x80070003 / 0x8007000a``, ``CreateProcessW failed:
+    2``) against 0 with the per-spawn name.
+
+    **Why the shared read grants are hoisted out of the loop.** Every
+    ``custom_spawn`` grants ALL APPLICATION PACKAGES read+execute on the same
+    interpreter prefix and ``sys.path`` directories, and every teardown revokes
+    them — machine-global state that is *not* refcounted, so one cycle's revoke
+    can pull the stdlib out from under a sibling's live child. That is a real
+    second defect and it is not this one; leaving it in the loop would make the
+    test measure a race it is not about. It is also 400x slower, because an
+    inheritable ``(OI)(CI)`` ACE on the prefix rewrites the DACL of every file
+    beneath it: the same 24 launches take 299s with per-cycle ACL work and 0.9s
+    without (measured). Hoisting costs the reproduction nothing — 7/24 failed
+    under the old name either way. The per-cycle *scratch* grant and revoke are
+    untouched and still real, because scratch dirs are per-confinement and race
+    nothing.
+
+    Only the interpreter is hoisted, not all of ``_needed_read_dirs()``: the
+    probe imports nothing but the stdlib, so ``sys.path`` entries buy it nothing
+    — and one of them is the abax checkout, whose ACLs this test has no business
+    rewriting. See :func:`_interpreter_read_paths` for the exact set. Measured
+    on this platform, that also drops the setup from 38.7s to 33.5s.
+
+    **What stops the hoist turning this into a vacuous pass.** Stubbing the
+    shared grants away also stubs away ``custom_spawn``'s fail-closed check, so
+    a hoist that silently did not take would produce 24 children that die in
+    interpreter startup — and every assertion below would read that as a clean
+    non-collision. Two things prevent it: the ``_container_ace_present`` check
+    after the hoist, which fails with a message about the *grant*; and the ACL
+    snapshot :func:`_one_confinement` attaches to any child that does not print
+    ``CHILD_DONE``, which says whether the grant was in force when that child
+    ran. Neither existed when this test was written.
+    """
+    threads, rounds = 4, 6
+    hoisted: list[str] = []
+    reachable = _interpreter_read_paths()
+    results: list[dict] = []
+    lock = threading.Lock()
+
+    def _round(worker: int) -> None:
+        for r in range(rounds):
+            tag = f"w{worker}r{r}"
+            scratch = tmp_path / tag
+            scratch.mkdir()
+            outcome = _one_confinement(str(scratch), tag)
+            with lock:
+                results.append(outcome)
+
+    try:
+        for path in reachable:
+            # An all-users Python already grants ALL APPLICATION PACKAGES read
+            # on its prefix, and adding a redundant ACE there is not free: an
+            # inheritable ACE rewrites the DACL of every file underneath, ~17s
+            # each way on this box's per-user install. If the container can
+            # already read it, leave the machine alone.
+            if sw._container_ace_present(path):
+                continue
+            if sw._icacls(path, "/grant", f"{sw.ALL_APP_PACKAGES}:(OI)(CI)(RX)"):
+                hoisted.append(path)
+        # **The hoist is this test's entire read-grant story, so verify it.**
+        # The MonkeyPatch context below stubs `_needed_read_dirs`,
+        # `_needed_read_files` and `_required_read_targets` to `[]`, which
+        # switches off `custom_spawn`'s own fail-closed check — nothing else is
+        # left to notice that the children cannot reach an interpreter. If the
+        # grant above failed, or an unrelated run stripped the ACE, all 24
+        # children die inside interpreter startup, every launch still
+        # "succeeds", every profile name is still distinct, and the test reports
+        # a clean 24/24 non-collision: a pass for entirely the wrong reason.
+        #
+        # The old guard here was `assert reachable`, which could never fire —
+        # `reachable` is built from `dirname(sys.executable)` and
+        # `sys.base_prefix`, both always non-empty. Ask the machine instead of
+        # the list, and fail with a message about the grant rather than with 24
+        # dead children.
+        assert any(sw._container_ace_present(p) for p in reachable), (
+            "ALL APPLICATION PACKAGES cannot reach any interpreter path "
+            f"({', '.join(reachable)}) — the hoisted grant did not take, and "
+            "without it every confined child below would die during interpreter "
+            "startup while this test read that as 'no collision'")
+        before = _profile_dirs()
+        with pytest.MonkeyPatch.context() as mp:
+            # Only the *shared* targets are stubbed out; the scratch dir is
+            # still granted and revoked for real by every cycle.
+            mp.setattr(sw, "_needed_read_dirs", lambda: [])
+            mp.setattr(sw, "_needed_read_files", lambda: [])
+            mp.setattr(sw, "_required_read_targets", lambda: [])
+            runners = [threading.Thread(target=_round, args=(i,))
+                       for i in range(threads)]
+            for t in runners:
+                t.start()
+            for t in runners:
+                t.join(300)
+            assert not any(t.is_alive() for t in runners), "a confinement hung"
+    finally:
+        for path in hoisted:
+            sw._icacls(path, "/remove", sw.ALL_APP_PACKAGES)
+
+    assert len(results) == threads * rounds
+
+    def _diagnose(rs):
+        # `acl` is appended whole rather than truncated with `err`: it is the
+        # one line that distinguishes "the container could not read the
+        # interpreter" from "the container could, and something else broke",
+        # and 200 characters would cut it off mid-path.
+        return "\n".join(
+            f"  {r['tag']}: spawn_error={r.get('spawn_error')!r} "
+            f"rc={r.get('rc')!r} profile={r.get('profile')!r} "
+            f"out={r.get('out', '')!r} err={r.get('err', '')[:200]!r}"
+            + r.get("acl", "")
+            for r in rs)
+
+    # 1. Every launch succeeded. This is the assertion that was 7/24 red.
+    broken = [r for r in results if r.get("spawn_error")]
+    assert not broken, (
+        f"{len(broken)}/{len(results)} confined launches failed:\n"
+        + _diagnose(broken))
+    unfinished = [r for r in results
+                  if r["rc"] != 0 or "CHILD_DONE" not in r["out"]]
+    assert not unfinished, (
+        f"{len(unfinished)}/{len(results)} confined children did not finish:\n"
+        + _diagnose(unfinished))
+
+    # 2. Every confinement was its own container — read off the children's own
+    #    tokens, not off the names the parent picked.
+    names = [r["profile"] for r in results]
+    assert len(set(names)) == len(names), f"profile names collided: {sorted(names)}"
+    sids = [line.split(" ", 1)[1]
+            for r in results for line in r["out"].splitlines()
+            if line.startswith("APPCONTAINER_SID ")]
+    assert len(sids) == len(results), _diagnose(results)
+    assert len(set(sids)) == len(sids), \
+        f"two children shared an AppContainer SID: {sorted(sids)}"
+
+    # 3. Distinct SIDs still get the access: the grants name ALL APPLICATION
+    #    PACKAGES, the group every container is in, so a per-spawn SID must not
+    #    cost a child its scratch dir (an (M) ACE in a temp tree it otherwise
+    #    cannot touch) or its stdlib (an (RX) ACE on the prefix).
+    for r in results:
+        assert "SCRATCH_WRITE_OK" in r["out"], _diagnose([r])
+        assert "STDLIB_READ_OK" in r["out"], _diagnose([r])
+        assert (tmp_path / r["tag"] / "mine.txt").read_text(
+            encoding="utf-8") == r["tag"], "a child wrote into a sibling's scratch"
+
+    # 4. Every teardown ran, and each deleted only its own. One profile per
+    #    spawn instead of one per process is only safe if that holds: a leak is
+    #    a registry mapping plus a ~147 KB %LOCALAPPDATA%\\Packages tree that
+    #    nothing ever collects.
+    #
+    #    Two independent readings of that, kept because they fail differently:
+    #    the directory listing catches a profile nobody even tried to delete,
+    #    while `leaked` catches one whose `DeleteAppContainerProfile` came back
+    #    non-zero — which used to be indistinguishable from success, since the
+    #    HRESULT was discarded.
+    assert _profile_dirs() == before, \
+        f"AppContainer profiles leaked: {sorted(_profile_dirs() - before)}"
+    for r in results:
+        assert r["leaked"] == [], _diagnose([r])

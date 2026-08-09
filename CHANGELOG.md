@@ -55,6 +55,37 @@ All notable changes to abax are documented here. The format follows
   `pyarrow` to `science`, and no longer implies `pywinpty` ships in a pip
   extra. The CLI guide's dependency-count sample and the Tools menu label
   were also stale.
+- **Two confined workers in one process silently shared one AppContainer**
+  (issue #10) — the profile name was `abax-sandbox-<pid>`, unique per
+  *process*, on the reasoning that a process confines at most once. abax
+  confines twice: the Python console (`pyconsole.py`) and the macro runner
+  (`mixin_macros.py`) each build their own `ConsoleBridge`, and both confine
+  when `code_isolation == "strict"`. The second `CreateAppContainerProfile`
+  then answers `ALREADY_EXISTS`, which the ctypes layer handles by *deriving*
+  the existing SID rather than failing — so nothing errored, the second worker
+  just joined the first one's container, and two "isolated" workers were one
+  jail with two tenants. The name is now unique per *confinement*
+  (`abax-sandbox-<pid>-<hex>`, six random bytes), so each spawn creates and
+  deletes exactly the profile it used.
+
+  What the collision broke was *launching*, not the workers already running: a
+  confined child survives deletion of its own profile (measured, with the
+  delete fired 0, 5, 20, 50 and 150 ms after launch — rc=0 every time), but
+  once one teardown deletes the shared name, later spawns that derive it get a
+  SID with no profile behind it and fail at `CreateProcessW`. Driving four
+  concurrent confined spawns from one process, 9 of 24 launches failed under
+  the old name against 0 under the new one. Visible to support: a run killed
+  before its teardown now leaves several short-lived
+  `abax-sandbox-<pid>-<hex>` entries under `%LOCALAPPDATA%\Packages` rather
+  than a single `abax-sandbox-<pid>` per process — same prefix, same cleanup,
+  more of them.
+
+  This surfaced while testing a hypothesis about an unrelated issue, and the
+  profile name turned out to be only half of the two-bridges problem: both
+  confinements also grant, and later revoke, ALL APPLICATION PACKAGES
+  read+execute on the *same* interpreter prefix and `sys.path` directories,
+  with no refcounting — so one worker's teardown can revoke the stdlib out from
+  under another worker's live child. That half is filed separately as #11.
 
 ### Added
 - **A shared text-encoding policy, and a sweep that enforces it**

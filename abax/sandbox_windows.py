@@ -32,7 +32,10 @@ of that bookkeeping are load-bearing and neither is allowed to fail quietly: a
 grant the container genuinely needs and did not get refuses the launch
 (:class:`SandboxGrantError`, naming the path) rather than spawning a child that
 cannot read its own stdlib, and a revoke that fails is logged and *returned* to
-the caller. Even so,
+the caller. The AppContainer profile is bookkeeping of the same kind and is held
+to the same rule: :func:`abax._winsandbox_ctypes.delete_app_container_profile`
+checks its HRESULT, and a delete that fails is reported through the same list
+(:func:`cleanup_process`) rather than survived in silence. Even so,
 Phase 3's fail-closed :func:`abax.sandbox.selftest` runs inside the worker after
 launch: if for any reason the container did not actually confine, the worker
 refuses to execute user code. Nothing here can silently ship a fake sandbox.
@@ -61,7 +64,8 @@ same ``getLogger``-with-no-configuration pattern is in ``abax/core/fonts.py``,
 So treat the log lines here as a best-effort trace for someone running from a
 console, not as the report. What actually surfaces is the raised
 :class:`SandboxGrantError`, the list :func:`cleanup_process` hands back to the
-bridge, and the worker's own selftest. Installing a handler is an abax-wide
+bridge (unrevoked grant paths *and* an undeleted profile name), and the worker's
+own selftest. Installing a handler is an abax-wide
 change and deliberately not made here; see ``dev/lessons-learned.md``.
 
 Pure stdlib (ctypes, _winapi, msvcrt, os, sys, subprocess for icacls). No deps.
@@ -187,6 +191,11 @@ class WindowsAppContainer:
         """
         from . import _winsandbox_ctypes as C  # lazy: Windows-only ctypes defs
 
+        # Once per spawn, not once per process: two ConsoleBridges live in the
+        # GUI process (console + macros) and a shared name silently puts both
+        # workers in one container that the first teardown then deletes. See
+        # `_profile_name`. The answer is carried to teardown through
+        # `proc._sandbox_cleanup`, so this call is the only place it is minted.
         profile_name = _profile_name()
         sid = C.create_app_container_profile(profile_name)
         # `granted` is owned out here and filled in place, so the teardown below
@@ -223,18 +232,27 @@ class WindowsAppContainer:
         finally:
             if not launched:
                 _revoke_container_access(granted)
-                # Guarded exactly as `cleanup_process` guards it, and for a
-                # sharper reason here: deleting a profile can fail (a zombie
-                # child still holds it), and an OSError raised *during* the
-                # teardown of a SandboxGrantError replaces it — the launch then
-                # fails with "profile in use", `isinstance(exc,
+                # Guarded for a sharper reason than in `cleanup_process`:
+                # deleting a profile can fail (measured: `hr=0x80070020` while
+                # anything holds a handle under it), and an OSError raised
+                # *during* the teardown of a SandboxGrantError replaces it — the
+                # launch then fails with "profile in use", `isinstance(exc,
                 # SandboxGrantError)` is False, and the offending path survives
                 # only in `__context__`, where no message a user sees will find
-                # it. Naming the path is the entire contract of the refusal.
+                # it. Naming the path is the entire contract of the refusal, so
+                # the exception stays untouched.
+                #
+                # Which leaves the log as the only channel here — worth little
+                # (module docstring), but the alternative is nothing at all.
+                # `cleanup_process` can do better because it *returns* a list;
+                # this path has no return value to put a leak in.
                 try:
                     C.delete_app_container_profile(profile_name)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    _log.warning(
+                        "sandbox: refusing this launch left the AppContainer "
+                        "profile %s behind — it could not be deleted (%s)",
+                        profile_name, exc)
         # Remember what to clean up when the process is closed.
         proc._sandbox_cleanup = (granted, profile_name)  # noqa: SLF001
         proc._sandbox_ctypes = C  # noqa: SLF001
@@ -242,10 +260,68 @@ class WindowsAppContainer:
 
 
 def _profile_name() -> str:
-    # A per-process container name (no Date/random available in this codebase's
-    # constraints — the PID is unique enough for a live profile, and we delete
-    # it on teardown).
-    return f"abax-sandbox-{os.getpid()}"
+    """A fresh AppContainer name for **one confinement**. Never reused.
+
+    It used to be ``f"abax-sandbox-{os.getpid()}"``, on the reasoning that "the
+    PID is unique enough for a live profile, and we delete it on teardown". That
+    holds only while a process has at most one confined worker alive, and abax
+    has two: ``abax/gui/console/pyconsole.py`` and ``abax/gui/mixin_macros.py``
+    each build their own :class:`~abax.gui.console.console_bridge.ConsoleBridge`
+    in the GUI process, and both are strict when ``code_isolation == "strict"``.
+
+    Two workers, one name, and the collision is **silent** rather than loud:
+    :func:`abax._winsandbox_ctypes.create_app_container_profile` treats
+    ``ALREADY_EXISTS`` by *deriving* the existing SID instead of failing, so the
+    second spawn does not error — it simply joins the first worker's container,
+    and two "isolated" workers in one container is not an isolation boundary.
+
+    The teardown half is narrower than it first looks, and is measured rather
+    than assumed: a confined child **survives** deletion of its own profile.
+    With ``DeleteAppContainerProfile`` fired 0, 5, 20, 50 and 150 ms after
+    launch, the child went on printing and importing normally and exited rc=0
+    every time. What the shared name breaks is *later* spawns: once the first
+    teardown deletes the profile both workers were using, a spawn that derives
+    that same name gets a SID with no profile behind it and fails at
+    ``CreateProcessW``. Measured by driving four concurrent confined spawns from
+    one process: **9 of 24 launches failed** (``hr=0x8000ffff /
+    0x80070002 / 0x80070003 / 0x8007000a``, ``CreateProcessW failed: 2``) against
+    **0 of 8** with no concurrency and **0 of 16** across separate processes;
+    reproduced here at 6–7 of 24 across several runs, and pinned by
+    ``test_e2e_concurrent_confinements_in_one_process_do_not_collide``.
+    Uniqueness therefore has to be per *confinement*, not per process.
+
+    The pieces, and what each is for:
+
+    * ``abax-sandbox-`` — so a profile left behind by a killed abax is
+      identifiable as ours on a machine that has ~150 other AppContainers
+      (measured under ``HKCU\\...\\AppContainer\\Mappings`` on this box).
+    * the PID — so such a leftover is still traceable to a run.
+    * six random bytes from :func:`os.urandom` — the actual uniqueness. It is
+      per *call*, which is the whole point: ``custom_spawn`` calls this once and
+      carries the answer through ``proc._sandbox_cleanup``, so each spawn creates
+      and deletes exactly its own profile.
+
+    ``os.urandom`` rather than ``random`` or ``uuid`` because it needs no import
+    at all — this module is on the confined worker's spawn path and every import
+    here is paid on it. (The old comment's "no Date/random available in this
+    codebase's constraints" was simply untrue: ``random`` is imported in
+    ``abax/core/arrayfuncs.py`` and ``abax/core/functions/builtins.py``, and
+    ``uuid`` is stdlib. It is gone rather than preserved.)
+
+    Both limits below are measured against ``CreateAppContainerProfile`` on this
+    platform, not taken from the documentation:
+
+    * **length** — 64 characters is accepted, 65 is rejected with
+      ``hr=0x80070057`` (``E_INVALIDARG``). Worst case here is 13 + 10 + 1 + 12 =
+      36, with a full-width DWORD PID;
+      ``test_profile_name_fits_the_measured_appcontainer_name_limits`` pins it
+      against that widest PID rather than against whatever this run happens to
+      have.
+    * **charset** — ``\\`` and ``/`` are rejected (``0x80070003``), ``*`` and
+      ``?`` are rejected (``0x8007007b``), ``:`` is rejected (``0x8007010b``).
+      Hyphens, digits and ASCII letters — all this name contains — are accepted.
+    """
+    return f"abax-sandbox-{os.getpid()}-{os.urandom(6).hex()}"
 
 
 def _needed_read_dirs() -> "list[str]":
@@ -602,19 +678,47 @@ def cleanup_process(proc) -> "list[str]":
     """Revert the ACL grants and delete the container profile for a finished
     process. Called by the bridge when it closes a confined worker.
 
-    Returns the paths whose grant could not be revoked — empty for the ordinary
-    case, and empty for a process this module never confined. Never raises.
+    Returns **what teardown could not clear** — empty for the ordinary case, and
+    empty for a process this module never confined. Never raises. Two kinds of
+    leftover go in the one list, and they are told apart by shape:
+
+    * an absolute **path** — an ALL APPLICATION PACKAGES ACE still standing on
+      it, from :func:`_revoke_container_access`;
+    * an **AppContainer profile name** (``abax-sandbox-<pid>-<hex>``, see
+      :func:`_profile_name`) — its ``DeleteAppContainerProfile`` failed, so a
+      ``HKCU\\...\\AppContainer\\Mappings`` entry and a ``%LOCALAPPDATA%\\
+      Packages\\<name>`` tree are still on the machine with nothing left to
+      collect them.
+
+    The profile half is reported for exactly the reason the ACL half is: it is
+    the same class of leak, and the ``except OSError`` below only lets teardown
+    *continue* past it — deliberately, since the ACLs are the security-relevant
+    half and must come off regardless (``test_cleanup_process_survives_a_failing
+    _profile_delete``). Continuing is not the same as swallowing. It used to be
+    both, because :func:`abax._winsandbox_ctypes.delete_app_container_profile`
+    discarded its HRESULT and this ``except`` could never fire at all.
+
+    The name rather than a path because the name is the identity of *both*
+    halves of the leak, and because the surviving artefact is the registry
+    mapping — measured — while the ``Packages`` directory may or may not still
+    be there. ``abax-sandbox-`` is already this codebase's marker for the thing
+    (:func:`_profile_name`, and ``_profile_dirs`` in the tests), so a future
+    ``abax doctor`` reading this list can tell a profile from a path without
+    being told which is which.
     """
     info = getattr(proc, "_sandbox_cleanup", None)
     C = getattr(proc, "_sandbox_ctypes", None)
     if info is None:
         return []
     granted, profile_name = info
-    unrevoked = _revoke_container_access(granted)
+    leaked = _revoke_container_access(granted)
     if C is not None:
         try:
             C.delete_app_container_profile(profile_name)
-        except OSError:
-            pass
+        except OSError as exc:
+            _log.warning(
+                "sandbox: AppContainer profile %s could not be deleted (%s) and "
+                "is still registered on this machine", profile_name, exc)
+            leaked.append(profile_name)
     proc._sandbox_cleanup = None  # noqa: SLF001
-    return unrevoked
+    return leaked
