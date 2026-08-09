@@ -177,7 +177,10 @@ class DocumentIOMixin:
         always restored in ``_on_io_done`` (fires on ``thread.finished``).
         """
         if getattr(self, "_io_busy", False):
-            self._set_status("an open/save is already in progress")
+            # Not only open/save any more: macros and Run-script share this
+            # lifecycle (see `abax/gui/mixin_macros.py`), and they share the one
+            # bridge, which drives one worker process and cannot be re-entered.
+            self._set_status("another background operation is already running")
             return
         from ._qtcompat import QApplication, Qt, QThread
 

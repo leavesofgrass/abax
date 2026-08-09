@@ -154,15 +154,20 @@ class ConsoleBridge:
                 # `custom_spawn` refused rather than launching a child that dies
                 # in interpreter startup with no output.
                 #
-                # It has to leave here as a *response*, not as an exception. Two
-                # of the three execution entry points — `_run_macro`
-                # (abax/gui/mixin_macros.py) and the Run-script path — call
-                # `execute_macro`/`execute_script` synchronously on the GUI
-                # thread, so a raise unwinds out of a Qt slot; only the console
-                # is protected, by `FuncWorker.run`'s blanket except. Returning
-                # the same shape `_STRICT_UNAVAILABLE` returns means all three
-                # callers already handle it: `_apply_exec_response` shows
-                # `error` in a message box and leaves the workbook alone.
+                # It has to leave here as a *response*, not as an exception.
+                # All three execution entry points now reach this from a
+                # `FuncWorker` on a QThread — the console's own
+                # (abax/gui/console/pyconsole.py) and, since the GUI-freeze fix,
+                # `_run_macro` and the Run-script path too (they used to call in
+                # synchronously from a Qt slot, so a raise unwound out of the
+                # slot; see the module docstring of abax/gui/mixin_macros.py).
+                # `FuncWorker.run` would therefore catch it either way — but
+                # into its `error` signal, which the macro/script side surfaces
+                # as a generic failure dialog with no envelope handling, while a
+                # response goes to `_apply_exec_response`, which shows `error`
+                # in a message box titled for the operation and leaves the
+                # workbook alone. Same shape `_STRICT_UNAVAILABLE` returns, so
+                # all three callers already handle it.
                 #
                 # `str(exc)` and not a generic line, because the message names
                 # the path that could not be granted — which is the only thing

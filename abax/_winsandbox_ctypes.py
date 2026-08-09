@@ -125,6 +125,189 @@ def delete_app_container_profile(name: str) -> None:
             f"AppContainer profile delete failed: hr=0x{hr & 0xFFFFFFFF:08x}")
 
 
+# --- machine-wide serialisation, and whether a holder record is still alive ----
+#
+# `sandbox_windows` grants ALL APPLICATION PACKAGES on paths every process on the
+# box shares, so its bookkeeping is cross-process and needs two primitives the
+# stdlib does not expose: a named mutex to serialise the DACL walks, and a way to
+# tell a live holder from a crashed one. Both are here rather than in
+# `sandbox_windows` for the same reason `create_process_appcontainer` is — that
+# module stays readable and this one owns the ctypes.
+
+# WaitForSingleObject results (winbase.h). WAIT_ABANDONED is **not** a failure:
+# it means the previous owner died still holding the mutex, and the wait
+# *succeeded* — we own it now. The caller must release it exactly as it would a
+# WAIT_OBJECT_0, or one crashed abax wedges every later one. Measured on this
+# platform with a child that acquires and exits without releasing: the next
+# waiter gets 0x80, its `ReleaseMutex` returns True, and a re-acquire returns
+# 0x0. That is the whole recovery, and it is why `wait_for_mutex` reports the
+# raw code instead of a bool.
+WAIT_OBJECT_0 = 0x00000000
+WAIT_ABANDONED = 0x00000080
+WAIT_TIMEOUT = 0x00000102
+WAIT_FAILED = 0xFFFFFFFF
+
+#: The least OpenProcess access that can answer "is this PID still the process
+#: that wrote the record?". Measured: available for the user's own processes
+#: from a plain non-elevated token, with no privilege enabled.
+_PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+#: The one ``OpenProcess`` failure that really does mean *gone* (winerror.h).
+#: Measured on this platform from a plain non-elevated token::
+#:
+#:     OpenProcess(0x1000, False, os.getpid())  -> handle,  err=0
+#:     OpenProcess(0x1000, False, 4)            -> NULL,    err=5   (System)
+#:     OpenProcess(0x1000, False, 999999)       -> NULL,    err=87
+#:
+#: 87 is ``ERROR_INVALID_PARAMETER``: there is no such process. 5 is
+#: ``ERROR_ACCESS_DENIED``, and it is the exact opposite answer — the PID names a
+#: process that exists and is running, just one this token may not interrogate
+#: (elevated, another user, or protected). Eight such PIDs were found on this
+#: idle desktop by walking 4..40000, starting with 4. Collapsing the two into one
+#: ``None`` is what :func:`abax.sandbox_windows._scan_holder_records` used to do,
+#: and it made a live holder look stale — see the note above that function.
+_ERROR_INVALID_PARAMETER = 87
+
+
+class _LivenessUnknown:
+    """The answer when a PID's liveness could not be established at all.
+
+    A distinct object rather than ``None`` or ``-1`` because the caller has to
+    branch on it and must not be able to do so by accident: it is equal to
+    nothing (default object identity), so a stray ``== created`` is False, and it
+    is not None, so a stray ``is None`` is False too. Both mistakes then fail
+    *towards* keeping the ACEs rather than towards stripping them.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:                 # pragma: no cover - diagnostics
+        return "PROCESS_LIVENESS_UNKNOWN"
+
+
+#: Returned by :func:`process_create_time` when the query could not run. See the
+#: measurements above ``_ERROR_INVALID_PARAMETER``.
+PROCESS_LIVENESS_UNKNOWN = _LivenessUnknown()
+
+
+def create_named_mutex(name: str) -> int:
+    """Create — or open, if it exists — the named mutex *name*.
+
+    Returns the ``HANDLE`` as an int. Raises ``OSError`` if the object could not
+    be created *or opened*, which is the case the caller has to degrade through:
+    a name squatted by another user's process with a DACL that excludes us comes
+    back ``ERROR_ACCESS_DENIED`` here, not as a silently private second mutex.
+
+    ``CreateMutexW`` with an existing name opens it (``GetLastError`` ==
+    ``ERROR_ALREADY_EXISTS``, and the handle is valid), so there is no
+    create-then-open dance to get wrong.
+    """
+    k32, _userenv, _adv = _dlls()
+    fn = k32.CreateMutexW
+    fn.restype = wintypes.HANDLE
+    fn.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
+    handle = fn(None, False, name)
+    if not handle:
+        raise OSError(
+            f"CreateMutexW({name!r}) failed: {ctypes.get_last_error()}")
+    return int(handle)
+
+
+def wait_for_mutex(handle: int, timeout_ms: int) -> int:
+    """Wait to own *handle*, returning the raw ``WaitForSingleObject`` code.
+
+    Raw rather than boolean because the caller must distinguish three outcomes
+    that a bool flattens: ``WAIT_OBJECT_0`` (ours), ``WAIT_ABANDONED`` (ours,
+    and the previous owner crashed — release it anyway), and ``WAIT_TIMEOUT`` /
+    ``WAIT_FAILED`` (not ours, and it must **not** be released).
+    """
+    k32, _userenv, _adv = _dlls()
+    fn = k32.WaitForSingleObject
+    fn.restype = wintypes.DWORD
+    fn.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    return int(fn(wintypes.HANDLE(handle), timeout_ms))
+
+
+def release_mutex(handle: int) -> bool:
+    """Give up ownership of *handle*. False when we did not own it."""
+    k32, _userenv, _adv = _dlls()
+    fn = k32.ReleaseMutex
+    fn.restype = wintypes.BOOL
+    fn.argtypes = [wintypes.HANDLE]
+    return bool(fn(wintypes.HANDLE(handle)))
+
+
+def process_create_time(pid: int):
+    """The creation time of *pid* as a 64-bit FILETIME. Three-valued.
+
+    The identity half of a cross-process holder record. A bare "is this PID
+    running" check is not enough: PIDs are reused, and a reused PID would make a
+    dead abax's record look live forever — which, for the caller, means never
+    sweeping the machine-wide ACEs again. Pairing the PID with its creation time
+    (100 ns resolution) makes the record identify one *process*, not one slot.
+
+    The three answers, and why "I could not ask" is not one of the other two:
+
+    * an **int** — that PID is running and this is when it started;
+    * **None** — *gone*. Either the PID does not exist
+      (``OpenProcess`` -> ``ERROR_INVALID_PARAMETER``) or it exists but has
+      exited and is only being held open by someone's handle
+      (``GetExitCodeProcess`` != ``STILL_ACTIVE`` — measured, this really does
+      happen and really does still report a creation time);
+    * :data:`PROCESS_LIVENESS_UNKNOWN` — the query could not run. Overwhelmingly
+      ``OpenProcess`` -> ``ERROR_ACCESS_DENIED``, which is not a weak "gone" but
+      a strong **running**: the PID names an elevated, another-user or protected
+      process this token may not open. Measured: 8 such PIDs on an idle desktop
+      (see ``_ERROR_INVALID_PARAMETER``).
+
+    Returning ``None`` for that third case is how a live holder was classified
+    stale, because ``None == created`` is False just as ``12345 == created`` is:
+    the caller could not tell "not that process" from "could not look". The
+    sentinel is what lets it, and the caller's fail-safe — unknown keeps the
+    ACEs — is stated in :func:`abax.sandbox_windows._scan_holder_records`.
+    """
+    k32, _userenv, _adv = _dlls()
+    op = k32.OpenProcess
+    op.restype = wintypes.HANDLE
+    op.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    ctypes.set_last_error(0)
+    handle = op(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        if ctypes.get_last_error() == _ERROR_INVALID_PARAMETER:
+            return None                        # there is no such process
+        return PROCESS_LIVENESS_UNKNOWN        # denied, or something newer
+    try:
+        gec = k32.GetExitCodeProcess
+        gec.restype = wintypes.BOOL
+        gec.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        code = wintypes.DWORD()
+        if not gec(wintypes.HANDLE(handle), ctypes.byref(code)):
+            return PROCESS_LIVENESS_UNKNOWN
+        if code.value != _STILL_ACTIVE:
+            return None                        # opened, but it has exited
+        gpt = k32.GetProcessTimes
+        gpt.restype = wintypes.BOOL
+        gpt.argtypes = ([wintypes.HANDLE]
+                        + [ctypes.POINTER(wintypes.FILETIME)] * 4)
+        created, exited, kernel, user = (wintypes.FILETIME() for _ in range(4))
+        if not gpt(wintypes.HANDLE(handle), ctypes.byref(created),
+                   ctypes.byref(exited), ctypes.byref(kernel),
+                   ctypes.byref(user)):
+            return PROCESS_LIVENESS_UNKNOWN
+        return (created.dwHighDateTime << 32) | created.dwLowDateTime
+    finally:
+        k32.CloseHandle(wintypes.HANDLE(handle))
+
+
+def close_handle(handle: int) -> None:
+    """Close a raw HANDLE. Never raises; there is nothing to do if it fails."""
+    k32, _userenv, _adv = _dlls()
+    try:
+        k32.CloseHandle(wintypes.HANDLE(handle))
+    except Exception:                          # noqa: BLE001 - teardown only
+        pass
+
+
 # --- confined process launch -------------------------------------------------
 
 

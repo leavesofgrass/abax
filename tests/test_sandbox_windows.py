@@ -1758,6 +1758,1090 @@ def test_concurrent_first_use_grants_the_shared_path_exactly_once(
 
 
 # --------------------------------------------------------------------------- #
+# the two CROSS-process windows (issue #9)
+# --------------------------------------------------------------------------- #
+#
+# Holding the shared grants for the session makes them safe from *this* process's
+# teardowns. The ACE is machine-wide, so a second abax reopens the problem twice
+# over, and both were measured with two real processes (P1 holding the grants and
+# a live worker, P2 granting and then exiting so its atexit sweep walks the same
+# DACLs, P1 spawning a fresh confined worker every 3 s through that walk):
+#
+#   W1  P2's sweep strips paths P1's LIVE worker is running on. Measured:
+#       `FAIL IMPORT wave ModuleNotFoundError: No module named 'wave'` from a
+#       worker that was up and answering. Closed by the holder record.
+#   W2  P1 probes DURING P2's walk. icacls writes the root's DACL first and the
+#       leaves last, so `/findsid` answers True about a half-stripped tree, the
+#       grant is skipped, and the child dies in interpreter startup. Measured:
+#       1 spawn of 7. Closed by the machine-wide mutex.
+#
+# The acceptance measurement for the pair is the reproduction itself (0 of 7 and
+# 0 of 8 after, against 1 of 7 and 1 of 8 before); what these tests pin is the
+# mechanism, so a later change cannot quietly move a call out from under the
+# mutex or teach the sweep to ignore a live holder.
+
+
+def _winsandbox():
+    """The lazily-imported ctypes layer, as an object tests can patch."""
+    from abax import _winsandbox_ctypes as C
+
+    return C
+
+
+@pytest.fixture
+def private_acl_mutex(monkeypatch):
+    """Give this test its own named mutex instead of the production one.
+
+    The mutex is machine-wide by design, so a test that deliberately abandons it
+    — or holds it from a child process — would otherwise be reaching into every
+    other test in the run, and into any abax the developer happens to have open.
+    The production *name* is asserted separately, in
+    ``test_the_acl_mutex_is_scoped_to_the_logon_session``.
+    """
+    name = f"Local\\abax-test-acl-{os.getpid()}-{os.urandom(4).hex()}"
+    monkeypatch.setattr(sw, "_ACL_MUTEX_NAME", name)
+    monkeypatch.setattr(sw, "_ACL_MUTEX_HANDLE", None)
+    yield name
+    handle = sw._ACL_MUTEX_HANDLE          # created during the test, if at all
+    if handle is not None:
+        _winsandbox().close_handle(handle)
+
+
+@pytest.fixture
+def acl_trace(monkeypatch):
+    """One interleaved record of the mutex, the icacls calls and the probes.
+
+    The property under test is an *ordering* — every DACL read and every DACL
+    write happens between one acquire and one release — and no snapshot of an ACL
+    can see an ordering. Everything still runs for real underneath, so a test
+    that asserts the order also still asserts the effect.
+    """
+    C = _winsandbox()
+    trace: list[str] = []
+    real_wait, real_release = C.wait_for_mutex, C.release_mutex
+    real_icacls, real_probe = sw._icacls, sw._container_ace_present
+
+    def _wait(handle, timeout_ms):
+        code = real_wait(handle, timeout_ms)
+        trace.append("acquire" if code in (C.WAIT_OBJECT_0, C.WAIT_ABANDONED)
+                     else "acquire-FAILED")
+        return code
+
+    def _release(handle):
+        trace.append("release")
+        return real_release(handle)
+
+    def _icacls(path, *args):
+        trace.append("icacls " + args[0])
+        return real_icacls(path, *args)
+
+    def _probe(path):
+        trace.append("probe")
+        return real_probe(path)
+
+    monkeypatch.setattr(C, "wait_for_mutex", _wait)
+    monkeypatch.setattr(C, "release_mutex", _release)
+    monkeypatch.setattr(sw, "_icacls", _icacls)
+    monkeypatch.setattr(sw, "_container_ace_present", _probe)
+    return trace
+
+
+def _assert_all_inside_the_mutex(trace: "list[str]") -> None:
+    """Every ACL operation in *trace* sits between one acquire and one release."""
+    assert trace, "nothing was recorded at all"
+    assert trace[0] == "acquire", f"an ACL operation preceded the mutex: {trace}"
+    assert trace[-1] == "release", f"the mutex was released early: {trace}"
+    assert "acquire" not in trace[1:], f"the mutex was taken twice: {trace}"
+    assert "release" not in trace[:-1], f"the mutex was released twice: {trace}"
+    assert any(t.startswith("icacls") for t in trace[1:-1]), \
+        f"no real ACL work happened, so the ordering proves nothing: {trace}"
+
+
+def test_the_grant_holds_the_acl_mutex_across_every_probe_and_every_walk(
+        monkeypatch, shared_paths, private_acl_mutex, acl_trace):
+    """W2's fix, and the reason it has to cover the *reads* as well as the writes.
+
+    A grant that serialised only its `/grant` calls would still let a second
+    process's ``/findsid`` land mid-walk, see the root's freshly-written ACE, skip
+    its own grant and launch a child into a tree whose leaves are not done yet.
+    That is the measured death — so the probe, the reuse fast path, the grant and
+    `_unreachable_requirements`' pre-existing-ACE check must all be inside.
+    """
+    _shared, console_scratch, _macro = shared_paths
+
+    granted, unreachable = sw._grant_container_access(str(console_scratch))
+
+    assert unreachable == []
+    _assert_all_inside_the_mutex(acl_trace)
+    assert len(granted) == 2
+
+
+def test_the_exit_sweep_holds_the_acl_mutex_across_its_walk(
+        shared_paths, private_acl_mutex, acl_trace):
+    """The other side of W2: nobody may observe a tree this sweep is stripping."""
+    _shared, console_scratch, _macro = shared_paths
+    sw._grant_container_access(str(console_scratch))
+    del acl_trace[:]                       # the grant's own cycle is tested above
+
+    assert sw._revoke_session_grants() == []
+
+    _assert_all_inside_the_mutex(acl_trace)
+    assert "icacls /remove" in acl_trace
+
+
+def test_a_workers_teardown_does_not_take_the_acl_mutex(
+        shared_paths, private_acl_mutex, acl_trace):
+    """And it must not: teardown runs on the GUI thread.
+
+    ``ConsoleBridge`` closes a worker synchronously from the GUI thread, so
+    waiting there for another process's ~19 s DACL walk would freeze the window
+    for that long — to revoke a `mkdtemp` scratch dir that is this worker's alone
+    and that no other process has ever heard of. The mutex guards the *shared*
+    paths; the scratch dir is not one.
+    """
+    _shared, console_scratch, _macro = shared_paths
+    granted, _ = sw._grant_container_access(str(console_scratch))
+    del acl_trace[:]
+
+    assert sw._revoke_container_access(granted) == []
+
+    assert "acquire" not in acl_trace, \
+        f"a worker teardown waited on the machine-wide mutex: {acl_trace}"
+    assert "icacls /remove" in acl_trace, "the scratch grant was not removed"
+
+
+def test_the_probe_is_not_trusted_when_the_acl_mutex_could_not_be_taken(
+        monkeypatch, shared_paths, private_acl_mutex):
+    """The degradation, and why it is a re-grant rather than a shrug.
+
+    `_container_ace_present` is only *trustworthy* because the mutex guarantees
+    nobody is walking the tree while it answers. Without the mutex a True is
+    exactly the answer that killed the child in the measurement, so the fast path
+    is skipped and the grant is re-issued — a redundant ~20 s walk instead of a
+    worker that cannot read its own stdlib.
+    """
+    shared, console_scratch, macro_scratch = shared_paths
+    sw._grant_container_access(str(console_scratch))
+    assert sw._container_ace_present(str(shared)) is True
+    assert sw._session_grant_paths() == [str(shared)], "not the reuse shape"
+
+    C = _winsandbox()
+    monkeypatch.setattr(C, "wait_for_mutex", lambda h, ms: C.WAIT_TIMEOUT)
+    calls = _icacls_spy(monkeypatch, [])
+
+    granted, unreachable = sw._grant_container_access(str(macro_scratch))
+
+    assert unreachable == []
+    assert str(shared) in granted
+    assert len(_ops(calls, "/grant", shared)) == 1, (
+        "the reuse fast path trusted a /findsid probe taken while another "
+        "process may have been mid-walk")
+
+
+def test_an_abandoned_acl_mutex_is_taken_and_still_released(
+        monkeypatch, shared_paths, private_acl_mutex, caplog):
+    """A process killed mid-walk must not wedge every later abax.
+
+    Windows hands the next waiter ownership plus a ``WAIT_ABANDONED`` status
+    rather than leaving the mutex owned forever, so the recovery is simply to
+    treat 0x80 as success — and, critically, to still release it afterwards.
+    Reading 0x80 as a failure would be the wedge: every abax on the box would
+    then run unserialised, for the life of the boot, and quietly.
+    """
+    _shared, console_scratch, _macro = shared_paths
+    C = _winsandbox()
+    released: list = []
+    real_release = C.release_mutex
+    monkeypatch.setattr(C, "wait_for_mutex", lambda h, ms: C.WAIT_ABANDONED)
+    monkeypatch.setattr(
+        C, "release_mutex",
+        lambda h: (released.append(h), real_release(h))[1])
+
+    with caplog.at_level("WARNING", logger=sw.__name__):
+        with sw._acl_mutex(5, "a test") as held:
+            assert held is True, "an abandoned mutex is owned, not lost"
+
+    assert len(released) == 1, "an abandoned mutex was never released"
+    assert "abandoned" in caplog.text.lower()
+
+
+def test_a_mutex_that_cannot_be_had_at_all_does_not_stop_the_grant(
+        monkeypatch, shared_paths, caplog):
+    """Fail *open*, deliberately, and say so.
+
+    Refusing to grant means refusing to launch, and the mutex is not the security
+    boundary — the AppContainer and the worker's own selftest are. A squatted
+    name or a handle exhaustion costs cross-process serialisation, which is what
+    abax had before this existed; it must not cost the sandbox.
+    """
+    shared, console_scratch, _macro = shared_paths
+    monkeypatch.setattr(sw, "_acl_mutex_handle", lambda: None)
+
+    with caplog.at_level("WARNING", logger=sw.__name__):
+        granted, unreachable = sw._grant_container_access(str(console_scratch))
+
+    assert unreachable == []
+    assert str(shared) in granted
+    assert sw._container_ace_present(str(shared)) is True
+
+
+def test_the_acl_mutex_is_scoped_to_the_logon_session():
+    """``Local\\``, and the reasoning is measured rather than inherited.
+
+    The usual reason to avoid ``Global\\`` is that it needs
+    SeCreateGlobalPrivilege — which is **false** on this platform: a
+    non-elevated token with no such privilege in ``whoami /priv`` created a
+    ``Global\\`` mutex successfully. The real reasons are that a ``Global\\``
+    object carries its creator's DACL (so a second *user* could not open it
+    anyway, without publishing a machine-wide-writable synchronisation object and
+    the denial-of-service surface that comes with it) and that elevation does not
+    change logon session, so the pair that actually collides — an elevated abax
+    and a plain one on the same desktop — share the ``Local\\`` namespace.
+    """
+    assert sw._ACL_MUTEX_NAME.startswith("Local\\")
+    assert "abax" in sw._ACL_MUTEX_NAME
+
+
+def test_the_acl_mutex_really_excludes_another_process(private_acl_mutex):
+    """The primitive itself, against a second real process.
+
+    Deliberately *not* in the ``sandbox_e2e`` tier even though it drives a second
+    process: that tier is the eight tests that launch a real AppContainer and
+    verify the confinement promise (``test_sandbox_gate.py`` pins its membership
+    by count). This one launches an ordinary process to hold a mutex. Adding it
+    there would dilute what selecting the tier means. It still runs in every
+    ordinary suite run; the marker skips nothing.
+
+    Everything above fakes ``wait_for_mutex`` to get a deterministic ordering;
+    this one does not fake anything, because the claim that closes W2 is a claim
+    about two *processes* and a mock cannot make it.
+    """
+    prog = (
+        "import ctypes, sys, time\n"
+        "from ctypes import wintypes\n"
+        "k32 = ctypes.WinDLL('kernel32', use_last_error=True)\n"
+        "k32.CreateMutexW.restype = wintypes.HANDLE\n"
+        "k32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]\n"
+        f"h = k32.CreateMutexW(None, False, {private_acl_mutex!r})\n"
+        "k32.WaitForSingleObject(h, 0)\n"
+        "print('HELD', flush=True)\n"
+        "time.sleep(2.0)\n"
+        "k32.ReleaseMutex(h)\n"
+    )
+    child = subprocess.Popen([sys.executable, "-u", "-c", prog],
+                             stdout=subprocess.PIPE, text=True)
+    try:
+        assert child.stdout.readline().strip() == "HELD"
+        t0 = time.perf_counter()
+        with sw._acl_mutex(30, "a test") as held:
+            waited = time.perf_counter() - t0
+            assert held is True, "never got the mutex the child gave up"
+        assert waited > 1.0, (
+            f"took the mutex after {waited:.2f}s while another process held it — "
+            "two DACL walks can overlap")
+    finally:
+        child.wait(timeout=30)
+
+
+def test_a_process_that_died_holding_the_acl_mutex_does_not_wedge_the_next(
+        monkeypatch, private_acl_mutex):
+    """WAIT_ABANDONED, end to end, with a child that really is killed.
+
+    The unit test above proves the *code* recovers from 0x80; this proves Windows
+    really delivers 0x80 rather than blocking forever, which is the half that
+    cannot be asserted against a fake and the half that decides whether one
+    crashed abax bricks the feature until reboot. So the wait code is recorded
+    and asserted, not merely the outcome: without that, the test passes just as
+    happily when the mutex object died with the child and this process created a
+    brand new one — which is not the situation being claimed, and is what happens
+    if the handle below is opened after the kill instead of before it.
+    """
+    prog = (
+        "import ctypes, sys, time\n"
+        "from ctypes import wintypes\n"
+        "k32 = ctypes.WinDLL('kernel32', use_last_error=True)\n"
+        "k32.CreateMutexW.restype = wintypes.HANDLE\n"
+        "k32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]\n"
+        f"h = k32.CreateMutexW(None, False, {private_acl_mutex!r})\n"
+        "k32.WaitForSingleObject(h, 0)\n"
+        "print('HELD', flush=True)\n"
+        "time.sleep(30)\n"
+    )
+    C = _winsandbox()
+    codes: list = []
+    real_wait = C.wait_for_mutex
+    monkeypatch.setattr(
+        C, "wait_for_mutex",
+        lambda h, ms: (codes.append(real_wait(h, ms)), codes[-1])[1])
+
+    child = subprocess.Popen([sys.executable, "-u", "-c", prog],
+                             stdout=subprocess.PIPE, text=True)
+    try:
+        assert child.stdout.readline().strip() == "HELD"
+        # Open our handle FIRST, so the kernel object outlives the child and the
+        # abandonment is really delivered rather than the name being recycled.
+        assert sw._acl_mutex_handle() is not None
+        child.kill()                       # dies still owning the mutex
+        child.wait(timeout=30)
+        t0 = time.perf_counter()
+        with sw._acl_mutex(20, "a test") as held:
+            assert held is True, "a crashed holder wedged the mutex"
+        assert time.perf_counter() - t0 < 10
+        assert codes == [C.WAIT_ABANDONED], (
+            f"expected Windows to hand over an abandoned mutex, got {codes}")
+        # ...and it is still usable afterwards, which is what "released it
+        # anyway" buys: an abandoned mutex left unreleased wedges the next one.
+        with sw._acl_mutex(5, "a test") as held_again:
+            assert held_again is True
+        assert codes[-1] == C.WAIT_OBJECT_0, codes
+    finally:
+        if child.poll() is None:
+            child.kill()
+
+
+# --- the cross-process holder record (W1) ------------------------------------
+
+
+def _plant_holder(pid: int, created: int, paths=(), *, retiring=False) -> str:
+    """A holder record for *pid*, as another process would have left it.
+
+    ``retiring=True`` writes the mark a holder puts down when it enters its own
+    exit sweep — the statement that it is still running but is not relying on
+    these grants any more (see ``sandbox_windows._HOLDER_RETIRING_MARK``).
+    """
+    os.makedirs(sw._holder_dir(), exist_ok=True)
+    record = os.path.join(sw._holder_dir(),
+                          f"{pid}-{created}{sw._HOLDER_SUFFIX}")
+    body = "".join(str(p) + "\n" for p in paths)
+    if retiring:
+        body = sw._HOLDER_RETIRING_MARK + "\n" + body
+    with open(record, "w", encoding="utf-8") as fh:
+        fh.write(body)
+    return record
+
+
+@pytest.fixture
+def a_live_process():
+    """A real process that stays up for the duration of the test."""
+    child = subprocess.Popen([sys.executable, "-c", "import sys; sys.stdin.read()"],
+                             stdin=subprocess.PIPE)
+    yield child
+    child.kill()
+    child.wait(timeout=30)
+
+
+def test_a_live_holder_stops_the_exit_sweep_from_removing_anything(
+        shared_paths, a_live_process):
+    """W1: the sweep is correct *for this process* and wrong for the machine.
+
+    P2's sweep removes exactly what P2 granted — which is the same interpreter
+    prefix P1 is running on, so P1's live worker loses its standard library on
+    its very next import. Measured with two real processes. The ACEs come off
+    only when the last holder goes.
+    """
+    shared, console_scratch, _macro = shared_paths
+    sw._grant_container_access(str(console_scratch))
+    assert sw._container_ace_present(str(shared)) is True
+    created = _winsandbox().process_create_time(a_live_process.pid)
+    assert created is not None
+    _plant_holder(a_live_process.pid, created)
+
+    assert sw._revoke_session_grants() == [], "a deferral is not a leak report"
+
+    assert sw._container_ace_present(str(shared)) is True, \
+        "the sweep stripped an ACE another live process was relying on"
+    # The table is still emptied: this process is on its way out either way, and
+    # an entry that outlived the sweep would be a lie about what it still owns.
+    assert sw._session_grant_paths() == []
+
+
+def test_a_deferred_sweep_hands_its_paths_to_whoever_goes_last(
+        shared_paths, a_live_process):
+    """Deferring is not forgetting, and the handoff falls out of the mechanism.
+
+    Two abax processes need not hold the *same* paths — different working
+    directories put different entries on ``sys.path`` — so a process that defers
+    must leave a record of what it was holding, or its unique paths keep their
+    ACEs forever. It leaves its own record in place; it is exiting, so that
+    record goes stale by definition, and the last holder out unions it in.
+    """
+    shared, console_scratch, _macro = shared_paths
+    sw._grant_container_access(str(console_scratch))
+    created = _winsandbox().process_create_time(a_live_process.pid)
+    _plant_holder(a_live_process.pid, created)
+    mine = sw._holder_record_path()
+
+    sw._revoke_session_grants()
+
+    assert mine and os.path.exists(mine), \
+        "the deferring process deleted its own record; its paths are now orphaned"
+    assert sw._holder_record_paths(mine) == [str(shared)]
+
+
+def test_a_stale_holder_does_not_block_the_sweep(shared_paths):
+    """A crashed abax must not make the ACEs permanent.
+
+    This is the failure mode a naive holder count ships: one hard kill and the
+    machine-wide grant on the developer's interpreter prefix has nothing left
+    that will ever remove it. Liveness is asked of the operating system, not of
+    the record.
+    """
+    shared, console_scratch, _macro = shared_paths
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait(timeout=30)
+    sw._grant_container_access(str(console_scratch))
+    record = _plant_holder(dead.pid, 1)
+    mine = sw._holder_record_path()
+
+    assert sw._revoke_session_grants() == []
+
+    assert sw._container_ace_present(str(shared)) is False, \
+        "a dead process's record blocked the sweep"
+    assert not os.path.exists(record), "the stale record was left to block again"
+    assert mine and not os.path.exists(mine), \
+        "a sweep that really ran must drop its own record"
+
+
+def test_a_reused_pid_is_not_mistaken_for_the_process_that_wrote_the_record(
+        shared_paths, a_live_process):
+    """Why the record is PID *plus* creation time and not a bare PID.
+
+    PIDs are reused. A record naming a PID that some unrelated process now
+    occupies would look live for as long as the box stays up, and the sweep would
+    never run again — the same permanent ACE as the stale case, arrived at from
+    the opposite direction. The creation time (100 ns) pins the record to one
+    process rather than to one slot.
+    """
+    shared, console_scratch, _macro = shared_paths
+    sw._grant_container_access(str(console_scratch))
+    created = _winsandbox().process_create_time(a_live_process.pid)
+    # The PID is genuinely running; it is simply not the process that wrote this.
+    _plant_holder(a_live_process.pid, created + 1)
+
+    assert sw._revoke_session_grants() == []
+
+    assert sw._container_ace_present(str(shared)) is False, \
+        "a recycled PID kept the machine-wide grants alive"
+
+
+def test_the_last_sweep_removes_what_a_dead_holder_recorded_and_never_did(
+        tmp_path, shared_paths):
+    """The union, which is what makes the handoff — and crash recovery — real.
+
+    A record left by a process that deferred, or by one that was killed between
+    granting and sweeping, names paths nobody else is going to remove. Whoever
+    sweeps last takes them off too, so the leak the design otherwise trades W1
+    for does not exist, and a previous run's crash leftovers are collected as a
+    side effect.
+    """
+    shared, console_scratch, _macro = shared_paths
+    orphaned = tmp_path / "someone-elses-syspath-entry"
+    orphaned.mkdir()
+    assert _REAL_ICACLS(str(orphaned), "/grant",
+                        f"{sw.ALL_APP_PACKAGES}:(OI)(CI)(RX)") is True
+    assert sw._container_ace_present(str(orphaned)) is True
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait(timeout=30)
+    record = _plant_holder(dead.pid, 1, [str(orphaned)])
+
+    sw._grant_container_access(str(console_scratch))
+    assert sw._revoke_session_grants() == []
+
+    assert sw._container_ace_present(str(shared)) is False
+    assert sw._container_ace_present(str(orphaned)) is False, \
+        "the dead holder's paths kept their ACEs with nothing left to remove them"
+    assert not os.path.exists(record)
+
+
+@pytest.mark.parametrize("line,ok", [
+    ("C:\\Python313", True),
+    ("c:/python313", True),
+    ("D:\\a checkout\\with spaces", True),
+    # UNC: `os.path.isabs` says True and `icacls` on one is a network operation.
+    ("\\\\attacker\\share\\x", False),
+    ("//attacker/share/x", False),
+    # The device namespace, likewise absolute and likewise never granted here.
+    ("\\\\?\\C:\\x", False),
+    ("\\\\.\\pipe\\x", False),
+    # Already rejected by `isabs` on 3.13; pinned so a future change is noticed.
+    ("\\rooted-but-driveless", False),
+    ("C:relative", False),
+    ("relative\\path", False),
+    ("", False),
+    (sw._HOLDER_RETIRING_MARK, False),
+])
+def test_only_local_drive_letter_paths_are_read_out_of_a_holder_record(line, ok):
+    """``_HOLDER_MAX_PATHS`` bounds how many; this bounds *what*.
+
+    The sweep runs ``icacls <path> /remove`` for every line that survives this
+    filter, on a file written by another process. A UNC path is the one that
+    matters: ``icacls`` on ``\\\\host\\share`` is a network operation that
+    authenticates as this user and blocks for the SMB timeout when nothing
+    answers — and the sweep holds the machine-wide ACL mutex while it waits, so
+    every other abax on the box stalls behind it. 64 such lines is minutes of
+    that, during interpreter shutdown.
+
+    Deliberately NOT narrowed to paths this process would itself grant: the union
+    exists to collect the paths another run held and this one would not (see
+    ``test_the_last_sweep_removes_what_a_dead_holder_recorded_and_never_did``),
+    and narrowing it there would turn every divergent ``sys.path`` entry into a
+    permanent machine-wide ACE.
+    """
+    assert sw._sweepable_record_path(line) is ok
+
+
+def test_a_holder_record_cannot_send_the_exit_sweep_to_a_network_path(
+        monkeypatch, tmp_path, shared_paths):
+    """The filter, end to end, against the real sweep.
+
+    A record naming a UNC path, a device path and a local one: the local path is
+    collected and stripped exactly as the handoff requires, and no ``icacls``
+    invocation is ever made against the other two.
+    """
+    _shared, console_scratch, _macro = shared_paths
+    orphaned = tmp_path / "someone-elses-syspath-entry"
+    orphaned.mkdir()
+    assert _REAL_ICACLS(str(orphaned), "/grant",
+                        f"{sw.ALL_APP_PACKAGES}:(OI)(CI)(RX)") is True
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait(timeout=30)
+    record = _plant_holder(dead.pid, 1,
+                           ["\\\\10.255.255.1\\share\\x", "\\\\?\\C:\\dev",
+                            str(orphaned)])
+    assert sw._holder_record_paths(record) == [str(orphaned)]
+
+    sw._grant_container_access(str(console_scratch))
+    calls = _icacls_spy(monkeypatch, [])
+
+    assert sw._revoke_session_grants() == []
+
+    assert sw._container_ace_present(str(orphaned)) is False, \
+        "the filter ate a legitimate handoff path"
+    assert [c for c in calls if c[1].startswith("\\\\")] == [], \
+        "the sweep ran icacls against a UNC or device path from a record"
+
+
+def test_a_truncated_holder_record_is_still_identified_and_swept(shared_paths):
+    """Why the identity lives in the file NAME and not in the contents.
+
+    A process killed between ``open`` and ``write`` leaves a zero-length file. If
+    that file were the identity, it would be unreadable and would have to be
+    either ignored (an ACE nobody removes) or trusted (a sweep nobody runs). In
+    the name, it survives the kill intact: the record still says who it belonged
+    to, that process is still checkable, and the sweep proceeds.
+    """
+    shared, console_scratch, _macro = shared_paths
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait(timeout=30)
+    record = _plant_holder(dead.pid, 1)
+    assert os.path.getsize(record) == 0
+
+    sw._grant_container_access(str(console_scratch))
+    assert sw._revoke_session_grants() == []
+
+    assert sw._container_ace_present(str(shared)) is False
+    assert not os.path.exists(record)
+
+
+def test_the_holder_record_is_on_disk_before_the_mutex_is_released(
+        shared_paths, private_acl_mutex, monkeypatch):
+    """The ordering that lets ``custom_spawn`` launch outside the mutex.
+
+    ``CreateProcessW`` runs after the grant returns, with the mutex already
+    given up. What keeps another process from stripping the tree in that gap is
+    not the mutex but the holder record — so the record has to be published
+    while the mutex is still held, or the gap is exactly W1 again, one spawn
+    wide.
+    """
+    _shared, console_scratch, _macro = shared_paths
+    C = _winsandbox()
+    seen: list = []
+    real_release = C.release_mutex
+
+    def _release(handle):
+        record = sw._holder_record_path()
+        seen.append(bool(record) and os.path.exists(record))
+        return real_release(handle)
+
+    monkeypatch.setattr(C, "release_mutex", _release)
+
+    sw._grant_container_access(str(console_scratch))
+
+    assert seen == [True], \
+        "the mutex was released before this process announced it was a holder"
+
+
+def test_publishing_a_holder_record_leaves_no_partial_file(shared_paths):
+    """Written to a sibling and ``os.replace``d, so a reader sees one version.
+
+    The contents are the paths another process will remove on this one's behalf.
+    A half-written list is a half-removed leak, so the write is atomic and the
+    temporary never survives.
+    """
+    _shared, console_scratch, _macro = shared_paths
+    sw._grant_container_access(str(console_scratch))
+
+    names = sorted(os.listdir(sw._holder_dir()))
+    assert names == [os.path.basename(sw._holder_record_path())], names
+    assert not any(n.endswith(".new") for n in names)
+
+
+def test_holder_records_live_under_the_user_data_dir(shared_paths):
+    """Not a world-writable location, and the reason is the sweep.
+
+    A record someone else could plant makes abax skip its own cleanup — the ACEs
+    stay on the interpreter prefix and the process that granted them exits
+    believing someone else will tidy up. ``DATA_DIR`` on Windows is
+    ``%LOCALAPPDATA%\\abax``; this used to add "whose DACL is this user, SYSTEM
+    and Administrators (measured with icacls; no world-writable ACE)", which was
+    two ACEs short of what icacls prints — see the note above the holder record
+    in ``abax/sandbox_windows.py`` for the measured five and for what a principal
+    who *can* write here would actually gain (less than dropping an ``init.py``
+    in the same directory, which is executed as arbitrary Python by design). What
+    this test pins is the placement itself: a shared temp directory would not do.
+    """
+    import abax._runtime as rt
+
+    sw._grant_container_access(str(shared_paths[1]))
+    holder = os.path.normcase(os.path.abspath(sw._holder_dir()))
+
+    assert holder.startswith(os.path.normcase(os.path.abspath(str(rt.DATA_DIR))))
+    assert os.path.normcase(os.path.abspath(sw._holder_record_path())) \
+        .startswith(holder)
+
+
+def test_nothing_a_confined_child_does_publishes_a_holder_record(tmp_path):
+    """The child imports this module too; a record from there is a machine-wide
+    veto on everyone else's cleanup.
+
+    ``console_worker.py`` calls ``select_confinement().apply_in_child``, so the
+    whole child-side surface runs inside the confined worker. A holder record
+    written there would outlive nothing and block everything: every other abax's
+    exit sweep would defer to a process that never held a grant in its life.
+    Measured in a fresh interpreter, for the same reason the ``atexit`` sibling
+    of this test is — the property is about what merely *importing* does.
+    """
+    prog = (
+        "import os, sys\n"
+        f"sys.path.insert(0, {os.path.dirname(os.path.dirname(os.path.abspath(sw.__file__)))!r})\n"
+        "from abax import sandbox as sb, sandbox_windows as sw\n"
+        f"scratch = {str(tmp_path / 'scratch')!r}\n"
+        "os.makedirs(scratch, exist_ok=True)\n"
+        "strat = sb.select_confinement()\n"
+        "strat.available(); strat.describe()\n"
+        "strat.wrap_argv([sys.executable, '-c', 'pass'], scratch)\n"
+        "strat.child_env({'PATH': 'C:\\\\Windows'}, scratch)\n"
+        "strat.apply_in_child(scratch)\n"
+        "sw._profile_name(); sw._needed_read_dirs(); sw._needed_read_files()\n"
+        "d = sw._holder_dir()\n"
+        "print('RECORDS', sorted(os.listdir(d)) if os.path.isdir(d) else [])\n"
+    )
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join([p for p in sys.path if p])
+    env["APPDATA"] = str(tmp_path / "roaming")
+    env["LOCALAPPDATA"] = str(tmp_path / "local")
+    r = subprocess.run([sys.executable, "-c", prog], capture_output=True,
+                       text=True, timeout=120, env=env)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "RECORDS []" in r.stdout, r.stdout + r.stderr
+
+
+# --- "is anyone still relying on these ACEs?" is not "is that PID running?" ---
+#
+# The sweep asks the operating system one question about each foreign record and
+# acts on the answer, so the two ways that question can be got wrong are the two
+# ways the machine-wide ACEs go wrong:
+#
+#   * answering "gone" for a process that is running strips the standard library
+#     out from under a live worker — issue #9 again, and the ACCESS_DENIED case
+#     below is a new door onto it;
+#   * answering "still relying" for every process that happens to be running
+#     lets two abaxes exiting together each defer to the other, leaving the ACEs
+#     with no owner at all.
+#
+# Everything from here to the launcher section pins one or the other.
+
+
+def _open_process_error(pid: int) -> int:
+    """``GetLastError`` from ``OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)``.
+
+    0 means the handle came back (and is closed again here). The two failures
+    that matter are 5 (``ERROR_ACCESS_DENIED`` — that PID is running and this
+    token may not interrogate it) and 87 (``ERROR_INVALID_PARAMETER`` — there is
+    no such process).
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    op = k32.OpenProcess
+    op.restype = wintypes.HANDLE
+    op.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    ctypes.set_last_error(0)
+    handle = op(0x1000, False, pid)
+    if handle:
+        k32.CloseHandle(wintypes.HANDLE(handle))
+        return 0
+    return ctypes.get_last_error()
+
+
+def _a_pid_we_may_not_open() -> "int | None":
+    """A PID that is **running** and that this token cannot ``OpenProcess``.
+
+    Scanned rather than hardcoded: pid 4 (System) answers ERROR_ACCESS_DENIED
+    from a plain non-elevated Python on this box — as do 7 more under 40000 —
+    but an elevated run opens some of them and a CI runner's process table is not
+    this desktop's. None when every PID on the box is open to us, which is the
+    one case the caller has to handle rather than assert.
+    """
+    for pid in range(4, 40000, 4):
+        if _open_process_error(pid) == 5:          # ERROR_ACCESS_DENIED
+            return pid
+    return None
+
+
+def _a_pid_that_does_not_exist() -> "int | None":
+    """A PID no process holds — ``OpenProcess`` answers ERROR_INVALID_PARAMETER."""
+    for pid in (999_999, 999_995, 999_991, 888_887, 777_775):
+        if _open_process_error(pid) == 87:         # ERROR_INVALID_PARAMETER
+            return pid
+    return None
+
+
+def test_process_create_time_tells_gone_from_could_not_ask():
+    """The three answers, because two of them used to be one.
+
+    ``OpenProcess`` failing was read as "that process is gone" whatever the
+    reason, and ERROR_ACCESS_DENIED is the *opposite* fact: the PID belongs to an
+    elevated, another-user or protected process, i.e. one that is running. Both
+    came back ``None``, both compared unequal to the recorded creation time, and
+    the caller filed a live holder as stale.
+    """
+    C = _winsandbox()
+
+    assert isinstance(C.process_create_time(os.getpid()), int), \
+        "this process cannot read its own creation time"
+
+    # Exited, but its handle is still held by Popen, so the PID still resolves.
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait(timeout=30)
+    assert C.process_create_time(dead.pid) is None
+
+    absent = _a_pid_that_does_not_exist()
+    assert absent is not None, "found no free PID to ask about"
+    assert C.process_create_time(absent) is None
+
+    denied = _a_pid_we_may_not_open()
+    if denied is not None:
+        answer = C.process_create_time(denied)
+        assert answer is C.PROCESS_LIVENESS_UNKNOWN, (
+            f"pid {denied} cannot be opened by this token, so its liveness is "
+            f"unknown — answering {answer!r} claims to know")
+        # And the sentinel must not be mistakable for either real answer.
+        assert answer is not None
+        assert answer != 0 and answer != C.process_create_time(os.getpid())
+
+
+def test_a_holder_we_may_not_open_is_treated_as_live(shared_paths):
+    """Issue #9's mechanism through a new door, with a real un-openable PID.
+
+    ``_scan_holder_records`` documents a fail-safe — "a liveness query that
+    cannot run at all keeps the ACEs" — and honoured it only for a raised
+    exception. A denial is not an exception; it was a ``None``, and ``None ==
+    created`` is False, so the record was swept and the ACEs came off under a
+    process that is very much alive.
+    """
+    denied = _a_pid_we_may_not_open()
+    if denied is None:
+        pytest.skip("every PID on this box is open to this token; the "
+                    "monkeypatched sibling test covers the same property")
+    shared, console_scratch, _macro = shared_paths
+    # Deliberately not the real creation time: the whole point is that we cannot
+    # read it, so no record naming this PID can ever match on equality.
+    record = _plant_holder(denied, 1)
+    sw._grant_container_access(str(console_scratch))
+
+    assert sw._revoke_session_grants() == []
+
+    assert sw._container_ace_present(str(shared)) is True, (
+        f"the sweep stripped the shared ACEs because it could not open pid "
+        f"{denied} — a process that is running")
+    assert os.path.exists(record), "a live holder's record was collected"
+
+
+def test_a_liveness_query_that_could_not_run_keeps_the_aces(
+        shared_paths, monkeypatch):
+    """The same fail-safe, forced rather than found.
+
+    ``_a_pid_we_may_not_open`` depends on what the box happens to be running and
+    on whether the suite is elevated, so the property is also pinned by making
+    the ctypes layer report the denial for a PID of this test's choosing. This is
+    the test that must pass on every machine.
+    """
+    shared, console_scratch, _macro = shared_paths
+    C = _winsandbox()
+    dead = subprocess.Popen([sys.executable, "-c", "pass"])
+    dead.wait(timeout=30)
+    record = _plant_holder(dead.pid, 1)
+    real = C.process_create_time
+
+    def _denied(pid):
+        if pid == dead.pid:
+            return C.PROCESS_LIVENESS_UNKNOWN   # as ERROR_ACCESS_DENIED reports
+        return real(pid)
+
+    monkeypatch.setattr(C, "process_create_time", _denied)
+    sw._grant_container_access(str(console_scratch))
+
+    assert sw._revoke_session_grants() == []
+
+    assert sw._container_ace_present(str(shared)) is True, \
+        "an unanswerable liveness query was read as 'that holder is gone'"
+    assert os.path.exists(record)
+
+
+def test_a_deferring_sweep_marks_its_own_record_retiring(
+        shared_paths, a_live_process):
+    """Half a tie-break is no tie-break: a deferral has to be announced.
+
+    Leaving the record behind carries the *paths*, which is what the handoff
+    needs. It does not carry the fact that this process is on its way out — and
+    without that, the holder we deferred to reads us as an ordinary live abax and
+    defers right back.
+    """
+    shared, console_scratch, _macro = shared_paths
+    sw._grant_container_access(str(console_scratch))
+    created = _winsandbox().process_create_time(a_live_process.pid)
+    _plant_holder(a_live_process.pid, created)
+    mine = sw._holder_record_path()
+
+    sw._revoke_session_grants()
+
+    assert mine and os.path.exists(mine)
+    assert sw._holder_record_retiring(mine) is True, \
+        "the deferring process left a record indistinguishable from a live one"
+    # The mark shares the file with the paths and must not eat one of them.
+    assert sw._holder_record_paths(mine) == [str(shared)]
+
+
+def test_a_process_that_grants_again_stops_advertising_its_exit(
+        shared_paths, a_live_process):
+    """The mark has to come off as reliably as it goes on.
+
+    A deferred sweep is not always the end of a process — this module's own
+    module-scoped sweep runs mid-run and pytest carries on for thousands of
+    tests. A record left marked retiring while its writer is holding grants again
+    is an invitation to every other abax to strip them, which is W1 with the
+    veto disabled from the inside.
+    """
+    shared, console_scratch, macro_scratch = shared_paths
+    sw._grant_container_access(str(console_scratch))
+    created = _winsandbox().process_create_time(a_live_process.pid)
+    _plant_holder(a_live_process.pid, created)
+    mine = sw._holder_record_path()
+    sw._revoke_session_grants()
+    assert sw._holder_record_retiring(mine) is True
+
+    sw._grant_container_access(str(macro_scratch))
+
+    assert sw._holder_record_retiring(mine) is False, \
+        "this process holds the grants again and is still advertising its exit"
+    assert sw._holder_record_paths(mine) == [str(shared)]
+
+
+def test_a_retiring_holder_is_not_a_reason_to_defer(shared_paths, a_live_process):
+    """The other side of the tie-break: a marked record is collectable.
+
+    The process is genuinely running — it is the ``a_live_process`` fixture — and
+    liveness alone would make this sweep defer. What the record says is that its
+    writer has entered its own exit sweep and will not grant again, and that is a
+    stronger statement than liveness, made by the only process that can know it.
+    """
+    shared, console_scratch, _macro = shared_paths
+    created = _winsandbox().process_create_time(a_live_process.pid)
+    record = _plant_holder(a_live_process.pid, created, [str(shared)],
+                           retiring=True)
+    sw._grant_container_access(str(console_scratch))
+
+    assert sw._revoke_session_grants() == []
+
+    assert sw._container_ace_present(str(shared)) is False, \
+        "a holder that had published its own exit still blocked the sweep"
+    assert not os.path.exists(record), "the retiring holder's record was left"
+
+
+def test_an_unreadable_record_is_never_read_as_retiring(shared_paths,
+                                                        a_live_process):
+    """The mark only ever *removes* protection, so absence must be the default.
+
+    A truncated record — the zero-length file a process killed between ``open``
+    and ``write`` leaves — carries no mark, and the sweep must therefore treat
+    its writer as still relying on the grants. Failing the other way would turn
+    every crash into a stripped ACE.
+    """
+    shared, console_scratch, _macro = shared_paths
+    created = _winsandbox().process_create_time(a_live_process.pid)
+    record = _plant_holder(a_live_process.pid, created)
+    assert os.path.getsize(record) == 0
+    assert sw._holder_record_retiring(record) is False
+    sw._grant_container_access(str(console_scratch))
+
+    assert sw._revoke_session_grants() == []
+
+    assert sw._container_ace_present(str(shared)) is True
+    assert os.path.exists(record)
+
+
+def test_a_deferred_sweep_finishes_the_job_when_it_runs_again(
+        shared_paths, a_live_process):
+    """The sweep is idempotent, deferral included — the design's own claim.
+
+    A deferral empties the session table but keeps the record, so a second sweep
+    that reads only the table finds nothing to remove, revokes nothing, and then
+    deletes the record at the bottom anyway. Measured before the fix: the ACEs
+    stayed on disk and the last thing that named them was gone.
+    """
+    shared, console_scratch, _macro = shared_paths
+    created = _winsandbox().process_create_time(a_live_process.pid)
+    _plant_holder(a_live_process.pid, created)
+    sw._grant_container_access(str(console_scratch))
+    mine = sw._holder_record_path()
+
+    assert sw._revoke_session_grants() == []          # sweep #1: defers
+    assert sw._container_ace_present(str(shared)) is True
+    assert sw._session_grant_paths() == [], "the table must still be emptied"
+    assert os.path.exists(mine)
+
+    a_live_process.kill()
+    a_live_process.wait(timeout=30)
+
+    assert sw._revoke_session_grants() == []          # sweep #2: last one out
+
+    assert sw._container_ace_present(str(shared)) is False, (
+        "the second sweep forgot the paths the first one handed to disk — they "
+        "are still granted and nothing names them any more")
+    assert not os.path.exists(mine)
+    # ...and a third call has nothing left to do and must still not raise.
+    assert sw._revoke_session_grants() == []
+
+
+#: One abax-shaped holder process, driven over stdin. Grants, announces, waits;
+#: sweeps, announces, waits; exits. Two of these are what a pair of abaxes
+#: quitting at the same instant reduces to — and the waits are what make that
+#: instant reproducible instead of a race the test has to win.
+_HOLDER_CHILD = """\
+import os, sys
+sys.path.insert(0, {root!r})
+import abax._runtime as rt
+from abax import sandbox_windows as sw
+data, shared, scratch, mutex = sys.argv[1:5]
+rt.DATA_DIR = data
+sw._needed_read_dirs = lambda: [shared]
+sw._needed_read_files = lambda: []
+sw._required_read_targets = lambda: [shared]
+sw._ACL_MUTEX_NAME = mutex
+os.makedirs(scratch, exist_ok=True)
+granted, unreachable = sw._grant_container_access(scratch)
+print("GRANTED" if not unreachable else "UNREACHABLE", flush=True)
+sys.stdin.readline()
+sw._revoke_session_grants()
+print("SWEPT", flush=True)
+sys.stdin.readline()
+"""
+
+
+def _holder_says(proc, expected: str) -> None:
+    """Read one protocol line from a holder child, or fail loudly.
+
+    An AppContainer-adjacent child that dies during startup is undiagnosable
+    from a bare ``assert line == "GRANTED"``, so the child's exit code and stderr
+    go into the message — the same reason ``_diag`` exists for the e2e tier.
+    """
+    line = proc.stdout.readline().strip()
+    if line == expected:
+        return
+    if proc.poll() is None:
+        proc.kill()
+    err = proc.communicate(timeout=30)[1]
+    raise AssertionError(
+        f"holder child said {line!r}, expected {expected!r} "
+        f"(rc={proc.returncode})\n{err}")
+
+
+def test_no_ace_outlives_two_holders_exiting_together(tmp_path):
+    """The invariant, with two real processes: after all holders exit, no ACE.
+
+    Both used to defer. P1's sweep ran while P2 was up, so P1 left the grants for
+    P2; P2's sweep ran while P1 was still up — it had not *finished* exiting —
+    so P2 left them for P1. Both then exited. Measured, 2 of 2 attempts before
+    the fix and reproduced deterministically here by making "at the same instant"
+    an explicit interleaving rather than a timing race::
+
+        P1 SWEPT [] record=kept
+        P2 SWEPT [] record=kept
+        both exited, rc: 0 0
+        ACE after ALL holders exited: True
+        holder records left: ['35232-....hold', '42164-....hold']
+
+    Four machine-wide ACEs standing on a developer's interpreter prefix with
+    nothing scheduled to collect them, and two orphaned records that no later
+    abax has any reason to consult, because both name processes that are gone and
+    neither is anybody's own.
+
+    The children share one holder directory (that is the point) but get their own
+    ACL mutex and their own throwaway "interpreter" — the production mutex is
+    machine-wide, and a test that took it would serialise against any abax the
+    developer has open.
+    """
+    root = os.path.dirname(os.path.dirname(os.path.abspath(sw.__file__)))
+    shared = tmp_path / "interpreter"
+    data = tmp_path / "data"
+    for d in (shared, data):
+        d.mkdir()
+    mutex = f"Local\\abax-test-acl-{os.getpid()}-{os.urandom(4).hex()}"
+    prog = _HOLDER_CHILD.format(root=root)
+
+    def _start(tag):
+        return subprocess.Popen(
+            [sys.executable, "-c", prog, str(data), str(shared),
+             str(tmp_path / ("scratch-" + tag)), mutex],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True)
+
+    holders = [_start("p1"), _start("p2")]
+    try:
+        for proc in holders:
+            _holder_says(proc, "GRANTED")
+        assert sw._container_ace_present(str(shared)) is True, \
+            "neither child granted anything, so the test proves nothing"
+        # Each sweeps while the other is still up: nobody has exited yet.
+        for proc in holders:
+            proc.stdin.write("sweep\n")
+            proc.stdin.flush()
+            _holder_says(proc, "SWEPT")
+        for proc in holders:
+            proc.stdin.write("exit\n")
+            proc.stdin.flush()
+            proc.stdin.close()
+        for proc in holders:
+            assert proc.wait(timeout=120) == 0, proc.stderr.read()
+
+        assert sw._container_ace_present(str(shared)) is False, (
+            "both holders deferred to the other and exited; the machine-wide "
+            "ALL APPLICATION PACKAGES grant is standing with nothing left that "
+            "will ever remove it")
+        assert os.listdir(str(data / sw._HOLDER_DIR_NAME)) == [], \
+            "records were orphaned, so a later abax cannot finish the job either"
+    finally:
+        for proc in holders:
+            if proc.poll() is None:
+                proc.kill()
+            proc.stdout.close()
+            proc.stderr.close()
+        _REAL_ICACLS(str(shared), "/remove", sw.ALL_APP_PACKAGES)
+
+
+# --------------------------------------------------------------------------- #
 # custom_spawn — the bespoke launcher's wiring
 # --------------------------------------------------------------------------- #
 
@@ -2188,15 +3272,17 @@ def test_cleanup_process_surfaces_the_grants_it_could_not_revoke(monkeypatch):
     ("execute_macro", lambda b: b.execute_macro("m", [], None, {"sheets": []})),
 ])
 def test_a_refusal_surfaces_as_a_response_not_an_exception(monkeypatch, name, call):
-    """``SandboxGrantError`` must not unwind out of a Qt slot.
+    """``SandboxGrantError`` must reach the user as a message, not as a traceback.
 
-    ``ConsoleBridge._roundtrip`` calls ``_spawn`` for every execution op, and two
-    of the three callers run *synchronously on the GUI thread*: ``_run_macro``
-    (``abax/gui/mixin_macros.py``) and the Run-script path both call the bridge
-    from inside a Qt slot with nothing catching around them. Only the console is
-    protected, and only by ``FuncWorker.run``'s blanket ``except Exception``. A
-    refusal escaping there is an exception unwinding through Qt — for a
-    condition the user is *supposed* to be told about in a message box.
+    ``ConsoleBridge._roundtrip`` calls ``_spawn`` for every execution op. This
+    used to say that two of the three callers run "synchronously on the GUI
+    thread", which was true when it was written and is no longer: ``_run_macro``
+    and the Run-script path now go through ``_run_io``/``FuncWorker`` like the
+    console (see the module docstring of ``abax/gui/mixin_macros.py``). The
+    conclusion is unchanged. Every caller is now behind ``FuncWorker.run``'s
+    blanket ``except Exception``, which turns a raise into the generic ``error``
+    signal — a failure dialog with no envelope handling and no operation-specific
+    title, for a condition the user is *supposed* to be told about precisely.
 
     So it comes back as the response ``_STRICT_UNAVAILABLE`` already uses, which
     all three callers handle: ``_apply_exec_response`` shows ``error`` and leaves
@@ -2245,6 +3331,163 @@ def test_an_ordinary_spawn_failure_still_propagates(monkeypatch):
             bridge.execute("1 + 1", {"sheets": []})
     finally:
         bridge.close()
+
+
+# --------------------------------------------------------------------------- #
+# ...and the GUI thread must not be the thread that pays for a grant walk
+# --------------------------------------------------------------------------- #
+
+
+class _StubWindow:
+    """The smallest thing ``MacroMixin``'s two entry points need.
+
+    Records what they hand to ``_run_io`` instead of starting a QThread, so the
+    property under test — *the bridge is not called before this method returns* —
+    is observable without a real window, a real thread or a real worker process.
+    """
+
+    def __init__(self, tmp_path):
+        self.bridge_calls: list = []
+        self.io: list = []
+        self.applied: list = []
+        self.status: list = []
+        self._macro_registry = _StubRegistry()
+        self._doc = _StubDoc()
+        self._tmp = tmp_path
+
+    def _exec_bridge(self):
+        window = self
+
+        class _Bridge:
+            def execute_macro(self, *a):
+                window.bridge_calls.append(("macro", a))
+                return {"output": "ok", "envelope": {"sheets": []}}
+
+            def execute_script(self, *a):
+                window.bridge_calls.append(("script", a))
+                return {"output": "ok", "envelope": {"sheets": []}}
+
+        return _Bridge()
+
+    def _current_cell(self):
+        return (0, 0)
+
+    def _run_io(self, worker, *, on_success, busy_msg):
+        self.io.append((worker, on_success, busy_msg))
+
+    def _apply_exec_response(self, resp, what):
+        self.applied.append((resp, what))
+        return True
+
+    def _set_status(self, msg):
+        self.status.append(msg)
+
+    def _require_code_consent(self, what="?"):
+        return True
+
+
+class _StubRegistry:
+    macros = {"m": object()}
+    sources = ["C:\\macros.py"]
+
+
+class _StubWorkbook:
+    def to_envelope(self):
+        return {"sheets": []}
+
+
+class _StubDoc:
+    workbook = _StubWorkbook()
+
+
+def _stub_window(tmp_path):
+    """A ``_StubWindow`` with the real ``MacroMixin`` behind it.
+
+    The two entry points, and the two ``_..._finished`` callbacks they hand to
+    ``_run_io``, come from the shipping mixin; everything they lean on comes from
+    the stub, which is listed first so it wins the MRO.
+    """
+    from abax.gui.mixin_macros import MacroMixin
+
+    return type("_StubMacroWindow", (_StubWindow, MacroMixin), {})(tmp_path)
+
+
+def test_the_gui_thread_does_not_wait_for_a_confinement_to_be_established(
+        tmp_path, monkeypatch):
+    """The Windows grant path is not something a Qt slot may block on.
+
+    ``custom_spawn`` establishes the AppContainer's ACL grants before it launches
+    anything: up to ``_ACL_MUTEX_GRANT_WAIT`` (60 s) waiting for another abax's
+    DACL walk, and then a walk of its own measured at 19-21 s over the real
+    interpreter prefix and ``sys.path``. A single spawn was measured blocking
+    36.7 s. ``_run_macro`` and Run-script used to call the bridge straight from a
+    Qt slot, so all of that — plus the user's code, which these two pass no
+    ``timeout`` for — was paid with the window frozen.
+
+    Neither the wait nor the walk can be tuned away (see the note above
+    ``_acl_mutex``: a shorter wait only converts itself into the redundant walk
+    of ``trust_probe=False``, and the first strict spawn of a session has a full
+    walk to pay regardless). So the thread changed instead. What this pins is
+    exactly that: **the bridge has not been called by the time the entry point
+    returns**, and the call it eventually makes is inside the worker handed to
+    ``_run_io``.
+    """
+    pytest.importorskip("abax.gui._qtcompat")
+
+    win = _stub_window(tmp_path)
+    win._run_macro("m")
+
+    assert win.bridge_calls == [], \
+        "the macro entry point blocked on the bridge before returning"
+    assert len(win.io) == 1, "the macro run never reached the worker-thread path"
+    worker, on_success, busy = win.io[0]
+    assert "m" in busy, busy
+
+    # A real FuncWorker, so `_run_io` will really move it to a QThread — not a
+    # stand-in that happens to satisfy the assertions below.
+    from abax.workers import FuncWorker
+
+    assert isinstance(worker, FuncWorker)
+    # The blocking call lives in the worker's callable, and only there.
+    resp = worker._fn()
+    assert win.bridge_calls == [("macro", ("m", ["C:\\macros.py"], (0, 0),
+                                           {"sheets": []}))]
+    # ...and applying it is the GUI thread's job again, via on_success.
+    on_success(resp)
+    assert win.applied == [(resp, "Macro")]
+    assert win.status and win.status[-1].startswith("ran macro m")
+
+
+def test_the_gui_thread_does_not_wait_for_a_script_run_either(
+        tmp_path, monkeypatch):
+    """The same property for Run-script, which is the other synchronous caller."""
+    pytest.importorskip("abax.gui._qtcompat")
+    from abax.gui import _qtcompat
+
+    script = tmp_path / "s.py"
+    script.write_text("x = 1\n", encoding="utf-8")
+
+    class _Dialog:
+        @staticmethod
+        def getOpenFileName(*a, **k):     # noqa: N802 - Qt's name
+            return str(script), ""
+
+    monkeypatch.setattr(_qtcompat, "QFileDialog", _Dialog)
+
+    win = _stub_window(tmp_path)
+    win.run_script()
+
+    assert win.bridge_calls == [], \
+        "the Run-script entry point blocked on the bridge before returning"
+    assert len(win.io) == 1
+    worker, on_success, busy = win.io[0]
+    assert "s.py" in busy, busy
+
+    resp = worker._fn()
+    assert win.bridge_calls == [("script", ("x = 1\n", str(script),
+                                            {"sheets": []}))]
+    on_success(resp)
+    assert win.applied == [(resp, "Run script")]
 
 
 # --------------------------------------------------------------------------- #

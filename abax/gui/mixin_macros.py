@@ -5,9 +5,35 @@ worker as the Python console (sandbox Phase 1) — a crash, runaway allocation,
 or hang there cannot take down the GUI, and the worker is resource-limited
 (Phase 2). Loading a macro/UDF file still executes it in-process (UDFs must be
 callable by the formula engine), which is what the consent gate covers.
+
+**And off the GUI thread, which the two entry points here used to ignore.**
+``_run_macro`` and :meth:`run_script` called the bridge *synchronously from a Qt
+slot*, so everything the bridge does before a result comes back was paid with
+the window frozen: spawning the worker, and — in strict mode on Windows —
+establishing the AppContainer's ACL grants. That last part is not a fast
+operation and never was. Granting ALL APPLICATION PACKAGES read+execute on the
+interpreter prefix is a full DACL propagation walk, measured at 19-21 s on this
+platform (``abax/sandbox_windows.py``, the note above ``_hold_session_grant``),
+and since those grants became serialised across processes a spawn may *also*
+wait up to ``_ACL_MUTEX_GRANT_WAIT`` (60 s) for another abax's walk to finish
+before starting its own. A single spawn was measured blocking 36.7 s. The user
+code itself is on top of that and is unbounded — these two calls pass no
+``timeout``, so a macro that runs for a minute froze the window for a minute
+even with no sandbox in sight.
+
+So both now go through :meth:`~abax.gui.mixin_io.DocumentIOMixin._run_io` with a
+:class:`~abax.workers.FuncWorker`, which is the lifecycle the Python console has
+always used (``abax/gui/console/pyconsole.py``) and the one six file operations
+in ``mixin_io.py`` already use: the blocking call happens on a QThread, the
+window keeps painting, the busy cursor and progress bar say so, and the response
+is applied back on the GUI thread from ``_on_io_result``. The envelope, the
+macro sources and the cursor are snapshotted *here*, before the thread starts —
+the worker callable must touch no widgets and no document (spec §7).
 """
 
 from __future__ import annotations
+
+import os
 
 from ..core.reference import to_a1
 
@@ -49,9 +75,25 @@ class MacroMixin:
 
             QMessageBox.critical(self, "Macro failed", f"no such macro: {name!r}")
             return
-        resp = self._exec_bridge().execute_macro(
-            name, registry.sources, self._current_cell(),
-            self._doc.workbook.to_envelope())
+        from ..workers import FuncWorker
+
+        # Everything the worker callable needs, read here on the GUI thread: the
+        # bridge object (constructing it is cheap — the ~20 s work is inside
+        # `execute_macro`), and copies of the registry sources, the cursor and
+        # the workbook. The callable itself closes over those four values and
+        # nothing else — no `self`, no widget, no document (spec §7). `on_success`
+        # does touch `self`, and may: it is delivered back on the GUI thread.
+        bridge = self._exec_bridge()
+        sources = list(registry.sources)
+        cursor = self._current_cell()
+        envelope = self._doc.workbook.to_envelope()
+        self._run_io(
+            FuncWorker(lambda: bridge.execute_macro(name, sources, cursor, envelope)),
+            on_success=lambda resp: self._macro_finished(resp, name),
+            busy_msg=f"running macro {name}...")
+
+    def _macro_finished(self, resp: dict, name: str) -> None:
+        """Apply a finished macro run. Back on the GUI thread (queued signal)."""
         if not self._apply_exec_response(resp, "Macro"):
             return
         out = (resp.get("output") or "").strip().splitlines()
@@ -99,7 +141,8 @@ class MacroMixin:
         The script gets the console namespace (``wb``, ``sheet()``, ``cell``,
         ``put``, the engineering toolkit, …) in a fresh scope; the workbook
         crosses as an envelope and comes back with the script's edits. A crash
-        or runaway in the script is contained to the worker process.
+        or runaway in the script is contained to the worker process, and the run
+        itself is contained to a worker *thread* (module docstring).
         """
         if not self._require_code_consent("Running a Python script"):
             return
@@ -115,8 +158,17 @@ class MacroMixin:
         except OSError as exc:
             QMessageBox.critical(self, "Run script", str(exc))
             return
-        resp = self._exec_bridge().execute_script(
-            src, path, self._doc.workbook.to_envelope())
+        from ..workers import FuncWorker
+
+        bridge = self._exec_bridge()
+        envelope = self._doc.workbook.to_envelope()
+        self._run_io(
+            FuncWorker(lambda: bridge.execute_script(src, path, envelope)),
+            on_success=lambda resp: self._script_finished(resp, path),
+            busy_msg=f"running script {os.path.basename(path)}...")
+
+    def _script_finished(self, resp: dict, path: str) -> None:
+        """Apply a finished script run. Back on the GUI thread (queued signal)."""
         if not self._apply_exec_response(resp, "Run script"):
             return
         self._set_status(f"ran script {path}")
