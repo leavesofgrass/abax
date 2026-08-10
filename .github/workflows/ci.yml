@@ -99,9 +99,11 @@ jobs:
   # the stack is a large download and the code behind those gates is
   # platform-independent pure Python. It does not widen the 12-cell matrix.
   #
-  # Still skipped here, their libs living in extras this job doesn't install:
-  # h5py (`hdf5`), pyreadstat (`stats-io`), sgp4 (`satellite`). Widen the
-  # install below if the CI download budget ever allows.
+  # `hdf5`, `stats-io` and `satellite` are installed too. They were held back on
+  # a CI download budget that turned out not to bind: each is a SINGLE
+  # dependency (h5py, pyreadstat, sgp4), a few MB between them — not the ~0.84 GB
+  # `[all]` install the budget was really about. Their import gates were the last
+  # ones skipping on all 12 matrix cells.
   science:
     name: science extras (numpy/pandas/scipy suite the matrix skips)
     runs-on: ubuntu-latest
@@ -124,8 +126,8 @@ jobs:
       - name: Install headless Qt system libs (Linux)
         run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1
 
-      - name: Install project (dev + thin + science extras)
-        run: python -m pip install -e ".[dev,thin,science]"
+      - name: Install project (dev + thin + science + the three single-dep extras)
+        run: python -m pip install -e ".[dev,thin,science,hdf5,stats-io,satellite]"
 
       # Same headless-Qt invocation as the check/coverage jobs: xvfb-run for the
       # QApplication the GUI tests build, offscreen platform from the job env,
@@ -152,19 +154,23 @@ jobs:
       - name: Run the full suite (science import gates open)
         run: xvfb-run -a python -m pytest -n auto --timeout=300 --timeout-method=thread
 
-  # ── Coverage ratchet on abax/core (+ engine, reported) ─────────────────────
-  # A floor, not an aspiration: the core floor is set just under the current
-  # measured coverage, so the gate only ratchets upward. Runs once (Linux /
-  # 3.13) — coverage of pure-Python logic is platform-independent. One suite run
-  # collects BOTH abax/core and abax/engine; we then report per-package so the
-  # core ratchet stays a hard gate while engine coverage is surfaced (not yet
-  # gated). NOTE: this job installs only `[dev,thin]`, so engine adapters that
-  # need the heavy optional deps (numpy/pandas/pymc/…) are importorskip'd and
-  # don't execute here — engine coverage is therefore the THIN-env number.
-  # Add `--fail-under=<N>` to the engine report to turn it into a ratchet once
-  # you've read the real thin-env % from a CI run.
+  # ── Coverage ratchets on abax/core and abax/engine ─────────────────────────
+  # Both packages are gated, and both gates fail in BOTH directions — below the
+  # floor (a regression) and too far above it (a floor nobody raised). That
+  # second half is what makes these ratchets rather than floors, and it exists
+  # because calling them ratchets for a year did not move them: core sat at 81
+  # against a measured 84, engine at 57 against a measured 63, i.e. a gate
+  # permitting a six-point regression while reporting success. See
+  # scripts/coverage_ratchet.py for the reasoning and the rejected alternatives.
+  #
+  # Runs once (Linux / 3.13) — coverage of pure-Python logic is
+  # platform-independent. One suite run collects BOTH packages; each is then
+  # gated separately. NOTE: this job installs only `[dev,thin]`, so engine
+  # adapters needing the heavy optional deps (numpy/pandas/pymc/…) are
+  # importorskip'd and don't execute here — engine coverage is the THIN-env
+  # number, and its floor must only ever be compared against another thin run.
   coverage:
-    name: coverage (abax/core ratchet + engine reported)
+    name: coverage (abax/core + abax/engine ratchets)
     runs-on: ubuntu-latest
     env:
       QT_QPA_PLATFORM: offscreen
@@ -191,18 +197,27 @@ jobs:
           xvfb-run -a python -m pytest -n auto
           --cov=abax/core --cov=abax/engine --cov-report=
 
-      # Floor = current measured coverage (81.49%) rounded DOWN to 81. This is a
-      # ratchet: raise it when coverage rises, never a number to chase.
-      - name: abax/core coverage ratchet (fail under the floor)
-        run: python -m coverage report --include="abax/core/*" --fail-under=81
+      # The human-readable table, once, for whoever reads the log. The verdict
+      # is the ratchet steps below; this step must not gate anything itself.
+      - name: Coverage report (informational)
+        run: python -m coverage report --include="abax/core/*,abax/engine/*"
 
-      # Engine ratchet. Thin-env coverage measured at 59% (adapters that need
-      # the heavy optional deps — numpy/pandas/pymc/… — are importorskip'd here,
-      # so npkernel/parquet/statfiles/… stay low). Floor 57 keeps a ~2-point
-      # buffer under the measured 59% for thin-env drift; raise it when engine
-      # coverage rises, never a number to chase.
-      - name: abax/engine coverage ratchet (fail under the floor)
-        run: python -m coverage report --include="abax/engine/*" --fail-under=57
+      # Floor = measured (84%) rounded DOWN, per the house rule that keeps a
+      # sub-point buffer. Slack 3: the gate demands a bump once real work puts
+      # coverage more than 3 points clear of the floor. Raising it is a one-line
+      # edit here, and the failure message names the number to write.
+      - name: abax/core coverage ratchet
+        run: >
+          python scripts/coverage_ratchet.py
+          --include "abax/core/*" --floor 83 --slack 3
+
+      # Thin-env number: adapters needing the heavy optional deps
+      # (numpy/pandas/pymc/…) are importorskip'd in this job, so
+      # npkernel/parquet/statfiles/… stay low. Measured 63%, floor 62.
+      - name: abax/engine coverage ratchet
+        run: >
+          python scripts/coverage_ratchet.py
+          --include "abax/engine/*" --floor 62 --slack 3
 
   # ── Benchmark regression gate ──────────────────────────────────────────────
   # Runs the recalc throughput gate against scripts/bench_baseline.json and
