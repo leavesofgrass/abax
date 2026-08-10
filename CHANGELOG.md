@@ -40,6 +40,34 @@ All notable changes to abax are documented here. The format follows
 
 ### Fixed
 
+- **The Windows sandbox's cross-process rendezvous was scoped to per-user
+  configuration rather than to the machine-wide resource it guards**
+  ([#12](https://github.com/leavesofgrass/abax/issues/12)). Holder records are
+  how separate abax processes announce "I am still relying on these ACEs" so the
+  last one out is the one that removes them — but they were written under
+  `DATA_DIR`. Any two processes that resolve `DATA_DIR` differently therefore
+  could not see each other at all: each found an empty directory, concluded it
+  was alone, and its exit sweep stripped the interpreter and package grants from
+  under the other's live confined worker, which then died with
+  `ModuleNotFoundError` on a module sitting right there on disk. A normal
+  single-user install resolves the same `DATA_DIR` everywhere, so the protocol
+  did work in the common case; what it never did was *get verified* — the tests
+  plant records into whatever directory the code names, so they pin the logic
+  and cannot see the rendezvous being wrong. Records now resolve from
+  `_runtime.SHARED_STATE_DIR`, which every process computes identically however
+  it was configured, and CI runs the Windows confinement tier under
+  `pytest -n auto` — two real processes being what it takes to observe any of
+  this.
+- **The exit sweep ignored whether it had actually taken the ACL mutex.**
+  `_acl_mutex` yields that flag and documents that "the caller must look"; the
+  grant path looked and the sweep did not, so on a timeout it revoked
+  unserialised, beside another process's DACL walk. Measured at 10 of 132 sweeps
+  under load. It now defers, which cannot strand the grants — its record stays,
+  marked retiring, and a retiring record is collectable by the next sweep that
+  does hold the mutex. Relatedly, a grantor now publishes its holder record on
+  entering that critical section rather than after the walk completes: it held
+  the mutex for ~20 s with nothing on disk saying it was about to launch a
+  confined child.
 - **Five shipped files pointed at documents no clone has** — working notes under
   the gitignored `dev/`. Two were published documentation pages, so they were
   dead ends for readers: `docs/architecture.md` and `docs/macros-and-scripting.md`

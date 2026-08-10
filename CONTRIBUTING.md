@@ -88,6 +88,12 @@ Prefer `-n auto`. Anything that mutates process-global state (resource limits,
 environment, working directory) must do it in a subprocess, or it leaks into
 whichever parallel worker happened to run it.
 
+Anything that mutates *machine*-wide state — the Windows sandbox tests grant
+ACLs on the real interpreter prefix — needs `@pytest.mark.xdist_group`, so all
+of it lands on one worker and runs in sequence. `--dist loadgroup` is set in
+`pyproject.toml` to make those marks take effect; without it xdist ignores them
+silently.
+
 ## Coverage ratchets
 
 CI gates `abax/core` and `abax/engine` with `scripts/coverage_ratchet.py`. It

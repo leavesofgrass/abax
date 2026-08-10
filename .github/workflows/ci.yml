@@ -87,6 +87,48 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
 
+  # ── The Windows confinement tier, in parallel ──────────────────────────────
+  # The `check` matrix runs the suite SERIALLY (`just test` has no `-n auto`),
+  # and the only job that runs it in parallel is `science`, on Ubuntu — where
+  # the Windows tier does not apply. So no cell anywhere ran this tier with more
+  # than one process, and issue #12 lived in that gap: holder records, which are
+  # how separate abax processes tell each other "I am still using these
+  # machine-wide ACEs", hung off a directory the test fixtures redirect per
+  # test. Every process looked somewhere private, found nobody, and swept ACEs
+  # out from under another process's live confined worker.
+  #
+  # It takes two real processes to see, which is the whole reason this job
+  # exists. Serially it is invisible: the tier passed 157/157 on the same commit
+  # that failed 2-3 tests per run under `-n auto`.
+  #
+  # One cell, three files, a couple of minutes. Deliberately not folded into the
+  # 12-cell matrix — this is about process count, not about Python versions.
+  sandbox-xdist:
+    name: windows confinement tier (parallel, issue #12)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install project (dev + thin extras)
+        run: python -m pip install -e ".[dev,thin]"
+
+      # Twice, because the failure was intermittent: a single green run is weak
+      # evidence about a race. Two costs another ~2 minutes and roughly squares
+      # the chance of noticing.
+      - name: Run the confinement tier under xdist (twice)
+        run: |
+          python -m pytest tests/test_sandbox.py tests/test_sandbox_windows.py tests/test_sandbox_gate.py -n auto -q --timeout=300 --timeout-method=thread
+          python -m pytest tests/test_sandbox.py tests/test_sandbox_windows.py tests/test_sandbox_gate.py -n auto -q --timeout=300 --timeout-method=thread
+
   # ── Science-extras suite (the half the thin matrix silently skips) ─────────
   # The `check` matrix installs `[dev,thin]`, and `thin` deliberately contains
   # NONE of the heavy data-science libraries — so eight test modules and ~25
