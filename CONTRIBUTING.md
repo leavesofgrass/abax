@@ -121,9 +121,9 @@ skipped there. Only ever compare it against another thin run.
 
 Open an issue: <https://github.com/leavesofgrass/abax/issues>.
 
-The most useful thing you can attach is the output of `abax --version` together
-with `abax doctor`, which reports your Python and platform, which optional
-dependencies are present, the active code-isolation level, and where abax keeps
-its config, data, cache and log directories. Please say what you expected and
-what happened instead — for anything involving the GUI, which front-end and Qt
-binding you're on.
+The most useful thing you can attach is the output of `abax doctor`. It reports
+the abax version and how it was built (installed package, zipapp, or frozen
+binary), your Python and platform, which optional dependencies are present, the
+active code-isolation level, and where abax keeps its config, data, cache and
+log directories. Please say what you expected and what happened instead — for
+anything involving the GUI, which front-end and Qt binding you're on.

@@ -69,6 +69,47 @@ def test_returns_zero_and_emits_key_sections(monkeypatch, tmp_path):
     assert "Summary: OK" in out
 
 
+def test_reports_the_abax_version(monkeypatch, tmp_path):
+    """The report shipped for months without the product version in it, so
+    "attach your doctor output" could not establish which release a user was on.
+
+    Asserts the *actual* version string, not the word "version" — the header
+    already contains "abax", and a substring that the report cannot fail to
+    contain would test nothing.
+    """
+    import abax
+
+    _code, out = _run(monkeypatch, tmp_path)
+    assert abax.__version__ in out, out
+
+
+def test_reports_how_abax_was_built(monkeypatch, tmp_path):
+    """Frozen binary, zipapp and installed package are debugged differently and
+    a bug report rarely says which is in play."""
+    _code, out = _run(monkeypatch, tmp_path)
+    assert "installed package" in out, out
+
+
+def test_build_kind_detects_a_frozen_bundle(monkeypatch):
+    """The branch a developer never runs: PyInstaller sets ``sys.frozen``."""
+    import sys as _sys
+
+    monkeypatch.setattr(_sys, "frozen", True, raising=False)
+    assert "frozen" in doctor._build_kind()
+
+
+def test_version_line_survives_an_unreadable_version(monkeypatch, tmp_path):
+    """Doctor's one hard rule is that it never crashes. A version that cannot be
+    read must degrade to a report line, since a broken install is exactly when
+    someone runs this."""
+    import abax
+
+    monkeypatch.delattr(abax, "__version__", raising=False)
+    code, out = _run(monkeypatch, tmp_path)
+    assert "(unknown)" in out, out
+    assert code == 0, out          # an unreadable version is not a health failure
+
+
 def test_dependency_matrix_reuses_diagnostics(monkeypatch, tmp_path):
     """Every optional dep in the diagnostics registry appears in the report."""
     from abax import diagnostics

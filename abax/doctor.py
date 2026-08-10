@@ -1,7 +1,9 @@
 """``abax doctor`` — an aggregated environment health report.
 
 A read-only diagnostic that answers "why isn't X working here?" in one shot:
-the Python/platform it's running on, which optional dependencies are present
+which abax this is (version, and whether it's a frozen binary, a zipapp or an
+installed package), the Python/platform it's running on, which optional
+dependencies are present
 (and what each falls back to without them), the code-isolation level and which
 OS sandbox confinement is selected/available, the runtime directories and
 whether each is writable, and whether ``settings.json`` parses.
@@ -48,6 +50,47 @@ def _section(stream, title: str) -> None:
     _write(stream)
     _write(stream, title)
     _write(stream, "-" * len(title))
+
+
+def _build_kind() -> str:
+    """How this abax is running: frozen binary, zipapp, or an installed package.
+
+    Reported because the three are debugged differently — a frozen bundle can't
+    gain modules at runtime, and a zipapp has no writable package directory —
+    and a bug report rarely says which one is in play.
+    """
+    if getattr(sys, "frozen", False):
+        return "frozen binary (PyInstaller)"
+    try:
+        if ".pyz" in str(Path(__file__).resolve()).lower():
+            return "zipapp (abax.pyz)"
+    except Exception:
+        pass
+    return "installed package"
+
+
+def _abax_build(stream) -> None:
+    """Which abax this is — the first question any bug report has to answer.
+
+    Deliberately the opening section: the report was shipped for months without
+    the product version anywhere in it, so "attach your doctor output" could not
+    establish which release a user was on.
+    """
+    _section(stream, "abax")
+    try:
+        from . import __version__
+        _write(stream, f"  version     : {__version__}")
+    except Exception:
+        # A version that can't be read is itself worth seeing in a bug report.
+        _write(stream, "  version     : (unknown)")
+    try:
+        _write(stream, f"  build       : {_build_kind()}")
+    except Exception:
+        pass
+    try:
+        _write(stream, f"  location    : {Path(__file__).resolve().parent}")
+    except Exception:
+        pass
 
 
 def _python_and_platform(stream) -> None:
@@ -306,6 +349,11 @@ def run_doctor(stream=None) -> int:
     exit_code = OK
 
     # Each section is guarded so one failure can't abort the rest of the report.
+    try:
+        _abax_build(stream)
+    except Exception as exc:  # noqa: BLE001
+        _write(stream, f"  (abax build probe failed: {exc!r})")
+
     try:
         _python_and_platform(stream)
     except Exception as exc:  # noqa: BLE001

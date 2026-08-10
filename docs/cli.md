@@ -392,18 +392,27 @@ If the macro is not found or fails, abax prints the error to standard error and 
 
 ### `doctor` — environment health report
 
-Prints a self-diagnostic: Python version and platform, the optional-dependency
-matrix (what's installed vs. available), the active **code-isolation** level and
-which sandbox confinement is selected/available, the runtime directories
-(config / data / cache / log) and whether each is writable, and whether
-`settings.json` parses. It never installs anything and never crashes when a
-confinement or directory is unavailable — a quick first stop when a feature seems
-missing.
+Prints a self-diagnostic: the abax version and how it was built (installed
+package, zipapp, or frozen binary), Python version and platform, the
+optional-dependency matrix (what's installed vs. available), the active
+**code-isolation** level and which sandbox confinement is selected/available,
+the runtime directories (config / data / cache / log) and whether each is
+writable, and whether `settings.json` parses. It never installs anything and
+never crashes when a confinement or directory is unavailable — a quick first
+stop when a feature seems missing, and the most useful thing to attach to a bug
+report.
 
 ```console
 $ abax doctor
 abax doctor — environment health report
 =======================================
+
+abax
+----
+  version     : 0.1.19
+  build       : installed package
+  location    : /usr/lib/python3.13/site-packages/abax
+
 Python & platform
   python      : 3.13.0 (CPython)
   ...

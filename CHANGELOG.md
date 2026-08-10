@@ -12,6 +12,11 @@ All notable changes to abax are documented here. The format follows
 
 ### Added
 
+- **`abax doctor` now opens with the abax version** and how it was built —
+  installed package, zipapp, or frozen binary — plus where the package lives.
+  The report existed to be attached to bug reports and did not say which release
+  it came from; the three build kinds are also debugged differently, and a report
+  rarely says which is in play.
 - **`CONTRIBUTING.md`** — the conventions that were previously tribal knowledge:
   the explicit-encoding rule and why it exists, how to run the suite headless,
   the requirement that a new test be able to fail, why a skipped test is the
