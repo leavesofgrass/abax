@@ -231,7 +231,7 @@ real boundary only where a platform primitive exists and the self-test passes, a
 refuses everywhere else.
 The GUI gates all code execution behind a one-time consent prompt (`ConsoleMixin`,
 the `code_consent` setting) that states the active level plainly. See
-[macros and scripting](macros-and-scripting.md) and `dev/sandbox-design.md`.
+[macros and scripting](macros-and-scripting.md) for how to choose a level.
 
 **Third-party plugins (`plugins.py`).** abax can also be extended by *installed*
 packages that advertise user-defined functions or file-format importers/exporters

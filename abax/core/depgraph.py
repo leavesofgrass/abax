@@ -25,7 +25,7 @@ the edit's static closure. So spilling workbooks stay incremental — only edits
 *interact* with a spill (redefine/remove an array formula, land inside a live spill
 region, unblock a ``#SPILL!``, or feed an anchor) take the sound full clear; every
 other edit is scoped precisely even when spills exist elsewhere. Standalone sheets
-(no workbook) keep the blanket clear. See ``dev/roadmap.md`` (WS1).
+(no workbook) keep the blanket clear.
 
 Pure stdlib — the ``abax.core`` invariant. Toggle the whole feature with
 :data:`ABAX_INCREMENTAL` (``False`` restores the blanket-clear behaviour exactly,

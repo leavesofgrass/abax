@@ -10,6 +10,40 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`CONTRIBUTING.md`** — the conventions that were previously tribal knowledge:
+  the explicit-encoding rule and why it exists, how to run the suite headless,
+  the requirement that a new test be able to fail, why a skipped test is the
+  dangerous kind, and how to respond when a coverage ratchet asks to be raised.
+- **`scripts/coverage_ratchet.py`** — the coverage gate, replacing bare
+  `--fail-under` floors.
+
+### Changed
+
+- **The coverage gates are now real ratchets.** They fail in *both* directions:
+  below the floor (a regression, as before) and more than a few points above it
+  (a floor nobody raised, which silently permits the regression it exists to
+  catch). Calling them ratchets had not moved them — `abax/core` sat at 81
+  against a measured 84 and `abax/engine` at 57 against a measured 63, i.e. a
+  gate tolerating a six-point drop while reporting success. Floors are now 83
+  and 62.
+- **CI's science job installs `hdf5`, `stats-io` and `satellite` too**, opening
+  the last import gates (h5py, pyreadstat, sgp4) that skipped on all 12 matrix
+  cells. They had been held back on a CI download budget that did not apply:
+  each is a single dependency, a few MB in total.
+
+### Fixed
+
+- **Five shipped files pointed at documents no clone has** — working notes under
+  the gitignored `dev/`. Two were published documentation pages, so they were
+  dead ends for readers: `docs/architecture.md` and `docs/macros-and-scripting.md`
+  now link to the sandboxing section of the architecture guide, and the notes
+  that `abax/sandbox_windows.py` and `abax/core/depgraph.py` deferred to are
+  stated inline. A new test keeps shipped files from referencing gitignored
+  documents again; nothing could previously catch it, since the targets resolve
+  on the author's machine and `mkdocs --strict` does not check inline paths.
+
 ## [0.1.19] — 2026-08-09
 
 ### Fixed
@@ -1253,7 +1287,8 @@ and quality tooling (CI matrix, benchmark + coverage gates)._
     OS sandbox is available, the **Phase 4** AST-allowlist executor
     (`restricted.py`) offers *labelled hardening* (not a security boundary)
     against accidental harm. Also settable via `ABAX_SANDBOX_STRICT=1`.
-- **Code-execution sandbox — Phases 1 & 2** (see `dev/sandbox-design.md`). The
+- **Code-execution sandbox — Phases 1 & 2** (see
+  [Code execution & sandboxing](docs/architecture.md)). The
   GUI's **script runner and command macros now run out-of-process** in the same
   isolated worker as the Python console (`console_worker.py` grew `exec` /
   `script` / `macro` ops; `ConsoleBridge` grew `execute_script`/`execute_macro`),

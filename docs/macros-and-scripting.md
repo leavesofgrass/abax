@@ -65,8 +65,9 @@ See also: [Python console](python-console.md) · [Terminal](terminal.md) ·
 > Regardless of level, loading a macro/UDF *file* executes it in-process (a UDF
 > must be callable by the formula engine — that is what the consent gate covers),
 > and the CLI (`abax macro run`) / TUI (`:macro`) run macros in-process — there
-> you are running code you invoked on yourself. See `dev/sandbox-design.md` for
-> the full design.
+> you are running code you invoked on yourself. See
+> [Code execution & sandboxing](architecture.md#code-execution--sandboxing) for
+> the threat model and what each level does and does not promise.
 >
 > The GUI gates all of these behind a one-time **consent prompt**: the first time
 > you open the console/terminal or run a script/macro, abax warns you and asks you

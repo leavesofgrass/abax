@@ -75,7 +75,9 @@ console, not as the report. What actually surfaces is the raised
 :class:`SandboxGrantError`, the list :func:`cleanup_process` hands back to the
 bridge (unrevoked grant paths *and* an undeleted profile name), and the worker's
 own selftest. Installing a handler is an abax-wide
-change and deliberately not made here; see ``dev/lessons-learned.md``.
+change and deliberately not made here: a handler belongs at an entry point
+(``abax/app.py``, ``abax/gui/runner.py``), never at import of a library module,
+or importing abax would start reconfiguring its host's logging.
 
 Pure stdlib (atexit, contextlib, ctypes, _winapi, msvcrt, os, sys, threading,
 subprocess for icacls). No deps — ``contextlib`` is already loaded by
