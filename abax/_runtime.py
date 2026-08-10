@@ -97,6 +97,22 @@ else:
 
 EXCHANGE_DIR = DATA_DIR / "exchange"
 
+#: ``DATA_DIR`` as this machine actually resolves it, kept pristine.
+#:
+#: The four dirs above are *redirected per test* (``conftest``'s
+#: ``abax_user_dirs``), which is right for anything that persists user state —
+#: a test must not overwrite the developer's real settings. It is wrong for the
+#: one thing that is not user state: a rendezvous point where **separate abax
+#: processes** have to find each other. Redirect that and each process looks in
+#: its own private directory, finds nobody, and concludes it is alone
+#: (issue #12).
+#:
+#: So this is the anchor for cross-process coordination, and nothing else.
+#: Deliberately not a second way to spell ``DATA_DIR``: read it only when the
+#: answer must be the same in every process on the machine, whatever any one of
+#: them has been configured to use.
+SHARED_STATE_DIR = DATA_DIR
+
 for _d in (CONFIG_DIR, DATA_DIR, CACHE_DIR, LOG_DIR, EXCHANGE_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 

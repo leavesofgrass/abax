@@ -1070,6 +1070,12 @@ def _acl_mutex(timeout: float, what: str):
 _HOLDER_DIR_NAME = "sandbox-acl-holders"
 _HOLDER_SUFFIX = ".hold"
 
+#: Overrides :func:`_holder_dir` wholesale, for tests that plant fake records
+#: and need a child process to see the same directory — which patching the
+#: function cannot do. Per test, never session-wide. Every cooperating process
+#: must be given the same value; disagreeing is precisely issue #12.
+_HOLDER_DIR_ENV = "ABAX_SANDBOX_HOLDER_DIR"
+
 #: First line of a record whose writer has entered its exit sweep. Not an
 #: absolute path, so :func:`_holder_record_paths` skips it like any other noise.
 _HOLDER_RETIRING_MARK = "#retiring"
@@ -1092,13 +1098,54 @@ _HOLDER_RECORD_WRITTEN: "tuple[bool, tuple[str, ...]] | None" = None
 
 
 def _holder_dir() -> str:
-    """Where holder records live. Resolved per call, not captured at import.
+    """Where holder records live — a **rendezvous**, not user state.
 
-    ``_runtime.DATA_DIR`` is redirected per test by ``conftest``'s
-    ``abax_user_dirs``, and a module-level capture would write the developer's
-    real profile from the test suite.
+    Every other abax directory is per-user configuration, and ``conftest``'s
+    ``abax_user_dirs`` redirects them per test so a test cannot overwrite the
+    developer's real settings. This one must not follow, and issue #12 is what
+    happens when it does: records went to a fresh temp directory *per test*,
+    while the ACEs they coordinate are machine-wide. Every process then scanned
+    its own private directory, found nobody, and concluded it was the last
+    holder out — so an exit sweep stripped the standard library from under
+    another process's live worker, which died with ``ModuleNotFoundError`` on an
+    abax module that was right there on disk.
+
+    The whole cross-process protocol was inert: the mutex serialised processes
+    that could not then see each other's records. Note what that means for the
+    tests below — they plant records into whatever this returns, so they verify
+    the *logic* faithfully and could never have caught the *namespace* being
+    wrong. It took two real processes to show it.
+
+    Scope has to match the resource. The ACEs are machine-wide and the mutex
+    (:data:`_ACL_MUTEX_NAME`) is ``Local\\``, i.e. the logon session, so the
+    records are anchored to :data:`abax._runtime.SHARED_STATE_DIR` — resolved
+    the same way in every process regardless of how any one of them was
+    configured.
+
+    Where, specifically, is itself a security decision: a principal who can
+    plant a record here makes abax skip its own cleanup and leave read ACEs
+    standing on the interpreter prefix. Under the user's data dir, not a
+    world-writable one — ``test_holder_records_live_under_the_user_data_dir``
+    pins that, and it is why :data:`_HOLDER_DIR_ENV` is not a general-purpose
+    knob.
+
+    That override exists for one narrow job: a test that plants *fake* records
+    needs them somewhere no real sweep will read, and it has to reach a child
+    process, which patching this function does not. It is set per test, never
+    session-wide — the suite as a whole writes here, like the product, because
+    a suite that hid from the rendezvous would sweep an app's ACEs out from
+    under it (see ``tests/conftest.py``).
+
+    Setting it any other way is unsupported in both directions: point two abax
+    processes at different directories and issue #12 is back, point one at a
+    directory other principals can write and they inherit the sweep. It grants
+    no capability an attacker who can already set ``LOCALAPPDATA`` for this
+    process does not have.
     """
-    return os.path.join(str(_rt.DATA_DIR), _HOLDER_DIR_NAME)
+    override = os.environ.get(_HOLDER_DIR_ENV)
+    if override:
+        return override
+    return os.path.join(str(_rt.SHARED_STATE_DIR), _HOLDER_DIR_NAME)
 
 
 def _self_create_time() -> "int | None":
@@ -1532,7 +1579,7 @@ def _revoke_session_grants() -> "list[str]":
             # `_register_session_sweep` for why this cannot happen on Windows
             # today and why it is checked anyway.
             return []
-        with _acl_mutex(_ACL_MUTEX_SWEEP_WAIT, "the exit sweep"):
+        with _acl_mutex(_ACL_MUTEX_SWEEP_WAIT, "the exit sweep") as serialised:
             got = _SESSION_GRANTS_LOCK.acquire(timeout=_SESSION_SWEEP_LOCK_WAIT)
             try:
                 held = list(_SESSION_GRANTS.values())
@@ -1563,6 +1610,31 @@ def _revoke_session_grants() -> "list[str]":
                         keys.add(_shared_key(path))
                         ours.append(path)
             live, stale = _scan_holder_records()
+            if not serialised:
+                # We are here without the mutex, which means another process is
+                # inside the grant path right now — and a grantor holds the
+                # mutex across a ~20 s DACL walk, publishing its record only
+                # once the walk lands. So the scan above cannot be trusted to
+                # have seen it, and removing these ACEs would strip a worker
+                # that is starting as we look.
+                #
+                # Defer, exactly as for a live holder. `_acl_mutex` yields this
+                # flag because "the caller must look"; the grant path looked and
+                # this one did not, which left a spawn in flight indistinguish-
+                # able from nobody being there at all.
+                #
+                # Deferring cannot strand the ACEs: our record stays, marked
+                # retiring, and a retiring record is collectable — so the next
+                # sweep that *does* get the mutex unions these paths in and
+                # takes them off. Late cleanup over a stripped worker is the
+                # same trade `_scan_holder_records` makes for every other way of
+                # not knowing.
+                if ours or (mine and os.path.exists(mine)):
+                    _retire_holder_record(ours)
+                _log.warning("sandbox: the exit sweep could not serialise "
+                             "against a concurrent grant; leaving the shared "
+                             "grants for a later sweep")
+                return []
             if live:
                 # W1: another abax is running on these ACEs right now. Leave them
                 # standing and leave OUR record behind carrying our paths, marked
@@ -1691,6 +1763,16 @@ def _grant_container_access(
     if granted is None:
         granted = []
     with _acl_mutex(_ACL_MUTEX_GRANT_WAIT, "granting the shared read paths") as m:
+        # Announce before walking, not after. `_hold_session_grant` publishes
+        # once a grant lands, which is up to ~20 s of DACL walking away — and
+        # for that whole window this process holds the mutex, is about to
+        # launch a confined child, and has nothing on disk saying so. A sweep
+        # that gave up waiting for the mutex (see `_revoke_session_grants`)
+        # scanned into that gap and found an empty directory. The record is
+        # rewritten with the real paths as each grant lands; what matters here
+        # is that it exists at all, because existence is what makes a sweeper
+        # defer.
+        _publish_holder_record()
         # The scratch dir: full modify (the worker writes here). Deliberately
         # *not* session-held — it is this worker's own `mkdtemp`, it carries
         # write access, and it is granted and revoked unconditionally with the
