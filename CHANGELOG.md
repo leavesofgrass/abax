@@ -10,6 +10,8 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.19] — 2026-08-09
+
 ### Fixed
 - **Implicit text encodings, swept as a class rather than one at a time** —
   twelve call sites across nine modules left their encoding to the platform
