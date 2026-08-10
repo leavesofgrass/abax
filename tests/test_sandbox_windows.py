@@ -49,10 +49,15 @@ import pytest
 
 from abax import sandbox as sb
 from abax import sandbox_windows as sw
+from tests.conftest import ACL_GROUP
 
-pytestmark = pytest.mark.skipif(
-    sys.platform != "win32", reason="Windows AppContainer only"
-)
+#: Windows-only, and — under xdist — pinned to one worker with everything else
+#: that grants the real interpreter prefix. See ``ACL_GROUP`` in conftest.
+pytestmark = [
+    pytest.mark.skipif(sys.platform != "win32",
+                       reason="Windows AppContainer only"),
+    pytest.mark.xdist_group(ACL_GROUP),
+]
 
 # CREATE_NO_WINDOW — what the bridge passes so a confined child never flashes a
 # console window (abax.gui.console.console_bridge._spawn).
@@ -255,8 +260,23 @@ def session_grants_isolated():
 
 
 @pytest.fixture
-def own_session_table(monkeypatch):
-    """Give this test a private, empty copy of the session grant table.
+def own_session_table(monkeypatch, tmp_path):
+    """Give this test a private, empty copy of the session grant table — and a
+    private rendezvous to match.
+
+    The two belong together. A test with a private table drives the *whole* exit
+    sweep against throwaway paths, and the sweep's first question is "is any
+    other process still relying on these?" — asked of the holder directory,
+    which every process in the run now shares (issue #12). Left shared, this
+    test reads another xdist worker's genuine record, defers to it, and fails an
+    assertion about its own throwaway ACEs; and its own planted fakes are read
+    back by whoever runs next. Neither is about the code under test.
+
+    Sound only because the paths here are fake: ``shared_paths`` redirects
+    ``_needed_read_dirs`` and friends into ``tmp_path``, so this sweep can never
+    remove an ACE a live worker anywhere is using. A test that swept the real
+    interpreter prefix would need the shared directory, and would be the very
+    scenario #12 is about.
 
     Two reasons, and both are consequences of the table being process-wide by
     design rather than of anything wrong with it:
@@ -277,6 +297,10 @@ def own_session_table(monkeypatch):
     """
     private: "dict[str, tuple[str, str]]" = {}
     monkeypatch.setattr(sw, "_SESSION_GRANTS", private)
+    # setenv rather than patching _holder_dir, so a child process this test
+    # spawns inherits the same directory and still finds its parent's record.
+    monkeypatch.setenv(sw._HOLDER_DIR_ENV, str(tmp_path / "holders"))
+    monkeypatch.setattr(sw, "_HOLDER_RECORD_WRITTEN", None)
     yield private
     for path, _ace in list(private.values()):
         if os.path.exists(path):
@@ -2102,6 +2126,32 @@ def test_a_process_that_died_holding_the_acl_mutex_does_not_wedge_the_next(
 # --- the cross-process holder record (W1) ------------------------------------
 
 
+#: Records planted by the current test, removed when it ends. The holder
+#: directory is deliberately shared by every process in the run (issue #12 was
+#: it *not* being shared), so it is no longer a fresh directory per test and a
+#: fake left behind is read by whatever runs next: as a live holder it wedges
+#: the following test's sweep, as a stale one it invites a sweep of paths that
+#: test never granted. Both were seen — five tests failed in sequence and each
+#: passed alone.
+#:
+#: Only what this test planted is removed. Deleting everything would be the
+#: original bug wearing a different hat: under ``-n auto`` another process's
+#: genuine record is in that directory, and dropping it is precisely how a live
+#: worker loses its standard library.
+_PLANTED_HOLDER_RECORDS: "list[str]" = []
+
+
+@pytest.fixture(autouse=True)
+def _remove_records_this_test_planted():
+    yield
+    while _PLANTED_HOLDER_RECORDS:
+        record = _PLANTED_HOLDER_RECORDS.pop()
+        try:
+            os.unlink(record)
+        except OSError:
+            pass
+
+
 def _plant_holder(pid: int, created: int, paths=(), *, retiring=False) -> str:
     """A holder record for *pid*, as another process would have left it.
 
@@ -2112,6 +2162,7 @@ def _plant_holder(pid: int, created: int, paths=(), *, retiring=False) -> str:
     os.makedirs(sw._holder_dir(), exist_ok=True)
     record = os.path.join(sw._holder_dir(),
                           f"{pid}-{created}{sw._HOLDER_SUFFIX}")
+    _PLANTED_HOLDER_RECORDS.append(record)
     body = "".join(str(p) + "\n" for p in paths)
     if retiring:
         body = sw._HOLDER_RETIRING_MARK + "\n" + body
@@ -2386,7 +2437,7 @@ def test_publishing_a_holder_record_leaves_no_partial_file(shared_paths):
     assert not any(n.endswith(".new") for n in names)
 
 
-def test_holder_records_live_under_the_user_data_dir(shared_paths):
+def test_holder_records_live_under_the_user_data_dir(shared_paths, monkeypatch):
     """Not a world-writable location, and the reason is the sweep.
 
     A record someone else could plant makes abax skip its own cleanup — the ACEs
@@ -2399,15 +2450,26 @@ def test_holder_records_live_under_the_user_data_dir(shared_paths):
     who *can* write here would actually gain (less than dropping an ``init.py``
     in the same directory, which is executed as arbitrary Python by design). What
     this test pins is the placement itself: a shared temp directory would not do.
+
+    Measured with the override cleared, i.e. against what a *user* gets. It used
+    to compare with ``rt.DATA_DIR`` as the running test saw it — which conftest
+    redirects per test, so the assertion held while the records were scattered
+    across a fresh temp directory per test and no two processes could find each
+    other (issue #12). Reading the redirected value made the bug look like the
+    invariant.
     """
     import abax._runtime as rt
 
     sw._grant_container_access(str(shared_paths[1]))
-    holder = os.path.normcase(os.path.abspath(sw._holder_dir()))
 
-    assert holder.startswith(os.path.normcase(os.path.abspath(str(rt.DATA_DIR))))
-    assert os.path.normcase(os.path.abspath(sw._holder_record_path())) \
-        .startswith(holder)
+    monkeypatch.delenv(sw._HOLDER_DIR_ENV, raising=False)
+    shipped = os.path.normcase(os.path.abspath(sw._holder_dir()))
+    record = os.path.normcase(os.path.abspath(sw._holder_record_path()))
+
+    real_data_dir = os.path.normcase(os.path.abspath(str(rt.SHARED_STATE_DIR)))
+    assert shipped.startswith(real_data_dir), (
+        f"holder records would live outside the user data dir: {shipped}")
+    assert record.startswith(shipped)
 
 
 def test_nothing_a_confined_child_does_publishes_a_holder_record(tmp_path):
@@ -2440,6 +2502,12 @@ def test_nothing_a_confined_child_does_publishes_a_holder_record(tmp_path):
     env["PYTHONPATH"] = os.pathsep.join([p for p in sys.path if p])
     env["APPDATA"] = str(tmp_path / "roaming")
     env["LOCALAPPDATA"] = str(tmp_path / "local")
+    # ...and its own holder directory, for the same reason the two above are
+    # redirected: the question is what *this child* writes. Inheriting the
+    # session's shared directory would have it report every record already
+    # there — including this process's own, which is legitimately published and
+    # has nothing to do with the child.
+    env[sw._HOLDER_DIR_ENV] = str(tmp_path / "holders")
     r = subprocess.run([sys.executable, "-c", prog], capture_output=True,
                        text=True, timeout=120, env=env)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -2736,6 +2804,12 @@ import abax._runtime as rt
 from abax import sandbox_windows as sw
 data, shared, scratch, mutex = sys.argv[1:5]
 rt.DATA_DIR = data
+# The pair must share a holder directory with each other and with nothing else.
+# Set here rather than via rt.DATA_DIR because the env override outranks it and
+# is inherited from the parent -- which would put these two in the whole test
+# session's directory, where they would defer to the runner and to every other
+# worker. Patched in the same style as the three lambdas below.
+sw._holder_dir = lambda: os.path.join(data, sw._HOLDER_DIR_NAME)
 sw._needed_read_dirs = lambda: [shared]
 sw._needed_read_files = lambda: []
 sw._required_read_targets = lambda: [shared]
@@ -4221,18 +4295,27 @@ def _one_confinement(scratch: str, tag: str) -> dict:
 
 
 def _profile_dirs() -> "set[str]":
-    """abax's AppContainer profiles as they exist on disk right now.
+    """**This process's** AppContainer profiles as they exist on disk right now.
 
     ``CreateAppContainerProfile`` writes a registry mapping under
     ``HKCU\\...\\AppContainer\\Mappings\\<SID>`` *and* a
     ``%LOCALAPPDATA%\\Packages\\<name>`` tree, and ``DeleteAppContainerProfile``
     removes both together (measured). The directory is the half that can be
     listed by *name*, so a leak is visible here without a SID lookup.
+
+    Narrowed to this PID because ``%LOCALAPPDATA%\\Packages`` is machine-wide
+    while the property is per-process: "every teardown ran, and each deleted
+    only its own". Unfiltered, a *sibling* test process with confinements in
+    flight — another xdist worker, or the developer's own abax — lands in the
+    listing and reads as a leak here. Profile names are ``abax-sandbox-<pid>-``
+    (see ``sandbox_windows._profile_name``), so the filter is exact, and a
+    profile this process failed to delete is still caught.
     """
     packages = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Packages")
     if not os.path.isdir(packages):
         return set()
-    return {n for n in os.listdir(packages) if n.startswith("abax-sandbox-")}
+    mine = f"abax-sandbox-{os.getpid()}-"
+    return {n for n in os.listdir(packages) if n.startswith(mine)}
 
 
 @pytest.mark.sandbox_e2e
@@ -4403,3 +4486,105 @@ def test_e2e_concurrent_confinements_in_one_process_do_not_collide(tmp_path):
         f"AppContainer profiles leaked: {sorted(_profile_dirs() - before)}"
     for r in results:
         assert r["leaked"] == [], _diagnose([r])
+
+
+# --- the rendezvous itself (issue #12) ----------------------------------------
+#
+# Everything above plants records into whatever `_holder_dir()` returns, so it
+# verifies the protocol's *logic* faithfully and is structurally unable to catch
+# the protocol looking in the wrong place. That is exactly what shipped: the
+# directory hung off `rt.DATA_DIR`, which conftest redirects per test, so every
+# process scanned a private directory, found nobody, and swept ACEs another
+# process's live worker was still using.
+#
+# These take the two facts the planted-record tests assume.
+
+
+def test_the_holder_directory_does_not_follow_the_per_test_redirect():
+    """The invariant that broke.
+
+    ``rt.DATA_DIR`` is redirected per test — correct for user state, fatal for a
+    rendezvous. If this fails, two abax processes are once again looking in
+    different directories for each other.
+    """
+    from abax import _runtime as rt
+
+    holder = os.path.normcase(os.path.abspath(sw._holder_dir()))
+    redirected = os.path.normcase(os.path.abspath(str(rt.DATA_DIR)))
+    assert not holder.startswith(redirected), (
+        f"the holder directory is inside the per-test DATA_DIR ({holder}) — "
+        "every process will look somewhere different; see issue #12")
+
+
+def test_the_suite_uses_the_shipped_holder_directory():
+    """The other half of the same coin, and the counter-intuitive half.
+
+    The instinct is to give the suite a private directory — it sweeps often, and
+    a developer with abax open should not lose a live worker's ACEs to their own
+    tests. That is backwards. Isolation is what *causes* the loss: a sweep that
+    cannot see the app's record concludes it is alone and revokes. Joining the
+    rendezvous is what makes it defer.
+
+    So the suite writes where the product writes. Its e2e tests hold the real
+    grants, which makes their records as genuine as any app's, and it is
+    conftest setting nothing that keeps them there. Tests that plant *fakes* are
+    the ones that need isolation, and take it per test (``own_session_table``).
+    """
+    from abax import _runtime as rt
+
+    assert not os.environ.get(sw._HOLDER_DIR_ENV), (
+        f"something set {sw._HOLDER_DIR_ENV} session-wide; the suite would stop "
+        "seeing other processes' records, which is issue #12")
+    holder = os.path.normcase(os.path.abspath(sw._holder_dir()))
+    shipped = os.path.normcase(os.path.abspath(
+        os.path.join(str(rt.SHARED_STATE_DIR), sw._HOLDER_DIR_NAME)))
+    assert holder == shipped, (
+        f"the suite is not using the shipped holder directory: {holder}")
+
+
+def test_a_second_process_finds_this_ones_holder_record(tmp_path, own_session_table):
+    """The test that would have caught issue #12, and needs two real processes.
+
+    A child imports abax and asks where the records live. Before the fix it
+    computed its own ``DATA_DIR`` — the real profile — while the parent was
+    redirected to a per-test temp dir, so neither could ever see the other. The
+    parent then plants a record and the child scans for it: agreement on the
+    path is necessary, and being *found* is what the protocol actually needs.
+    """
+    import json
+    import pathlib
+
+    probe = tmp_path / "probe.py"
+    probe.write_text(
+        "import json, os, sys\n"
+        "from abax import sandbox_windows as sw\n"
+        "live, stale = sw._scan_holder_records()\n"
+        "print(json.dumps({\n"
+        "    'holder_dir': sw._holder_dir(),\n"
+        "    'live': [os.path.basename(p) for p in live],\n"
+        "    'stale': [os.path.basename(p) for p in stale],\n"
+        "}))\n",
+        encoding="utf-8")
+
+    # A record for a process that is genuinely alive: this one.
+    created = _winsandbox().process_create_time(os.getpid())
+    assert isinstance(created, int)
+    record = _plant_holder(os.getpid(), created)
+
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join([p for p in sys.path if p])
+    r = subprocess.run([sys.executable, str(probe)], capture_output=True,
+                       text=True, timeout=120, env=env,
+                       cwd=str(pathlib.Path(sw.__file__).parent.parent))
+    assert r.returncode == 0, r.stdout + r.stderr
+    out = json.loads(r.stdout.strip().splitlines()[-1])
+
+    assert (os.path.normcase(out["holder_dir"])
+            == os.path.normcase(sw._holder_dir())), (
+        "parent and child disagree about where holder records live:\n"
+        f"  parent: {sw._holder_dir()}\n  child : {out['holder_dir']}")
+    assert os.path.basename(record) in out["live"], (
+        f"the child could not see this process's holder record: {out}")
+    assert os.path.basename(record) not in out["stale"], (
+        "the child filed a live process's record as stale — its sweep would "
+        f"strip ACEs out from under us: {out}")

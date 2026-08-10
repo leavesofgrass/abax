@@ -11,6 +11,7 @@ import pytest
 
 from abax import sandbox
 from abax.core.workbook import Workbook
+from tests.conftest import ACL_GROUP
 
 # --- the seam -----------------------------------------------------------------
 
@@ -190,6 +191,7 @@ def test_windows_confinement_available():
 # runners — see tests/conftest.py for why that was wrong and #6 for what was
 # actually broken.
 @pytest.mark.sandbox_e2e
+@pytest.mark.xdist_group(ACL_GROUP)     # grants the real prefix; see conftest
 def test_windows_strict_worker_runs_and_confines():
     """The headline test: a strict worker on Windows runs benign code but user
     code cannot write outside scratch or open a socket, and cleanup reverts the

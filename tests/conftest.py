@@ -62,6 +62,57 @@ import pytest
 #: Selection only: "this test launches a real OS-confined child". Never skipped.
 SANDBOX_E2E_MARKER = "sandbox_e2e"
 
+#: xdist group for every test that grants ALL APPLICATION PACKAGES on the *real*
+#: interpreter prefix. With ``--dist loadgroup`` (set in pyproject's addopts) one
+#: worker runs all of them, one at a time.
+#:
+#: Those grants are machine-wide, and the process holding them removes them on
+#: the way out — a ~20 s DACL walk. abax coordinates that between processes with
+#: holder records, and it works: measured across a run, sweeps deferred to live
+#: holders 18 times out of 19 and the nineteenth was genuinely last out.
+#:
+#: What the records cannot cover is a process that confines without granting
+#: anything itself. ``test_a_real_collection_runs_the_whole_tier`` spawns a whole
+#: nested pytest session; the *worker* running it never grants, so it publishes
+#: no record and is invisible to everyone else's sweep, while the session it owns
+#: is granting and launching confined children. A sweep would see nobody, revoke,
+#: and take ~20 s doing it — and children starting inside that window died with
+#: ``Fatal Python error: Failed to import encodings module``, the interpreter ACE
+#: present on the root and not yet on the leaves. Issue #12's tail.
+#:
+#: Spread across workers this is unfixable from inside the suite: the sweeps are
+#: correct, and the process they cannot see is one of ours. On one worker they
+#: never overlap, because that worker runs them in sequence. Nothing about the
+#: product changes; what changes is that the suite stops asking two of its own
+#: processes to walk the same DACLs at once.
+ACL_GROUP = "sandbox_acl"
+
+
+# The suite uses the **shipped** sandbox holder directory, and sets nothing.
+#
+# Those records are how separate abax processes tell each other "I am still
+# relying on these machine-wide ACEs", so the last one out is the one that
+# removes them. Every participant has to look in the same place, and the suite
+# is a participant like any other: its e2e tests hold the real grants, so its
+# records are as genuine as an app's.
+#
+# Two attempts at giving the suite its own directory both made things worse,
+# and each failure is a version of issue #12:
+#
+#   * per xdist worker (which is what redirecting `rt.DATA_DIR` amounted to) —
+#     every process looked somewhere private, found nobody, and swept ACEs out
+#     from under another worker's live confined child;
+#   * one directory per session, removed at the end — under xdist every worker
+#     has its own session, so the first to finish deleted the directory and with
+#     it every other worker's record. Measured: the listing went four records,
+#     one, gone, and the next sweep believed it was alone.
+#
+# Sharing the shipped directory also *fixes* the hazard documented on
+# `sandbox_session_grants_swept` below: a real abax running beside the suite
+# now publishes a record the suite's sweep defers to, instead of losing its
+# stdlib to it. Tests that plant fake records still need isolation, and take it
+# per test — see `own_session_table` in test_sandbox_windows.py.
+
 
 def pytest_configure(config):
     config.addinivalue_line(
@@ -92,11 +143,15 @@ def sandbox_session_grants_swept():
     hook's own behaviour is tested in ``test_sandbox_windows.py``.
 
     **The sweep is machine-wide, not suite-wide.** The ACE names ALL APPLICATION
-    PACKAGES, so this removes it for every process on the box — including a real
-    abax running strict mode beside the suite, whose live worker loses its stdlib
-    the moment this fires. Running the tests and the app at the same time on one
-    machine is asking for exactly issue #9. Same hazard as any second abax
-    exiting; it is just easier to hit here because a test run ends often.
+    PACKAGES, so a removal here removes it for every process on the box. What
+    stops that from stripping a real abax's live worker is the holder record
+    protocol: the app publishes one while it holds the grants, this sweep sees
+    it and defers, and whoever leaves last does the removing. That protection
+    only works because the suite writes its records where the product does —
+    see the note at the top of this file, and issue #12 for what a private
+    directory costs. It was not working before that fix, which is why this
+    paragraph used to end "running the tests and the app at the same time is
+    asking for exactly issue #9".
     """
     yield
     if sys.platform != "win32":

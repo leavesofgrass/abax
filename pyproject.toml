@@ -79,6 +79,13 @@ include = ["abax*"]   # auto-discover abax and all subpackages (core/io, core/ca
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Honour `@pytest.mark.xdist_group` when running under `-n`: tests sharing a
+# group name go to one worker. Without it those marks are silently ignored and
+# the Windows confinement tier spreads across workers, where two of the suite's
+# own processes end up walking the same machine-wide DACLs at once (issue #12 —
+# see ACL_GROUP in tests/conftest.py). Ungrouped tests distribute exactly as
+# they did before, and with no `-n` this does nothing at all.
+addopts = "--dist loadgroup"
 # No "-q" here: addopts stacks with command-line flags, so a conventional
 # `pytest -q > log` ran at -qq — which suppresses the final "N passed in Xs"
 # summary line entirely (TerminalReporter.summary_stats is skipped below -1).

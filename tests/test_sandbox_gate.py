@@ -111,6 +111,10 @@ def test_neither_sandbox_module_carries_a_module_level_skip():
     reason="test_sandbox_windows.py is Windows-only, so elsewhere the tier "
            "reports as skipped for a reason unrelated to gating",
 )
+# The nested session this spawns grants the real prefix, but *this* process
+# does not — so it holds no holder record and no other process's sweep can see
+# it. Same worker as everything else that grants. See ACL_GROUP in conftest.
+@pytest.mark.xdist_group(gate.ACL_GROUP)
 def test_a_real_collection_runs_the_whole_tier(tmp_path):
     """Measured by pytest rather than by reading source.
 
