@@ -124,10 +124,16 @@ jobs:
       # Twice, because the failure was intermittent: a single green run is weak
       # evidence about a race. Two costs another ~2 minutes and roughly squares
       # the chance of noticing.
+      # -rs so a skip here is never a bare number. One is expected on a hosted
+      # runner — test_a_holder_we_may_not_open_is_treated_as_live needs a PID
+      # this token cannot open, and an elevated runner can open all of them; its
+      # monkeypatched sibling covers the same property everywhere. Any *other*
+      # skip in this tier is the failure mode tests/test_sandbox_gate.py exists
+      # to catch, and it should say so rather than move a count from 157 to 156.
       - name: Run the confinement tier under xdist (twice)
         run: |
-          python -m pytest tests/test_sandbox.py tests/test_sandbox_windows.py tests/test_sandbox_gate.py -n auto -q --timeout=300 --timeout-method=thread
-          python -m pytest tests/test_sandbox.py tests/test_sandbox_windows.py tests/test_sandbox_gate.py -n auto -q --timeout=300 --timeout-method=thread
+          python -m pytest tests/test_sandbox.py tests/test_sandbox_windows.py tests/test_sandbox_gate.py -n auto -q -rs --timeout=300 --timeout-method=thread
+          python -m pytest tests/test_sandbox.py tests/test_sandbox_windows.py tests/test_sandbox_gate.py -n auto -q -rs --timeout=300 --timeout-method=thread
 
   # ── Science-extras suite (the half the thin matrix silently skips) ─────────
   # The `check` matrix installs `[dev,thin]`, and `thin` deliberately contains
