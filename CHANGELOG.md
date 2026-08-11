@@ -10,6 +10,14 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.20] — 2026-08-10
+
+A maintenance release. One user-visible change (`abax doctor`); the rest is the
+verification machinery underneath — coverage gates that actually ratchet, the
+data-science and Windows-confinement halves of the suite finally running in CI,
+and a cross-process defect in the Windows sandbox that the tests had been
+structurally unable to see.
+
 ### Added
 
 - **`abax doctor` now opens with the abax version** and how it was built —
@@ -23,6 +31,9 @@ All notable changes to abax are documented here. The format follows
   dangerous kind, and how to respond when a coverage ratchet asks to be raised.
 - **`scripts/coverage_ratchet.py`** — the coverage gate, replacing bare
   `--fail-under` floors.
+- **A written release checklist** in `CONTRIBUTING.md`. The version string lives
+  in four files and the process lived nowhere; the fourth site appeared in this
+  very release without anything recording that the count had grown.
 
 ### Changed
 
@@ -33,6 +44,11 @@ All notable changes to abax are documented here. The format follows
   against a measured 84 and `abax/engine` at 57 against a measured 63, i.e. a
   gate tolerating a six-point drop while reporting success. Floors are now 83
   and 62.
+- **`abax[science]` no longer pulls a pre-release.** A fresh resolve selected
+  `wrapt 2.4.0rc1`: formulaic declares `wrapt>=1.17.0rc1` on Python 3.13+, and
+  under PEP 440 a bound naming a pre-release enables pre-releases for that
+  requirement, so pip took the highest it could see. Capped at `<2.4`, which
+  lands on stable 2.3.0 and changes nothing else in the resolve.
 - **CI's science job installs `hdf5`, `stats-io` and `satellite` too**, opening
   the last import gates (h5py, pyreadstat, sgp4) that skipped on all 12 matrix
   cells. They had been held back on a CI download budget that did not apply:

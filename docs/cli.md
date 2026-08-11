@@ -28,7 +28,7 @@ These are parsed before any command and the first two are *fast paths* — they 
 
 ```bash
 $ abax --version
-abax 0.1.19
+abax 0.1.20
 ```
 
 ### `--deps`
@@ -409,7 +409,7 @@ abax doctor — environment health report
 
 abax
 ----
-  version     : 0.1.19
+  version     : 0.1.20
   build       : installed package
   location    : /usr/lib/python3.13/site-packages/abax
 
