@@ -38,6 +38,14 @@ science  = [
     "numpy", "pandas", "scipy", "pyarrow",
     "scikit-learn", "statsmodels",
     "lifelines", "pingouin", "scikit-survival",
+    # Not used by abax — this bound exists to keep a *pre-release* out of a
+    # user-facing install. pingouin -> statsmodels -> formulaic declares
+    # `wrapt>=1.17.0rc1; python_version >= '3.13'`, and under PEP 440 a bound
+    # that names a pre-release enables pre-releases for that requirement — so
+    # pip takes the highest it can see, which is currently wrapt 2.4.0rc1.
+    # Stable 2.3.0 satisfies formulaic perfectly well. Drop this cap once a
+    # stable 2.4.0 exists, or once formulaic's floor stops naming an rc.
+    "wrapt>=1.17,<2.4",
 ]
 # Bayesian / probabilistic programming — split out because pymc pulls a heavy
 # stack (pytensor + arviz + numba/llvmlite, ~150 MB). Included in `all`.
