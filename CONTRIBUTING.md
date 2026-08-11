@@ -123,6 +123,52 @@ skipped there. Only ever compare it against another thin run.
 - Documentation lives in `docs/` and is built with `mkdocs build --strict`,
   which fails on a broken internal link. Run it if you touched docs.
 
+## Releasing
+
+abax stays on `0.1.x`. There is no `1.0` planned and the absence of a "done"
+signal is deliberate, so a release is a routine batch, not an event.
+
+Work accumulates on a `dev/0.1.N` branch until it is worth shipping. Then:
+
+1. **Bump the version in all four places.** They drift apart otherwise, and a
+   fourth appeared without anyone noticing before this list existed:
+
+   | File | What it is |
+   |---|---|
+   | `pyproject.toml` | the package version |
+   | `abax/__init__.py` | `__version__`, what `abax --version` reports |
+   | `docs/cli.md` (`--version` sample) | sample output |
+   | `docs/cli.md` (`doctor` sample) | sample output |
+
+   `grep -rn "0\.1\.<old>" --include="*.py" --include="*.toml" --include="*.md" .`
+   finds them all — exclude `CHANGELOG.md`, which is supposed to keep the old
+   numbers.
+
+2. **Close the changelog section.** Rename `## [Unreleased]` to
+   `## [0.1.N] — YYYY-MM-DD` and open a fresh empty `## [Unreleased]` above it.
+
+3. **Run the whole gate, and read every result.** Any red stops the release:
+
+   ```bash
+   ruff check .
+   pytest -n auto
+   mkdocs build --strict
+   python make_pyz.py
+   ```
+
+   The zipapp build is not optional theatre: it has its own entry point and has
+   shipped broken before while every test passed.
+
+4. **Fast-forward and tag.** Confirm the merge is a fast-forward
+   (`git merge-base --is-ancestor main dev/0.1.N`) before doing it, then merge
+   with `--ff-only`, and push an annotated tag `v0.1.N`. **The tag is what
+   triggers the release**; pushing the branch alone does nothing.
+
+5. **Watch the release workflow** — wheel, pyz, appimage, windows-binary,
+   macos-binary, release, pypi. Confirm the PyPI publish actually completed
+   rather than sitting pending on environment approval, and that the GitHub
+   Release carries all six assets.
+
 ## Reporting bugs
 
 Open an issue: <https://github.com/leavesofgrass/abax/issues>.
