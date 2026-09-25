@@ -375,6 +375,11 @@ class ToolsMixin:
 
         CircuitDialog(self).exec()
 
+    def show_rf_exposure(self) -> None:
+        from .dialogs.exposure_dialog import ExposureDialog
+
+        ExposureDialog(self).exec()
+
     def show_smith_chart(self) -> None:
         from .dialogs.smith_dialog import SmithDialog
 

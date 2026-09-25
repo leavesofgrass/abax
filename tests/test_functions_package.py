@@ -25,7 +25,8 @@ def test_registry_sizes():
     # +5 for the curated-coverage tail: ASC, DBCS, JIS, PHONETIC, BAHTTEXT (100%).
     # +59 circuit fundamentals and radio-system math (OHMV … IMAGEFREQ; see
     # tests/test_circuit_formulas.py for the full list).
-    assert len(FUNCTIONS) == 673
+    # +11 RF exposure (MPELIMIT … SAR; tests/test_rf_exposure_formulas.py).
+    assert len(FUNCTIONS) == 684
     assert len(LAZY_FUNCTIONS) == 6
 
 

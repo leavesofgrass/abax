@@ -55,6 +55,25 @@ All notable changes to abax are documented here. The format follows
   chart's screen-reader description. The description is re-announced when the
   numbers change. The same data is shown as a table, and *Data → new sheet*
   copies it into a worksheet.
+- **RF exposure estimates** (47 CFR § 1.1310 and § 1.1307(b)(3)).
+  - 11 formula functions:
+    - `MPELIMIT`, `MPEEFIELD`, `MPEHFIELD`: MPE limits for both tiers
+    - `PWRDENSITY`: far-field power density
+    - `MPEDIST`: compliance distance
+    - `MPEPERCENT`: percent of the limit, for the 5 % multi-transmitter rule
+    - `AVGPOWER`: time-averaged power
+    - `EXEMPTERP`, `EXEMPTMINDIST`: the exemption threshold and λ/2π
+    - `SARLIMIT`, `SAR`: SAR limits and SAR = σE²/ρ
+  - *Tools → Radio → RF exposure estimate (MPE)* evaluates a whole station.
+    It has an accessible density-versus-distance graph with both limits and
+    compliance distances marked, states results in words, and says plainly
+    that it is an estimate.
+  - Only rules verified from primary text are built in. Ground reflection is
+    free space (×1), full in-phase reflection (×4), or a factor you enter, and
+    the duty cycle is an input. The tests check that the § 1.1307 exemption
+    table matches the ×4 model.
+  - OET-65's per-mode duty factors and reflection factor, the P_th formula for
+    0.5–40 cm, and ICNIRP levels are left out, and documented as such.
 - `core.science.engnum` — parse and format engineering-notation values.
 - The Qt compatibility layer now exports `QAccessible` / `QAccessibleEvent`,
   so custom-painted widgets can notify assistive technology.

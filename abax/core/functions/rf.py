@@ -381,6 +381,65 @@ def _rc_flagged(fn_name: str, nnum: int, flag_default: bool):
     return wrapper
 
 
+# --- RF exposure (core.science.rf_exposure) ---------------------------------
+# Frequencies arrive in Hz (SI, like every other RF function) and are converted
+# to the MHz the FCC tables use. Power density is in mW/cm², the FCC unit.
+
+def _rx_args(args, spec):
+    """Parse ``spec`` entries: ("num", default|_R), ("tier", default) or
+    ("text", default). Returns the values or a CellError."""
+    vals = []
+    for i, (kind, dflt) in enumerate(spec):
+        raw = _arg(args, i, None)
+        if isinstance(raw, CellError):
+            return raw
+        if raw is None or raw == "":
+            if dflt is _RF_REQUIRED:
+                return CellError(CellError.VALUE)
+            vals.append(dflt)
+        elif kind == "num":
+            try:
+                vals.append(_as_number(raw))
+            except (ValueError, TypeError):
+                return CellError(CellError.VALUE)
+        else:
+            # a misspelled tier or SAR kind is a bad argument, not a domain error
+            from ..science import rf_exposure as X
+
+            text = _text(raw)
+            try:
+                if kind == "tier":
+                    X.normalize_tier(text)
+                elif kind == "sarkind":
+                    X.sar_limit("uncontrolled", text)
+            except ValueError:
+                return CellError(CellError.VALUE)
+            vals.append(text)
+    return vals
+
+
+def _rx_call(fn_name: str, spec, *, hz_arg: int | None = None, none_is_na: bool = False,
+             pick: str | None = None):
+    def wrapper(args):
+        from ..science import rf_exposure as X
+
+        vals = _rx_args(args, spec)
+        if isinstance(vals, CellError):
+            return vals
+        if hz_arg is not None:
+            vals[hz_arg] = vals[hz_arg] / 1e6
+        try:
+            out = getattr(X, fn_name)(*vals)
+        except (ValueError, TypeError, ZeroDivisionError, OverflowError):
+            return CellError(CellError.NUM)
+        if pick is not None:
+            out = out[pick]
+        if out is None and none_is_na:
+            return CellError(CellError.NA)
+        return out
+    return wrapper
+
+
 __all__ = [
     "_RF_REQUIRED",
     "_rf_numeric",
@@ -407,4 +466,5 @@ __all__ = [
     "_rc_power_chain",
     "_rc_imd3",
     "_rc_flagged",
+    "_rx_call",
 ]

@@ -229,6 +229,18 @@ SIGNATURES = {
     "IMD3LO": "IMD3LO(f1_hz, f2_hz)", "IMD3HI": "IMD3HI(f1_hz, f2_hz)",
     "IP3": "IP3(tone_dbm, im3_dbm)", "SFDR": "SFDR(ip3_dbm, noise_floor_dbm)",
     "IMAGEFREQ": "IMAGEFREQ(signal_hz, if_hz, [high_side_lo=TRUE])",
+    # RF exposure — 47 CFR 1.1310 / 1.1307; power density in mW/cm²
+    "MPELIMIT": 'MPELIMIT(freq_hz, [tier="uncontrolled"])',
+    "MPEEFIELD": 'MPEEFIELD(freq_hz, [tier="uncontrolled"])',
+    "MPEHFIELD": 'MPEHFIELD(freq_hz, [tier="uncontrolled"])',
+    "PWRDENSITY": "PWRDENSITY(eirp_w, distance_m, [reflection=1])",
+    "MPEDIST": 'MPEDIST(eirp_w, freq_hz, [tier="uncontrolled"], [reflection=1])',
+    "MPEPERCENT": 'MPEPERCENT(density_mw_cm2, freq_hz, [tier="uncontrolled"])',
+    "AVGPOWER": "AVGPOWER(peak_w, [duty_cycle=1], [tx_fraction=1])",
+    "EXEMPTERP": "EXEMPTERP(freq_hz, distance_m)",
+    "EXEMPTMINDIST": "EXEMPTMINDIST(freq_hz)",
+    "SARLIMIT": 'SARLIMIT([tier="uncontrolled"], [kind="whole_body"])',
+    "SAR": "SAR(conductivity_s_per_m, e_rms_v_per_m, density_kg_m3)",
 }
 
 # The Excel/Gnumeric-parity function packs carry their own signatures; merge them
