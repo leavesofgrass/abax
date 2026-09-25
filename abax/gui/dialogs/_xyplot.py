@@ -211,7 +211,8 @@ class XYPlot(QWidget):
             p.setPen(ref)
             p.drawLine(QPointF(px(x), plot.top()), QPointF(px(x), plot.bottom()))
             p.setPen(QPen(ink, 1.0))
-            p.drawText(QPointF(px(x) + 3, plot.top() + th), label)
+            # bottom of the plot: horizontal-line labels sit at the top right
+            p.drawText(QPointF(px(x) + 3, plot.bottom() - 4), label)
         for y, label in self._hlines:
             if self._log_y and y <= 0:
                 continue

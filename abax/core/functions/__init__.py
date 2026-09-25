@@ -249,6 +249,27 @@ FUNCTIONS.update({
     "IMAGEFREQ": _rc_flagged("image_frequency", 2, True),
 })
 
+# RF exposure (47 CFR 1.1310 MPE/SAR limits, 1.1307(b)(3) exemption) — backed
+# by core.science.rf_exposure. Frequencies in Hz; power density in mW/cm².
+_U = "uncontrolled"
+FUNCTIONS.update({
+    "MPELIMIT": _rx_call("mpe_power_density", (("num", _R), ("tier", _U)), hz_arg=0),
+    "MPEEFIELD": _rx_call("mpe_limits", (("num", _R), ("tier", _U)), hz_arg=0,
+                          pick="e_field", none_is_na=True),
+    "MPEHFIELD": _rx_call("mpe_limits", (("num", _R), ("tier", _U)), hz_arg=0,
+                          pick="h_field", none_is_na=True),
+    "PWRDENSITY": _rx_call("power_density", (("num", _R), ("num", _R), ("num", 1.0))),
+    "MPEDIST": _rx_call("compliance_distance",
+                        (("num", _R), ("num", _R), ("tier", _U), ("num", 1.0)), hz_arg=1),
+    "MPEPERCENT": _rx_call("percent_of_mpe", (("num", _R), ("num", _R), ("tier", _U)),
+                           hz_arg=1),
+    "AVGPOWER": _rx_call("average_power", (("num", _R), ("num", 1.0), ("num", 1.0))),
+    "EXEMPTERP": _rx_call("exemption_threshold_erp", (("num", _R), ("num", _R)), hz_arg=0),
+    "EXEMPTMINDIST": _rx_call("exemption_min_distance", (("num", _R),), hz_arg=0),
+    "SARLIMIT": _rx_call("sar_limit", (("tier", _U), ("sarkind", "whole_body"))),
+    "SAR": _rx_call("sar", (("num", _R), ("num", _R), ("num", _R))),
+})
+
 # Modern array functions (UNIQUE/SORT/FILTER/SEQUENCE/TRANSPOSE/VSTACK/TAKE/…)
 # live in their own module and register themselves here. They return arrays that
 # *spill* when they are a cell's top-level result (see abax.core.spill and the

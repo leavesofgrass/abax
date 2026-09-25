@@ -104,7 +104,7 @@ setting off, a genuine circular reference still reports `#CIRC!`.
 
 Function names are case-insensitive. Below, every built-in is grouped by
 family with its signature, a one-line description, and an example. Optional
-arguments are shown in `[brackets]`. There are **701 built-in functions** —
+arguments are shown in `[brackets]`. There are **712 built-in functions** —
 **614 eager** (counting aliases and modern dotted names) plus **28
 lazy / reference / context** functions evaluated by the engine itself (`IF`,
 `IFS`, `SWITCH`, `ROW`, `OFFSET`, `INDIRECT`, `CELL`, `LET`, `LAMBDA`, `MAP`,
@@ -1181,6 +1181,25 @@ check these against the question pool's answer key.
 | `IP3` | Third-order intercept in dBm from a two-tone test | `IP3(tone_dbm, im3_dbm)` | `=IP3(-10,-70)` → `20` |
 | `SFDR` | Spurious-free dynamic range in dB from the intercept and the noise floor | `SFDR(ip3_dbm, noise_floor_dbm)` | `=SFDR(20,-130)` → `100` |
 | `IMAGEFREQ` | Image frequency of a superheterodyne receiver | `IMAGEFREQ(signal_hz, if_hz, [high_side_lo=TRUE])` | `=IMAGEFREQ(14.2e6,9e6)` → `32200000` |
+
+**RF exposure** — 47 CFR § 1.1310 MPE/SAR limits and the § 1.1307(b)(3)
+exemption threshold. Frequencies in Hz; power density in mW/cm² (the FCC unit).
+`tier` is `"uncontrolled"` (default, general population) or `"controlled"`
+(occupational). Estimates only — see [RF toolkit](rf-toolkit.md#rf-exposure-mpe-sar).
+
+| Function | Description | Syntax | Example |
+| --- | --- | --- | --- |
+| `MPELIMIT` | FCC maximum permissible exposure power-density limit in mW/cm² | `MPELIMIT(freq_hz, [tier])` | `=MPELIMIT(146e6)` → `0.2` |
+| `MPEEFIELD` | FCC MPE electric-field limit in V/m (blank above 300 MHz gives N/A) | `MPEEFIELD(freq_hz, [tier])` | `=MPEEFIELD(14.2e6)` → `58.03` |
+| `MPEHFIELD` | FCC MPE magnetic-field limit in A/m (blank above 300 MHz gives N/A) | `MPEHFIELD(freq_hz, [tier])` | `=MPEHFIELD(14.2e6)` → `0.154` |
+| `PWRDENSITY` | Far-field power density in mW/cm² from EIRP, distance, and a reflection factor | `PWRDENSITY(eirp_w, distance_m, [reflection=1])` | `=PWRDENSITY(100,1)` → `0.796` |
+| `MPEDIST` | Distance in metres beyond which the MPE limit is met | `MPEDIST(eirp_w, freq_hz, [tier], [reflection=1])` | |
+| `MPEPERCENT` | A power density as a percent of the MPE limit | `MPEPERCENT(density_mw_cm2, freq_hz, [tier])` | `=MPEPERCENT(0.01,146e6)` → `5` |
+| `AVGPOWER` | Time-averaged power from PEP, duty cycle, and transmit fraction | `AVGPOWER(peak_w, [duty_cycle=1], [tx_fraction=1])` | `=AVGPOWER(100,0.5,0.5)` → `25` |
+| `EXEMPTERP` | FCC exemption-threshold ERP in watts at a distance from a person | `EXEMPTERP(freq_hz, distance_m)` | `=EXEMPTERP(146e6,5)` → `95.75` |
+| `EXEMPTMINDIST` | Closest distance in metres where the FCC exemption table applies | `EXEMPTMINDIST(freq_hz)` | `=EXEMPTMINDIST(14.2e6)` → `3.36` |
+| `SARLIMIT` | FCC specific absorption rate limit in W/kg | `SARLIMIT([tier], [kind])` | `=SARLIMIT()` → `0.08` |
+| `SAR` | Specific absorption rate in W/kg from conductivity, RMS field, and tissue density | `SAR(conductivity_s_per_m, e_rms_v_per_m, density_kg_m3)` | `=SAR(0.5,40,1000)` → `0.8` |
 
 **Contest / activation logging** — dupe detection and QSO point values for
 POTA / SOTA / contest logs. Callsigns are normalised (uppercased, portable

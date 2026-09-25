@@ -187,7 +187,109 @@ Every calculation question in the current Extra pool is worked, and checked
 against the answer key, in the
 [Extra Class worked examples](examples/radio/extra-class-formulas/README.md).
 
-## Link budget & propagation
+## RF exposure (MPE / SAR)
+
+Estimates for the RF exposure evaluation US amateur stations must make, backed
+by [`abax/core/science/rf_exposure.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/rf_exposure.py).
+
+> **These are estimates.** They use the far-field power-density formula. They
+> are not a substitute for your station's evaluation under 47 CFR § 97.13(c)
+> and § 1.1307(b). They are also not a reliable measure closer to the antenna
+> than λ/2π. When a result is close to a limit, measure or model the station
+> properly.
+
+| Function | Returns |
+| --- | --- |
+| `MPELIMIT(freq_hz, [tier])` | MPE power-density limit, **mW/cm²** (47 CFR § 1.1310 Table 1) |
+| `MPEEFIELD(freq_hz, [tier])` / `MPEHFIELD(freq_hz, [tier])` | E-field (V/m) / H-field (A/m) limit; `#N/A` above 300 MHz, where the table gives none |
+| `PWRDENSITY(eirp_w, distance_m, [reflection=1])` | far-field power density F·EIRP / (4πR²), mW/cm² |
+| `MPEDIST(eirp_w, freq_hz, [tier], [reflection=1])` | distance (m) beyond which the limit is met |
+| `MPEPERCENT(density_mw_cm2, freq_hz, [tier])` | a power density as a percent of the limit |
+| `AVGPOWER(peak_w, [duty_cycle=1], [tx_fraction=1])` | time-averaged power: PEP × duty × transmit fraction |
+| `EXEMPTERP(freq_hz, distance_m)` | exemption-threshold ERP (W), 47 CFR § 1.1307(b)(3)(i)(C) |
+| `EXEMPTMINDIST(freq_hz)` | λ/2π (m), the closest distance where that table applies |
+| `SARLIMIT([tier], [kind])` | SAR limit, W/kg, 47 CFR § 1.1310(b)–(c). `kind` is `whole_body`, `peak_1g` or `extremity_10g` |
+| `SAR(σ, e_rms, ρ)` | SAR = σ·E²/ρ, W/kg |
+
+**Tiers.**
+- `"uncontrolled"` (the default; `"general"` also works): general population,
+  averaged over 30 minutes.
+- `"controlled"` (`"occupational"`): averaged over 6 minutes.
+- Under § 97.13(c)(1), you may evaluate members of your immediate household
+  against the controlled limits, provided you and they have had the
+  appropriate training and information. Everyone else nearby is evaluated
+  against the uncontrolled limits.
+
+**Units.**
+- Formula frequencies are in hertz, as everywhere else in abax, and are
+  converted to the MHz the FCC tables use.
+- Power density is in mW/cm², the unit of the FCC table (1 mW/cm² = 10 W/m²).
+- At a boundary frequency that the table lists in two rows (for example
+  1.34 MHz), the more restrictive value is used.
+
+**Ground reflection.**
+- `reflection` is a power-density factor F.
+- 1 is free space.
+- 4 is full in-phase reflection: the reflected wave doubles the field, which
+  quadruples the power density.
+- The § 1.1307 exemption table is exactly this F = 4 model applied to ERP.
+  Every row equals the general-population limit × πR² / 1.64, to the rule's
+  rounding, and abax's tests check this.
+- OET Bulletin 65 recommends a smaller factor for typical ground. abax does not
+  preset it, because the bulletin could not be checked when this was written.
+  If you use it, enter it yourself from OET-65.
+
+**Duty cycle.**
+- Enter your own mode duty cycle and transmit time.
+- `1` (100 %) is the worst case and the default.
+- abax does not preset per-mode duty factors (OET-65 Supplement B has a table)
+  for the same reason as the reflection factor.
+
+**Multiple transmitters.** Under § 1.1307(b)(5), when a site's total exceeds the
+limit, every licensee whose source produces **more than 5 %** of the applicable
+limit there shares responsibility. `MPEPERCENT` gives that percentage. (Extra
+pool E0A04 words it as "5 percent or more".)
+
+**Worked example — 1500 W PEP on 10 m into an 8 dBi beam, SSB:**
+
+```
+A1: =AVGPOWER(1500, 0.5, 0.5)             → 375      (W; your duty and on-time)
+A2: =A1*10^(8/10)                         → 2366     (W EIRP)
+A3: =MPEDIST(A2, 28.4e6, "uncontrolled", 4) → 18.4    (m, worst-case reflection)
+A4: =MPEDIST(A2, 28.4e6, "controlled", 4)   → 8.2     (m)
+A5: =EXEMPTERP(28.4e6, 20)                → 1711     (W ERP threshold at 20 m)
+```
+
+Not included, because they could not be verified from primary sources:
+- the § 1.1307(b)(3)(i)(B) SAR-based threshold P_th for distances of 0.5–40 cm
+- OET-65's per-mode duty factors and its ground-reflection factor
+- ICNIRP reference levels
+
+These are future work.
+
+### RF exposure dialog
+
+*Tools → Radio → RF exposure estimate (MPE)* takes:
+- frequency
+- transmitter power (PEP) and feed-line loss
+- antenna gain (dBi)
+- duty cycle and transmit time in the averaging period
+- ground reflection: none, full (worst case) or a custom factor
+- the distance to the nearest person
+
+It reports:
+- average power, EIRP and ERP
+- both tiers' limits and averaging times
+- the distance at which each limit is met
+- the density at your distance as a percent of each limit, stated in words
+  ("below the limit" / "ABOVE the limit")
+- the § 1.1307 exemption check
+
+The log-log graph of density against distance marks both limits, both
+compliance distances and your distance. Its written summary is also its
+screen-reader description, updated with every change. The same numbers are in
+the data table, and *Data → new sheet* copies them into a worksheet.
+
 
 | Function | Returns |
 | --- | --- |
@@ -367,6 +469,9 @@ math tools stay under *Tools → Scientific*):
   metric and imperial where it helps.
 - **Smith chart** — plots a load impedance and its reflection coefficient, reports
   VSWR / return loss, and computes the two L-network matching solutions.
+- **RF exposure estimate (MPE)** — FCC MPE limits, compliance distances,
+  and the § 1.1307 exemption check, with an accessible density-versus-distance
+  graph (see *RF exposure* above).
 - **Circuit calculator** — four tabs:
   - **Ohm's law:** enter any two of E, I, R and P and it solves the other two.
   - **Time constant:** RC or RL, charging or discharging, with a graph of the
