@@ -175,7 +175,14 @@ class ToolsMixin:
         if not samples:
             self._set_status("select I (and Q) columns of numbers")
             return
-        svg = chartsvg.scatter_svg(iq.constellation_points(samples), title="I/Q constellation")
+        from ..core.science.svgaccess import make_accessible
+
+        pts = iq.constellation_points(samples)
+        svg = make_accessible(
+            chartsvg.scatter_svg(pts, title="I/Q constellation"), "I/Q constellation",
+            f"Scatter plot of {len(samples)} I/Q symbols: in-phase (I) on the horizontal "
+            f"axis, quadrature (Q) on the vertical. Average power "
+            f"{iq.power_dbfs(samples):.1f} dBFS.")
         path, _ = QFileDialog.getSaveFileName(self, "Export constellation SVG",
                                               "constellation.svg", "SVG image (*.svg)")
         if not path:

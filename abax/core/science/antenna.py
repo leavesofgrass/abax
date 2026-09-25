@@ -115,12 +115,59 @@ def _svg_escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def polar_svg(samples, title: str = "", size: int = 360, margin: int = 18) -> str:
+def describe_polar(samples, decibels: bool = False, floor_db: float = -40.0) -> str:
+    """A plain-language description of a polar pattern plot: the maximum, the
+    deepest null, and how many degrees in total lie within 3 dB of the maximum.
+
+    ``samples`` are ``[(theta, value 0..1)]`` with θ measured clockwise from the
+    top of the plot. With ``decibels`` the values are dB mapped from
+    ``floor_db`` (value 0) to 0 dB (value 1), as :func:`pattern_samples` and
+    the antenna modeler produce them; otherwise they are linear field strength.
+    """
+    if not samples:
+        return "Polar radiation pattern with no data."
+    peak_th, peak = max(samples, key=lambda s: s[1])
+    null_th, null = min(samples, key=lambda s: s[1])
+
+    def deg(th: float) -> str:
+        return f"{math.degrees(th) % 360:.0f} degrees"
+
+    if decibels:
+        def level(v: float) -> str:
+            db = floor_db * (1.0 - v) + 0.0          # + 0.0 turns -0.0 into 0.0
+            return f"at or below the {floor_db:g} dB floor" if v <= 0 else f"{db:.1f} dB"
+        scale = f"relative level in dB, from {floor_db:g} dB at the centre to 0 dB at the edge"
+        # half power is 10·log10(0.5) ≈ −3.0103 dB, the same point as 1/√2 in field
+        half_power = 1.0 - 10.0 * math.log10(0.5) / floor_db if floor_db < 0 else 1.0
+    else:
+        def level(v: float) -> str:
+            return f"{v:.2f}"
+        scale = "relative field strength, 0 at the centre to 1 at the edge"
+        half_power = peak / math.sqrt(2)
+    text = (f"Polar radiation pattern: {scale}, against angle measured clockwise from "
+            f"the top of the plot, {len(samples)} points. Maximum {level(peak)} at "
+            f"{deg(peak_th)}; deepest null {level(null)} at {deg(null_th)}.")
+    if peak > 0:
+        # samples are evenly spaced around the circle, so the share of them at or
+        # above half power (−3 dB) is the share of the 360° the pattern covers
+        within = sum(1 for _, m in samples if m >= half_power * (1 - 1e-12))
+        text += (f" The pattern is within 3 dB of its maximum over about "
+                 f"{360.0 * within / len(samples):.0f} degrees in total.")
+    return text
+
+
+def polar_svg(samples, title: str = "", size: int = 360, margin: int = 18,
+              description: str | None = None, decibels: bool = False,
+              floor_db: float = -40.0) -> str:
     """A standalone SVG string of a polar pattern plot (pure stdlib).
 
     ``samples`` is the ``[(theta, magnitude 0..1)]`` list from
     :func:`pattern_samples`. Draws amplitude rings, angle spokes and the closed
     pattern curve, antenna axis vertical — the same view as the GUI, exportable.
+
+    Accessible: ``role="img"`` with a ``<title>`` and a ``<desc>`` (``description``
+    or one from :func:`describe_polar`; pass ``decibels`` / ``floor_db`` when the
+    samples are dB-scaled so the description reads the levels correctly).
     """
     cx = cy = size / 2.0
     radius = size / 2.0 - margin
@@ -151,7 +198,11 @@ def polar_svg(samples, title: str = "", size: int = 360, margin: int = 18) -> st
         parts.append(f'<text x="{cx:.1f}" y="14" text-anchor="middle" '
                      f'font-family="sans-serif" font-size="12">{_svg_escape(title)}</text>')
     parts.append("</svg>")
-    return "\n".join(parts)
+    from .svgaccess import make_accessible
+
+    return make_accessible("\n".join(parts), title or "Antenna radiation pattern",
+                           description if description is not None
+                           else describe_polar(samples, decibels, floor_db))
 
 
 # Convenience pattern factories (return a one-arg field_fn) -----------------

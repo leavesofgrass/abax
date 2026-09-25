@@ -381,6 +381,45 @@ def _rc_flagged(fn_name: str, nnum: int, flag_default: bool):
     return wrapper
 
 
+# --- complex-capable transmission-line functions ------------------------------
+
+def _rf_complexable(name: str, spec: tuple):
+    """Like :func:`_rf_numeric`, but an argument may also be an Excel complex
+    string (``"75+25j"``), so VSWR / Γ / return loss work for reactive loads.
+
+    Plain numbers behave exactly as before (a real result stays a number); a
+    result with a nonzero imaginary part comes back as a complex string.
+    """
+    def wrapper(args):
+        from ..science import rf as R
+        from ..science.complexnum import ComplexError, parse
+
+        vals = []
+        for i, dflt in enumerate(spec):
+            raw = _arg(args, i, None)
+            if isinstance(raw, CellError):
+                return raw
+            if raw is None or raw == "":
+                if dflt is _RF_REQUIRED:
+                    return CellError(CellError.VALUE)
+                vals.append(dflt)
+                continue
+            try:
+                vals.append(parse(raw) if isinstance(raw, str) else _as_number(raw))
+            except (ComplexError, ValueError, TypeError):
+                return CellError(CellError.VALUE)
+        try:
+            out = getattr(R, name)(*vals)
+        except (ValueError, TypeError, ZeroDivisionError, OverflowError):
+            return CellError(CellError.NUM)
+        if isinstance(out, complex):
+            if abs(out.imag) <= 1e-12 * max(1.0, abs(out)):
+                return out.real
+            return _fmt_z(out)
+        return out
+    return wrapper
+
+
 # --- RF exposure (core.science.rf_exposure) ---------------------------------
 # Frequencies arrive in Hz (SI, like every other RF function) and are converted
 # to the MHz the FCC tables use. Power density is in mW/cm², the FCC unit.
@@ -467,4 +506,5 @@ __all__ = [
     "_rc_imd3",
     "_rc_flagged",
     "_rx_call",
+    "_rf_complexable",
 ]

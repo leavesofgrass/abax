@@ -1073,8 +1073,8 @@ units note, and worked examples in [RF toolkit](rf-toolkit.md).
 | `DIPOLELEN` / `MONOPOLELEN` | physical antenna length (m) | `DIPOLELEN(freq_hz, [k=0.95])` | |
 | `XL` / `XC` | reactance (Ω) | `XL(freq_hz, L)` · `XC(freq_hz, C)` | |
 | `RESFREQ` | LC resonant freq (Hz) | `RESFREQ(L, C)` | |
-| `VSWR` / `VSWRG` | VSWR from Z or \|Γ\| | `VSWR(z_load, [z0=50])` | `=VSWR(75,50)` → `1.5` |
-| `REFLCOEF` | reflection coefficient Γ | `REFLCOEF(z_load, [z0=50])` | |
+| `VSWR` / `VSWRG` | VSWR from Z or \|Γ\| (Z may be a complex string) | `VSWR(z_load, [z0=50])` | `=VSWR(75,50)` → `1.5` |
+| `REFLCOEF` | reflection coefficient Γ (complex string for a complex load) | `REFLCOEF(z_load, [z0=50])` | `=REFLCOEF(75)` → `0.2` |
 | `RETURNLOSS` / `MISMATCHLOSS` | dB from \|Γ\| | `RETURNLOSS(gamma)` | |
 | `VSWR2GAMMA` | \|Γ\| from VSWR | `VSWR2GAMMA(vswr)` | |
 | `Z0COAX` / `VELFACTOR` | coax Z0 / velocity factor | `Z0COAX(D, d, [eps_r=1])` | |

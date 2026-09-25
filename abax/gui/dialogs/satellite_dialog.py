@@ -91,6 +91,7 @@ class SatelliteDialog(QDialog):
 
         root.addWidget(QLabel("TLE (name line optional):", self))
         self._tle = QPlainTextEdit(self)
+        self._tle.setAccessibleName("Two-line element set (TLE)")
         self._tle.setPlainText(_SAMPLE_TLE)
         self._tle.setMaximumHeight(90)
         root.addWidget(self._tle)
@@ -135,6 +136,7 @@ class SatelliteDialog(QDialog):
         root.addLayout(bar)
 
         self._table = QTableWidget(0, len(_COLUMNS), self)
+        self._table.setAccessibleName("Predicted passes")
         self._table.setHorizontalHeaderLabels(_COLUMNS)
         root.addWidget(self._table, 1)
 
