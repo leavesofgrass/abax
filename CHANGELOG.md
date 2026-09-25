@@ -90,8 +90,8 @@ All notable changes to abax are documented here. The format follows
   - The Smith chart and antenna pattern plots are keyboard-focusable, with a
     visible focus ring and a live description.
   - Previously unnamed controls now have names: the RF toolkit results, the
-    RF reference filter and tables, the activation-log fields and table, and
-    the satellite TLE box and passes table.
+    RF reference filter and tables, the activation-log ruleset, fields and
+    table, and the satellite TLE box and passes table.
   - A new test checks every Radio dialog through Qt's accessibility layer.
 - `core.science.engnum` — parse and format engineering-notation values.
 - The Qt compatibility layer now exports `QAccessible` / `QAccessibleEvent`,

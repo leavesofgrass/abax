@@ -70,8 +70,12 @@ class HamLogDialog(QDialog):
         root = QVBoxLayout(self)
 
         top = QHBoxLayout()
-        top.addWidget(QLabel("Ruleset:", self))
+        ruleset_label = QLabel("&Ruleset:", self)
+        top.addWidget(ruleset_label)
         self._ruleset = QComboBox(self)
+        # the buddy link is what names the combo for Windows screen readers
+        ruleset_label.setBuddy(self._ruleset)
+        self._ruleset.setAccessibleName("Ruleset")
         self._ruleset.addItems(hamlog.available_rulesets())
         self._ruleset.setCurrentText("pota")
         self._ruleset.currentIndexChanged.connect(self._rescore)
