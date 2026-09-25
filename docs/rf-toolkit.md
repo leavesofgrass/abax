@@ -56,15 +56,37 @@ directly and show results in both metric and imperial.
 
 | Function | Returns |
 | --- | --- |
-| `VSWR(z_load, [z0=50])` | VSWR from a (resistive) load |
-| `VSWRG(gamma)` | VSWR from \|Γ\| |
-| `REFLCOEF(z_load, [z0=50])` | reflection coefficient Γ |
-| `RETURNLOSS(gamma)` / `MISMATCHLOSS(gamma)` | return loss / mismatch loss (dB) |
+| `VSWR(z_load, [z0=50])` | VSWR from a load, resistive or complex |
+| `VSWRG(gamma)` | VSWR from Γ or \|Γ\| |
+| `REFLCOEF(z_load, [z0=50])` | reflection coefficient Γ; a complex load gives a complex Γ |
+| `RETURNLOSS(gamma)` / `MISMATCHLOSS(gamma)` | return loss / mismatch loss (dB) from Γ or \|Γ\| |
 | `VSWR2GAMMA(vswr)` | \|Γ\| from VSWR |
 | `Z0COAX(d_outer, d_inner, [eps_r=1])` | coax characteristic impedance (Ω) |
 | `VELFACTOR(eps_r)` | velocity factor 1/√εr |
 | `QWMATCH(z1, z2)` | quarter-wave transformer impedance √(Z₁·Z₂) (Ω) |
 | `SWRPWR(forward_w, reflected_w)` | SWR from forward / reflected power |
+
+**Complex loads.**
+- `VSWR`, `REFLCOEF`, `RETURNLOSS`, `MISMATCHLOSS` and `VSWRG` accept an Excel
+  complex string as well as a number.
+- A reactive load's Γ comes back as a complex string, which chains straight
+  into the others. Plain numbers work exactly as before.
+
+```
+=VSWR("75+25j")                       → 1.77
+=REFLCOEF("75+25j")                   → 0.230769230769+0.153846153846j
+=RETURNLOSS(REFLCOEF("75+25j"))       → 11.14   (dB)
+```
+
+**L-networks for complex loads.** In the Python console:
+- `rf.l_match_complex(zl, z0, f)` returns every lossless L-network that matches
+  a complex load to Z0, in both topologies: shunt element at the load, or
+  series element at the load. Each network is verified numerically.
+- `rf.match_path(zl, solution, z0)` traces the Smith-chart path as each element
+  is added.
+
+The older `rf.l_match` matches resistances only. It is still used by the RF
+toolkit's *Matching (L-network)* mode, whose inputs are resistive.
 
 ## Component & antenna design (radio math)
 
@@ -467,8 +489,21 @@ math tools stay under *Tools → Scientific*):
 - **RF toolkit** — a mode-switching dialog for **link budget**, **coax line**,
   **antenna dimensions**, and **L-network matching**, showing results in both
   metric and imperial where it helps.
-- **Smith chart** — plots a load impedance and its reflection coefficient, reports
-  VSWR / return loss, and computes the two L-network matching solutions.
+- **Smith chart** — enter a load R + jX, Z0 and frequency.
+  - **It shows:**
+    - the load's Γ in rectangular and polar form
+    - VSWR, return loss and mismatch loss
+    - every lossless L-network that matches the **complex** load. Earlier
+      versions matched only the resistive part.
+  - **Draw match** plots the chosen network's path. The series element moves
+    along a constant-resistance circle and the shunt element along a
+    constant-conductance circle, ending at the chart center.
+  - **Accessibility:**
+    - The chart is keyboard-focusable, and every mark on it is labeled in
+      text.
+    - Its screen-reader description covers where the load sits, the VSWR, and
+      the path drawn, and it is re-announced when those change.
+    - The readout is a read-only text area you can move through line by line.
 - **RF exposure estimate (MPE)** — FCC MPE limits, compliance distances,
   and the § 1.1307 exemption check, with an accessible density-versus-distance
   graph (see *RF exposure* above).
@@ -506,6 +541,30 @@ math tools stay under *Tools → Scientific*):
 - **I/Q → SVG** — reads a two-column (I, Q) selection and exports the constellation
   as an SVG, reporting power in dBFS.
 - **Solve NEC deck (PyNEC)** — see below.
+
+## Accessibility of the radio tools
+
+Every Radio dialog is checked by `tests/test_gui_radio_accessibility.py`:
+- Every control has a name a screen reader announces, from a buddy label or an
+  explicit name. Placeholder text is not relied on.
+- Every chart is keyboard-focusable and has a written description built from
+  the numbers it draws. The description is re-announced when the chart
+  changes. This covers the Smith chart, the circuit and exposure graphs, and
+  the antenna pattern plots.
+
+The graphs also:
+- draw a visible focus ring;
+- label reference lines and points with text, never color alone;
+- take their colors from the active theme, so the high-contrast themes apply.
+
+The circuit and exposure graphs also show their data as a table, with *Data →
+new sheet*.
+
+Exported SVGs have `role="img"`, a `<title>` and a `<desc>` describing the
+plot, so they stay accessible in a web page or document. This covers:
+- *Smith chart → SVG*
+- the antenna pattern's *Export SVG*
+- *I/Q constellation → SVG*
 
 ## Antenna impedance
 
