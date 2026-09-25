@@ -101,7 +101,195 @@ lossless line of characteristic impedance `z0` and electrical length
 `Z0²/ZL`; a half-wave line repeats the load. Return the real / imaginary parts
 separately, mirroring `DIPOLER`/`DIPOLEX`.
 
-## Link budget & propagation
+## Circuit fundamentals
+
+Ohm's law and power, series and parallel parts, RC/RL time constants, complex
+impedance, and power, backed by
+[`abax/core/science/circuits.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/circuits.py)
+(pure standard library).
+
+**Impedance in two styles.** Any argument written `z | r, [x]` takes either
+- one Excel complex string, such as `"75+25j"` or `"50-25i"`, or a plain number
+  for a pure resistance; or
+- two numbers, `R` and `X`.
+
+So `=PHASEANGLE(100,-200)` and `=PHASEANGLE("100-200j")` give the same answer.
+Complex results (`ZSERIESRLC`, `ADMITTANCE`, `POLAR2RECT`) come back as complex
+strings with a `j` suffix. The existing `IMREAL`, `IMAGINARY`, `IMABS` and
+`IMARGUMENT` functions read them. Positive X is inductive, negative X capacitive.
+
+| Function | Returns |
+| --- | --- |
+| `OHMV(i, r)` / `OHMI(e, r)` / `OHMR(e, i)` | Ohm's law: volts / amperes / ohms |
+| `POWERVI(e, i)` / `POWERIR(i, r)` / `POWERVR(e, r)` | power (W) three ways |
+| `RSERIES(…)` / `LSERIES(…)` / `CPARALLEL(…)` | straight sum (values or ranges) |
+| `RPARALLEL(…)` / `LPARALLEL(…)` / `CSERIES(…)` | 1 / Σ(1/x) (values or ranges) |
+| `TAURC(r, c)` / `TAURL(r, l)` | time constant τ (s) |
+| `TCCHARGE(t, tau)` / `TCDECAY(t, tau)` | fraction reached / remaining after t (0.632 / 0.368 at 1τ) |
+| `TCTIME(fraction, tau)` | time to charge to a fraction of the final value |
+| `ZSERIESRLC(f, r, l, c)` / `ZPARALLELRLC(f, r, l, c)` | complex impedance; pass 0 to omit a part |
+| `ZMAG(z)` / `PHASEANGLE(z)` / `POWERFACTOR(z)` | \|Z\|, phase (°, + = voltage leads), cos θ |
+| `ADMITTANCE(z)` / `CONDUCTANCE(z)` / `SUSCEPTANCE(z)` | Y = 1/Z (complex) and its G / B parts (S) |
+| `POLAR2RECT(mag, angle_deg)` | polar → rectangular complex |
+| `REALPOWER(e, i, θ)` / `REACTIVEPOWER(e, i, θ)` / `APPARENTPOWER(e, i)` | W / VAR / VA |
+| `QSERIES(r, x)` / `QPARALLEL(r, x)` | circuit Q: X/R series, R/X parallel |
+
+**Worked examples (Extra pool E5B04, E5B08, E5C10):**
+
+```
+=TAURC(RPARALLEL(1e6,1e6), CPARALLEL(220e-6,220e-6))   → 220        (s)
+=PHASEANGLE(100, 100-300)                               → -63.4      (voltage lags)
+=ZSERIESRLC(14e6, 400, 0, 38e-12)                       → 400-299.16…j
+```
+
+## Radio-system math
+
+Station and system arithmetic, backed by
+[`abax/core/science/radio_calc.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/radio_calc.py).
+
+| Function | Returns |
+| --- | --- |
+| `ERPW(p_w, gain_dbd, [loss_db…])` / `EIRPW(p_w, gain_dbi, [loss_db…])` | ERP / EIRP in watts; losses are positive dB |
+| `RXLEVEL(ptx_dbm, gtx, grx, path_loss_db, [cable_loss_db])` | received level (dBm) |
+| `LINKMARGIN(rx_dbm, mds_dbm, [snr_db])` | margin above MDS + required SNR (dB) |
+| `BWNOISEDB(bw_from, bw_to)` | noise change with bandwidth, 10·log(B₂/B₁) |
+| `OPAMPINV(rf, rin)` / `OPAMPNONINV(rf, rin)` | op-amp voltage gain −Rf/Rin / 1 + Rf/Rin |
+| `MODINDEX(dev, fm)` / `DEVRATIO(dev_max, fm_max)` | FM modulation index / deviation ratio |
+| `CARSONBW(dev, fm)` | FM bandwidth 2·(Δf + fm) |
+| `CWBW(wpm, [k=5])` / `FSKBW(shift, baud, [k=1.2])` | necessary bandwidth (Hz), 47 CFR § 2.202 |
+| `ADCBITS(range, resolution)` / `ADCLEVELS(bits)` / `ADCLSB(vref, bits)` | converter resolution |
+| `ADCSNR(bits)` | ideal quantization SNR, 6.02·N + 1.76 dB |
+| `NYQUIST(f_max)` | minimum sample rate 2·f_max |
+| `USBMAXFREQ(upper_edge, [bw=3000])` / `LSBMINFREQ(lower_edge, [bw=3000])` | sideband band-edge limits (Hz) |
+| `LINELEN(f, fraction_wl, [vf])` / `ELECDEG(length_m, f, [vf])` | physical ↔ electrical line length |
+| `STUBX(z0, elec_deg, [open_end=FALSE])` | stub input reactance (Ω); `#NUM!` at a pole |
+| `ANTEFF(r_rad, r_loss)` | antenna efficiency |
+| `IMD3LO(f1, f2)` / `IMD3HI(f1, f2)` | third-order IMD products 2f₁−f₂ / 2f₂−f₁ |
+| `IP3(tone_dbm, im3_dbm)` / `SFDR(ip3_dbm, floor_dbm)` | intercept point / spurious-free dynamic range |
+| `IMAGEFREQ(f_sig, f_if, [high_side_lo=TRUE])` | superhet image frequency |
+
+**Where the necessary-bandwidth formulas come from.** 47 CFR § 2.202(g) gives
+Bn = B·K for CW (K = 5 for fading circuits, 3 for non-fading) and Bn = 2M + 2DK
+for frequency-shift keying (M = B/2, D = half the shift, K = 1.2 typically).
+The rule does not state a general words-per-minute-to-baud conversion. `CWBW`
+uses 0.8 baud per wpm, the ratio in the rule's own worked example (25 wpm with
+B = 20). The Extra pool uses the same ratio (E8C05: 13 wpm → 52 Hz).
+
+**Worked examples (Extra pool E9A02, E4D12, E8C07):**
+
+```
+=ERPW(150, 7, 2, 2.2)                                   → 286        (W ERP)
+=LINKMARGIN(RXLEVEL(40, 10, 0, 136, 3), -103, 6)        → 8          (dB)
+=FSKBW(4800, 9600)                                      → 15360      (Hz)
+```
+
+Every calculation question in the current Extra pool is worked, and checked
+against the answer key, in the
+[Extra Class worked examples](examples/radio/extra-class-formulas/README.md).
+
+## RF exposure (MPE / SAR)
+
+Estimates for the RF exposure evaluation US amateur stations must make, backed
+by [`abax/core/science/rf_exposure.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/rf_exposure.py).
+
+> **These are estimates.** They use the far-field power-density formula. They
+> are not a substitute for your station's evaluation under 47 CFR § 97.13(c)
+> and § 1.1307(b). They are also not a reliable measure closer to the antenna
+> than λ/2π. When a result is close to a limit, measure or model the station
+> properly.
+
+| Function | Returns |
+| --- | --- |
+| `MPELIMIT(freq_hz, [tier])` | MPE power-density limit, **mW/cm²** (47 CFR § 1.1310 Table 1) |
+| `MPEEFIELD(freq_hz, [tier])` / `MPEHFIELD(freq_hz, [tier])` | E-field (V/m) / H-field (A/m) limit; `#N/A` above 300 MHz, where the table gives none |
+| `PWRDENSITY(eirp_w, distance_m, [reflection=1])` | far-field power density F·EIRP / (4πR²), mW/cm² |
+| `MPEDIST(eirp_w, freq_hz, [tier], [reflection=1])` | distance (m) beyond which the limit is met |
+| `MPEPERCENT(density_mw_cm2, freq_hz, [tier])` | a power density as a percent of the limit |
+| `AVGPOWER(peak_w, [duty_cycle=1], [tx_fraction=1])` | time-averaged power: PEP × duty × transmit fraction |
+| `EXEMPTERP(freq_hz, distance_m)` | exemption-threshold ERP (W), 47 CFR § 1.1307(b)(3)(i)(C) |
+| `EXEMPTMINDIST(freq_hz)` | λ/2π (m), the closest distance where that table applies |
+| `SARLIMIT([tier], [kind])` | SAR limit, W/kg, 47 CFR § 1.1310(b)–(c). `kind` is `whole_body`, `peak_1g` or `extremity_10g` |
+| `SAR(σ, e_rms, ρ)` | SAR = σ·E²/ρ, W/kg |
+
+**Tiers.**
+- `"uncontrolled"` (the default; `"general"` also works): general population,
+  averaged over 30 minutes.
+- `"controlled"` (`"occupational"`): averaged over 6 minutes.
+- Under § 97.13(c)(1), you may evaluate members of your immediate household
+  against the controlled limits, provided you and they have had the
+  appropriate training and information. Everyone else nearby is evaluated
+  against the uncontrolled limits.
+
+**Units.**
+- Formula frequencies are in hertz, as everywhere else in abax, and are
+  converted to the MHz the FCC tables use.
+- Power density is in mW/cm², the unit of the FCC table (1 mW/cm² = 10 W/m²).
+- At a boundary frequency that the table lists in two rows (for example
+  1.34 MHz), the more restrictive value is used.
+
+**Ground reflection.**
+- `reflection` is a power-density factor F.
+- 1 is free space.
+- 4 is full in-phase reflection: the reflected wave doubles the field, which
+  quadruples the power density.
+- The § 1.1307 exemption table is exactly this F = 4 model applied to ERP.
+  Every row equals the general-population limit × πR² / 1.64, to the rule's
+  rounding, and abax's tests check this.
+- OET Bulletin 65 recommends a smaller factor for typical ground. abax does not
+  preset it, because the bulletin could not be checked when this was written.
+  If you use it, enter it yourself from OET-65.
+
+**Duty cycle.**
+- Enter your own mode duty cycle and transmit time.
+- `1` (100 %) is the worst case and the default.
+- abax does not preset per-mode duty factors (OET-65 Supplement B has a table)
+  for the same reason as the reflection factor.
+
+**Multiple transmitters.** Under § 1.1307(b)(5), when a site's total exceeds the
+limit, every licensee whose source produces **more than 5 %** of the applicable
+limit there shares responsibility. `MPEPERCENT` gives that percentage. (Extra
+pool E0A04 words it as "5 percent or more".)
+
+**Worked example — 1500 W PEP on 10 m into an 8 dBi beam, SSB:**
+
+```
+A1: =AVGPOWER(1500, 0.5, 0.5)             → 375      (W; your duty and on-time)
+A2: =A1*10^(8/10)                         → 2366     (W EIRP)
+A3: =MPEDIST(A2, 28.4e6, "uncontrolled", 4) → 18.4    (m, worst-case reflection)
+A4: =MPEDIST(A2, 28.4e6, "controlled", 4)   → 8.2     (m)
+A5: =EXEMPTERP(28.4e6, 20)                → 1711     (W ERP threshold at 20 m)
+```
+
+Not included, because they could not be verified from primary sources:
+- the § 1.1307(b)(3)(i)(B) SAR-based threshold P_th for distances of 0.5–40 cm
+- OET-65's per-mode duty factors and its ground-reflection factor
+- ICNIRP reference levels
+
+These are future work.
+
+### RF exposure dialog
+
+*Tools → Radio → RF exposure estimate (MPE)* takes:
+- frequency
+- transmitter power (PEP) and feed-line loss
+- antenna gain (dBi)
+- duty cycle and transmit time in the averaging period
+- ground reflection: none, full (worst case) or a custom factor
+- the distance to the nearest person
+
+It reports:
+- average power, EIRP and ERP
+- both tiers' limits and averaging times
+- the distance at which each limit is met
+- the density at your distance as a percent of each limit, stated in words
+  ("below the limit" / "ABOVE the limit")
+- the § 1.1307 exemption check
+
+The log-log graph of density against distance marks both limits, both
+compliance distances and your distance. Its written summary is also its
+screen-reader description, updated with every change. The same numbers are in
+the data table, and *Data → new sheet* copies them into a worksheet.
+
 
 | Function | Returns |
 | --- | --- |
@@ -281,6 +469,26 @@ math tools stay under *Tools → Scientific*):
   metric and imperial where it helps.
 - **Smith chart** — plots a load impedance and its reflection coefficient, reports
   VSWR / return loss, and computes the two L-network matching solutions.
+- **RF exposure estimate (MPE)** — FCC MPE limits, compliance distances,
+  and the § 1.1307 exemption check, with an accessible density-versus-distance
+  graph (see *RF exposure* above).
+- **Circuit calculator** — four tabs:
+  - **Ohm's law:** enter any two of E, I, R and P and it solves the other two.
+  - **Time constant:** RC or RL, charging or discharging, with a graph of the
+    0–5τ curve.
+  - **Resonance:** series or parallel RLC, giving f0, Q and the −3 dB bandwidth,
+    with a response graph.
+  - **Impedance:** Z, phase angle, power factor and Y for R, L and C at a
+    frequency.
+
+  Fields accept engineering notation (`50u`, `40 pF`, `3.5 MHz`). Each graph is
+  paired with the same data in three other forms:
+  - a written summary, which is also the chart's screen-reader description and
+    updates whenever the values change;
+  - a data table;
+  - a *Data → new sheet* button that copies the table into a worksheet.
+
+  The graph itself takes keyboard focus.
 - **Antenna pattern** — a polar plot of the analytic dipole / array patterns with
   directivity (dBi) and half-power beamwidth. It re-plots live as you change N /
   spacing / phase, and **exports the pattern as SVG** or a **NEC `.nec`** deck.

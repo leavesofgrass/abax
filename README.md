@@ -2,7 +2,7 @@
 
 A keyboard-first **statistics and data-science workstation** — an integrated
 environment for data work, built on a fast, scriptable spreadsheet. Load a
-dataset, explore it with **642 formula functions** (statistics and
+dataset, explore it with **712 formula functions** (statistics and
 distributions, financial, engineering, database, and **RF/amateur-radio**),
 run built-in analyses (regression, t-tests, ANOVA, correlation), reshape it
 with pivot/group-by and recode, visualize it, hand a selection off to pandas,
@@ -77,8 +77,10 @@ Each guide below links to a tested, runnable example.
   Markdown, R, ODS, Jupyter `.ipynb` (lossless round-trip), and more;
   `abax convert a.csv b.xlsx` converts between any pair.
 - **[RF & antenna engineering](https://leavesofgrass.github.io/abax/rf-toolkit/)** —
-  60+ RF functions, link budgets, a Smith chart, a thin-wire Method-of-Moments
-  solver with NEC deck import/export, a satellite pass predictor, and
+  120+ RF and circuit functions (every Amateur Extra calculation, worked and
+  checked), link budgets, FCC RF-exposure (MPE) estimates, a circuit
+  calculator, a Smith chart, a thin-wire
+  Method-of-Moments solver with NEC deck import/export, a satellite pass predictor, and
   POTA/SOTA activation logging.
 - **[Macros & scripting](https://leavesofgrass.github.io/abax/macros-and-scripting/)** —
   Python command macros and formula UDFs, macro **recording**, a live

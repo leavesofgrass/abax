@@ -10,6 +10,74 @@ All notable changes to abax are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Circuit fundamentals and radio-system formula functions** (59 new, in the
+  *Radio & RF* category).
+  - Circuits:
+    - Ohm's law and power
+    - series and parallel R, L and C
+    - RC/RL time constants and the charge/decay fractions
+    - series and parallel RLC impedance
+    - phase angle, admittance and conductance/susceptance
+    - power factor, and true, reactive and apparent power
+    - circuit Q
+  - Radio systems:
+    - ERP/EIRP through a chain of gains and losses
+    - received level and link margin
+    - noise change with bandwidth
+    - op-amp gain
+    - FM modulation index, deviation ratio and Carson bandwidth
+    - CW and FSK necessary bandwidth, from 47 CFR § 2.202
+    - ADC bits, levels, step size and ideal SNR, plus the Nyquist rate
+    - sideband band-edge limits
+    - physical and electrical line length, and stub reactance
+    - antenna efficiency
+    - IMD3 products, IP3, SFDR, and the image frequency
+  - Impedance arguments take an Excel complex string (`"75+25j"`) or separate
+    R, X numbers. Complex results are complex strings that `IMREAL`,
+    `IMAGINARY` and `IMABS` read. Backed by the new pure-stdlib
+    `core.science.circuits` and `core.science.radio_calc` modules.
+- **Amateur Extra worked examples** (`docs/examples/radio/extra-class-formulas`).
+  - Covers every calculation question in the 2024–2028 Element 4 pool: 45
+    questions, each worked as one formula and checked against the answer key.
+  - The example exits non-zero if any answer drifts, so the docs test suite
+    enforces it.
+- **Circuit calculator** (*Tools → Radio*), with four tabs:
+  - Ohm's law: enter any two of E, I, R and P.
+  - RC/RL time constant, with a charge/discharge graph.
+  - Series/parallel RLC resonance, with a response graph marking f0 and the
+    −3 dB bandwidth.
+  - Impedance.
+
+  Fields accept engineering notation (`50u`, `40 pF`, `3.5 MHz`). Each graph
+  is keyboard-focusable and comes with a written summary that is also the
+  chart's screen-reader description. The description is re-announced when the
+  numbers change. The same data is shown as a table, and *Data → new sheet*
+  copies it into a worksheet.
+- **RF exposure estimates** (47 CFR § 1.1310 and § 1.1307(b)(3)).
+  - 11 formula functions:
+    - `MPELIMIT`, `MPEEFIELD`, `MPEHFIELD`: MPE limits for both tiers
+    - `PWRDENSITY`: far-field power density
+    - `MPEDIST`: compliance distance
+    - `MPEPERCENT`: percent of the limit, for the 5 % multi-transmitter rule
+    - `AVGPOWER`: time-averaged power
+    - `EXEMPTERP`, `EXEMPTMINDIST`: the exemption threshold and λ/2π
+    - `SARLIMIT`, `SAR`: SAR limits and SAR = σE²/ρ
+  - *Tools → Radio → RF exposure estimate (MPE)* evaluates a whole station.
+    It has an accessible density-versus-distance graph with both limits and
+    compliance distances marked, states results in words, and says plainly
+    that it is an estimate.
+  - Only rules verified from primary text are built in. Ground reflection is
+    free space (×1), full in-phase reflection (×4), or a factor you enter, and
+    the duty cycle is an input. The tests check that the § 1.1307 exemption
+    table matches the ×4 model.
+  - OET-65's per-mode duty factors and reflection factor, the P_th formula for
+    0.5–40 cm, and ICNIRP levels are left out, and documented as such.
+- `core.science.engnum` — parse and format engineering-notation values.
+- The Qt compatibility layer now exports `QAccessible` / `QAccessibleEvent`,
+  so custom-painted widgets can notify assistive technology.
+
 ## [0.1.20] — 2026-08-10
 
 A maintenance release. One user-visible change (`abax doctor`); the rest is the

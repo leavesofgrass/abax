@@ -774,7 +774,7 @@ The full menu bar, organised the standard desktop way (labels are exactly as in
   File manager (`Ctrl+Shift+F`), Macros (submenu), Manage macros, Recording (start/stop, relative,
   save, replay), Load macro / UDF file, Run Python script, **Code isolation
   (sandbox)** → (Off / Restricted / Isolated / Strict), **Radio** → (RF toolkit,
-  Smith chart, Antenna pattern, Antenna modeler, Open logbook (ADIF), Activation
+  Smith chart, Circuit calculator, RF exposure estimate (MPE), Antenna pattern, Antenna modeler, Open logbook (ADIF), Activation
   log (POTA/SOTA), Satellite passes (SGP4), RF reference (bands / CTCSS), I/Q
   constellation → SVG, Smith chart → SVG, Solve NEC deck (PyNEC)),
   Calculator faceplates, Copy selection as Markdown.
@@ -852,6 +852,15 @@ docs — this is the one-line "what it does" index.
   matching.
 - **Smith chart** — plot a load impedance, its reflection coefficient, and a
   matching path.
+- **RF exposure estimate (MPE)** — FCC MPE limits for both tiers, compliance
+  distances, percent of each limit at a chosen distance (in words), and the
+  § 1.1307 exemption check, with an accessible log-log density-versus-distance
+  graph. An estimate, not a substitute for a station evaluation.
+- **Circuit calculator** — Ohm's law (any two of E, I, R, P), RC/RL time
+  constants, series/parallel RLC resonance, and impedance/phase/admittance.
+  The time-constant and resonance graphs are keyboard-focusable, carry a
+  screen-reader description that tracks the numbers, and sit beside the same
+  data as a table (*Data → new sheet* copies it to the grid).
 - **Antenna pattern** — a QPainter polar plot of the analytic patterns.
 - **Antenna modeler** — define a wire dipole or Yagi and read modelled gain
   (dBi), front-to-back, feed-point impedance, and a polar pattern from the

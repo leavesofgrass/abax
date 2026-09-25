@@ -529,6 +529,9 @@ class MainWindow(PMMixin, NavigationMixin, DocumentMixin, DocumentIOMixin, Setti
         m_radio = m_tools.addMenu("&Radio")
         self._act(m_radio, "&RF toolkit...", self.show_rf_tool)
         self._act(m_radio, "Smith &chart...", self.show_smith_chart)
+        self._act(m_radio, "Circuit calc&ulator (Ohm / RC / resonance)...",
+                  self.show_circuit_calculator)
+        self._act(m_radio, "RF e&xposure estimate (MPE)...", self.show_rf_exposure)
         self._act(m_radio, "&Antenna pattern...", self.show_antenna_pattern)
         self._act(m_radio, "Antenna &modeler...", self.show_antenna_modeler)
         self._act(m_radio, "Open &logbook (ADIF)...", self.show_adif_logbook)

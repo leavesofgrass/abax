@@ -23,7 +23,10 @@ def test_registry_sizes():
     # pack (ISDUPE, QSOPOINTS) + 4 live-data formulas (REST, WEBSOCKET,
     # WEBSERVICE, RESTTABLE) + FILTERXML + SPARKLINE. GETPIVOTDATA is CONTEXT.
     # +5 for the curated-coverage tail: ASC, DBCS, JIS, PHONETIC, BAHTTEXT (100%).
-    assert len(FUNCTIONS) == 614
+    # +59 circuit fundamentals and radio-system math (OHMV … IMAGEFREQ; see
+    # tests/test_circuit_formulas.py for the full list).
+    # +11 RF exposure (MPELIMIT … SAR; tests/test_rf_exposure_formulas.py).
+    assert len(FUNCTIONS) == 684
     assert len(LAZY_FUNCTIONS) == 6
 
 
