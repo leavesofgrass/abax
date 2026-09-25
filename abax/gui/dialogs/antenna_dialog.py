@@ -12,6 +12,8 @@ import math
 from pathlib import Path
 
 from .._qtcompat import (
+    QAccessible,
+    QAccessibleEvent,
     QColor,
     QComboBox,
     QDialog,
@@ -26,21 +28,45 @@ from .._qtcompat import (
     QPen,
     QPointF,
     QPushButton,
+    QRectF,
+    Qt,
     QVBoxLayout,
     QWidget,
 )
 
 
 class PolarPlot(QWidget):
-    """Polar plot of ``[(theta, magnitude 0..1)]`` samples (theta from the vertical)."""
+    """Polar plot of ``[(theta, magnitude 0..1)]`` samples (theta from the vertical).
+
+    Keyboard-focusable with a visible focus ring, named "Antenna pattern plot",
+    and described in words (maximum, deepest null, 3 dB coverage) from the
+    samples it draws; the description is re-announced when the pattern changes.
+    """
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setMinimumSize(300, 300)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setAccessibleName("Antenna pattern plot")
         self._samples: list = []
 
-    def set_samples(self, samples: list) -> None:
+    def set_samples(self, samples: list, *, decibels: bool = False,
+                    floor_db: float = -40.0) -> None:
+        """Plot ``samples``; pass ``decibels`` when they are dB-scaled (the
+        antenna modeler's cuts) so the spoken description reads them right."""
+        from ...core.science.antenna import describe_polar
+
         self._samples = list(samples)
+        text = describe_polar(self._samples, decibels, floor_db)
+        if text != self.accessibleDescription():
+            self.setAccessibleDescription(text)
+            self.setToolTip(text)
+            if QAccessible is not None and QAccessibleEvent is not None:
+                try:
+                    QAccessible.updateAccessibility(
+                        QAccessibleEvent(self, QAccessible.Event.DescriptionChanged))
+                except Exception:  # noqa: BLE001
+                    pass
         self.update()
 
     def paintEvent(self, event) -> None:  # noqa: N802 (Qt override)
@@ -70,6 +96,10 @@ class PolarPlot(QWidget):
                 (path.moveTo if i == 0 else path.lineTo)(QPointF(x, y))
             path.closeSubpath()
             p.drawPath(path)
+        if self.hasFocus():
+            p.setPen(QPen(self.palette().highlight().color(), 2.0))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawRect(QRectF(1, 1, w - 2, h - 2))
         p.end()
 
 

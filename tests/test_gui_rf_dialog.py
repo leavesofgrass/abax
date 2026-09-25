@@ -70,8 +70,9 @@ def test_smith_dialog_gamma_plot_and_paint(win, app):
     assert abs(dlg.gamma() - expect) < 1e-9
 
     dlg._plot()
-    assert len(dlg._chart._points) == 2                     # load point + matched (centre)
-    assert "VSWR" in dlg._readout.text() and "Return loss" in dlg._readout.text()
+    assert abs(dlg._chart._load - expect) < 1e-9            # load plotted at its Γ
+    text = dlg._readout.toPlainText()
+    assert "VSWR" in text and "Return loss" in text
 
     pm = QPixmap(240, 240)                                  # exercise paintEvent (no crash)
     dlg._chart.render(pm)

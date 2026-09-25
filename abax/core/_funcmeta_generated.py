@@ -539,7 +539,7 @@ GENERATED_DESCRIPTIONS: dict[str, str] = {
     'REALPOWER': 'True power in watts, E times I times cos of the phase angle.',
     'RECEIVED': 'Amount received at maturity.',
     'REDUCE': 'Fold an array to one value.',
-    'REFLCOEF': 'Reflection coefficient Γ.',
+    'REFLCOEF': 'Reflection coefficient Γ (complex string for a complex load).',
     'REGEXEXTRACT': 'Extract matches (return_mode 0 first, 1 all → spills, 2 capture groups).',
     'REGEXREPLACE': 'Replace every match globally.',
     'REGEXTEST': 'Does the regex match anywhere? (case_sensitivity 0 sensitive, 1 insensitive).',

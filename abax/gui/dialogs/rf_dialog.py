@@ -126,6 +126,8 @@ class RFDialog(QDialog):
         outer.addWidget(btn)
         self._results = QPlainTextEdit(self)
         self._results.setReadOnly(True)
+        self._results.setAccessibleName("RF toolkit results")
+        self._mode.setAccessibleName("RF toolkit calculation")
         outer.addWidget(self._results, 1)
 
     def _spec(self):

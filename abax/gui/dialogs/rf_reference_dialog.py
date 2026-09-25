@@ -59,15 +59,18 @@ class RfReferenceDialog(QDialog):
 
         self._filter = QLineEdit(self)
         self._filter.setPlaceholderText("Filter (band name, frequency, tone)…")
+        self._filter.setAccessibleName("Filter bands and tones")
         self._filter.textChanged.connect(self._apply_filter)
         root.addWidget(self._filter)
 
         root.addWidget(QLabel("US amateur bands (FCC Part 97, ITU Region 2)", self))
         self._band_table = self._make_table(_BAND_HEADERS, self._bands)
+        self._band_table.setAccessibleName("US amateur bands")
         root.addWidget(self._band_table, 3)
 
         root.addWidget(QLabel("CTCSS (PL) tones — EIA standard", self))
         self._tone_table = self._make_table(_TONE_HEADERS, self._tones)
+        self._tone_table.setAccessibleName("CTCSS tones")
         root.addWidget(self._tone_table, 2)
         self._active_table = self._band_table
 

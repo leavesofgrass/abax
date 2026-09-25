@@ -850,8 +850,9 @@ docs — this is the one-line "what it does" index.
 
 - **RF toolkit** — link budget, coax line, antenna dimensions, and L-network
   matching.
-- **Smith chart** — plot a load impedance, its reflection coefficient, and a
-  matching path.
+- **Smith chart** — plot a load impedance with its constant-VSWR circle, list
+  every L-network that matches the complex load, and draw the chosen
+  network's path to the centre. Keyboard-focusable, with a spoken description.
 - **RF exposure estimate (MPE)** — FCC MPE limits for both tiers, compliance
   distances, percent of each limit at a chosen distance (in words), and the
   § 1.1307 exemption check, with an accessible log-log density-versus-distance

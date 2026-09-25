@@ -263,6 +263,109 @@ def l_match(z_source: complex, z_load: complex, freq_hz: float) -> list[dict]:
     return sols
 
 
+def l_match_complex(z_load: complex, z0: float, freq_hz: float) -> list[dict]:
+    """Every lossless L-network that matches a *complex* load to a real ``z0``.
+
+    Two topologies (standard two-element L-network design, e.g. Pozar,
+    *Microwave Engineering*, §5.1):
+
+    * ``"shunt-at-load"`` — a shunt susceptance B across the load, then a
+      series reactance X toward the source: Zin = jX + 1/(jB + 1/ZL).
+      Possible when RL² + XL² ≥ Z0·RL (always when RL > Z0).
+    * ``"series-at-load"`` — a series reactance X next to the load, then a
+      shunt susceptance B toward the source: Zin = 1/(jB + 1/(ZL + jX)).
+      Possible when RL < Z0.
+
+    Each candidate is checked numerically (its Zin must equal Z0) and only
+    valid, distinct networks are returned. Each dict has ``topology``,
+    ``series_x`` (Ω), ``shunt_b`` (S) and the equivalent ``series`` / ``shunt``
+    components (L in henries for +X or −B, C in farads for −X or +B;
+    ``{"type": "none"}`` when an element is not needed). A load already equal
+    to Z0 returns one solution with no elements.
+    """
+    zl = complex(z_load)
+    rl, xl = zl.real, zl.imag
+    if z0 <= 0 or rl <= 0 or freq_hz <= 0:
+        raise ValueError("Z0, load resistance and frequency must be > 0")
+    w = 2.0 * math.pi * freq_hz
+    tol = 1e-9 * z0
+    if abs(zl - z0) <= tol:
+        return [{"topology": "none", "series_x": 0.0, "shunt_b": 0.0,
+                 "series": {"type": "none", "value": 0.0},
+                 "shunt": {"type": "none", "value": 0.0}}]
+
+    candidates: list[tuple[str, float, float]] = []
+    mag2 = rl * rl + xl * xl
+    disc = mag2 - z0 * rl
+    if disc >= -tol * z0:                                   # shunt element at the load
+        root = math.sqrt(rl / z0) * math.sqrt(max(disc, 0.0))
+        for sign in (1.0, -1.0):
+            b = (xl + sign * root) / mag2
+            if abs(b) < 1e-15:
+                x = -xl                                     # RL == Z0: series element only
+            else:
+                x = 1.0 / b + xl * z0 / rl - z0 / (b * rl)
+            candidates.append(("shunt-at-load", x, b))
+    if rl < z0:                                             # series element at the load
+        for sign in (1.0, -1.0):
+            x = sign * math.sqrt(rl * (z0 - rl)) - xl
+            b = sign * math.sqrt((z0 - rl) / rl) / z0
+            candidates.append(("series-at-load", x, b))
+
+    sols: list[dict] = []
+    for topo, x, b in candidates:
+        try:
+            zin = match_input_impedance(zl, topo, x, b)
+        except ZeroDivisionError:
+            continue
+        if abs(zin - z0) > 1e-6 * z0:
+            continue
+        if any(s["topology"] == topo and abs(s["series_x"] - x) < 1e-9 * (1 + abs(x))
+               and abs(s["shunt_b"] - b) < 1e-12 * (1 + abs(b)) for s in sols):
+            continue
+        shunt = (_x_to_component(-1.0 / b, w) if abs(b) > 1e-15
+                 else {"type": "none", "value": 0.0})
+        sols.append({"topology": topo, "series_x": x, "shunt_b": b,
+                     "series": _x_to_component(x, w), "shunt": shunt})
+    return sols
+
+
+def match_input_impedance(z_load: complex, topology: str, series_x: float,
+                          shunt_b: float) -> complex:
+    """Input impedance of an L-network (see :func:`l_match_complex`)."""
+    zl = complex(z_load)
+    if topology == "none":
+        return zl
+    if topology == "shunt-at-load":
+        return 1j * series_x + 1.0 / (1j * shunt_b + 1.0 / zl)
+    if topology == "series-at-load":
+        return 1.0 / (1j * shunt_b + 1.0 / (zl + 1j * series_x))
+    raise ValueError(f"unknown topology {topology!r}")
+
+
+def match_path(z_load: complex, solution: dict, z0: float, steps: int = 40) -> list[complex]:
+    """Reflection coefficients (on ``z0``) traced as each element of an
+    L-network is added, from the load to the matched centre of the Smith chart.
+
+    A series reactance moves along a constant-resistance circle; a shunt
+    susceptance along a constant-conductance circle. Returns ``2·steps + 1``
+    points, the first at the load and the last at Γ ≈ 0.
+    """
+    zl = complex(z_load)
+    x, b, topo = solution["series_x"], solution["shunt_b"], solution["topology"]
+    pts = [zl]
+    if topo == "shunt-at-load":
+        y = 1.0 / zl
+        pts += [1.0 / (y + 1j * b * k / steps) for k in range(1, steps + 1)]
+        z_mid = pts[-1]
+        pts += [z_mid + 1j * x * k / steps for k in range(1, steps + 1)]
+    elif topo == "series-at-load":
+        pts += [zl + 1j * x * k / steps for k in range(1, steps + 1)]
+        y_mid = 1.0 / pts[-1]
+        pts += [1.0 / (y_mid + 1j * b * k / steps) for k in range(1, steps + 1)]
+    return [reflection_coefficient(z, z0) for z in pts]
+
+
 def _x_to_component(x: float, w: float) -> dict:
     """Reactance (Ω) → an inductor (X>0) or capacitor (X<0) at angular freq ``w``."""
     if abs(x) < 1e-12:

@@ -439,7 +439,7 @@ class AntennaModelerDialog(QDialog):
         except (ValueError, KeyError, ZeroDivisionError):
             self._readout.setText("Dimensions must be positive numbers (in wavelengths).")
             return
-        self._plotw.set_samples(samples)
+        self._plotw.set_samples(samples, decibels=True)   # compute_pattern is dB-scaled
         plane = self._selected_plane().capitalize()
         src = self._source_label()
         if self._over_ground():
@@ -503,7 +503,8 @@ class AntennaModelerDialog(QDialog):
             self, "Export pattern as SVG", "pattern.svg", "SVG image (*.svg)")
         if not path:
             return
-        svg = antenna.polar_svg(self._pattern, title=self._pattern_title())
+        # compute_pattern samples are dB-scaled (−40 dB floor), so say so
+        svg = antenna.polar_svg(self._pattern, title=self._pattern_title(), decibels=True)
         try:
             Path(path).write_text(svg, encoding="utf-8")
         except OSError as exc:

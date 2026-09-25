@@ -59,8 +59,28 @@ def impedance_to_xy(z, z0, cx: float, cy: float, radius: float) -> tuple:
     return gamma_to_xy(gamma, cx, cy, radius)
 
 
+def describe_smith(points, z0=50.0) -> str:
+    """A plain-language description of a Smith chart of ``points`` on ``z0``:
+    each load, its Γ (magnitude and angle), and its VSWR."""
+    z0c = complex(z0)
+    parts = [f"Smith chart normalized to {z0c.real:g} ohms."]
+    for i, z in enumerate(points, 1):
+        zc = _as_complex(z)
+        g = rf.reflection_coefficient(zc, z0c)
+        mag = abs(g)
+        ang = math.degrees(math.atan2(g.imag, g.real))
+        vswr = rf.vswr_from_gamma(mag)
+        v = "infinite" if math.isinf(vswr) else f"{vswr:.2f} to 1"
+        sign = "plus" if zc.imag >= 0 else "minus"
+        parts.append(f"Load {i}: {zc.real:g} {sign} j{abs(zc.imag):g} ohms, reflection "
+                     f"coefficient magnitude {mag:.3f} at {ang:.1f} degrees, VSWR {v}.")
+    if not points:
+        parts.append("No loads plotted.")
+    return " ".join(parts)
+
+
 def smith_svg(points, z0=50.0, *, show_vswr=None, size: int = 360,
-              margin: int = 18, title: str = "") -> str:
+              margin: int = 18, title: str = "", description: str | None = None) -> str:
     """A standalone SVG string of a standard Smith chart (pure stdlib).
 
     ``points`` is a list of load impedances, each a ``complex`` (or real) or an
@@ -71,6 +91,10 @@ def smith_svg(points, z0=50.0, *, show_vswr=None, size: int = 360,
 
     The chart draws the outer unit circle, constant-resistance circles, and
     constant-reactance arcs — all clipped to the unit disc — plus the real axis.
+
+    The SVG is accessible: ``role="img"`` with a ``<title>`` (``title``, or
+    "Smith chart") and a ``<desc>`` (``description``, or one written by
+    :func:`describe_smith` from the plotted loads).
     """
     cx = cy = size / 2.0
     radius = size / 2.0 - margin
@@ -141,4 +165,8 @@ def smith_svg(points, z0=50.0, *, show_vswr=None, size: int = 360,
                      f'font-family="sans-serif" font-size="12">'
                      f'{_svg_escape(title)}</text>')
     parts.append("</svg>")
-    return "\n".join(parts)
+    from .svgaccess import make_accessible
+
+    return make_accessible("\n".join(parts), title or "Smith chart",
+                           description if description is not None
+                           else describe_smith(points, z0))

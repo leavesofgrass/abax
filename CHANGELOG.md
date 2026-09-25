@@ -74,9 +74,34 @@ All notable changes to abax are documented here. The format follows
     table matches the ×4 model.
   - OET-65's per-mode duty factors and reflection factor, the P_th formula for
     0.5–40 cm, and ICNIRP levels are left out, and documented as such.
+- **Smith chart matches complex loads.**
+  - `rf.l_match_complex` finds every lossless L-network, in both topologies,
+    for a load R + jX. Each solution is verified numerically.
+  - `rf.match_path` traces each network's path across the chart.
+  - The Smith chart dialog lists all solutions, draws the chosen path along
+    its constant-R and constant-G circles, and shows the constant-VSWR circle
+    and mismatch loss.
+- `VSWR`, `REFLCOEF`, `RETURNLOSS`, `MISMATCHLOSS` and `VSWRG` accept Excel
+  complex strings (`=VSWR("75+25j")`). Numeric use is unchanged.
+- **Accessible SVG export** (`core.science.svgaccess.make_accessible`). The
+  Smith chart, antenna pattern and I/Q constellation SVGs now carry
+  `role="img"`, `<title>` and a generated `<desc>`.
+- **Screen-reader coverage across the Radio menu.**
+  - The Smith chart and antenna pattern plots are keyboard-focusable, with a
+    visible focus ring and a live description.
+  - Previously unnamed controls now have names: the RF toolkit results, the
+    RF reference filter and tables, the activation-log ruleset, fields and
+    table, and the satellite TLE box and passes table.
+  - A new test checks every Radio dialog through Qt's accessibility layer.
 - `core.science.engnum` — parse and format engineering-notation values.
 - The Qt compatibility layer now exports `QAccessible` / `QAccessibleEvent`,
   so custom-painted widgets can notify assistive technology.
+
+### Fixed
+
+- **The Smith chart's L-network ignored the load's reactance.** It matched
+  only the resistive part, so its suggested components were wrong for any
+  reactive load. It now designs for the full complex load.
 
 ## [0.1.20] — 2026-08-10
 
