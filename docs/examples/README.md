@@ -32,7 +32,7 @@ optional packages, a network connection, or a display.
 | Summarize data — mean, spread, percentiles, correlation | [descriptive-statistics](formulas/descriptive-statistics/README.md) | `run.py` |
 | Use spilling formulas — SORT, UNIQUE, FILTER, SEQUENCE | [dynamic-arrays](formulas/dynamic-arrays/README.md) | `run.py` |
 | Schedule work in business days, skipping holidays | [business-days](formulas/business-days/README.md) | `run.py` |
-| Look up any of the 642 functions | [formula reference](../formula-reference.md) | guide |
+| Look up any of the 701 functions | [formula reference](../formula-reference.md) | guide |
 
 ## Data: import, clean, export
 
@@ -88,6 +88,7 @@ optional packages, a network connection, or a display.
 | I want to… | Go to | Runs? |
 |---|---|---|
 | Score a contest log — dupes, points, totals | [contest-log-scoring](radio/contest-log-scoring/README.md) | `run.py` |
+| Work every Amateur Extra calculation question | [extra-class-formulas](radio/extra-class-formulas/README.md) | `run.py` |
 | Link budgets, VSWR, Smith chart, antenna modeling | [RF toolkit](../rf-toolkit.md) | guide |
 
 ## Everything else

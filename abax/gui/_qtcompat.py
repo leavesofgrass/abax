@@ -238,8 +238,22 @@ except Exception:  # noqa: BLE001
     QUrl = None  # type: ignore
     QDesktopServices = None  # type: ignore
 
+# QAccessible / QAccessibleEvent let a custom-painted widget (a chart canvas)
+# tell assistive technology that its description changed. Defensive for the same
+# reason as above; callers treat ``None`` as "no notification available".
+try:
+    if BINDING == "PySide6":
+        from PySide6.QtGui import QAccessible, QAccessibleEvent
+    else:
+        from PyQt6.QtGui import QAccessible, QAccessibleEvent
+except Exception:  # noqa: BLE001
+    QAccessible = None  # type: ignore
+    QAccessibleEvent = None  # type: ignore
+
 __all__ = [
     "BINDING",
+    "QAccessible",
+    "QAccessibleEvent",
     "QSvgWidget",
     "QSvgRenderer",
     "QByteArray",

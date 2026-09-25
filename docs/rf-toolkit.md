@@ -101,6 +101,92 @@ lossless line of characteristic impedance `z0` and electrical length
 `Z0²/ZL`; a half-wave line repeats the load. Return the real / imaginary parts
 separately, mirroring `DIPOLER`/`DIPOLEX`.
 
+## Circuit fundamentals
+
+Ohm's law and power, series and parallel parts, RC/RL time constants, complex
+impedance, and power, backed by
+[`abax/core/science/circuits.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/circuits.py)
+(pure standard library).
+
+**Impedance in two styles.** Any argument written `z | r, [x]` takes either
+- one Excel complex string, such as `"75+25j"` or `"50-25i"`, or a plain number
+  for a pure resistance; or
+- two numbers, `R` and `X`.
+
+So `=PHASEANGLE(100,-200)` and `=PHASEANGLE("100-200j")` give the same answer.
+Complex results (`ZSERIESRLC`, `ADMITTANCE`, `POLAR2RECT`) come back as complex
+strings with a `j` suffix. The existing `IMREAL`, `IMAGINARY`, `IMABS` and
+`IMARGUMENT` functions read them. Positive X is inductive, negative X capacitive.
+
+| Function | Returns |
+| --- | --- |
+| `OHMV(i, r)` / `OHMI(e, r)` / `OHMR(e, i)` | Ohm's law: volts / amperes / ohms |
+| `POWERVI(e, i)` / `POWERIR(i, r)` / `POWERVR(e, r)` | power (W) three ways |
+| `RSERIES(…)` / `LSERIES(…)` / `CPARALLEL(…)` | straight sum (values or ranges) |
+| `RPARALLEL(…)` / `LPARALLEL(…)` / `CSERIES(…)` | 1 / Σ(1/x) (values or ranges) |
+| `TAURC(r, c)` / `TAURL(r, l)` | time constant τ (s) |
+| `TCCHARGE(t, tau)` / `TCDECAY(t, tau)` | fraction reached / remaining after t (0.632 / 0.368 at 1τ) |
+| `TCTIME(fraction, tau)` | time to charge to a fraction of the final value |
+| `ZSERIESRLC(f, r, l, c)` / `ZPARALLELRLC(f, r, l, c)` | complex impedance; pass 0 to omit a part |
+| `ZMAG(z)` / `PHASEANGLE(z)` / `POWERFACTOR(z)` | \|Z\|, phase (°, + = voltage leads), cos θ |
+| `ADMITTANCE(z)` / `CONDUCTANCE(z)` / `SUSCEPTANCE(z)` | Y = 1/Z (complex) and its G / B parts (S) |
+| `POLAR2RECT(mag, angle_deg)` | polar → rectangular complex |
+| `REALPOWER(e, i, θ)` / `REACTIVEPOWER(e, i, θ)` / `APPARENTPOWER(e, i)` | W / VAR / VA |
+| `QSERIES(r, x)` / `QPARALLEL(r, x)` | circuit Q: X/R series, R/X parallel |
+
+**Worked examples (Extra pool E5B04, E5B08, E5C10):**
+
+```
+=TAURC(RPARALLEL(1e6,1e6), CPARALLEL(220e-6,220e-6))   → 220        (s)
+=PHASEANGLE(100, 100-300)                               → -63.4      (voltage lags)
+=ZSERIESRLC(14e6, 400, 0, 38e-12)                       → 400-299.16…j
+```
+
+## Radio-system math
+
+Station and system arithmetic, backed by
+[`abax/core/science/radio_calc.py`](https://github.com/leavesofgrass/abax/blob/main/abax/core/science/radio_calc.py).
+
+| Function | Returns |
+| --- | --- |
+| `ERPW(p_w, gain_dbd, [loss_db…])` / `EIRPW(p_w, gain_dbi, [loss_db…])` | ERP / EIRP in watts; losses are positive dB |
+| `RXLEVEL(ptx_dbm, gtx, grx, path_loss_db, [cable_loss_db])` | received level (dBm) |
+| `LINKMARGIN(rx_dbm, mds_dbm, [snr_db])` | margin above MDS + required SNR (dB) |
+| `BWNOISEDB(bw_from, bw_to)` | noise change with bandwidth, 10·log(B₂/B₁) |
+| `OPAMPINV(rf, rin)` / `OPAMPNONINV(rf, rin)` | op-amp voltage gain −Rf/Rin / 1 + Rf/Rin |
+| `MODINDEX(dev, fm)` / `DEVRATIO(dev_max, fm_max)` | FM modulation index / deviation ratio |
+| `CARSONBW(dev, fm)` | FM bandwidth 2·(Δf + fm) |
+| `CWBW(wpm, [k=5])` / `FSKBW(shift, baud, [k=1.2])` | necessary bandwidth (Hz), 47 CFR § 2.202 |
+| `ADCBITS(range, resolution)` / `ADCLEVELS(bits)` / `ADCLSB(vref, bits)` | converter resolution |
+| `ADCSNR(bits)` | ideal quantization SNR, 6.02·N + 1.76 dB |
+| `NYQUIST(f_max)` | minimum sample rate 2·f_max |
+| `USBMAXFREQ(upper_edge, [bw=3000])` / `LSBMINFREQ(lower_edge, [bw=3000])` | sideband band-edge limits (Hz) |
+| `LINELEN(f, fraction_wl, [vf])` / `ELECDEG(length_m, f, [vf])` | physical ↔ electrical line length |
+| `STUBX(z0, elec_deg, [open_end=FALSE])` | stub input reactance (Ω); `#NUM!` at a pole |
+| `ANTEFF(r_rad, r_loss)` | antenna efficiency |
+| `IMD3LO(f1, f2)` / `IMD3HI(f1, f2)` | third-order IMD products 2f₁−f₂ / 2f₂−f₁ |
+| `IP3(tone_dbm, im3_dbm)` / `SFDR(ip3_dbm, floor_dbm)` | intercept point / spurious-free dynamic range |
+| `IMAGEFREQ(f_sig, f_if, [high_side_lo=TRUE])` | superhet image frequency |
+
+**Where the necessary-bandwidth formulas come from.** 47 CFR § 2.202(g) gives
+Bn = B·K for CW (K = 5 for fading circuits, 3 for non-fading) and Bn = 2M + 2DK
+for frequency-shift keying (M = B/2, D = half the shift, K = 1.2 typically).
+The rule does not state a general words-per-minute-to-baud conversion. `CWBW`
+uses 0.8 baud per wpm, the ratio in the rule's own worked example (25 wpm with
+B = 20). The Extra pool uses the same ratio (E8C05: 13 wpm → 52 Hz).
+
+**Worked examples (Extra pool E9A02, E4D12, E8C07):**
+
+```
+=ERPW(150, 7, 2, 2.2)                                   → 286        (W ERP)
+=LINKMARGIN(RXLEVEL(40, 10, 0, 136, 3), -103, 6)        → 8          (dB)
+=FSKBW(4800, 9600)                                      → 15360      (Hz)
+```
+
+Every calculation question in the current Extra pool is worked, and checked
+against the answer key, in the
+[Extra Class worked examples](examples/radio/extra-class-formulas/README.md).
+
 ## Link budget & propagation
 
 | Function | Returns |
@@ -281,6 +367,23 @@ math tools stay under *Tools → Scientific*):
   metric and imperial where it helps.
 - **Smith chart** — plots a load impedance and its reflection coefficient, reports
   VSWR / return loss, and computes the two L-network matching solutions.
+- **Circuit calculator** — four tabs:
+  - **Ohm's law:** enter any two of E, I, R and P and it solves the other two.
+  - **Time constant:** RC or RL, charging or discharging, with a graph of the
+    0–5τ curve.
+  - **Resonance:** series or parallel RLC, giving f0, Q and the −3 dB bandwidth,
+    with a response graph.
+  - **Impedance:** Z, phase angle, power factor and Y for R, L and C at a
+    frequency.
+
+  Fields accept engineering notation (`50u`, `40 pF`, `3.5 MHz`). Each graph is
+  paired with the same data in three other forms:
+  - a written summary, which is also the chart's screen-reader description and
+    updates whenever the values change;
+  - a data table;
+  - a *Data → new sheet* button that copies the table into a worksheet.
+
+  The graph itself takes keyboard focus.
 - **Antenna pattern** — a polar plot of the analytic dipole / array patterns with
   directivity (dBi) and half-power beamwidth. It re-plots live as you change N /
   spacing / phase, and **exports the pattern as SVG** or a **NEC `.nec`** deck.

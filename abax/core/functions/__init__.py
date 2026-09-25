@@ -177,6 +177,78 @@ FUNCTIONS.update({
     "LINELOSS": _rfm_numeric("line_loss_db", (_R, _R, _R)),
 })
 
+# Circuit fundamentals (Ohm's law, series/parallel, time constants, complex
+# impedance, power) — backed by core.science.circuits. Impedance arguments take
+# an Excel complex string ("75+25j") or separate R, X numbers; complex results
+# come back as complex strings (IMREAL / IMAGINARY / IMABS read them).
+FUNCTIONS.update({
+    "OHMV": _sci_numeric("circuits", "ohm_voltage", (_R, _R)),
+    "OHMI": _sci_numeric("circuits", "ohm_current", (_R, _R)),
+    "OHMR": _sci_numeric("circuits", "ohm_resistance", (_R, _R)),
+    "POWERVI": _sci_numeric("circuits", "power_vi", (_R, _R)),
+    "POWERIR": _sci_numeric("circuits", "power_ir", (_R, _R)),
+    "POWERVR": _sci_numeric("circuits", "power_vr", (_R, _R)),
+    "RSERIES": _circ_combine("series_sum"),
+    "LSERIES": _circ_combine("series_sum"),
+    "CPARALLEL": _circ_combine("series_sum"),
+    "RPARALLEL": _circ_combine("reciprocal_sum"),
+    "LPARALLEL": _circ_combine("reciprocal_sum"),
+    "CSERIES": _circ_combine("reciprocal_sum"),
+    "TAURC": _sci_numeric("circuits", "tau_rc", (_R, _R)),
+    "TAURL": _sci_numeric("circuits", "tau_rl", (_R, _R)),
+    "TCCHARGE": _sci_numeric("circuits", "charge_fraction", (_R, _R)),
+    "TCDECAY": _sci_numeric("circuits", "decay_fraction", (_R, _R)),
+    "TCTIME": _sci_numeric("circuits", "time_to_fraction", (_R, _R)),
+    "ZSERIESRLC": _circ_complex("series_rlc_impedance", 4),
+    "ZPARALLELRLC": _circ_complex("parallel_rlc_impedance", 4),
+    "ZMAG": _z_real("abs"),
+    "PHASEANGLE": _z_real("phase_angle_deg"),
+    "POWERFACTOR": _z_real("power_factor"),
+    "ADMITTANCE": _circ_admittance,
+    "CONDUCTANCE": _z_real("conductance"),
+    "SUSCEPTANCE": _z_real("susceptance"),
+    "POLAR2RECT": _circ_complex("polar_to_rect", 2),
+    "REALPOWER": _sci_numeric("circuits", "real_power", (_R, _R, _R)),
+    "REACTIVEPOWER": _sci_numeric("circuits", "reactive_power", (_R, _R, _R)),
+    "APPARENTPOWER": _sci_numeric("circuits", "apparent_power", (_R, _R)),
+    "QSERIES": _sci_numeric("circuits", "q_series", (_R, _R)),
+    "QPARALLEL": _sci_numeric("circuits", "q_parallel", (_R, _R)),
+})
+
+# Radio-system math (ERP/EIRP chains, link margin, op-amps, FM, necessary
+# bandwidth, ADC, sideband edges, lines & stubs, receiver IMD) — backed by
+# core.science.radio_calc.
+FUNCTIONS.update({
+    "ERPW": _rc_power_chain,
+    "EIRPW": _rc_power_chain,
+    "RXLEVEL": _sci_numeric("radio_calc", "received_level_dbm", (_R, _R, _R, _R, 0.0)),
+    "LINKMARGIN": _sci_numeric("radio_calc", "link_margin_db", (_R, _R, 0.0)),
+    "BWNOISEDB": _sci_numeric("radio_calc", "noise_bandwidth_change_db", (_R, _R)),
+    "OPAMPINV": _sci_numeric("radio_calc", "opamp_inverting_gain", (_R, _R)),
+    "OPAMPNONINV": _sci_numeric("radio_calc", "opamp_noninverting_gain", (_R, _R)),
+    "MODINDEX": _sci_numeric("radio_calc", "modulation_index", (_R, _R)),
+    "DEVRATIO": _sci_numeric("radio_calc", "modulation_index", (_R, _R)),
+    "CARSONBW": _sci_numeric("radio_calc", "carson_bandwidth", (_R, _R)),
+    "CWBW": _sci_numeric("radio_calc", "cw_bandwidth", (_R, 5.0)),
+    "FSKBW": _sci_numeric("radio_calc", "fsk_bandwidth", (_R, _R, 1.2)),
+    "ADCBITS": _sci_numeric("radio_calc", "adc_bits", (_R, _R)),
+    "ADCLEVELS": _sci_numeric("radio_calc", "adc_levels", (_R,)),
+    "ADCLSB": _sci_numeric("radio_calc", "adc_lsb", (_R, _R)),
+    "ADCSNR": _sci_numeric("radio_calc", "adc_ideal_snr_db", (_R,)),
+    "NYQUIST": _sci_numeric("radio_calc", "nyquist_rate", (_R,)),
+    "USBMAXFREQ": _sci_numeric("radio_calc", "usb_max_carrier", (_R, 3000.0)),
+    "LSBMINFREQ": _sci_numeric("radio_calc", "lsb_min_carrier", (_R, 3000.0)),
+    "LINELEN": _sci_numeric("radio_calc", "line_length", (_R, _R, 1.0)),
+    "ELECDEG": _sci_numeric("radio_calc", "electrical_length_deg", (_R, _R, 1.0)),
+    "STUBX": _rc_flagged("stub_reactance", 2, False),
+    "ANTEFF": _sci_numeric("radio_calc", "antenna_efficiency", (_R, _R)),
+    "IMD3LO": _rc_imd3(0),
+    "IMD3HI": _rc_imd3(1),
+    "IP3": _sci_numeric("radio_calc", "third_order_intercept_dbm", (_R, _R)),
+    "SFDR": _sci_numeric("radio_calc", "sfdr_db", (_R, _R)),
+    "IMAGEFREQ": _rc_flagged("image_frequency", 2, True),
+})
+
 # Modern array functions (UNIQUE/SORT/FILTER/SEQUENCE/TRANSPOSE/VSTACK/TAKE/…)
 # live in their own module and register themselves here. They return arrays that
 # *spill* when they are a cell's top-level result (see abax.core.spill and the

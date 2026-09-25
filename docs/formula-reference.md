@@ -104,7 +104,7 @@ setting off, a genuine circular reference still reports `#CIRC!`.
 
 Function names are case-insensitive. Below, every built-in is grouped by
 family with its signature, a one-line description, and an example. Optional
-arguments are shown in `[brackets]`. There are **642 built-in functions** —
+arguments are shown in `[brackets]`. There are **701 built-in functions** —
 **614 eager** (counting aliases and modern dotted names) plus **28
 lazy / reference / context** functions evaluated by the engine itself (`IF`,
 `IFS`, `SWITCH`, `ROW`, `OFFSET`, `INDIRECT`, `CELL`, `LET`, `LAMBDA`, `MAP`,
@@ -1112,6 +1112,75 @@ units note, and worked examples in [RF toolkit](rf-toolkit.md).
 | `DOPPLER` | Doppler shift (Hz) | `DOPPLER(freq_hz, velocity_mps)` | |
 | `ZINLINER` / `ZINLINEX` | lossless-line input Z real / imag (Ω) | `ZINLINER(zl_r, zl_x, z0, elen_deg)` | `=ZINLINER(100,0,50,90)` → `25` |
 | `LINELOSS` | matched line loss (dB) | `LINELOSS(length_m, freq_hz, loss_db_per_100m)` | `=LINELOSS(50,1e8,4)` → `2` |
+
+**Circuit fundamentals** — Ohm's law and power, series/parallel parts, time
+constants, complex impedance and power. An impedance argument (`z | r, [x]`)
+takes either an Excel complex string such as `"75+25j"` or separate `R, X`
+numbers. Complex results come back as complex strings that `IMREAL`,
+`IMAGINARY` and `IMABS` read.
+
+| Function | Description | Syntax | Example |
+| --- | --- | --- | --- |
+| `OHMV` | Voltage from current and resistance, E = IR | `OHMV(current_a, resistance_ohm)` | `=OHMV(2,50)` → `100` |
+| `OHMI` | Current from voltage and resistance, I = E/R | `OHMI(voltage_v, resistance_ohm)` | `=OHMI(100,50)` → `2` |
+| `OHMR` | Resistance from voltage and current, R = E/I | `OHMR(voltage_v, current_a)` | `=OHMR(100,2)` → `50` |
+| `POWERVI` | Power from voltage and current, P = EI | `POWERVI(voltage_v, current_a)` | `=POWERVI(100,2)` → `200` |
+| `POWERIR` | Power from current and resistance, P = I²R | `POWERIR(current_a, resistance_ohm)` | `=POWERIR(1,100)` → `100` |
+| `POWERVR` | Power from voltage and resistance, P = E²/R | `POWERVR(voltage_v, resistance_ohm)` | `=POWERVR(100,50)` → `200` |
+| `RSERIES` / `LSERIES` / `CPARALLEL` | Sum of the values: resistors or inductors in series, capacitors in parallel | `RSERIES(r1, [r2], …)` | `=RSERIES(100,220)` → `320` |
+| `RPARALLEL` / `LPARALLEL` / `CSERIES` | Reciprocal of the sum of reciprocals: resistors or inductors in parallel, capacitors in series | `RPARALLEL(r1, [r2], …)` | `=RPARALLEL(100,100)` → `50` |
+| `TAURC` | RC time constant in seconds, R times C | `TAURC(resistance_ohm, capacitance_f)` | `=TAURC(1e6,220e-6)` → `220` |
+| `TAURL` | RL time constant in seconds, L divided by R | `TAURL(resistance_ohm, inductance_h)` | `=TAURL(10,1e-3)` → `0.0001` |
+| `TCCHARGE` | Fraction of the final value reached after a time while charging | `TCCHARGE(time_s, tau_s)` | `=TCCHARGE(1,1)` → `0.632` |
+| `TCDECAY` | Fraction of the starting value left after a time while discharging | `TCDECAY(time_s, tau_s)` | `=TCDECAY(1,1)` → `0.368` |
+| `TCTIME` | Time to charge to a given fraction of the final value | `TCTIME(fraction, tau_s)` | `=TCTIME(0.5,1)` → `0.693` |
+| `ZSERIESRLC` | Complex impedance of R, L and C in series at a frequency (0 omits a part) | `ZSERIESRLC(freq_hz, r_ohm, l_h, c_f)` | `=ZSERIESRLC(14e6,400,0,38e-12)` → `400-299.16…j` |
+| `ZPARALLELRLC` | Complex impedance of R, L and C in parallel at a frequency (0 omits a part) | `ZPARALLELRLC(freq_hz, r_ohm, l_h, c_f)` | |
+| `ZMAG` | Magnitude of an impedance in ohms | `ZMAG(z \| r, [x])` | `=ZMAG(3,4)` → `5` |
+| `PHASEANGLE` | Phase angle of an impedance in degrees; positive when voltage leads current | `PHASEANGLE(z \| r, [x])` | `=PHASEANGLE(100,-200)` → `-63.4` |
+| `POWERFACTOR` | Power factor of an impedance, R divided by the magnitude of Z | `POWERFACTOR(z \| r, [x])` | `=POWERFACTOR("3+4j")` → `0.6` |
+| `ADMITTANCE` | Complex admittance Y = 1/Z in siemens | `ADMITTANCE(z \| r, [x])` | `=ADMITTANCE(50,-25)` → `0.016+0.008j` |
+| `CONDUCTANCE` / `SUSCEPTANCE` | Real / imaginary part of the admittance in siemens | `CONDUCTANCE(z \| r, [x])` | `=SUSCEPTANCE(50,-25)` → `0.008` |
+| `POLAR2RECT` | Polar magnitude and angle in degrees to a complex rectangular value | `POLAR2RECT(magnitude, angle_deg)` | `=POLAR2RECT(10,90)` → `10j` |
+| `REALPOWER` | True power in watts, E times I times cos of the phase angle | `REALPOWER(v_rms, i_rms, phase_deg)` | |
+| `REACTIVEPOWER` | Reactive power in VAR, E times I times sin of the phase angle | `REACTIVEPOWER(v_rms, i_rms, phase_deg)` | |
+| `APPARENTPOWER` | Apparent power in volt-amperes, E times I | `APPARENTPOWER(v_rms, i_rms)` | |
+| `QSERIES` / `QPARALLEL` | Q of a series circuit (X over R) / of a parallel circuit (R over X) | `QPARALLEL(r_ohm, x_ohm)` | `=QPARALLEL(10000,200)` → `50` |
+
+**Radio-system math** — ERP/EIRP, link budgets, op-amps, FM, necessary
+bandwidth, sampling, sideband band edges, feed lines, and receiver
+intermodulation. The [Extra Class worked examples](examples/radio/extra-class-formulas/README.md)
+check these against the question pool's answer key.
+
+| Function | Description | Syntax | Example |
+| --- | --- | --- | --- |
+| `ERPW` | ERP in watts from transmitter power, antenna gain in dBd, and losses in dB | `ERPW(power_w, gain_dbd, [loss_db], …)` | `=ERPW(150,7,2,2.2)` → `286` |
+| `EIRPW` | EIRP in watts from transmitter power, antenna gain in dBi, and losses in dB | `EIRPW(power_w, gain_dbi, [loss_db], …)` | `=EIRPW(200,7,2,2.8,1.2)` → `252` |
+| `RXLEVEL` | Received signal level in dBm from transmit power, antenna gains, path loss, and cable loss | `RXLEVEL(ptx_dbm, gtx_dbi, grx_dbi, path_loss_db, [cable_loss_db=0])` | `=RXLEVEL(40,6,3,100)` → `-51` |
+| `LINKMARGIN` | Link margin in dB above the minimum discernible signal plus the required SNR | `LINKMARGIN(rx_dbm, mds_dbm, [snr_db=0])` | `=LINKMARGIN(-89,-103,6)` → `8` |
+| `BWNOISEDB` | Change in noise power in dB when the receive bandwidth changes | `BWNOISEDB(bw_from_hz, bw_to_hz)` | `=BWNOISEDB(50,1000)` → `13` |
+| `OPAMPINV` | Inverting op-amp voltage gain, minus Rf over Rin | `OPAMPINV(rf_ohm, rin_ohm)` | `=OPAMPINV(470,10)` → `-47` |
+| `OPAMPNONINV` | Non-inverting op-amp voltage gain, 1 plus Rf over Rin | `OPAMPNONINV(rf_ohm, rin_ohm)` | `=OPAMPNONINV(9000,1000)` → `10` |
+| `MODINDEX` | FM modulation index, deviation divided by modulating frequency | `MODINDEX(deviation_hz, modulating_hz)` | `=MODINDEX(3000,1000)` → `3` |
+| `DEVRATIO` | FM deviation ratio, peak deviation divided by the highest modulating frequency | `DEVRATIO(max_deviation_hz, max_modulating_hz)` | `=DEVRATIO(5000,3000)` → `1.67` |
+| `CARSONBW` | FM bandwidth by Carson's rule, twice the deviation plus modulating frequency | `CARSONBW(deviation_hz, modulating_hz)` | `=CARSONBW(5000,3000)` → `16000` |
+| `CWBW` | Necessary bandwidth of Morse CW in Hz per 47 CFR 2.202 | `CWBW(wpm, [k=5])` | `=CWBW(13)` → `52` |
+| `FSKBW` | Necessary bandwidth of frequency-shift keying in Hz per 47 CFR 2.202 | `FSKBW(shift_hz, baud, [k=1.2])` | `=FSKBW(4800,9600)` → `15360` |
+| `ADCBITS` | Minimum ADC bits to resolve a step across a range | `ADCBITS(range_v, resolution_v)` | `=ADCBITS(1,0.001)` → `10` |
+| `ADCLEVELS` | Number of levels of an N-bit converter, 2 to the N | `ADCLEVELS(bits)` | `=ADCLEVELS(8)` → `256` |
+| `ADCLSB` | Size of one ADC step, reference voltage over 2 to the N | `ADCLSB(reference_v, bits)` | |
+| `ADCSNR` | Ideal ADC quantization SNR in dB for a full-scale sine | `ADCSNR(bits)` | `=ADCSNR(16)` → `98.09` |
+| `NYQUIST` | Minimum sampling rate, twice the highest frequency | `NYQUIST(max_freq_hz)` | `=NYQUIST(3000)` → `6000` |
+| `USBMAXFREQ` | Highest displayed frequency for an upper-sideband signal to stay inside a band edge | `USBMAXFREQ(upper_edge_hz, [bandwidth_hz=3000])` | `=USBMAXFREQ(14.35e6)` → `14347000` |
+| `LSBMINFREQ` | Lowest displayed frequency for a lower-sideband signal to stay inside a band edge | `LSBMINFREQ(lower_edge_hz, [bandwidth_hz=3000])` | `=LSBMINFREQ(3.6e6)` → `3603000` |
+| `LINELEN` | Physical length in metres of a line a given fraction of a wavelength long | `LINELEN(freq_hz, fraction_wl, [velocity_factor=1])` | `=LINELEN(14.1e6,0.5)` → `10.63` |
+| `ELECDEG` | Electrical length in degrees of a physical line | `ELECDEG(length_m, freq_hz, [velocity_factor=1])` | |
+| `STUBX` | Input reactance in ohms of a lossless shorted or open stub | `STUBX(z0_ohm, elec_len_deg, [open_end=FALSE])` | `=STUBX(50,45)` → `50` |
+| `ANTEFF` | Antenna efficiency, radiation resistance over total resistance | `ANTEFF(r_radiation_ohm, r_loss_ohm)` | `=ANTEFF(36,4)` → `0.9` |
+| `IMD3LO` / `IMD3HI` | Lower / upper third-order intermodulation product of two tones | `IMD3LO(f1_hz, f2_hz)` | `=IMD3LO(14.07e6,14.072e6)` → `14068000` |
+| `IP3` | Third-order intercept in dBm from a two-tone test | `IP3(tone_dbm, im3_dbm)` | `=IP3(-10,-70)` → `20` |
+| `SFDR` | Spurious-free dynamic range in dB from the intercept and the noise floor | `SFDR(ip3_dbm, noise_floor_dbm)` | `=SFDR(20,-130)` → `100` |
+| `IMAGEFREQ` | Image frequency of a superheterodyne receiver | `IMAGEFREQ(signal_hz, if_hz, [high_side_lo=TRUE])` | `=IMAGEFREQ(14.2e6,9e6)` → `32200000` |
 
 **Contest / activation logging** — dupe detection and QSO point values for
 POTA / SOTA / contest logs. Callsigns are normalised (uppercased, portable

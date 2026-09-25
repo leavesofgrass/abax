@@ -157,6 +157,7 @@ class PaletteMixin:
             "Install optional features now": self.install_optional_features,
             "RF toolkit...": self.show_rf_tool,
             "Smith chart...": self.show_smith_chart,
+            "Circuit calculator (Ohm / RC / resonance)...": self.show_circuit_calculator,
             "Smith chart -> SVG...": self.export_smith_svg,
             "RF reference (bands / CTCSS)...": self.show_rf_reference,
             "Antenna pattern...": self.show_antenna_pattern,
